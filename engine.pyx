@@ -1,4 +1,5 @@
 #cython: language_level=3, profile=True
+import torch
 import cython
 from cpython cimport array
 import array
@@ -453,7 +454,7 @@ cdef class Player:
     def points(self):
         return sum(p.points for p in self.victory) + self.stock.points()
 
-    def has_won(self):
+    def has_finished(self):
         return len(self.victory) >= 5
 
     def reload(self):
@@ -497,12 +498,19 @@ cdef class Player:
         return '\n'.join(lines)
 
 
+cdef enum State:
+    P0_TURN = 0
+    P1_TURN = 1
+    ENDED = 2
+    FAILED = 3
+
 cdef class Game:
-    cdef public int current
     cdef public Player p0
     cdef public Player p1
     victory: VictoryPile
     cdef public ActionPile action
+    cdef public State state
+    cdef int turn
 
     def __init__(self, empty=False):
         if empty:
@@ -514,7 +522,8 @@ cdef class Game:
 
         self.victory = VictoryPile()
         self.action = ActionPile()
-        self.current = 0
+        self.state = State.P0_TURN
+        self.turn = 0
 
     def copy(self):
         g = Game(empty=True)
@@ -522,33 +531,9 @@ cdef class Game:
         g.p1 = self.p1.copy()
         g.victory = self.victory.copy()
         g.action = self.action.copy()
-        g.current = self.current
+        g.state = self.state
+        g.turn = self.turn
         return g
-
-    def sminimax(self, depth, n_moves, propals=[]):
-        if depth == 0:
-            assert len(propals) == 0
-            a = [self.p0, self.p1][self.current].points()
-            b = [self.p1, self.p0][self.current].points()
-            return [(None, a - b)]
-
-        moves = self.gen_move()
-        moves = random.sample(moves, min(len(moves), n_moves))
-        moves = list(set(moves + propals))
-
-        points = []
-        for i in range(len(moves)):
-            g2 = self.copy()
-            try:
-                g2.play_str(moves[i])
-            except Illegal:
-                points.append(-float('inf'))
-                continue
-            rewards = g2.sminimax(depth - 1, n_moves)
-            #avg = -sum(r[1] for r in rewards) / len(rewards)
-            avg = -max(r[1] for r in rewards)
-            points.append(avg)
-        return list(zip(moves, points))
 
     def simulate_to_end(self: 'Game', cut: int=30) -> int:
         cdef int i
@@ -557,7 +542,6 @@ cdef class Game:
             moves = self.gen_move()
             self.play_str(rndchoice(moves))
             if self.ended():
-                assert self.p0.has_won() or self.p1.has_won()
                 break
         return 0 if self.p0.points() > self.p1.points() else 1
 
@@ -591,7 +575,7 @@ cdef class Game:
                     continue
                 winner = g2.simulate_to_end()
                 p = abs(g2.p0.points() - g2.p1.points())
-                points[idx] += (1 if winner == self.current else -1) * p
+                points[idx] += (1 if winner == self.state else -1) * p
                 sims[idx] += 1
 
         best_idx = 0
@@ -606,18 +590,65 @@ cdef class Game:
         #print(moves, list(points), list(sims), moves[best_idx])
         return moves[best_idx]
 
-    def display(self):
-        lines = []
-        if self.current == 0:
+    @cython.boundscheck(False)
+    @cython.cdivision(True)
+    def gen_neural_move(self, nn, list propals=[], float T=1):
+        cdef i
+        cdef int idx
+        cdef int n_moves
+        cdef str move
+        cdef list moves
+        cdef Game g2
+        cdef int winner
+        cdef int best_idx
+        cdef float best_score
+        cdef float score
+        moves = propals + self.gen_move()
+        n_moves = len(moves)
+        prompts = []
+        for idx in range(n_moves):
+            move = moves[idx]
+            try:
+                player = self.state
+                g2 = self.copy()
+                g2.play_str(move)
+                prompts.append(g2.display(player))
+            except Illegal:
+                prompts.append('')
+
+        pred_r = nn(prompts)[1].cpu() * T
+        for idx in range(n_moves):
+            if prompts[idx] == '':
+                pred_r[idx] = -1000
+            #print(idx, pred_r[idx].item())
+            #print(prompts[idx])
+            #print('====')
+
+        probs = torch.nn.functional.softmax(pred_r, 0)
+        return moves[torch.multinomial(probs, 1)], list(zip(moves,
+            pred_r.tolist(), probs.tolist()))
+
+    def display(self, force=-1):
+        if force != -1:
+            p = force
+        else:
+            if self.state == State.P0_TURN:
+                p = 0
+            else:
+                p = 1
+        lines = [f'{self.turn:4}']
+        if p == 0:
             lines.append(f'_Me {self.p0.points()}')
             lines.append(self.p0.display(hidden=False))
             lines.append(f'_Him {self.p1.points()}')
             lines.append(self.p1.display(hidden=True))
-        else:
+        elif p == 1:
             lines.append(f'_Me {self.p1.points()}')
             lines.append(self.p1.display(hidden=False))
             lines.append(f'_Him {self.p0.points()}')
             lines.append(self.p0.display(hidden=True))
+        else:
+            assert False, f"can't display the game for state {self.state}"
         lines.append('_Board')
         lines.append(str(self.victory))
         lines.append(str(self.action))
@@ -633,10 +664,12 @@ cdef class Game:
         p.stock += take
 
     cpdef int play_str(self, s: str) except 0:
-        if self.current == 0:
+        if self.state == State.P0_TURN:
             p = self.p0
-        else:
+        elif self.state == State.P1_TURN:
             p = self.p1
+        else:
+            assert False, f"can't play for a game in state {self.state}"
 
         if s == '':
             raise Illegal()
@@ -670,11 +703,20 @@ cdef class Game:
             raise Illegal()
 
         p.stock.trim()
-        self.current = 1 - self.current
+
+        if self.ended():
+            self.state = State.ENDED
+
+        if self.state == State.P0_TURN:
+            self.state = State.P1_TURN
+        elif self.state == State.P1_TURN:
+            self.state = State.P0_TURN
+        self.turn += 1
+
         return 1
 
     cpdef int ended(self: 'Game'):
-        return self.p0.has_won() or self.p1.has_won()
+        return self.p0.has_finished() or self.p1.has_finished()
 
     cpdef gen_move(self):
         cdef int i
@@ -683,10 +725,12 @@ cdef class Game:
         cdef VictoryCard v
         cdef Stock gain
         cdef list moves
-        if self.current == 0:
+        if self.state == State.P0_TURN:
             p = self.p0
-        else:
+        elif self.state == State.P1_TURN:
             p = self.p1
+        else:
+            assert False, f"can't generate a move for a gam in state {self.state}"
 
         moves = []
 
