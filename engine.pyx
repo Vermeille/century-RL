@@ -326,7 +326,7 @@ cdef class VictoryPile:
     def __str__(self):
         return '\n'.join([f'V{i} {p}' for i, p in enumerate(self.visible())])
 
-    def take(self, idx: int) -> Tuple[VictoryCard, Stock]:
+    def take(self, idx: int) -> VictoryCard:
         if idx >= min(5, len(self.pile)):
             raise Illegal()
 
