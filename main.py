@@ -87,7 +87,7 @@ class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.maxlen = 512
-        dim = 256
+        dim = 512
         self.in_embed = nn.Embedding(128, dim)
         self.pos_enc_out = nn.Parameter(
             torch.randn(self.maxlen, dim) / math.sqrt(dim))
@@ -430,47 +430,6 @@ def bootstrap_gen(num_games, maxlen):
 from visdom import Visdom
 
 
-def bootstrap(model, opt, num_games, maxlen, batchsize, epochs):
-    trainset = bootstrap_gen(num_games, maxlen)
-    print('maxlen', max(len(x) for x, _, __ in trainset))
-
-    print(Counter(x[1][0] for x in trainset))
-    print(Counter(x[1] for x in trainset))
-    viz = Visdom(env='century-3l-' + str(opt.param_groups[0]['lr']))
-    viz.close()
-    sched = CosineWarmup(
-        5000,  #len(trainset) // batchsize * 5,
-        len(trainset) // batchsize * epochs,
-        opt)
-    ii = 0
-    for epoch in range(epochs):
-        model.train()
-        for i in range(len(trainset) // batchsize):
-            X, Y, W = zip(
-                *random.sample(trainset, min(batchsize, len(trainset))))
-            opt.zero_grad()
-            loss = model(X, Y, W)
-            loss.backward()
-            #print(i, loss.item())
-            sched.step()
-            opt.step()
-
-            if ii % 10 == 0:
-                viz.line(torch.tensor([loss.item()]),
-                         torch.tensor([ii]),
-                         win='loss',
-                         update='append',
-                         opts={'title': 'loss'})
-            ii += 1
-        try:
-            data = self_play(m, 400, 0., 20)
-            data.dump()
-            metrics = data.metrics()
-            print('bootstrap', epoch, metrics)
-        except Exception as e:
-            print(e)
-        torch.save(m.state_dict(), 'bootstrap.pth')
-        trainset = bootstrap_gen(num_games, maxlen)
 
 
 def load(model, file):
@@ -495,27 +454,18 @@ if __name__ == '__main__':
     import sys
     import time
 
-    if False:
-        start = time.time()
-
-        g = Game()
-        print('RUN')
-        g.gen_good_move(100)
-
-        print((time.time() - start))
-        sys.exit(0)
 
     m = Model()
     m.to('cuda:0')
     prev_points = 0
-    num_games = 20
-    EPOCHS = 10
+    num_games = 16
+    EPOCHS = 1
 
-    # bootstrap
-    #if not load(m, 'bootstrap.pth'):
-    if not load(m, 'rl-48.pth'):
-        pass  #bootstrap(m, opt, num_games=12000, maxlen=50, batchsize=100, epochs=30)
+    opt = torch.optim.AdamW(m.parameters(),
+                            lr=float(sys.argv[1]),
+                            betas=(0.9, 0.999))
 
+    print('#parameters', sum(p.numel() for p in m.parameters())/ 1e6, 'M')
     viz = Visdom(env='century-rl')
     viz.close()
     # self play
@@ -527,7 +477,7 @@ if __name__ == '__main__':
             data = [
                 pool.apply_async(self_play,
                                  args=(m, num_games, 1, 50, f'cuda:{dev}'))
-                for dev in range(4)
+                for dev in range(1)
             ]
             data = GamesData(flatten([d.get().data for d in data]))
         data.dump()
@@ -567,13 +517,6 @@ if __name__ == '__main__':
             print(Counter(list(zip(*trainset))[1]))
         m.train()
 
-        opt = torch.optim.AdamW(m.parameters(),
-                                lr=float(sys.argv[1]),
-                                betas=(0.9, 0.999))
-        sched = CosineWarmup(min(5000,
-                                 len(trainset) // 64 * 1),
-                             len(trainset) // 64 * EPOCHS, opt)
-
         for e in range(EPOCHS):
             random.shuffle(trainset)
             for batch in chunk(trainset, 64):
@@ -582,7 +525,6 @@ if __name__ == '__main__':
                 loss, losses = m(X, Y, W)
                 loss.backward()
                 opt.step()
-                sched.step()
                 ii += 1
                 if ii % 10 == 0:
                     print('lr', opt.param_groups[0]['lr'])
