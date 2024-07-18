@@ -315,9 +315,10 @@ cdef class VictoryPile:
         random.shuffle(self.pile)
         # FIXME add coins
 
-    def copy(self):
+    def copy(self, randomize=True):
         v = copy.copy(self)
         v.pile = self.pile[:]
+        random.shuffle(v.pile[5:])
         return v
 
     cpdef visible(self):
@@ -389,9 +390,11 @@ cdef class ActionPile:
         random.shuffle(self.pile)
         self.on_cards = [Stock() for _ in range(6)]
 
-    def copy(self):
+    def copy(self, randomize=True):
         a = copy.copy(self)
         a.pile = self.pile[:]
+        if randomize:
+            random.shuffle(self.pile[6:])
         a.on_cards = [s.copy() for s in self.on_cards]
         return a
 
@@ -511,6 +514,7 @@ cdef class Game:
     cdef public ActionPile action
     cdef public State state
     cdef int turn
+    cdef public list[str] moves
 
     def __init__(self, empty=False):
         if empty:
@@ -524,75 +528,31 @@ cdef class Game:
         self.action = ActionPile()
         self.state = State.P0_TURN
         self.turn = 0
+        self.moves = self.gen_move()
 
-    def copy(self):
+    def copy(self, randomize=True):
         g = Game(empty=True)
         g.p0 = self.p0.copy()
         g.p1 = self.p1.copy()
-        g.victory = self.victory.copy()
-        g.action = self.action.copy()
+        g.victory = self.victory.copy(randomize)
+        g.action = self.action.copy(randomize)
         g.state = self.state
         g.turn = self.turn
+        g.moves = self.moves.copy()
         return g
 
     def simulate_to_end(self: 'Game', cut: int=30) -> int:
         cdef int i
         cdef list moves
         for i in range(cut):
-            moves = self.gen_move()
-            self.play_str(rndchoice(moves))
+            self.play_str(rndchoice(self.moves))
             if self.ended():
                 break
         return 0 if self.p0.points() > self.p1.points() else 1
 
     @cython.boundscheck(False)
     @cython.cdivision(True)
-    def gen_good_move(self, int num_sims=1000, list propals=[]):
-        cdef i
-        cdef int idx
-        cdef int n_moves
-        cdef str move
-        cdef list moves
-        cdef Game g2
-        cdef int winner
-        cdef int[:] points
-        cdef int[:] sims
-        cdef int best_idx
-        cdef float best_score
-        cdef float score
-        moves = propals + self.gen_move()
-        n_moves = len(moves)
-        points = array.array('i', [0] * n_moves)
-        sims = array.array('i', [0] * n_moves)
-        for idx in range(n_moves):
-            for i in range(num_sims):
-                move = moves[idx]
-                try:
-                    g2 = self.copy()
-                    g2.play_str(move)
-                except Illegal:
-                    points[idx] = -1000000
-                    continue
-                winner = g2.simulate_to_end()
-                p = abs(g2.p0.points() - g2.p1.points())
-                points[idx] += (1 if winner == self.state else -1) * p
-                sims[idx] += 1
-
-        best_idx = 0
-        best_score = -2000000
-        for idx in range(0, n_moves):
-            if sims[idx] == 0:
-                continue
-            score = float(points[idx]) / sims[idx]# + sqrt(2*log(num_sims)/sims[idx])
-            if score > best_score:
-                best_idx = idx
-                best_score = score
-        #print(moves, list(points), list(sims), moves[best_idx])
-        return moves[best_idx]
-
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    def gen_neural_move(self, nn, list propals=[], float T=1):
+    def gen_neural_move(self, nn, float T=1):
         cdef i
         cdef int idx
         cdef int n_moves
@@ -602,33 +562,66 @@ cdef class Game:
         cdef int winner
         cdef int best_idx
         cdef float best_score
-        cdef float score
-        moves = propals + self.gen_move()
+        cdef float this_score
+        moves = self.moves
         n_moves = len(moves)
+        if n_moves == 1:
+            return moves[0], [(moves[0], 1.0)]
+
         prompts = []
-        for idx in range(n_moves):
-            move = moves[idx]
-            try:
-                player = self.state
-                g2 = self.copy()
-                g2.play_str(move)
-                prompts.append(g2.display(player))
-            except Illegal:
-                prompts.append('')
+        probs = []
+        for mv in moves:
+            g2 = self.copy()
+            g2.play_str(mv)
+            prompts.append(g2.display())
+            probs.append(-g2.diff_points())
 
-        pred_r = nn(prompts)[1].cpu() * T
-        for idx in range(n_moves):
-            if prompts[idx] == '':
-                pred_r[idx] = -1000
-            #print(idx, pred_r[idx].item())
-            #print(prompts[idx])
-            #print('====')
+        probs = -nn(prompts)[1]
+        #probs = torch.tensor(probs)
+        best_idx = random.choice(probs.topk(min(3, n_moves)).indices)
+        return moves[best_idx], list(zip(moves, probs.tolist()))
 
-        probs = torch.nn.functional.softmax(pred_r, 0)
-        return moves[torch.multinomial(probs, 1)], list(zip(moves,
-            pred_r.tolist(), probs.tolist()))
+    ###############################################
+        prompt = self.display()
+        with torch.no_grad():
+            logits, value = nn([prompt])
+        logits = logits[0, :len(moves)]
+        probs = torch.nn.functional.softmax(logits, 0)
 
-    def display(self, force=-1):
+
+        # sum of sims, N played, prior
+        rewards = [[value.item(), 1, probs[i].item()] for i in range(n_moves)]
+        n_tries = 100
+        for n_played_games in range(n_tries):
+            max_v = max(r[0] / r[1] for r in rewards)
+            min_v = min(r[0] / r[1] for r in rewards)
+
+            if min_v == max_v:
+                min_v = rewards[0][0] / rewards[0][1] - 1
+                max_v = rewards[0][0] / rewards[0][1] + 1
+            idx = max(range(len(rewards)), key=lambda i: (rewards[i][0] / rewards[i][1] - min_v) / (max_v - min_v) + rewards[i][2] + sqrt(rewards[i][1] / (n_played_games+1)))
+            g2 = self.copy()
+            g2.play_str(moves[idx])
+            #g2.simulate_to_end()
+            points = g2.p0.points() - self.p1.points()
+            rewards[idx][0] += points if self.state == State.P0_TURN else -points
+            rewards[idx][1] += 1
+
+        best_idx = -1
+        best_score = -10000000
+        for idx in range(len(rewards)):
+            this_score = rewards[idx][0] / rewards[idx][1]
+            if best_score < this_score or best_idx == -1:
+                best_score = this_score
+                best_idx = idx
+        return moves[best_idx], list(zip(moves, probs.tolist()))
+
+    cpdef int diff_points(self):
+        cdef int points
+        points = self.p0.points() - self.p1.points()
+        return points if self.state == State.P0_TURN else -points
+
+    def display(self, force=-1) -> str:
         if force != -1:
             p = force
         else:
@@ -649,9 +642,12 @@ cdef class Game:
             lines.append(self.p0.display(hidden=True))
         else:
             assert False, f"can't display the game for state {self.state}"
-        lines.append('_Board')
-        lines.append(str(self.victory))
-        lines.append(str(self.action))
+        #lines.append('_Board')
+        #lines.append(str(self.victory))
+        #lines.append(str(self.action))
+
+        #lines.append('_Moves')
+        #lines += self.moves
         return '\n'.join(lines)
 
     def buy_action(self, p, idx, give, take):
@@ -713,24 +709,29 @@ cdef class Game:
             self.state = State.P0_TURN
         self.turn += 1
 
+        self.moves = self.gen_move()
         return 1
 
     cpdef int ended(self: 'Game'):
         return self.p0.has_finished() or self.p1.has_finished()
 
-    cpdef gen_move(self):
+    cpdef list[str] gen_move(self):
         cdef int i
         cdef Player p
         cdef ActionCard h, a
         cdef VictoryCard v
         cdef Stock gain
         cdef list moves
+
+        if self.ended():
+            return []
+
         if self.state == State.P0_TURN:
             p = self.p0
         elif self.state == State.P1_TURN:
             p = self.p1
         else:
-            assert False, f"can't generate a move for a gam in state {self.state}"
+            assert False, f"can't generate a move for a game in state {self.state}"
 
         moves = []
 
@@ -755,7 +756,6 @@ cdef class Game:
             gain = self.action.on_cards[i]
             if p.stock.size() <= i:
                 continue
-            #give = ''.join(random.sample(str(p.stock), i))
             give = str(p.stock)[:i]
             moves.append(f'A{i} {give}->{gain}')
 

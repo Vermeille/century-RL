@@ -82,6 +82,10 @@ class AttentionPool1d(nn.Module):
         return x.squeeze(0)
 
 
+class Pool(nn.Module):
+    def forward(self, x):
+        return x.mean(dim=1)
+
 class Model(nn.Module):
 
     def __init__(self):
@@ -90,30 +94,28 @@ class Model(nn.Module):
         dim = 512
         self.in_embed = nn.Embedding(128, dim)
         self.pos_enc_out = nn.Parameter(
-            torch.randn(self.maxlen, dim) / math.sqrt(dim))
+            torch.randn(self.maxlen, dim)  * 0 / math.sqrt(dim))
         self.pos_enc = nn.Parameter(
-            torch.randn(self.maxlen, dim) / math.sqrt(dim))
-        self.pos_enc2 = nn.Parameter(
-            torch.randn(self.maxlen, dim) / math.sqrt(dim))
-
+            torch.randn(self.maxlen, dim)  * 0 / math.sqrt(dim))
         self.encode = nn.Sequential(
             AlternativeEncoder(4, dim),
             nn.TransformerEncoder(nn.TransformerEncoderLayer(dim,
                                                              dim // 32,
                                                              dim * 4,
-                                                             dropout=0.,
+                                                             norm_first=True,
                                                              batch_first=True),
-                                  num_layers=2,
-                                  norm=nn.LayerNorm(dim)))
-        self.decode = nn.TransformerDecoder(nn.TransformerDecoderLayer(
-            dim, dim // 32, dim * 4, dropout=0., batch_first=True),
-                                            num_layers=2,
-                                            norm=nn.LayerNorm(dim))
-        self.to_char = nn.Linear(dim, 128)
-        self.reward = nn.Sequential(nn.LayerNorm(dim, 1),
-                                    AttentionPool1d(dim, dim // 32, dim),
-                                    nn.Linear(dim, 1))
+                                  num_layers=4,
+                                  norm=nn.LayerNorm(dim)),
+            #nn.ReLU(True),
+            nn.LayerNorm(dim),
+            )
+        self.to_pred = nn.Sequential(AttentionPool1d(dim, dim // 32, dim),
+                                    nn.Linear(dim, 128))
 
+        self.rewards = nn.Sequential(#AttentionPool1d(dim, dim // 32, dim),
+                nn.Linear(dim, dim),
+                Pool(),
+                                    nn.Linear(dim, 1))
         #for p in self.parameters(): nn.init.normal_(p, std=0.02)
 
     def text_encode(self, txts, maxlen, pad=False):
@@ -131,12 +133,6 @@ class Model(nn.Module):
         return nn.utils.rnn.pad_sequence(txts, batch_first=True).to(
             self.in_embed.weight.device)
 
-    def mask(self, sz):
-        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-        mask = (mask.float().masked_fill(mask == 0, float("-inf")).masked_fill(
-            mask == 1, float(0.0)))
-        return mask.to(self.in_embed.weight.device)
-
     def text_embed(self, txts, maxlen, pos, pad=False):
         txts = self.text_encode(txts, maxlen, pad=pad)
         txts = self.in_embed(txts)
@@ -145,82 +141,26 @@ class Model(nn.Module):
     def forward(self, games, outs=None, win=None):
         enc = self.encode(
             self.text_embed(games, self.maxlen, self.pos_enc, pad=True))
-        enc += self.pos_enc_out[:enc.shape[1]]
+        enc = enc + self.pos_enc_out[:enc.shape[1]]
+        pred = self.to_pred(enc)
+        v = self.rewards(enc).squeeze(1)
 
         if outs is not None:
-            outs_pad = [chr(1) + out for out in outs]
-            outs_enc = self.text_embed(outs_pad, 25, self.pos_enc2)
-            pred = self.to_char(
-                self.decode(outs_enc,
-                            enc,
-                            tgt_mask=self.mask(outs_enc.shape[1])))
-            outs = [out + '\n' for out in outs]
-            loss = nn.functional.cross_entropy(pred.transpose(1, 2),
-                                               self.text_encode(outs, 25),
-                                               ignore_index=0,
-                                               reduction='none',
-                                               label_smoothing=0.)
-            policy_loss = loss.mean()
-            losses = {'policy': policy_loss.item()}
-            loss = policy_loss
-            if win is not None:
-                win = torch.tensor(win, device=loss.device, dtype=torch.float)
-                r = self.reward(enc).squeeze(1)
-                reward_loss = nn.functional.binary_cross_entropy_with_logits(
-                    r,
-                    torch.sign(win) * 0.5 + 0.5)
-                losses['reward_loss'] = reward_loss.item()
-                loss += reward_loss
+            out = torch.tensor(outs, device=pred.device)
+            loss = nn.functional.cross_entropy(pred, out, reduction='none')
+            win = torch.tensor(win, device=loss.device, dtype=torch.float)
+            policy_loss = (torch.tanh(win) * loss).mean()
+
+            #v_loss = F.mse_loss(v, win)
+            print(v)
+            print(torch.sign(win) * 0.5 + 0.5)
+            v_loss = F.binary_cross_entropy_with_logits(v, torch.sign(win) * 0.5 + 0.5)
+            losses = {'policy': policy_loss.item(), 'value': v_loss.item()}
+            loss = 0*policy_loss + v_loss
             return loss, losses
         else:
             assert not self.training
-            #outs = self.stochastic_decode(enc, 0.25)
-            #outs = self.nucleus_decode(enc, 0.9)
-            outs = self.greedy_decode(enc)
-            r = self.reward(enc).squeeze(1)
-            return [o[1:(o + '\n').index('\n')] for o in outs], r
-
-    def greedy_decode(self, enc):
-        outs = [chr(1) for _ in range(len(enc))]
-        with torch.no_grad():
-            for _ in range(25):
-                o = self.to_char(
-                    self.decode(self.text_embed(outs, 25, self.pos_enc2), enc))
-                o = o[:, -1, :]
-                o = o.argmax(dim=1)
-                for i, c in enumerate(o):
-                    outs[i] += chr(int(c.item()))
-        return outs
-
-    def nucleus_decode(self, enc, thresh):
-        outs = [chr(1) for _ in range(len(enc))]
-        with torch.no_grad():
-            for _ in range(25):
-                o = self.to_char(
-                    self.decode(self.text_embed(outs, 25, self.pos_enc2), enc))
-                o = nn.functional.softmax(o[:, -1, :], dim=1)
-
-                o, idx = torch.sort(o, dim=1, descending=True)
-                #print(o[0, 0], idx[0, 0])
-                o[:, 1:][o.cumsum(dim=1)[:, 1:] > thresh] = 0
-                o = torch.multinomial(o, num_samples=1)
-                for i, c in enumerate(o[:, -1]):
-                    outs[i] += chr(int(idx[i, c.item()]))
-        print(outs[0])
-        return outs
-
-    def stochastic_decode(self, enc, T):
-        outs = [chr(1) for _ in range(len(enc))]
-        with torch.no_grad():
-            for _ in range(25):
-                o = self.to_char(
-                    self.decode(self.text_embed(outs, 25, self.pos_enc2),
-                                enc)) / T
-                o = nn.functional.softmax(o[:, -1, :], dim=1)
-                o = torch.multinomial(o, num_samples=1)
-                for i, c in enumerate(o[:, -1]):
-                    outs[i] += chr(int(c.item()))
-        return outs
+            return pred, v
 
 
 class GamesData:
@@ -231,8 +171,11 @@ class GamesData:
     def to_trainset(self):
         out = []
         for d in self.data:
-            for log in d['history']:
-                out.append([log['state'], log['action'], log['winner']])
+            for log in d['history'][:-2]:
+                out.append(
+                        [log['state'],
+                            log['moves'].index(log['action']),
+                            log['winner']])
         return out
 
     def avg_len(self):
@@ -256,7 +199,7 @@ class GamesData:
         movs = {}
         for typ in 'HRVA':
             v = sum(1 for d in self.data for h in d['history']
-                    if len(h['action']) > 0 and h['action'][0] == typ)
+                    if len(h.get('action', '')) > 0 and h['action'][0] == typ)
             movs[typ] = v / len(self.data)
         return movs
 
@@ -281,7 +224,7 @@ class GamesData:
                 print(f'== GAME {i} ==', file=f)
                 for log in d['history']:
                     print(log['state'], file=f)
-                    print('>', log['action'], ','.join(log['notes']), file=f)
+                    print('>', log.get('action', ''), ','.join(log['notes']), file=f)
                     print(file=f)
 
 
@@ -312,7 +255,7 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-def self_play(model, n_games, dropout, max_len, device):
+def self_play(model, n_games, max_len, device):
     model.eval()
     print(device)
     if device is not None:
@@ -320,7 +263,6 @@ def self_play(model, n_games, dropout, max_len, device):
     data = [{'history': []} for _ in range(n_games)]
     running = [True for _ in range(n_games)]
     games = [Game() for _ in range(n_games)]
-    temps = [random.random() * 10 + 10 for _ in range(n_games)]
 
     for i_mov in range(max_len):
         if not any(running):
@@ -333,10 +275,11 @@ def self_play(model, n_games, dropout, max_len, device):
             winner = None
             g = games[i]
             log = {'state': g.display(), 'notes': []}
-            if random.uniform(0, 1) < dropout:
-                with torch.no_grad():
-                    mov, debug = g.gen_neural_move(model, T=temps[i])
-                log['notes'] += [str(x) for x in debug]
+            with torch.no_grad():
+                mov, debug = g.gen_neural_move(model)
+            log['notes'] += [str(x) for x in debug]
+            log['moves'] = [x[0] for x in debug]
+
             log['action'] = mov
             data[i]['history'].append(log)
             try:
@@ -350,9 +293,9 @@ def self_play(model, n_games, dropout, max_len, device):
                 data[i]['p1'] = g.p1.points()
 
             if g.ended():
-                data[i]['history'].append({'state': g.display()})
+                data[i]['history'].append({'state': g.display(), 'notes':[]})
                 data[i]['history'].append(
-                    {'state': g.display(force=1 - g.state)})
+                        {'state': g.display(force=1 - g.state), 'notes':[]})
                 running[i] = False
                 data[i]['winner'] = 0 if g.p0.points() > g.p1.points() else 1
                 data[i]['cause'] = 'proper'
@@ -394,39 +337,6 @@ def self_play(model, n_games, dropout, max_len, device):
 import math
 
 
-class CosineWarmup:
-
-    def __init__(self, warmup_steps, total_steps, opt):
-        self.warmup_steps = warmup_steps
-        self.total_steps = total_steps
-        self.i = 0
-        self.opt = opt
-        for group in opt.param_groups:
-            group['init_lr'] = group['lr']
-
-    def step(self):
-        if self.i <= self.warmup_steps:
-            scale = (-math.cos(math.pi * self.i / self.warmup_steps) + 1) / 2
-        else:
-            scale = (math.cos(math.pi * (self.i - self.warmup_steps) /
-                              (self.total_steps - self.warmup_steps)) + 1) / 2
-        for group in self.opt.param_groups:
-            group['lr'] = scale * group['init_lr']
-        self.i += 1
-
-
-def bootstrap_gen(num_games, maxlen):
-    trainset = []
-    for _ in range(num_games):
-        game = Game()
-        for __ in range(maxlen):
-            x = game.display()
-            y = random.choice(game.gen_move())
-            trainset.append([x, y, True])
-            game.play_str(y)
-    return trainset
-
-
 from visdom import Visdom
 
 
@@ -456,9 +366,14 @@ if __name__ == '__main__':
 
 
     m = Model()
+
+    if len(sys.argv) >= 3:
+        m.load_state_dict(torch.load(sys.argv[2]))
+
     m.to('cuda:0')
     prev_points = 0
-    num_games = 16
+    num_games = 32
+    max_len = 100
     EPOCHS = 1
 
     opt = torch.optim.AdamW(m.parameters(),
@@ -466,7 +381,7 @@ if __name__ == '__main__':
                             betas=(0.9, 0.999))
 
     print('#parameters', sum(p.numel() for p in m.parameters())/ 1e6, 'M')
-    viz = Visdom(env='century-rl')
+    viz = Visdom(env='century-rl-2')
     viz.close()
     # self play
     mp.set_start_method('spawn')
@@ -476,26 +391,15 @@ if __name__ == '__main__':
         with mp.Pool(4) as pool:
             data = [
                 pool.apply_async(self_play,
-                                 args=(m, num_games, 1, 50, f'cuda:{dev}'))
+                                 args=(m, num_games, max_len, f'cuda:{dev}'))
                 for dev in range(1)
             ]
             data = GamesData(flatten([d.get().data for d in data]))
         data.dump()
         metrics = data.metrics()
-        if False and metrics['avg_points'] < prev_points:
-            print('NOPE, REVERT', metrics['avg_points'], prev_points)
-            if False:
-                with torch.no_grad():
-                    for dst, src in zip(m.state_dict().values(),
-                                        prev_m.state_dict().values()):
-                        dst.copy_(src)
-            data = self_play(m, num_games, 1, 20)
-            metrics = data.metrics()
-            trainset += data.to_trainset()
-        else:
-            prev_m = copy.deepcopy(m)
-            prev_points = metrics['avg_points']
-            trainset = data.to_trainset()
+
+        prev_points = metrics['avg_points']
+        trainset = data.to_trainset()
 
         for k, v in metrics.items():
             if isinstance(v, dict):
@@ -536,4 +440,5 @@ if __name__ == '__main__':
                                  opts={'title': 'loss.' + k})
             print()
 
-        torch.save(m.state_dict(), f'rl-{epoch}.pth')
+        if epoch % 10 == 0:
+            torch.save(m.state_dict(), f'rl-{epoch}.pth')
