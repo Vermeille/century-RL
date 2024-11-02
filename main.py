@@ -5,6 +5,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
+from mcts_test import visualize_tree
+from PIL import Image
+import numpy as np
+from tqdm import tqdm
 
 import pyximport
 
@@ -160,7 +164,7 @@ class Model(nn.Module):
             return loss, losses
         else:
             assert not self.training
-            return pred, v
+            return pred, torch.sigmoid(v)
 
 
 class GamesData:
@@ -263,8 +267,9 @@ def self_play(model, n_games, max_len, device):
     data = [{'history': []} for _ in range(n_games)]
     running = [True for _ in range(n_games)]
     games = [Game() for _ in range(n_games)]
+    trees = [None for _ in range(n_games)]
 
-    for i_mov in range(max_len):
+    for i_mov in tqdm(range(max_len)):
         if not any(running):
             break
 
@@ -276,7 +281,12 @@ def self_play(model, n_games, max_len, device):
             g = games[i]
             log = {'state': g.display(), 'notes': []}
             with torch.no_grad():
-                mov, debug = g.gen_neural_move(model)
+                mov, tree, debug = g.mcts(model, trees[i])
+            if i == 0:
+                visualize_tree(tree.nodes[0], 'tree-dbg')
+                print('dump tree')
+                #viz.image(np.array(Image.open('tree-dbg.png')).astype(float) / 255.0, win='tree')
+            trees[i] = tree
             log['notes'] += [str(x) for x in debug]
             log['moves'] = [x[0] for x in debug]
 
@@ -366,14 +376,14 @@ if __name__ == '__main__':
 
 
     m = Model()
-
+    #m = torch.compile(m)
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2]))
 
     m.to('cuda:0')
     prev_points = 0
     num_games = 32
-    max_len = 100
+    max_len = 200
     EPOCHS = 1
 
     opt = torch.optim.AdamW(m.parameters(),
@@ -381,20 +391,17 @@ if __name__ == '__main__':
                             betas=(0.9, 0.999))
 
     print('#parameters', sum(p.numel() for p in m.parameters())/ 1e6, 'M')
-    viz = Visdom(env='century-rl-2')
+    viz = Visdom(env='century-rl-3')
     viz.close()
     # self play
     mp.set_start_method('spawn')
     ii = 0
     for epoch in range(3000):
         print('EPOCH', epoch)
-        with mp.Pool(4) as pool:
-            data = [
-                pool.apply_async(self_play,
-                                 args=(m, num_games, max_len, f'cuda:{dev}'))
-                for dev in range(1)
+        data = [
+                self_play(m, num_games, max_len, f'cuda:0')
             ]
-            data = GamesData(flatten([d.get().data for d in data]))
+        data = GamesData(flatten([d.data for d in data]))
         data.dump()
         metrics = data.metrics()
 

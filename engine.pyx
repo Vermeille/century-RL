@@ -8,6 +8,7 @@ import random
 from random import choice as rndchoice
 from typing import Tuple, List
 from libc.math cimport sqrt, log
+import mcts
 
 class Illegal(BaseException):
     pass
@@ -318,7 +319,8 @@ cdef class VictoryPile:
     def copy(self, randomize=True):
         v = copy.copy(self)
         v.pile = self.pile[:]
-        random.shuffle(v.pile[5:])
+        if randomize:
+            random.shuffle(v.pile[5:])
         return v
 
     cpdef visible(self):
@@ -550,6 +552,9 @@ cdef class Game:
                 break
         return 0 if self.p0.points() > self.p1.points() else 1
 
+    def mcts(self, nn, mcts_root, T=1):
+        return mcts.MCTS(nn, self, mcts_root, 5, 1)
+
     @cython.boundscheck(False)
     @cython.cdivision(True)
     def gen_neural_move(self, nn, float T=1):
@@ -563,6 +568,7 @@ cdef class Game:
         cdef int best_idx
         cdef float best_score
         cdef float this_score
+
         moves = self.moves
         n_moves = len(moves)
         if n_moves == 1:
@@ -642,9 +648,9 @@ cdef class Game:
             lines.append(self.p0.display(hidden=True))
         else:
             assert False, f"can't display the game for state {self.state}"
-        #lines.append('_Board')
-        #lines.append(str(self.victory))
-        #lines.append(str(self.action))
+        lines.append('_Board')
+        lines.append(str(self.victory))
+        lines.append(str(self.action))
 
         #lines.append('_Moves')
         #lines += self.moves
