@@ -253,7 +253,9 @@ function render_board(state) {
 }
 
 let root = document.getElementById('board');
-root.innerHTML = render_board(test_str);
+fetch('/board').then((response) => response.text()).then((text) => {
+    root.innerHTML = render_board(text);
+});
 </script>
 </body>
 </html>
