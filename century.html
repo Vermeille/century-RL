@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Board Game Layout</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #333;
+        }
+        .board {
+            background-color: #222;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .row {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .card {
+            width: 80px;
+            height: 130px;
+            margin: 0 5px;
+            border-radius: 5px;
+            background-color: #fff;
+            background-size: cover;
+        }
+    .vertical { flex-direction: column; }
+        .tokens {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .token {
+            width: 20px;
+            height: 20px;
+            margin: 2px 2px;
+        }
+        .yellow { background-color: gold; }
+        .red { background-color: red; }
+        .green { background-color: green; }
+        .brown { background-color: brown; }
+        .grey { background-color: grey; }
+    .silver { background-color: silver; }
+    .gold { background-color: gold; }
+        .coin {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin: 0 30px;
+        }
+        .decks {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+    .points { text-align:center; font-size:3em;}
+    .white-text { color: white; }
+    </style>
+</head>
+<body>
+    <div id="board"></div>
+<script>
+let COLOR = {
+    Y: 'yellow',
+    R: 'red',
+    G: 'green',
+    B: 'brown',
+    X: 'grey',
+}
+
+function render_stock(description) {
+    return `<div class="tokens">
+           ${[...description].map(
+                (x) =>
+            `<div class="token ${COLOR[x]}"></div>`
+            ).join('')}
+    </div>`;
+}
+
+function render_victory(stock, points) {
+    return `<div class="card"">
+           <div class="points">${points}</div>
+                ${render_stock(stock)}
+        </div>`;
+}
+
+function render_action(from_, to_) {
+    if (from_ == 'XX') {
+        return `<div class="card ">
+                    <div class="tokens">
+                        <div class="token grey"></div>
+                        <div class="token grey"></div>
+                    </div>
+                    <div class="points">→</div>
+                </div>`;
+    } else if (from_ == 'XXX') {
+        return `<div class="card ">
+                    <div class="tokens">
+                        <div class="token grey"></div>
+                        <div class="token grey"></div>
+                        <div class="token grey"></div>
+                    </div>
+                    <div class="points">→</div>
+                </div>`;
+    }
+    return `<div class="card ">
+            ${render_stock(from_)}
+        <div class="points">→</div>
+            ${render_stock(to_)}
+       </div>`;
+}
+
+let test_str = ` 85
+_Me 16
+V 1
+S GBBB
+H0 GGG->BBB
+H1 YYY->RG
+H2 RRR->BB
+H3 RRR->GGG
+H4 YYYY->GG
+H5 RRR->YGB
+H6 YYY->B
+H7 RR->YYYG
+H8 B->YYRR
+H9 YYYYY->GGG
+H10 ->YYR
+H11 ->YY
+H12 RR->GG
+H13 ->YG
+H14 ->YYY
+H15 B->RRR
+D0 XX
+D1 GG->BB
+D2 B->YYYG
+_Him 38
+V 3
+S YRRRGGBBB
+_Board
+V0 RRBBB->16
+V1 BBBB->16
+V2 YYYGG->9
+V3 GGGGG->15
+V4 RRGGBB->19
+A0 BB->RRRGG ->YY
+A1 R->YYY X->YY
+A2 GG->RRB XX->Y
+A3 XXX XXX->Y
+A4 YYYY->GB XXXX->
+A5 YYYYY->BB XXXXX->`;
+
+function parse_state(state) {
+    let lines = state.split('\n');
+    let round_num = parseInt(lines.shift());
+    let [me_, points] = lines.shift().split(" ");
+    console.assert(me_ == '_Me');
+    let [v_, me_num_victory] = lines.shift().split(" ");
+    console.assert(v_, 'V');
+    let [s_, stock] = lines.shift().split(" ");
+    console.assert(s_, 'S');
+    let hand = [];
+    let line = lines.shift();
+    while (line[0] == 'H') {
+        let h = line.split(" ")[1].split("->");
+        hand.push(h);
+        line = lines.shift();
+    }
+    let discard = [];
+    while (line[0] == 'D') {
+        discard.push(line.split(" ")[1]);
+        line = lines.shift();
+    }
+
+    let [him_, him_points] = line.split(" ");
+    console.assert(him_ == '_Him');
+    let [vv_, him_num_victory] = lines.shift().split(" ");
+    console.assert(vv_, 'V');
+    let [ss_, him_stock] = lines.shift().split(" ");
+    console.assert(ss_, 'S');
+    let board_ = lines.shift();
+    console.assert(board_, '_Board');
+
+    line = lines.shift();
+    let victory = []
+    while (line[0] == 'V') {
+        let desc = line.split(" ")[1].split("->");
+        victory.push(desc);
+        line = lines.shift();
+    }
+    let action = [];
+    while (line != undefined && line[0] == 'A') {
+        let [a_, transfo, token] = line.split(" ");
+        transfo = transfo.split("->");
+            console.log(transfo);
+        action.push([transfo, token]);
+        line = lines.shift();
+    }
+
+    return {
+        round_num: round_num,
+        my_points: parseInt(points),
+        my_victory_cards_num: parseInt(me_num_victory),
+        my_stock: stock,
+        hand: hand,
+        discard: discard,
+        him_points: him_points,
+        him_num_victory: him_num_victory,
+        him_stock: him_stock,
+        victory: victory,
+        action: action,
+    };
+}
+
+function render_board(state) {
+    let board = parse_state(state);
+    console.log(board.action);
+    return `<div class="board">
+        <div class="row">
+            ${render_stock(board.him_stock)}
+            <div class="points white-text">${board.him_points}</div>
+    </div>
+       <hr>
+        <div class="row">
+            <div class="coin gold"></div>
+            <div class="coin silver"></div>
+        </div>
+        <div class="row">
+       ${board.victory.map((a) => render_victory(a[0], a[1])).join('')}
+        </div>
+       <hr>
+        <div class="row">
+       ${board.action.map((a) => render_action(a[0][0], a[0][1])).join('')}
+        </div>
+       <hr>
+        <div class="row">
+            ${render_stock(board.my_stock)}
+            <div class="points white-text">${board.my_points}</div>
+        </div>
+        <div class="row">
+            <button>Reload</button>
+        </div>
+        <div class="decks">
+            <div class="row">
+           ${board.hand.map((a) => render_action(a[0], a[1])).join('')}
+            </div>
+        </div>
+    </div>`;
+}
+
+let root = document.getElementById('board');
+root.innerHTML = render_board(test_str);
+</script>
+</body>
+</html>
+
