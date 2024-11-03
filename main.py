@@ -1,13 +1,8 @@
 import torch.multiprocessing as mp
-import copy
 import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataclasses import dataclass
-from mcts_test import visualize_tree
-from PIL import Image
-import numpy as np
 from tqdm import tqdm
 
 import pyximport
@@ -275,6 +270,8 @@ def self_play(model, n_games, max_len, device):
     running = [True for _ in range(n_games)]
     games = [Game() for _ in range(n_games)]
 
+    strategy = RandomStrategy()
+
     for i_mov in tqdm(range(max_len)):
         if not any(running):
             break
@@ -283,13 +280,12 @@ def self_play(model, n_games, max_len, device):
             if not running[i]:
                 continue
 
-            winner = None
             g = games[i]
             log = {"state": g.display(), "notes": []}
             with torch.no_grad():
-                mov, debug = g.mcts(model, trees[i])
-            log["notes"] += [str(x) for x in debug]
-            log["moves"] = [x[0] for x in debug]
+                mov, debug = strategy.pick_training_move(g, model)
+            log["notes"] += []  # [str(x) for x in debug]
+            log["moves"] = [x for x in debug]
 
             log["action"] = mov
             data[i]["history"].append(log)
@@ -371,12 +367,13 @@ if __name__ == "__main__":
     import sys
     import time
 
+    device = "cpu"
     m = Model()
     # m = torch.compile(m)
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2]))
 
-    m.to("cuda:0")
+    m.to(device)
     prev_points = 0
     num_games = 32
     max_len = 200
@@ -392,7 +389,7 @@ if __name__ == "__main__":
     ii = 0
     for epoch in range(3000):
         print("EPOCH", epoch)
-        data = [self_play(m, num_games, max_len, f"cuda:0")]
+        data = [self_play(m, num_games, max_len, device)]
         data = GamesData(flatten([d.data for d in data]))
         data.dump()
         metrics = data.metrics()
@@ -426,7 +423,7 @@ if __name__ == "__main__":
 
         for e in range(EPOCHS):
             random.shuffle(trainset)
-            for batch in chunk(trainset, 64):
+            for batch in chunk(trainset, 4):
                 X, Y, W = zip(*batch)
                 opt.zero_grad()
                 loss, losses = m(X, Y, W)

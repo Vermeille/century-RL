@@ -509,6 +509,13 @@ cdef enum State:
     ENDED = 2
     FAILED = 3
 
+cdef class RandomStrategy:
+    def pick_training_move(self, g: Game, nn):
+        return rndchoice(g.moves), g.moves
+
+    def pick_inference_move(self, g: Game, nn):
+        return rndchoice(g.moves), g.moves
+
 cdef class Game:
     cdef public Player p0
     cdef public Player p1
