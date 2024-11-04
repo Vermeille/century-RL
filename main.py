@@ -186,9 +186,10 @@ class GamesData:
     def to_trainset(self):
         out = []
         for d in self.data:
-            for log in d["history"][:-2]:
+            game_len = len(d['history']) // 2
+            for i, log in enumerate(d["history"][:-2]):
                 out.append(
-                    [log["state"], log["moves"].index(log["action"]), log["winner"]]
+                    [log["state"], log["moves"].index(log["action"]), 0.95**(game_len - i //2) * log["winner"]]
                 )
         return out
 
