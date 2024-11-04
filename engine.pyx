@@ -528,6 +528,7 @@ cdef class PolicyGuidedMCMCStrategy:
     def __init__(self, budget: int):
         self.budget = budget
 
+    @torch.no_grad()
     def __call__(self, g: Game, nn):
         policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
         policy_sorted = policy.argsort(descending=True)
