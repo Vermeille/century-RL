@@ -67,7 +67,7 @@ cdef class Stock:
         return stock
 
 
-    def __contains__(self, ref: 'Stock'):
+    def __contains__(self, ref: Stock):
         return (self.Y >= ref.Y and self.R >= ref.R and self.G >= ref.G
                 and self.B >= ref.B)
 
@@ -77,10 +77,10 @@ cdef class Stock:
     def __len__(self) -> int:
         return self.Y + self.R + self.G + self.B
 
-    def __sub__(self, ref: 'Stock'):
+    def __sub__(self, ref: Stock):
         return Stock.sub(self, ref)
 
-    cdef inline Stock sub(self, ref: 'Stock'):
+    cdef inline Stock sub(self, ref: Stock):
         if not ref in self:
             raise Illegal()
         out = Stock()
@@ -90,7 +90,7 @@ cdef class Stock:
         out.B = self.B - ref.B
         return out
 
-    cdef Stock add(self, ref: 'Stock'):
+    cdef Stock add(self, ref: Stock):
         out = Stock()
         out.Y = self.Y + ref.Y
         out.R = self.R + ref.R
@@ -98,20 +98,20 @@ cdef class Stock:
         out.B = self.B + ref.B
         return out
 
-    def __add__(self, ref: 'Stock'):
+    def __add__(self, ref: Stock):
         return Stock.add(self, ref)
 
-    cdef void iadd(self: 'Stock', ref: 'Stock') nogil:
+    cdef void iadd(self: Stock, ref: Stock) nogil:
         self.Y += ref.Y
         self.R += ref.R
         self.G += ref.G
         self.B += ref.B
 
-    def __iadd__(self, ref: 'Stock'):
+    def __iadd__(self, ref: Stock):
         Stock.iadd(self, ref)
         return self
 
-    cdef int isub(self, ref: 'Stock') except 0:
+    cdef int isub(self, ref: Stock) except 0:
         if not ref in self:
             raise Illegal()
         self.Y -= ref.Y
@@ -120,7 +120,7 @@ cdef class Stock:
         self.B -= ref.B
         return 1
 
-    def __isub__(self, ref: 'Stock'):
+    def __isub__(self, ref: Stock):
         Stock.isub(self, ref)
         return self
 
