@@ -85,43 +85,53 @@ class AttentionPool1d(nn.Module):
             training=self.training,
             need_weights=False,
         )
-        return x.squeeze(0)
+        return (x.squeeze(0) + x.mean(dim=0))
 
 
 class Pool(nn.Module):
     def forward(self, x):
         return x.mean(dim=1)
 
+class First(nn.Module):
+    def forward(self, x):
+        return x[:, 0, :]
+
 
 class Model(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.maxlen = 512
+        self.maxlen = 768
         dim = 512
         self.in_embed = nn.Embedding(128, dim)
+        self.in_embed.weight.data.normal_(0, 1/math.sqrt(dim))
         self.pos_enc_out = nn.Parameter(
             torch.randn(self.maxlen, dim) * 0 / math.sqrt(dim)
         )
         self.pos_enc = nn.Parameter(torch.randn(self.maxlen, dim) * 0 / math.sqrt(dim))
         self.encode = nn.Sequential(
-            AlternativeEncoder(4, dim),
+            nn.LayerNorm(dim),
+            #AlternativeEncoder(4, dim),
             nn.TransformerEncoder(
                 nn.TransformerEncoderLayer(
                     dim, dim // 32, dim * 4, norm_first=True, batch_first=True
                 ),
                 num_layers=4,
-                norm=nn.LayerNorm(dim),
+                #norm=nn.LayerNorm(dim),
             ),
             # nn.ReLU(True),
             nn.LayerNorm(dim),
         )
         self.to_pred = nn.Sequential(
-            AttentionPool1d(dim, dim // 32, dim), nn.ReLU(True), nn.Linear(dim, 128)
+            First(),
+            nn.LayerNorm(dim),
+            #AttentionPool1d(dim, dim // 32, dim),
+            nn.ReLU(True), nn.Linear(dim, 128)
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            nn.Linear(dim, dim), nn.ReLU(True), Pool(), nn.Linear(dim, 1)
+            nn.LayerNorm(dim), First(),
+            nn.Linear(dim, dim), nn.ReLU(True), nn.Linear(dim, 1)
         )
 
     def text_encode(self, txts, maxlen, pad=False):
@@ -146,7 +156,7 @@ class Model(nn.Module):
 
     def forward(self, games, outs=None, win=None):
         enc = self.encode(self.text_embed(games, self.maxlen, self.pos_enc, pad=True))
-        enc = enc + self.pos_enc_out[: enc.shape[1]]
+        #enc = enc + self.pos_enc_out[: enc.shape[1]]
         pred = self.to_pred(enc)
         v = self.rewards(enc).squeeze(1)
 
@@ -154,14 +164,14 @@ class Model(nn.Module):
             out = torch.tensor(outs, device=pred.device)
             loss = nn.functional.cross_entropy(pred, out, reduction="none")
             win = torch.tensor(win, device=loss.device, dtype=torch.float)
-            policy_loss = (torch.tanh(win) * loss).mean()
+            policy_loss = (win / win.std() * loss).mean()
 
             # v_loss = F.mse_loss(v, win)
             print(v)
-            print(torch.sign(win) * 0.5 + 0.5)
-            v_loss = F.binary_cross_entropy_with_logits(v, torch.sign(win) * 0.5 + 0.5)
+            print(win)
+            v_loss = F.mse_loss(v, win)
             losses = {"policy": policy_loss.item(), "value": v_loss.item()}
-            loss = 0 * policy_loss + v_loss
+            loss = policy_loss + v_loss
             return loss, losses
         else:
             assert not self.training
