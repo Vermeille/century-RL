@@ -506,8 +506,6 @@ cdef class Player:
 cdef enum State:
     P0_TURN = 0
     P1_TURN = 1
-    ENDED = 2
-    FAILED = 3
 
 cdef class RandomStrategy:
     def __call__(self, g: Game, nn):
@@ -743,9 +741,6 @@ cdef class Game:
             raise Illegal()
 
         p.stock.trim()
-
-        if self.ended():
-            self.state = State.ENDED
 
         if self.state == State.P0_TURN:
             self.state = State.P1_TURN
