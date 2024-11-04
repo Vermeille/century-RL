@@ -183,7 +183,7 @@ class RunningNormalizer:
         self.val = 0.0
 
     def __call__(self, x):
-        self.val = 0.95 * self.val + x.std().item()
+        self.val = 0.95 * self.val + 0.05 * x.std().item()
         return x / self.val
 
 class GamesData:
