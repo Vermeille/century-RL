@@ -536,8 +536,10 @@ cdef class PolicyGuidedMCMCStrategy:
             me = g.state
             g2 = g.copy()
             g2.play_str(g.moves[move.item()])
-            winner = g2.simulate_to_end()
-            scores.append(g2.diff_points() * (1 if winner == 0 else -1))
+
+            if not g2.ended():
+                g2.simulate_to_end()
+            scores.append(g2.diff_points() * (1 if me == 0 else -1))
         return g.moves[policy_sorted[scores.index(max(scores))]], list(zip(policy.tolist(), scores, g.moves))
 
 
