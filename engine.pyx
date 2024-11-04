@@ -510,11 +510,36 @@ cdef enum State:
     FAILED = 3
 
 cdef class RandomStrategy:
-    def pick_training_move(self, g: Game, nn):
+    def __call__(self, g: Game, nn):
         return rndchoice(g.moves), g.moves
 
-    def pick_inference_move(self, g: Game, nn):
-        return rndchoice(g.moves), g.moves
+cdef class FirstChoiceStrategy:
+    def __call__(self, g: Game, nn):
+        return g.moves[0], g.moves
+
+cdef class ArgmaxPolicyStrategy:
+    def __call__(self, g: Game, nn):
+        policy = nn([g.display_with_moves()])[0][:len(g.moves)]
+        idx = policy.argmax()
+        return g.moves[idx], list(zip(policy.tolist(), g.moves))
+
+cdef class PolicyGuidedMCMCStrategy:
+    cdef public int budget
+    def __init__(self, budget: int):
+        self.budget = budget
+
+    def __call__(self, g: Game, nn):
+        policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
+        policy_sorted = policy.argsort(descending=True)
+        scores = []
+        for move in policy_sorted[:self.budget]:
+            me = g.state
+            g2 = g.copy()
+            g2.play_str(g.moves[move.item()])
+            winner = g2.simulate_to_end()
+            scores.append(g2.diff_points() * (1 if winner == 0 else -1))
+        return g.moves[policy_sorted[scores.index(max(scores))]], list(zip(policy.tolist(), scores, g.moves))
+
 
 cdef class Game:
     cdef public Player p0
@@ -558,9 +583,6 @@ cdef class Game:
             if self.ended():
                 break
         return 0 if self.p0.points() > self.p1.points() else 1
-
-    def mcts(self, nn, mcts_root, T=1):
-        return mcts.MCTS(nn, self, mcts_root, 5, 1)
 
     @cython.boundscheck(False)
     @cython.cdivision(True)
@@ -659,9 +681,10 @@ cdef class Game:
         lines.append(str(self.victory))
         lines.append(str(self.action))
 
-        #lines.append('_Moves')
-        #lines += self.moves
         return '\n'.join(lines)
+
+    def display_with_moves(self):
+        return self.display() + '\n_Moves\n' + '\n'.join(self.moves)
 
     def buy_action(self, p, idx, give, take):
         a, s = self.action.take(idx, give)

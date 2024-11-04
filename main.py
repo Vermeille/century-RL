@@ -117,13 +117,12 @@ class Model(nn.Module):
             nn.LayerNorm(dim),
         )
         self.to_pred = nn.Sequential(
-            AttentionPool1d(dim, dim // 32, dim), nn.Linear(dim, 128)
+            AttentionPool1d(dim, dim // 32, dim), nn.ReLU(True), nn.Linear(dim, 128)
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            nn.Linear(dim, dim), Pool(), nn.Linear(dim, 1)
+            nn.Linear(dim, dim), nn.ReLU(True), Pool(), nn.Linear(dim, 1)
         )
-        # for p in self.parameters(): nn.init.normal_(p, std=0.02)
 
     def text_encode(self, txts, maxlen, pad=False):
 
@@ -270,9 +269,9 @@ def self_play(model, n_games, max_len, device):
     running = [True for _ in range(n_games)]
     games = [Game() for _ in range(n_games)]
 
-    strategy = RandomStrategy()
+    strategy = PolicyGuidedMCMCStrategy(budget=5)
 
-    for i_mov in tqdm(range(max_len)):
+    for i_mov in tqdm(range(max_len), desc="playing moves"):
         if not any(running):
             break
 
@@ -281,11 +280,11 @@ def self_play(model, n_games, max_len, device):
                 continue
 
             g = games[i]
-            log = {"state": g.display(), "notes": []}
+            log = {"state": g.display_with_moves(), "notes": []}
             with torch.no_grad():
-                mov, debug = strategy.pick_training_move(g, model)
+                mov, debug = strategy(g, model)
             log["notes"] += []  # [str(x) for x in debug]
-            log["moves"] = [x for x in debug]
+            log["moves"] = g.moves
 
             log["action"] = mov
             data[i]["history"].append(log)
