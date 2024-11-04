@@ -540,7 +540,7 @@ cdef class PolicyGuidedMCMCStrategy:
 
             if not g2.ended():
                 g2.simulate_to_end()
-            scores.append(g2.diff_points() * (1 if me == 0 else -1))
+            scores.append(g2.diff_points_for(me))
         return g.moves[policy_sorted[scores.index(max(scores))]], list(zip(policy.tolist(), scores, g.moves))
 
 
@@ -659,6 +659,11 @@ cdef class Game:
         points = self.p0.points() - self.p1.points()
         return points if self.state == State.P0_TURN else -points
 
+    cpdef int diff_points_for(self, int me):
+        cdef int points
+        points = self.p0.points() - self.p1.points()
+        return points if me == State.P0_TURN else -points
+
     def display(self, force=-1) -> str:
         if force != -1:
             p = force
@@ -753,6 +758,12 @@ cdef class Game:
 
     cpdef int ended(self: 'Game'):
         return self.p0.has_finished() or self.p1.has_finished()
+
+    cpdef int winner(self: 'Game'):
+        if self.p0.points() > self.p1.points():
+            return 0
+        else:
+            return 1
 
     cpdef list[str] gen_move(self):
         cdef int i
