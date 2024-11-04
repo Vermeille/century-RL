@@ -133,6 +133,7 @@ class Model(nn.Module):
             nn.LayerNorm(dim), First(),
             nn.Linear(dim, dim), nn.ReLU(True), nn.Linear(dim, 1)
         )
+        self.normalizer = RunningNormalizer()
 
     def text_encode(self, txts, maxlen, pad=False):
 
@@ -164,7 +165,7 @@ class Model(nn.Module):
             out = torch.tensor(outs, device=pred.device)
             loss = nn.functional.cross_entropy(pred, out, reduction="none")
             win = torch.tensor(win, device=loss.device, dtype=torch.float)
-            policy_loss = (win / win.std() * loss).mean()
+            policy_loss = (self.normalizer(win) * loss).mean()
 
             # v_loss = F.mse_loss(v, win)
             print(v)
@@ -177,6 +178,13 @@ class Model(nn.Module):
             assert not self.training
             return pred, torch.sigmoid(v)
 
+class RunningNormalizer:
+    def __init__(self):
+        self.val = 0.0
+
+    def __call__(self, x):
+        self.val = 0.95 * self.val + x.std().item()
+        return x / self.val
 
 class GamesData:
 
