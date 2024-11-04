@@ -389,7 +389,7 @@ if __name__ == "__main__":
     max_len = 200
     EPOCHS = 1
 
-    opt = torch.optim.AdamW(m.parameters(), lr=float(sys.argv[1]), betas=(0.9, 0.999))
+    opt = torch.optim.AdamW(m.parameters(), lr=float(sys.argv[1]))
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
     viz = Visdom(env="century-rl-3")
