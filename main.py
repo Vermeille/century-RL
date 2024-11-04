@@ -450,6 +450,13 @@ if __name__ == "__main__":
                             update="append",
                             opts={"title": "loss." + k},
                         )
+                    viz.line(
+                        torch.tensor([epoch]),
+                        torch.tensor([ii]),
+                        win="epoch",
+                        update="append",
+                        opts=dict(title='epoch')
+                    )
             print()
 
         if epoch % 10 == 0:
