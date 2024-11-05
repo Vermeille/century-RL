@@ -515,6 +515,14 @@ cdef class FirstChoiceStrategy:
     def __call__(self, g: Game, nn):
         return g.moves[0], g.moves
 
+cdef class RandomBuyStrategy:
+    def __call__(self, g: Game, nn):
+        moves = g.moves
+        for mov in moves:
+            if mov[0] == 'V':
+                return mov, moves
+        return rndchoice(moves), moves
+
 cdef class ArgmaxStrategy:
     def __call__(self, g: Game, nn):
         policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
