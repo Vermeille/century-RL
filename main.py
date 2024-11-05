@@ -480,9 +480,8 @@ if __name__ == "__main__":
         m.load_state_dict(torch.load(sys.argv[2]))
 
     m.to(config.device)
-    EPOCHS = 1
 
-    opt = torch.optim.AdamW(m.parameters(), lr=config.lr, weight_decay=1e-4)
+    opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=1e-4)
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
     viz = Visdom(env="century-rl-2")
@@ -494,8 +493,8 @@ if __name__ == "__main__":
         data = [
             self_play(
                 m,
-                config.train_session.num_games,
-                config.train_session.max_len,
+                config.self_play.num_games,
+                config.self_play.max_len,
                 config.device,
             )
         ]
@@ -530,16 +529,16 @@ if __name__ == "__main__":
         m.train()
 
         previous_model = copy.deepcopy(m)
-        for e in range(EPOCHS):
+        for e in range(config.train.gradient_epochs):
             random.shuffle(trainset)
-            for batch in chunk(trainset, config.batch_size):
+            for batch in chunk(trainset, config.train.batch_size):
                 X, Y, W = zip(*batch)
                 opt.zero_grad()
                 loss, losses = m(X, Y, W)
                 loss.backward()
                 opt.step()
                 ii += 1
-                if ii % 1 == 0:
+                if ii % config.train.show_every == 0:
                     print("lr", opt.param_groups[0]["lr"])
                     for k, v in losses.items():
                         viz.line(

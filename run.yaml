@@ -1,15 +1,18 @@
 device: cuda
-lr: 0.0001
-batch_size: 64
 
 net:
   num_layers: 8
   dim: 768
 
-train_session:
+train:
+  gradient_epochs: 1
+  lr: 0.0001
+  batch_size: 64
+  show_every: 1
+
+self_play:
   num_games: 128
   max_len: 200
-  gradient_epochs: 1
 
 pit:
   num_games: 64

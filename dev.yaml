@@ -1,15 +1,18 @@
 device: cpu
-lr: 0.0001
-batch_size: 4
 
 net:
   num_layers: 4
   dim: 128
 
-train_session:
+train:
+  gradient_epochs: 1
+  lr: 0.0001
+  batch_size: 4
+  show_every: 1
+
+self_play:
   num_games: 4
   max_len: 15
-  gradient_epochs: 1
 
 pit:
   num_games: 4
