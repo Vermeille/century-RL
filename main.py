@@ -279,6 +279,28 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
+@torch.no_grad()
+def pit(model1, model2, n_games, max_len, device):
+    model1.eval()
+    model2.eval()
+    if device is not None:
+        model1.to(device)
+        model2.to(device)
+    strategy = ArgmaxStrategy()
+
+    won = 0
+    for g_i in tqdm(range(n_games), desc='pit'):
+        g = Game()
+        for i_mov in range(max_len):
+            if g.ended():
+                break
+
+            mov, _ = strategy(g, model1 if i_mov % 2 == 0 else model2)
+            g.play_str(mov)
+        won += g.diff_points_for(0)
+    return won / n_games
+
+
 def self_play(model, n_games, max_len, device):
     model.eval()
     print(device)
@@ -437,6 +459,7 @@ if __name__ == "__main__":
             print(Counter(list(zip(*trainset))[1]))
         m.train()
 
+        previous_model = copy.deepcopy(m)
         for e in range(EPOCHS):
             random.shuffle(trainset)
             for batch in chunk(trainset, 4):
@@ -461,9 +484,18 @@ if __name__ == "__main__":
                         torch.tensor([ii]),
                         win="epoch",
                         update="append",
-                        opts=dict(title='epoch')
+                        opts=dict(title="epoch")
                     )
             print()
+        win_rate = pit(m, previous_model, num_games, max_len, device)
+        del previous_model
+        viz.line(
+            torch.tensor([win_rate]),
+            torch.tensor([epoch]),
+            win="win_rate",
+            update="append",
+            opts=dict(title="win_rate")
+        )
 
         if epoch % 10 == 0:
             torch.save(m.state_dict(), f"rl-{epoch}.pth")
