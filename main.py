@@ -225,10 +225,17 @@ class GamesData:
     def to_trainset(self):
         out = []
         for d in self.data:
-            game_len = len(d['history']) // 2
+            game_len = len(d["history"]) // 2
+            d["history"][-1]["td"] = d["history"][-1]["reward"]
+            d["history"][-2]["td"] = d["history"][-2]["reward"]
+            for i in reversed(range(len(d["history"][:-2]))):
+                d["history"][i]["td"] = d["history"][i]["reward"] + 0.9 * d["history"][i+2]["td"]
             for i, log in enumerate(d["history"][:-2]):
                 out.append(
-                    [log["state"], log["moves"].index(log["action"]), 0.95**(game_len - i //2) * log["winner"]]
+                    [log["state"], log["moves"].index(log["action"]),
+                     #0.95**(game_len - i //2) * log["winner"]
+                     log['td']
+                     ]
                 )
         return out
 
@@ -357,27 +364,24 @@ def self_play(model, n_games, max_len, device):
 
             g = games[i]
             log = {"state": g.display_with_moves(), "notes": []}
+            log['diff_points_before'] = g.diff_points()
             with torch.no_grad():
                 mov, debug = strategy(g, model)
-            log["notes"] += []  # [str(x) for x in debug]
+            log["notes"] += [str(x) for x in debug]
             log["moves"] = g.moves
+            log['diff_points'] = g.diff_points()
 
             log["action"] = mov
             data[i]["history"].append(log)
-            try:
-                g.play_str(mov)
-            except Illegal:
-                running[i] = False
-                log["notes"].append("illegal")
-                data[i]["winner"] = 1 - g.state
-                data[i]["cause"] = "illegal"
-                data[i]["p0"] = g.p0.points()
-                data[i]["p1"] = g.p1.points()
+            g.play_str(mov)
+            log['diff_points_after'] = -g.diff_points()
+            log['reward'] = log['diff_points_after'] - log['diff_points_before']
 
             if g.ended():
-                data[i]["history"].append({"state": g.display(), "notes": []})
+                data[i]["history"].append({"state": g.display(), "notes": [], "reward": g.diff_points_for(g.state)})
                 data[i]["history"].append(
-                    {"state": g.display(force=1 - g.state), "notes": []}
+                    {"state": g.display(force=1 - g.state), "notes": [],"reward": g.diff_points_for(1 - g.state)
+                     }
                 )
                 running[i] = False
                 data[i]["winner"] = 0 if g.p0.points() > g.p1.points() else 1
@@ -388,13 +392,15 @@ def self_play(model, n_games, max_len, device):
     for i in range(n_games):
         if running[i]:
             data[i]["history"].append(
-                {"state": games[i].display(), "notes": [], "action": ""}
+                {
+                    "state": games[i].display(), "notes": [], "action": "", "reward": games[i].diff_points_for(g.state),
+                }
             )
             data[i]["history"].append(
                 {
                     "state": games[i].display(force=1 - g.state),
                     "notes": [],
-                    "action": "",
+                    "action": "", "reward": games[i].diff_points_for(1 - g.state)
                 }
             )
             data[i]["winner"] = 0 if games[i].p0.points() > games[i].p1.points() else 1
@@ -409,7 +415,7 @@ def self_play(model, n_games, max_len, device):
                 hist[j]["winner"] = points
             else:
                 hist[j]["winner"] = -points
-            hist[j]["notes"] += ["reward: " + str(hist[j]["winner"])]
+            hist[j]["notes"] += ["reward: " + str(hist[j].get("reward", None))]
 
     return GamesData(data)
 
