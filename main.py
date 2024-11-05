@@ -162,21 +162,39 @@ class Model(nn.Module):
         v = self.rewards(enc).squeeze(1)
 
         if outs is not None:
-            out = torch.tensor(outs, device=pred.device)
-            loss = nn.functional.cross_entropy(pred, out, reduction="none")
-            win = torch.tensor(win, device=loss.device, dtype=torch.float)
-            policy_loss = (self.normalizer(win) * loss).mean()
+            outs = torch.tensor(outs, device=pred.device)
+            win = torch.tensor(win, device=pred.device, dtype=torch.float)
 
+            policy_loss = self.loss(pred, outs, v, win)
             # v_loss = F.mse_loss(v, win)
             print(v)
             print(win)
-            v_loss = F.mse_loss(v, win)
+            v_loss = F.mse_loss(self.normalizer(win), v / self.normalizer.val)
             losses = {"policy": policy_loss.item(), "value": v_loss.item()}
             loss = policy_loss + v_loss
             return loss, losses
         else:
             assert not self.training
             return pred, torch.sigmoid(v)
+
+class PolicyGradientLoss:
+    def __init__(self):
+        self.normalizer = RunningNormalizer()
+
+    def __call__(self, logits, action, pred_value, returns):
+        loss = nn.functional.cross_entropy(logits, action, reduction="none")
+        policy_loss = (self.normalizer(returns) * loss).mean()
+        return policy_loss
+
+class PolicyGradientWithBaselineLoss:
+    def __init__(self):
+        self.normalizer = RunningNormalizer()
+
+    def __call__(self, logits, action, pred_value, returns):
+        loss = nn.functional.cross_entropy(logits, action, reduction="none")
+        policy_loss = (self.normalizer(returns - pred_value.detach()) * loss).mean()
+        return policy_loss
+
 
 class RunningNormalizer:
     def __init__(self):
