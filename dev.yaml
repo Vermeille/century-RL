@@ -1,0 +1,12 @@
+device: cpu
+lr: 0.0001
+batch_size: 4
+
+train_session:
+  num_games: 4
+  max_len: 15
+  gradient_epochs: 1
+
+pit:
+  num_games: 4
+  max_len: 15

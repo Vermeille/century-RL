@@ -472,30 +472,36 @@ def load(model, file):
 if __name__ == "__main__":
     from collections import Counter
     import sys
-    import time
+    import yaml
+    from easydict import EasyDict
 
-    device = "cuda"
+    config = EasyDict(yaml.safe_load(open(sys.argv[1])))
+
     m = Model()
-    m = torch.compile(m)
+    # m = torch.compile(m)
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2]))
 
-    m.to(device)
-    num_games = 128
-    max_len = 150
+    m.to(config.device)
     EPOCHS = 1
 
-    opt = torch.optim.AdamW(m.parameters(), lr=float(sys.argv[1]), weight_decay=1e-4)
+    opt = torch.optim.AdamW(m.parameters(), lr=config.lr, weight_decay=1e-4)
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
     viz = Visdom(env="century-rl-2")
     viz.close()
     # self play
-    mp.set_start_method("spawn")
     ii = 0
     for epoch in range(3000):
         print("EPOCH", epoch)
-        data = [self_play(m, num_games, max_len, device)]
+        data = [
+            self_play(
+                m,
+                config.train_session.num_games,
+                config.train_session.max_len,
+                config.device,
+            )
+        ]
         data = GamesData(flatten([d.data for d in data]))
         data.dump()
         metrics = data.metrics()
@@ -529,7 +535,7 @@ if __name__ == "__main__":
         previous_model = copy.deepcopy(m)
         for e in range(EPOCHS):
             random.shuffle(trainset)
-            for batch in chunk(trainset, 32):
+            for batch in chunk(trainset, config.batch_size):
                 X, Y, W = zip(*batch)
                 opt.zero_grad()
                 loss, losses = m(X, Y, W)
@@ -554,7 +560,9 @@ if __name__ == "__main__":
                         opts=dict(title="epoch"),
                     )
             print()
-        win_rate = pit(m, previous_model, num_games, max_len, device)
+        win_rate = pit(
+            m, previous_model, config.pit.num_games, config.pit.max_len, config.device
+        )
         del previous_model
         viz.line(
             torch.tensor([win_rate]),
