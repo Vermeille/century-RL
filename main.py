@@ -186,7 +186,7 @@ class Model(nn.Module):
             return loss, losses
         else:
             assert not self.training
-            return pred, torch.sigmoid(v)
+            return pred, v_norm  # undo normalization?
 
 
 class PolicyGradientLoss:
