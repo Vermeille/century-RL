@@ -548,7 +548,7 @@ cdef class PolicySamplingStrategy:
     @torch.no_grad()
     def __call__(self, g: Game, nn):
         policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
-        idx = torch.multinomial(policy, 1)
+        idx = torch.multinomial(torch.softmax(policy, dim=0), 1)
         return g.moves[idx], list(zip(torch.softmax(policy, dim=0).tolist(), g.moves))
 
 
