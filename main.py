@@ -392,7 +392,6 @@ if __name__ == "__main__":
         m.load_state_dict(torch.load(sys.argv[2]))
 
     m.to(device)
-    prev_points = 0
     num_games = 32
     max_len = 200
     EPOCHS = 1
@@ -412,7 +411,6 @@ if __name__ == "__main__":
         data.dump()
         metrics = data.metrics()
 
-        prev_points = metrics["avg_points"]
         trainset = data.to_trainset()
 
         for k, v in metrics.items():
