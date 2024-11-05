@@ -286,7 +286,8 @@ def pit(model1, model2, n_games, max_len, device):
     if device is not None:
         model1.to(device)
         model2.to(device)
-    strategy = ArgmaxStrategy()
+    strategy1 = ArgmaxStrategy()
+    strategy2 = RandomBuyStrategy()
 
     won = 0
     for g_i in tqdm(range(n_games), desc='pit'):
@@ -295,7 +296,10 @@ def pit(model1, model2, n_games, max_len, device):
             if g.ended():
                 break
 
-            mov, _ = strategy(g, model1 if i_mov % 2 == 0 else model2)
+            if i_mov % 2 == 0:
+                mov, _ = strategy1(g, model1)
+            else:
+                mov, _ = strategy2(g, model2)
             g.play_str(mov)
         won += g.diff_points_for(0)
     return won / n_games
