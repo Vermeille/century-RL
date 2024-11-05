@@ -352,7 +352,7 @@ def self_play(model, n_games, max_len, device):
     running = [True for _ in range(n_games)]
     games = [Game() for _ in range(n_games)]
 
-    strategy = PolicyGuidedMCMCStrategy(budget=5)
+    strategy = PolicySamplingStrategy(budget=5)
 
     for i_mov in tqdm(range(max_len), desc="playing moves"):
         if not any(running):
