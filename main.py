@@ -40,12 +40,16 @@ class AlternativeEncoder(nn.Module):
             ]
         )
 
+        for layer in self.layers:
+            layer[0][-1].weight.data.zero_()
+            layer[1][-1].weight.data.zero_()
+
     def forward(self, x):
-        x = x.transpose(2, 1)
+        x = x.transpose(2, 1) # BLC -> BCL
         for m in self.layers:
             x = m[0](x).add_(x)
             x = m[1](x).add_(x)
-        x = x.transpose(2, 1)
+        x = x.transpose(2, 1) # BCL -> BLC
         return x
 
 
@@ -104,34 +108,37 @@ class Model(nn.Module):
         self.maxlen = 768
         dim = 512
         self.in_embed = nn.Embedding(128, dim)
-        self.in_embed.weight.data.normal_(0, 1/math.sqrt(dim))
+        self.in_embed.weight.data.normal_(0, 0.02)
         self.pos_enc_out = nn.Parameter(
-            torch.randn(self.maxlen, dim) * 0 / math.sqrt(dim)
+            torch.randn(self.maxlen, dim) * 0.02
         )
-        self.pos_enc = nn.Parameter(torch.randn(self.maxlen, dim) * 0 / math.sqrt(dim))
+        self.pos_enc = nn.Parameter(torch.randn(self.maxlen, dim) * 1 / math.sqrt(dim))
         self.encode = nn.Sequential(
             nn.LayerNorm(dim),
             #AlternativeEncoder(4, dim),
             nn.TransformerEncoder(
                 nn.TransformerEncoderLayer(
-                    dim, dim // 32, dim * 4, norm_first=True, batch_first=True
+                    dim, dim // 64, dim * 4, norm_first=True, batch_first=True
                 ),
-                num_layers=4,
-                #norm=nn.LayerNorm(dim),
+                num_layers=8,
             ),
             # nn.ReLU(True),
             nn.LayerNorm(dim),
         )
         self.to_pred = nn.Sequential(
-            First(),
-            nn.LayerNorm(dim),
+            nn.Linear(dim, dim),
+            nn.GELU(),
+            Pool(),
             #AttentionPool1d(dim, dim // 32, dim),
-            nn.ReLU(True), nn.Linear(dim, 128)
+            nn.Linear(dim, dim*4),
+            nn.GELU(), nn.Linear(dim*4, 128)
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            nn.LayerNorm(dim), First(),
-            nn.Linear(dim, dim), nn.ReLU(True), nn.Linear(dim, 1)
+            First(),
+            nn.Linear(dim, dim),
+            nn.GELU(),
+            nn.Linear(dim, dim*4), nn.GELU(), nn.Linear(dim*4, 1)
         )
         self.normalizer = RunningNormalizer()
         self.loss = PolicyGradientWithBaselineLoss()
@@ -448,21 +455,21 @@ if __name__ == "__main__":
     import sys
     import time
 
-    device = "cpu"
+    device = "cuda"
     m = Model()
-    # m = torch.compile(m)
+    m = torch.compile(m)
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2]))
 
     m.to(device)
-    num_games = 32
-    max_len = 200
+    num_games = 128
+    max_len = 150
     EPOCHS = 1
 
-    opt = torch.optim.AdamW(m.parameters(), lr=float(sys.argv[1]))
+    opt = torch.optim.AdamW(m.parameters(), lr=float(sys.argv[1]), weight_decay=1e-4)
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
-    viz = Visdom(env="century-rl-3")
+    viz = Visdom(env="century-rl-2")
     viz.close()
     # self play
     mp.set_start_method("spawn")
@@ -503,14 +510,14 @@ if __name__ == "__main__":
         previous_model = copy.deepcopy(m)
         for e in range(EPOCHS):
             random.shuffle(trainset)
-            for batch in chunk(trainset, 4):
+            for batch in chunk(trainset, 32):
                 X, Y, W = zip(*batch)
                 opt.zero_grad()
                 loss, losses = m(X, Y, W)
                 loss.backward()
                 opt.step()
                 ii += 1
-                if ii % 10 == 0:
+                if ii % 1 == 0:
                     print("lr", opt.param_groups[0]["lr"])
                     for k, v in losses.items():
                         viz.line(
