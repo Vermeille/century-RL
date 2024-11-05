@@ -515,9 +515,9 @@ cdef class FirstChoiceStrategy:
     def __call__(self, g: Game, nn):
         return g.moves[0], g.moves
 
-cdef class ArgmaxPolicyStrategy:
+cdef class ArgmaxStrategy:
     def __call__(self, g: Game, nn):
-        policy = nn([g.display_with_moves()])[0][:len(g.moves)]
+        policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
         idx = policy.argmax()
         return g.moves[idx], list(zip(policy.tolist(), g.moves))
 
