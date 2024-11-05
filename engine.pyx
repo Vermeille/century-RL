@@ -523,6 +523,7 @@ cdef class ArgmaxStrategy:
 
 cdef class PolicyGuidedMCMCStrategy:
     cdef public int budget
+
     def __init__(self, budget: int):
         self.budget = budget
 
@@ -540,6 +541,15 @@ cdef class PolicyGuidedMCMCStrategy:
                 g2.simulate_to_end()
             scores.append(g2.diff_points_for(me))
         return g.moves[policy_sorted[scores.index(max(scores))]], list(zip(policy.tolist(), scores, g.moves))
+
+
+cdef class PolicySamplingStrategy:
+
+    @torch.no_grad()
+    def __call__(self, g: Game, nn):
+        policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
+        idx = torch.multinomial(policy, 1)
+        return g.moves[idx], list(zip(torch.softmax(policy, dim=0).tolist(), g.moves))
 
 
 cdef class Game:
