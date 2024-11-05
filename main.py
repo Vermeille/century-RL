@@ -134,6 +134,7 @@ class Model(nn.Module):
             nn.Linear(dim, dim), nn.ReLU(True), nn.Linear(dim, 1)
         )
         self.normalizer = RunningNormalizer()
+        self.loss = PolicyGradientWithBaselineLoss()
 
     def text_encode(self, txts, maxlen, pad=False):
 
@@ -153,23 +154,26 @@ class Model(nn.Module):
     def text_embed(self, txts, maxlen, pos, pad=False):
         txts = self.text_encode(txts, maxlen, pad=pad)
         txts = self.in_embed(txts)
+
         return txts + pos[: min(txts.shape[1], maxlen)]
 
     def forward(self, games, outs=None, win=None):
-        enc = self.encode(self.text_embed(games, self.maxlen, self.pos_enc, pad=True))
-        #enc = enc + self.pos_enc_out[: enc.shape[1]]
-        pred = self.to_pred(enc)
-        v = self.rewards(enc).squeeze(1)
+        with torch.autocast('cuda', dtype=torch.bfloat16):
+            enc = self.encode(self.text_embed(games, self.maxlen, self.pos_enc, pad=True))
+            #enc = enc + self.pos_enc_out[: enc.shape[1]]
+            pred = self.to_pred(enc).float()
+            v_norm = self.rewards(enc).squeeze(1).float()
 
         if outs is not None:
             outs = torch.tensor(outs, device=pred.device)
             win = torch.tensor(win, device=pred.device, dtype=torch.float)
-
-            policy_loss = self.loss(pred, outs, v, win)
-            # v_loss = F.mse_loss(v, win)
-            print(v)
             print(win)
-            v_loss = F.mse_loss(self.normalizer(win), v / self.normalizer.val)
+            win_norm = self.normalizer(win)
+
+            policy_loss = self.loss(pred, outs, self.normalizer.undo(v_norm), win)
+            # v_loss = F.mse_loss(v, win)
+            print(self.normalizer.undo(v_norm))
+            v_loss = F.mse_loss(win_norm, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item()}
             loss = policy_loss + v_loss
             return loss, losses
@@ -198,11 +202,20 @@ class PolicyGradientWithBaselineLoss:
 
 class RunningNormalizer:
     def __init__(self):
-        self.val = 0.0
+        self.std = None
+        self.mean = None
 
     def __call__(self, x):
-        self.val = 0.95 * self.val + 0.05 * x.std().item()
-        return x / self.val
+        if self.std is None:
+            self.std = x.std().item()
+            self.mean = x.mean().item()
+        else:
+            self.std = 0.99 * self.std + 0.01 * x.std().item()
+            self.mean = 0.99 * self.mean + 0.01 * x.mean().item()
+        return (x - self.mean) / self.std
+
+    def undo(self, x):
+        return x * self.std + self.mean
 
 class GamesData:
 
