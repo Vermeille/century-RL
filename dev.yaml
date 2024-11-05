@@ -2,6 +2,10 @@ device: cpu
 lr: 0.0001
 batch_size: 4
 
+net:
+  num_layers: 4
+  dim: 128
+
 train_session:
   num_games: 4
   max_len: 15

@@ -101,13 +101,11 @@ class First(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self):
+    def __init__(self, dim: int, num_layers: int):
         super().__init__()
         self.maxlen = 768
-        dim = 512
         self.in_embed = nn.Embedding(128, dim)
         self.in_embed.weight.data.normal_(0, 0.02)
-        self.pos_enc_out = nn.Parameter(torch.randn(self.maxlen, dim) * 0.02)
         self.pos_enc = nn.Parameter(torch.randn(self.maxlen, dim) * 1 / math.sqrt(dim))
         self.encode = nn.Sequential(
             nn.LayerNorm(dim),
@@ -116,7 +114,7 @@ class Model(nn.Module):
                 nn.TransformerEncoderLayer(
                     dim, dim // 64, dim * 4, norm_first=True, batch_first=True
                 ),
-                num_layers=8,
+                num_layers=num_layers,
             ),
             # nn.ReLU(True),
             nn.LayerNorm(dim),
@@ -167,7 +165,6 @@ class Model(nn.Module):
             enc = self.encode(
                 self.text_embed(games, self.maxlen, self.pos_enc, pad=True)
             )
-            # enc = enc + self.pos_enc_out[: enc.shape[1]]
             pred = self.to_pred(enc).float()
             v_norm = self.rewards(enc).squeeze(1).float()
 
@@ -477,7 +474,7 @@ if __name__ == "__main__":
 
     config = EasyDict(yaml.safe_load(open(sys.argv[1])))
 
-    m = Model()
+    m = Model(config.net.dim, config.net.num_layers)
     # m = torch.compile(m)
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2]))
