@@ -16,7 +16,6 @@ class Illegal(BaseException):
 
 
 class AlternativeEncoder(nn.Module):
-
     def __init__(self, n_layers, dim):
         super().__init__()
 
@@ -45,16 +44,15 @@ class AlternativeEncoder(nn.Module):
             layer[1][-1].weight.data.zero_()
 
     def forward(self, x):
-        x = x.transpose(2, 1) # BLC -> BCL
+        x = x.transpose(2, 1)  # BLC -> BCL
         for m in self.layers:
             x = m[0](x).add_(x)
             x = m[1](x).add_(x)
-        x = x.transpose(2, 1) # BCL -> BLC
+        x = x.transpose(2, 1)  # BCL -> BLC
         return x
 
 
 class AttentionPool1d(nn.Module):
-
     def __init__(self, embed_dim: int, num_heads: int, output_dim: int = None):
         super().__init__()
         self.k_proj = nn.Linear(embed_dim, embed_dim)
@@ -89,12 +87,13 @@ class AttentionPool1d(nn.Module):
             training=self.training,
             need_weights=False,
         )
-        return (x.squeeze(0) + x.mean(dim=0))
+        return x.squeeze(0) + x.mean(dim=0)
 
 
 class Pool(nn.Module):
     def forward(self, x):
         return x.mean(dim=1)
+
 
 class First(nn.Module):
     def forward(self, x):
@@ -102,20 +101,17 @@ class First(nn.Module):
 
 
 class Model(nn.Module):
-
     def __init__(self):
         super().__init__()
         self.maxlen = 768
         dim = 512
         self.in_embed = nn.Embedding(128, dim)
         self.in_embed.weight.data.normal_(0, 0.02)
-        self.pos_enc_out = nn.Parameter(
-            torch.randn(self.maxlen, dim) * 0.02
-        )
+        self.pos_enc_out = nn.Parameter(torch.randn(self.maxlen, dim) * 0.02)
         self.pos_enc = nn.Parameter(torch.randn(self.maxlen, dim) * 1 / math.sqrt(dim))
         self.encode = nn.Sequential(
             nn.LayerNorm(dim),
-            #AlternativeEncoder(4, dim),
+            # AlternativeEncoder(4, dim),
             nn.TransformerEncoder(
                 nn.TransformerEncoderLayer(
                     dim, dim // 64, dim * 4, norm_first=True, batch_first=True
@@ -129,22 +125,24 @@ class Model(nn.Module):
             nn.Linear(dim, dim),
             nn.GELU(),
             Pool(),
-            #AttentionPool1d(dim, dim // 32, dim),
-            nn.Linear(dim, dim*4),
-            nn.GELU(), nn.Linear(dim*4, 128)
+            # AttentionPool1d(dim, dim // 32, dim),
+            nn.Linear(dim, dim * 4),
+            nn.GELU(),
+            nn.Linear(dim * 4, 128),
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
             First(),
             nn.Linear(dim, dim),
             nn.GELU(),
-            nn.Linear(dim, dim*4), nn.GELU(), nn.Linear(dim*4, 1)
+            nn.Linear(dim, dim * 4),
+            nn.GELU(),
+            nn.Linear(dim * 4, 1),
         )
         self.normalizer = RunningNormalizer()
         self.loss = PolicyGradientWithBaselineLoss()
 
     def text_encode(self, txts, maxlen, pad=False):
-
         def do_pad(l):
             if pad:
                 return l + [0] * (maxlen - len(l))
@@ -165,9 +163,11 @@ class Model(nn.Module):
         return txts + pos[: min(txts.shape[1], maxlen)]
 
     def forward(self, games, outs=None, win=None):
-        with torch.autocast('cuda', dtype=torch.bfloat16):
-            enc = self.encode(self.text_embed(games, self.maxlen, self.pos_enc, pad=True))
-            #enc = enc + self.pos_enc_out[: enc.shape[1]]
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            enc = self.encode(
+                self.text_embed(games, self.maxlen, self.pos_enc, pad=True)
+            )
+            # enc = enc + self.pos_enc_out[: enc.shape[1]]
             pred = self.to_pred(enc).float()
             v_norm = self.rewards(enc).squeeze(1).float()
 
@@ -188,6 +188,7 @@ class Model(nn.Module):
             assert not self.training
             return pred, torch.sigmoid(v)
 
+
 class PolicyGradientLoss:
     def __init__(self):
         self.normalizer = RunningNormalizer()
@@ -196,6 +197,7 @@ class PolicyGradientLoss:
         loss = nn.functional.cross_entropy(logits, action, reduction="none")
         policy_loss = (self.normalizer(returns) * loss).mean()
         return policy_loss
+
 
 class PolicyGradientWithBaselineLoss:
     def __init__(self):
@@ -224,8 +226,8 @@ class RunningNormalizer:
     def undo(self, x):
         return x * self.std + self.mean
 
-class GamesData:
 
+class GamesData:
     def __init__(self, data):
         self.data = data
 
@@ -236,13 +238,17 @@ class GamesData:
             d["history"][-1]["td"] = d["history"][-1]["reward"]
             d["history"][-2]["td"] = d["history"][-2]["reward"]
             for i in reversed(range(len(d["history"][:-2]))):
-                d["history"][i]["td"] = d["history"][i]["reward"] + 0.9 * d["history"][i+2]["td"]
+                d["history"][i]["td"] = (
+                    d["history"][i]["reward"] + 0.9 * d["history"][i + 2]["td"]
+                )
             for i, log in enumerate(d["history"][:-2]):
                 out.append(
-                    [log["state"], log["moves"].index(log["action"]),
-                     #0.95**(game_len - i //2) * log["winner"]
-                     log['td']
-                     ]
+                    [
+                        log["state"],
+                        log["moves"].index(log["action"]),
+                        # 0.95**(game_len - i //2) * log["winner"]
+                        log["td"],
+                    ]
                 )
         return out
 
@@ -335,7 +341,7 @@ def pit(model1, model2, n_games, max_len, device):
     strategy2 = RandomBuyStrategy()
 
     won = 0
-    for g_i in tqdm(range(n_games), desc='pit'):
+    for g_i in tqdm(range(n_games), desc="pit"):
         g = Game()
         for i_mov in range(max_len):
             if g.ended():
@@ -371,24 +377,33 @@ def self_play(model, n_games, max_len, device):
 
             g = games[i]
             log = {"state": g.display_with_moves(), "notes": []}
-            log['diff_points_before'] = g.diff_points()
+            log["diff_points_before"] = g.diff_points()
             with torch.no_grad():
                 mov, debug = strategy(g, model)
             log["notes"] += [str(x) for x in debug]
             log["moves"] = g.moves
-            log['diff_points'] = g.diff_points()
+            log["diff_points"] = g.diff_points()
 
             log["action"] = mov
             data[i]["history"].append(log)
             g.play_str(mov)
-            log['diff_points_after'] = -g.diff_points()
-            log['reward'] = log['diff_points_after'] - log['diff_points_before']
+            log["diff_points_after"] = -g.diff_points()
+            log["reward"] = log["diff_points_after"] - log["diff_points_before"]
 
             if g.ended():
-                data[i]["history"].append({"state": g.display(), "notes": [], "reward": g.diff_points_for(g.state)})
                 data[i]["history"].append(
-                    {"state": g.display(force=1 - g.state), "notes": [],"reward": g.diff_points_for(1 - g.state)
-                     }
+                    {
+                        "state": g.display(),
+                        "notes": [],
+                        "reward": g.diff_points_for(g.state),
+                    }
+                )
+                data[i]["history"].append(
+                    {
+                        "state": g.display(force=1 - g.state),
+                        "notes": [],
+                        "reward": g.diff_points_for(1 - g.state),
+                    }
                 )
                 running[i] = False
                 data[i]["winner"] = 0 if g.p0.points() > g.p1.points() else 1
@@ -400,14 +415,18 @@ def self_play(model, n_games, max_len, device):
         if running[i]:
             data[i]["history"].append(
                 {
-                    "state": games[i].display(), "notes": [], "action": "", "reward": games[i].diff_points_for(g.state),
+                    "state": games[i].display(),
+                    "notes": [],
+                    "action": "",
+                    "reward": games[i].diff_points_for(g.state),
                 }
             )
             data[i]["history"].append(
                 {
                     "state": games[i].display(force=1 - g.state),
                     "notes": [],
-                    "action": "", "reward": games[i].diff_points_for(1 - g.state)
+                    "action": "",
+                    "reward": games[i].diff_points_for(1 - g.state),
                 }
             )
             data[i]["winner"] = 0 if games[i].p0.points() > games[i].p1.points() else 1
@@ -532,7 +551,7 @@ if __name__ == "__main__":
                         torch.tensor([ii]),
                         win="epoch",
                         update="append",
-                        opts=dict(title="epoch")
+                        opts=dict(title="epoch"),
                     )
             print()
         win_rate = pit(m, previous_model, num_games, max_len, device)
@@ -542,7 +561,7 @@ if __name__ == "__main__":
             torch.tensor([epoch]),
             win="win_rate",
             update="append",
-            opts=dict(title="win_rate")
+            opts=dict(title="win_rate"),
         )
 
         if epoch % 10 == 0:
