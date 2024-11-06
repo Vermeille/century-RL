@@ -424,7 +424,7 @@ def self_play(model, n_games, max_len, device):
             if g.ended():
                 break
 
-            history = data[i * 2 + g.state]["history"]
+            history = data[i * 2 + g.current_player]["history"]
 
             with torch.no_grad():
                 mov, debug = strategy(g, model)

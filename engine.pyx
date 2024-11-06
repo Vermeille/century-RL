@@ -503,10 +503,6 @@ cdef class Player:
         return '\n'.join(lines)
 
 
-cdef enum State:
-    P0_TURN = 0
-    P1_TURN = 1
-
 cdef class RandomStrategy:
     def __call__(self, g: Game, nn):
         return rndchoice(g.moves), g.moves
@@ -541,7 +537,7 @@ cdef class PolicyGuidedMCMCStrategy:
         policy_sorted = policy.argsort(descending=True)
         scores = []
         for move in policy_sorted[:self.budget]:
-            me = g.state
+            me = g.current_player
             g2 = g.copy()
             g2.play_str(g.moves[move.item()])
 
@@ -568,7 +564,7 @@ cdef class Game:
     cdef public Player p1
     victory: VictoryPile
     cdef public ActionPile action
-    cdef public State state
+    cdef public int current_player
     cdef int turn
     cdef public list[str] moves
 
@@ -582,7 +578,7 @@ cdef class Game:
 
         self.victory = VictoryPile()
         self.action = ActionPile()
-        self.state = State.P0_TURN
+        self.current_player = 0
         self.turn = 0
         self.moves = self.gen_move()
 
@@ -592,7 +588,7 @@ cdef class Game:
         g.p1 = self.p1.copy()
         g.victory = self.victory.copy(randomize)
         g.action = self.action.copy(randomize)
-        g.state = self.state
+        g.current_player = self.current_player
         g.turn = self.turn
         g.moves = self.moves.copy()
         return g
@@ -606,97 +602,28 @@ cdef class Game:
                 break
         return 0 if self.p0.points() > self.p1.points() else 1
 
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    def gen_neural_move(self, nn, float T=1):
-        cdef i
-        cdef int idx
-        cdef int n_moves
-        cdef str move
-        cdef list moves
-        cdef Game g2
-        cdef int winner
-        cdef int best_idx
-        cdef float best_score
-        cdef float this_score
-
-        moves = self.moves
-        n_moves = len(moves)
-        if n_moves == 1:
-            return moves[0], [(moves[0], 1.0)]
-
-        prompts = []
-        probs = []
-        for mv in moves:
-            g2 = self.copy()
-            g2.play_str(mv)
-            prompts.append(g2.display())
-            probs.append(-g2.diff_points())
-
-        probs = -nn(prompts)[1]
-        #probs = torch.tensor(probs)
-        best_idx = random.choice(probs.topk(min(3, n_moves)).indices)
-        return moves[best_idx], list(zip(moves, probs.tolist()))
-
-    ###############################################
-        prompt = self.display()
-        with torch.no_grad():
-            logits, value = nn([prompt])
-        logits = logits[0, :len(moves)]
-        probs = torch.nn.functional.softmax(logits, 0)
-
-
-        # sum of sims, N played, prior
-        rewards = [[value.item(), 1, probs[i].item()] for i in range(n_moves)]
-        n_tries = 100
-        for n_played_games in range(n_tries):
-            max_v = max(r[0] / r[1] for r in rewards)
-            min_v = min(r[0] / r[1] for r in rewards)
-
-            if min_v == max_v:
-                min_v = rewards[0][0] / rewards[0][1] - 1
-                max_v = rewards[0][0] / rewards[0][1] + 1
-            idx = max(range(len(rewards)), key=lambda i: (rewards[i][0] / rewards[i][1] - min_v) / (max_v - min_v) + rewards[i][2] + sqrt(rewards[i][1] / (n_played_games+1)))
-            g2 = self.copy()
-            g2.play_str(moves[idx])
-            #g2.simulate_to_end()
-            points = g2.p0.points() - self.p1.points()
-            rewards[idx][0] += points if self.state == State.P0_TURN else -points
-            rewards[idx][1] += 1
-
-        best_idx = -1
-        best_score = -10000000
-        for idx in range(len(rewards)):
-            this_score = rewards[idx][0] / rewards[idx][1]
-            if best_score < this_score or best_idx == -1:
-                best_score = this_score
-                best_idx = idx
-        return moves[best_idx], list(zip(moves, probs.tolist()))
 
     cpdef int diff_points(self):
         cdef int points
         points = self.p0.points() - self.p1.points()
-        return points if self.state == State.P0_TURN else -points
+        return points if self.current_player == 0 else -points
 
     cpdef int diff_points_for(self, int me):
         cdef int points
         points = self.p0.points() - self.p1.points()
-        return points if me == State.P0_TURN else -points
+        return points if me == 0 else -points
 
     cpdef points_for(self, int me):
-        return self.p0.points() if me == State.P0_TURN else self.p1.points()
+        return self.p0.points() if me == 0 else self.p1.points()
 
     cpdef points(self):
-        return self.p0.points() if self.state == State.P0_TURN else self.p1.points()
+        return self.p0.points() if self.current_player == 0 else self.p1.points()
 
     def display(self, force=-1) -> str:
         if force != -1:
             p = force
         else:
-            if self.state == State.P0_TURN:
-                p = 0
-            else:
-                p = 1
+            p = self.current_player
         lines = [f'{self.turn:4}']
         if p == 0:
             lines.append(f'_Me {self.p0.points()}')
@@ -709,7 +636,8 @@ cdef class Game:
             lines.append(f'_Him {self.p0.points()}')
             lines.append(self.p0.display(hidden=True))
         else:
-            assert False, f"can't display the game for state {self.state}"
+            assert False, f"can't display the game for player {self.current_player}"
+
         lines.append('_Board')
         lines.append(str(self.victory))
         lines.append(str(self.action))
@@ -729,12 +657,13 @@ cdef class Game:
         p.stock += take
 
     cpdef int play_str(self, s: str) except 0:
-        if self.state == State.P0_TURN:
+        if self.current_player == 0:
             p = self.p0
-        elif self.state == State.P1_TURN:
+        elif self.current_player == 1:
             p = self.p1
         else:
-            assert False, f"can't play for a game in state {self.state}"
+            assert False, f"can't play for a game for player {self.current_player}"
+
 
         if s == '':
             raise Illegal()
@@ -769,10 +698,7 @@ cdef class Game:
 
         p.stock.trim()
 
-        if self.state == State.P0_TURN:
-            self.state = State.P1_TURN
-        elif self.state == State.P1_TURN:
-            self.state = State.P0_TURN
+        self.current_player = (self.current_player + 1) % 2
         self.turn += 1
 
         self.moves = self.gen_move()
@@ -798,12 +724,12 @@ cdef class Game:
         if self.ended():
             return []
 
-        if self.state == State.P0_TURN:
+        if self.current_player == 0:
             p = self.p0
-        elif self.state == State.P1_TURN:
+        elif self.current_player == 1:
             p = self.p1
         else:
-            assert False, f"can't generate a move for a game in state {self.state}"
+            assert False, f"can't generate a move for a game for player {self.current_player}"
 
         moves = []
 
