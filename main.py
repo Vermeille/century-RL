@@ -168,7 +168,7 @@ class Model(nn.Module):
 
         return txts + pos[: min(txts.shape[1], maxlen)]
 
-    def forward(self, games, outs=None, win=None):
+    def forward(self, games, samples=None):
         with torch.autocast("cuda", dtype=torch.bfloat16):
             enc = self.encode(
                 self.text_embed(games, self.maxlen, self.pos_enc, pad=True)
@@ -176,16 +176,15 @@ class Model(nn.Module):
             pred = self.to_pred(enc).float()
             v_norm = self.rewards(enc).squeeze(1).float()
 
-        if outs is not None:
-            outs = torch.tensor(outs, device=pred.device)
-            win = torch.tensor(win, device=pred.device, dtype=torch.float)
-            print(win)
-            win_norm = self.normalizer(win)
+        if samples is not None:
+            action = samples.action.to(device=pred.device)
+            returns = samples.returns.to(device=pred.device, dtype=torch.float)
+            print(returns)
+            returns_norm = self.normalizer(returns)
 
-            policy_loss = self.loss(pred, outs, self.normalizer.undo(v_norm), win)
-            # v_loss = F.mse_loss(v, win)
+            policy_loss = self.loss(pred, action, self.normalizer.undo(v_norm), returns)
             print(self.normalizer.undo(v_norm))
-            v_loss = F.mse_loss(win_norm, v_norm)
+            v_loss = F.mse_loss(returns_norm, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item()}
             loss = policy_loss + v_loss
             return loss, losses
@@ -230,6 +229,25 @@ class RunningNormalizer:
         return x * self.std + self.mean
 
 
+class TrainingSample:
+    def __init__(self, state, moves, action, score, returns):
+        self.state = state
+        self.moves = moves
+        self.action = action
+        self.score = score
+        self.returns = returns
+
+
+def collate(samples):
+    return TrainingSample(
+        state=[s.state for s in samples],
+        moves=[s.moves for s in samples],
+        action=torch.tensor([s.action for s in samples]),
+        score=torch.tensor([s.score for s in samples]),
+        returns=torch.tensor([s.returns for s in samples]),
+    )
+
+
 class GamesData:
     def __init__(self, data):
         self.data = data
@@ -237,21 +255,22 @@ class GamesData:
     def to_trainset(self):
         out = []
         for d in self.data:
-            rewards = [0] * len(d["history"])
-            rewards[-1] = d["history"][-1].current_diff_points
-            for i in range(len(d["history"]) - 2, -1, -1):
-                rewards[i] = rewards[i+1] * 0.95 + (d["history"][i+1].current_diff_points - d["history"][i].current_diff_points)
+            hist = d["history"]
+            rewards = [0] * (len(hist) - 1)
+            for i in range(len(hist) - 1):
+                rewards[i] = (
+                    hist[i + 1].current_diff_points - hist[i].current_diff_points
+                )
 
-            print('rewards', rewards)
-            print('diff   ', [h.current_diff_points for h in d["history"]])
-            for i, log in enumerate(d["history"][:-1]):
+            for i, log in enumerate(hist[:-1]):
                 out.append(
-                    [
-                        log.state,
-                        log.action_idx,
-                        #rewards[i],
-                        d["history"][-1].current_diff_points,
-                    ]
+                    TrainingSample(
+                        state=log.state,
+                        moves=log.moves,
+                        action=log.action_idx,
+                        score=d["history"][-1].current_diff_points,
+                        returns=sum(rewards[i:]),
+                    )
                 )
         return out
 
@@ -495,17 +514,15 @@ if __name__ == "__main__":
                 )
         print(metrics)
         print(len(trainset), "samples")
-        if len(trainset) > 0:
-            print(Counter(list(zip(*trainset))[1]))
         m.train()
 
         previous_model = copy.deepcopy(m)
         for e in range(config.train.gradient_epochs):
             random.shuffle(trainset)
             for batch in chunk(trainset, config.train.batch_size):
-                X, Y, W = zip(*batch)
+                samples = collate(batch)
                 opt.zero_grad()
-                loss, losses = m(X, Y, W)
+                loss, losses = m(samples.state, samples)
                 loss.backward()
                 opt.step()
                 ii += 1
