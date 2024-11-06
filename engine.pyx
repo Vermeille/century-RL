@@ -537,7 +537,7 @@ cdef class PolicyGuidedMCMCStrategy:
         policy_sorted = policy.argsort(descending=True)
         scores = []
         for move in policy_sorted[:self.budget]:
-            me = g.current_player
+            me = g.current_player()
             g2 = g.copy()
             g2.play_str(g.moves[move.item()])
 
@@ -564,7 +564,6 @@ cdef class Game:
     cdef public Player p1
     victory: VictoryPile
     cdef public ActionPile action
-    cdef public int current_player
     cdef int turn
     cdef public list[str] moves
     cdef int goal_cards
@@ -580,7 +579,6 @@ cdef class Game:
 
         self.victory = VictoryPile()
         self.action = ActionPile()
-        self.current_player = 0
         self.turn = 0
         self.moves = self.gen_move()
 
@@ -590,7 +588,6 @@ cdef class Game:
         g.p1 = self.p1.copy()
         g.victory = self.victory.copy(randomize)
         g.action = self.action.copy(randomize)
-        g.current_player = self.current_player
         g.turn = self.turn
         g.moves = self.moves.copy()
         return g
@@ -605,10 +602,13 @@ cdef class Game:
         return 0 if self.p0.points() > self.p1.points() else 1
 
 
+    cpdef int current_player(self):
+        return self.turn % 2
+
     cpdef int diff_points(self):
         cdef int points
         points = self.p0.points() - self.p1.points()
-        return points if self.current_player == 0 else -points
+        return points if self.current_player() == 0 else -points
 
     cpdef int diff_points_for(self, int me):
         cdef int points
@@ -619,13 +619,13 @@ cdef class Game:
         return self.p0.points() if me == 0 else self.p1.points()
 
     cpdef points(self):
-        return self.p0.points() if self.current_player == 0 else self.p1.points()
+        return self.p0.points() if self.current_player() == 0 else self.p1.points()
 
     def display(self, force=-1) -> str:
         if force != -1:
             p = force
         else:
-            p = self.current_player
+            p = self.current_player()
         lines = [f'{self.turn:4}']
         if p == 0:
             lines.append(f'_Me {self.p0.points()}')
@@ -638,7 +638,7 @@ cdef class Game:
             lines.append(f'_Him {self.p0.points()}')
             lines.append(self.p0.display(hidden=True))
         else:
-            assert False, f"can't display the game for player {self.current_player}"
+            assert False, f"can't display the game for player {self.current_player()}"
 
         lines.append('_Board')
         lines.append(str(self.victory))
@@ -659,12 +659,10 @@ cdef class Game:
         p.stock += take
 
     cpdef int play_str(self, s: str) except 0:
-        if self.current_player == 0:
+        if self.current_player() == 0:
             p = self.p0
-        elif self.current_player == 1:
-            p = self.p1
         else:
-            assert False, f"can't play for a game for player {self.current_player}"
+            p = self.p1
 
 
         if s == '':
@@ -700,7 +698,6 @@ cdef class Game:
 
         p.stock.trim()
 
-        self.current_player = (self.current_player + 1) % 2
         self.turn += 1
 
         self.moves = self.gen_move()
@@ -726,12 +723,10 @@ cdef class Game:
         if self.ended():
             return []
 
-        if self.current_player == 0:
+        if self.current_player() == 0:
             p = self.p0
-        elif self.current_player == 1:
-            p = self.p1
         else:
-            assert False, f"can't generate a move for a game for player {self.current_player}"
+            p = self.p1
 
         moves = []
 
