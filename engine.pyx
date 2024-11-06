@@ -683,6 +683,12 @@ cdef class Game:
         points = self.p0.points() - self.p1.points()
         return points if me == State.P0_TURN else -points
 
+    cpdef points_for(self, int me):
+        return self.p0.points() if me == State.P0_TURN else self.p1.points()
+
+    cpdef points(self):
+        return self.p0.points() if self.state == State.P0_TURN else self.p1.points()
+
     def display(self, force=-1) -> str:
         if force != -1:
             p = force

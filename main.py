@@ -231,20 +231,17 @@ class GamesData:
     def to_trainset(self):
         out = []
         for d in self.data:
-            game_len = len(d["history"]) // 2
-            d["history"][-1]["td"] = d["history"][-1]["reward"]
-            d["history"][-2]["td"] = d["history"][-2]["reward"]
-            for i in reversed(range(len(d["history"][:-2]))):
-                d["history"][i]["td"] = (
-                    d["history"][i]["reward"] + 0.9 * d["history"][i + 2]["td"]
-                )
-            for i, log in enumerate(d["history"][:-2]):
+            rewards = [0] * len(d["history"])
+            rewards[-1] = d["history"][-1].current_diff_points
+            for i in range(len(d["history"]) - 2, -1, -1):
+                rewards[i] = rewards[i + 1] - d["history"][i].current_diff_points - 0.1
+
+            for i, log in enumerate(d["history"][:-1]):
                 out.append(
                     [
-                        log["state"],
-                        log["moves"].index(log["action"]),
-                        # 0.95**(game_len - i //2) * log["winner"]
-                        log["td"],
+                        log.state,
+                        log.action_idx,
+                        rewards[i],
                     ]
                 )
         return out
@@ -253,14 +250,13 @@ class GamesData:
         return sum(len(d["history"]) for d in self.data) / len(self.data)
 
     def avg_points(self):
-        return sum(max(d["p0"], d["p1"]) for d in self.data) / (len(self.data))
+        return sum(d["history"][-1].my_points for d in self.data) / (len(self.data))
 
     def stats_cause(self):
-        illeg = sum(1 for d in self.data if d["cause"] == "illegal")
-        proper = sum(1 for d in self.data if d["cause"] == "proper")
-        toolong = sum(1 for d in self.data if d["cause"] == "toolong")
+        proper = sum(1 for d in self.data if d["history"][-1].cause == "proper")
+        toolong = sum(1 for d in self.data if d["history"][-1].cause == "toolong")
         n = len(self.data)
-        return {"illegal": illeg / n, "proper": proper / n, "toolong": toolong / n}
+        return {"proper": proper / n, "toolong": toolong / n}
 
     def avg_move_summary(self):
         movs = {}
@@ -268,15 +264,15 @@ class GamesData:
             v = sum(
                 1
                 for d in self.data
-                for h in d["history"]
-                if len(h.get("action", "")) > 0 and h["action"][0] == typ
+                for h in d["history"][:-1]
+                if h.moves[h.action_idx][0] == typ
             )
             movs[typ] = v / len(self.data)
         return movs
 
     def prompt_size(self):
         v = sum(
-            sum(len(h["state"]) for h in d["history"]) / len(d["history"])
+            sum(len(h.state) for h in d["history"][:-1]) / len(d["history"][:-1])
             for d in self.data
         ) / len(self.data)
         return v
@@ -294,10 +290,14 @@ class GamesData:
         with open("game.txt", "w") as f:
             for i, d in enumerate(self.data):
                 print(f"== GAME {i} ==", file=f)
-                for log in d["history"]:
-                    print(log["state"], file=f)
-                    print(">", log.get("action", ""), ",".join(log["notes"]), file=f)
+                for log in d["history"][:-1]:
+                    print(log.state, file=f)
+                    print(">", log.moves[log.action_idx], ",".join(log.notes), file=f)
                     print(file=f)
+                log = d["history"][-1]
+                print(log.state, file=f)
+                print("END", ",".join(log.notes), file=f)
+                print(file=f)
 
 
 def chunk(data, size):
@@ -353,92 +353,54 @@ def pit(model1, model2, n_games, max_len, device):
     return won / n_games
 
 
+class Record:
+    def __init__(self, game: Game, action: str):
+        self.state = game.display_with_moves()
+        self.moves = game.moves[:]
+        self.action_idx = self.moves.index(action)
+        self.current_diff_points = game.diff_points()
+        self.my_points = game.points()
+        self.notes = []
+
+
+class EndState:
+    def __init__(self, game: Game, player: int):
+        self.cause = "proper" if game.ended() else "toolong"
+        self.state = game.display(force=player)
+        self.my_points = game.points_for(player)
+        self.current_diff_points = game.diff_points_for(player)
+        self.notes = []
+
+
 def self_play(model, n_games, max_len, device):
     model.eval()
     print(device)
     if device is not None:
         model.to(device)
-    data = [{"history": []} for _ in range(n_games)]
-    running = [True for _ in range(n_games)]
-    games = [Game() for _ in range(n_games)]
+    data = [{"history": []} for _ in range(n_games * 2)]
 
-    strategy = PolicySamplingStrategy(budget=5)
+    strategy = PolicySamplingStrategy()
 
-    for i_mov in tqdm(range(max_len), desc="playing moves"):
-        if not any(running):
-            break
+    for i in tqdm(range(n_games), desc="playing games"):
+        g = Game()
 
-        for i in range(n_games):
-            if not running[i]:
-                continue
+        for i_mov in range(max_len):
+            if g.ended():
+                break
 
-            g = games[i]
-            log = {"state": g.display_with_moves(), "notes": []}
-            log["diff_points_before"] = g.diff_points()
+            history = data[i * 2 + g.state]["history"]
+
             with torch.no_grad():
                 mov, debug = strategy(g, model)
-            log["notes"] += [str(x) for x in debug]
-            log["moves"] = g.moves
-            log["diff_points"] = g.diff_points()
 
-            log["action"] = mov
-            data[i]["history"].append(log)
+            rec = Record(g, mov)
+            rec.notes += [str(x) for x in debug]
+
             g.play_str(mov)
-            log["diff_points_after"] = -g.diff_points()
-            log["reward"] = log["diff_points_after"] - log["diff_points_before"]
+            history.append(rec)
 
-            if g.ended():
-                data[i]["history"].append(
-                    {
-                        "state": g.display(),
-                        "notes": [],
-                        "reward": g.diff_points_for(g.state),
-                    }
-                )
-                data[i]["history"].append(
-                    {
-                        "state": g.display(force=1 - g.state),
-                        "notes": [],
-                        "reward": g.diff_points_for(1 - g.state),
-                    }
-                )
-                running[i] = False
-                data[i]["winner"] = 0 if g.p0.points() > g.p1.points() else 1
-                data[i]["cause"] = "proper"
-                data[i]["p0"] = g.p0.points()
-                data[i]["p1"] = g.p1.points()
-
-    for i in range(n_games):
-        if running[i]:
-            data[i]["history"].append(
-                {
-                    "state": games[i].display(),
-                    "notes": [],
-                    "action": "",
-                    "reward": games[i].diff_points_for(g.state),
-                }
-            )
-            data[i]["history"].append(
-                {
-                    "state": games[i].display(force=1 - g.state),
-                    "notes": [],
-                    "action": "",
-                    "reward": games[i].diff_points_for(1 - g.state),
-                }
-            )
-            data[i]["winner"] = 0 if games[i].p0.points() > games[i].p1.points() else 1
-            data[i]["cause"] = "toolong"
-            data[i]["p0"] = games[i].p0.points()
-            data[i]["p1"] = games[i].p1.points()
-
-        hist = data[i]["history"]
-        points = abs(data[i]["p0"] - data[i]["p1"])
-        for j in range(len(hist)):
-            if j % 2 == data[i]["winner"]:
-                hist[j]["winner"] = points
-            else:
-                hist[j]["winner"] = -points
-            hist[j]["notes"] += ["reward: " + str(hist[j].get("reward", None))]
+        data[i * 2]["history"].append(EndState(g, 0))
+        data[i * 2 + 1]["history"].append(EndState(g, 1))
 
     return GamesData(data)
 
