@@ -100,6 +100,20 @@ class First(nn.Module):
         return x[:, 0, :]
 
 
+class FFN(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.seq = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, dim*4),
+            nn.GELU(),
+            nn.Linear(dim*4, dim),
+        )
+
+    def forward(self, x):
+        return x + self.seq(x)
+
+
 class Model(nn.Module):
     def __init__(self, dim: int, num_layers: int):
         super().__init__()
@@ -116,26 +130,20 @@ class Model(nn.Module):
                 ),
                 num_layers=num_layers,
             ),
-            # nn.ReLU(True),
-            nn.LayerNorm(dim),
         )
         self.to_pred = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.GELU(),
-            Pool(),
             # AttentionPool1d(dim, dim // 32, dim),
-            nn.Linear(dim, dim * 4),
-            nn.GELU(),
-            nn.Linear(dim * 4, 128),
+            FFN(dim),
+            Pool(),
+            nn.LayerNorm(dim),
+            nn.Linear(dim, 128),
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
             First(),
-            nn.Linear(dim, dim),
-            nn.GELU(),
-            nn.Linear(dim, dim * 4),
-            nn.GELU(),
-            nn.Linear(dim * 4, 1),
+            FFN(dim),
+            nn.LayerNorm(dim),
+            nn.Linear(dim, 1),
         )
         self.normalizer = RunningNormalizer()
         self.loss = PolicyGradientWithBaselineLoss()
