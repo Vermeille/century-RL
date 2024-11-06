@@ -455,7 +455,7 @@ if __name__ == "__main__":
     opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=1e-4)
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
-    viz = Visdom(env="century-rl-2")
+    viz = Visdom(env=f"{config.tag}-lr={config.train.lr}")
     viz.close()
     # self play
     ii = 0
