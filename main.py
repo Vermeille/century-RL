@@ -177,12 +177,12 @@ class Model(nn.Module):
             v_norm = self.rewards(enc).squeeze(1).float()
 
         if samples is not None:
-            action = samples.action.to(device=pred.device)
-            returns = samples.returns.to(device=pred.device, dtype=torch.float)
-            print(returns)
-            returns_norm = self.normalizer(returns)
+            samples.action = samples.action.to(device=pred.device)
+            samples.returns = samples.returns.to(device=pred.device, dtype=torch.float)
+            print(samples.returns)
+            returns_norm = self.normalizer(samples.returns)
 
-            policy_loss = self.loss(pred, action, self.normalizer.undo(v_norm), returns)
+            policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples)
             print(self.normalizer.undo(v_norm))
             v_loss = F.mse_loss(returns_norm, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item()}
@@ -193,20 +193,29 @@ class Model(nn.Module):
             return pred, v_norm  # undo normalization?
 
 
+def masked_cross_entropy(logits, action, moves):
+    num_entries = torch.tensor([len(m) for m in moves], device=logits.device)
+    mask = torch.ones_like(logits)
+    mask = mask.cumsum(dim=1)
+    mask = mask < (num_entries.unsqueeze(1) + 0.5)
+    logits = logits.masked_fill(~mask, float("-inf"))
+    return F.cross_entropy(logits, action)
+
+
 class PolicyGradientLoss:
     def __init__(self):
         self.normalizer = RunningNormalizer()
 
-    def __call__(self, logits, action, pred_value, returns):
-        loss = nn.functional.cross_entropy(logits, action, reduction="none")
-        policy_loss = (self.normalizer(returns) * loss).mean()
+    def __call__(self, logits, pred_value, sample):
+        loss = masked_cross_entropy(logits, sample.action, sample.moves)
+        policy_loss = (self.normalizer(sample.returns) * loss).mean()
         return policy_loss
 
 
 class PolicyGradientWithBaselineLoss:
-    def __call__(self, logits, action, pred_value, returns):
-        loss = nn.functional.cross_entropy(logits, action, reduction="none")
-        policy_loss = ((returns - pred_value.detach()) * loss).mean()
+    def __call__(self, logits, pred_value, sample):
+        loss = masked_cross_entropy(logits, sample.action, sample.moves)
+        policy_loss = ((samples.returns - pred_value.detach()) * loss).mean()
         return policy_loss
 
 
