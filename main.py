@@ -240,14 +240,17 @@ class GamesData:
             rewards = [0] * len(d["history"])
             rewards[-1] = d["history"][-1].current_diff_points
             for i in range(len(d["history"]) - 2, -1, -1):
-                rewards[i] = rewards[i + 1] - d["history"][i].current_diff_points - 0.1
+                rewards[i] = rewards[i+1] * 0.95 + (d["history"][i+1].current_diff_points - d["history"][i].current_diff_points)
 
+            print('rewards', rewards)
+            print('diff   ', [h.current_diff_points for h in d["history"]])
             for i, log in enumerate(d["history"][:-1]):
                 out.append(
                     [
                         log.state,
                         log.action_idx,
-                        rewards[i],
+                        #rewards[i],
+                        d["history"][-1].current_diff_points,
                     ]
                 )
         return out
