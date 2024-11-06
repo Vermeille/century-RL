@@ -1,0 +1,7 @@
+torch
+tqdm
+cython
+visdom
+fastapi[standard]
+easydict
+pyyaml
