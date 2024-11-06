@@ -459,8 +459,8 @@ cdef class Player:
     def points(self):
         return sum(p.points for p in self.victory) + self.stock.points()
 
-    def has_finished(self):
-        return len(self.victory) >= 5
+    cdef has_finished(self, int goal_cards):
+        return len(self.victory) >= goal_cards
 
     def reload(self):
         self.hand += self.discard
@@ -567,10 +567,12 @@ cdef class Game:
     cdef public int current_player
     cdef int turn
     cdef public list[str] moves
+    cdef int goal_cards
 
-    def __init__(self, empty=False):
+    def __init__(self, empty=False, int goal_cards=5):
         if empty:
             return
+        self.goal_cards = goal_cards
         self.p0 = Player()
         self.p0.stock += Stock.cfrom_str('YYY')
         self.p1 = Player()
@@ -583,7 +585,7 @@ cdef class Game:
         self.moves = self.gen_move()
 
     def copy(self, randomize=True):
-        g = Game(empty=True)
+        g = Game(empty=True, goal_cards=self.goal_cards)
         g.p0 = self.p0.copy()
         g.p1 = self.p1.copy()
         g.victory = self.victory.copy(randomize)
@@ -705,7 +707,7 @@ cdef class Game:
         return 1
 
     cpdef int ended(self: 'Game'):
-        return self.p0.has_finished() or self.p1.has_finished()
+        return self.p0.has_finished(self.goal_cards) or self.p1.has_finished(self.goal_cards)
 
     cpdef int winner(self: 'Game'):
         if self.p0.points() > self.p1.points():
