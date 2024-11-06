@@ -105,9 +105,9 @@ class FFN(nn.Module):
         super().__init__()
         self.seq = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, dim*4),
+            nn.Linear(dim, dim * 4),
             nn.GELU(),
-            nn.Linear(dim*4, dim),
+            nn.Linear(dim * 4, dim),
         )
 
     def forward(self, x):
@@ -204,7 +204,6 @@ class PolicyGradientLoss:
 
 
 class PolicyGradientWithBaselineLoss:
-
     def __call__(self, logits, action, pred_value, returns):
         loss = nn.functional.cross_entropy(logits, action, reduction="none")
         policy_loss = ((returns - pred_value.detach()) * loss).mean()
