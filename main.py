@@ -183,7 +183,7 @@ class Model(nn.Module):
             print(samples.returns)
             returns_norm = self.normalizer(samples.returns)
 
-            policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples.action)
+            policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples)
             print(self.normalizer.undo(v_norm))
             v_loss = F.mse_loss(returns_norm, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item()}
@@ -191,10 +191,11 @@ class Model(nn.Module):
             return loss, losses
         else:
             assert not self.training
-            moves = [game[game.index('_Moves\n') + 7:].strip().split('\n') for game in games]
+            moves = [
+                game[game.index("_Moves\n") + 7 :].strip().split("\n") for game in games
+            ]
             pred = self.mask_logits(pred, moves)
             return pred, v_norm  # undo normalization?
-
 
     @staticmethod
     def mask_logits(logits, moves):
@@ -217,15 +218,15 @@ class PolicyGradientLoss:
     def __init__(self):
         self.normalizer = RunningNormalizer()
 
-    def __call__(self, logits, pred_value, action):
-        loss = F.cross_entropy(logits, action)
+    def __call__(self, logits, pred_value, sample):
+        loss = F.cross_entropy(logits, sample.action, reduction="none")
         policy_loss = (self.normalizer(sample.returns) * loss).mean()
         return policy_loss
 
 
 class PolicyGradientWithBaselineLoss:
-    def __call__(self, logits, pred_value, action):
-        loss = F.cross_entropy(logits, action)
+    def __call__(self, logits, pred_value, sample):
+        loss = F.cross_entropy(logits, sample.action, reduction="none")
         policy_loss = ((samples.returns - pred_value.detach()) * loss).mean()
         return policy_loss
 
