@@ -179,10 +179,11 @@ class Model(nn.Module):
         if samples is not None:
             samples.action = samples.action.to(device=pred.device)
             samples.returns = samples.returns.to(device=pred.device, dtype=torch.float)
+            pred = self.mask_logits(pred, samples.moves)
             print(samples.returns)
             returns_norm = self.normalizer(samples.returns)
 
-            policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples)
+            policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples.action)
             print(self.normalizer.undo(v_norm))
             v_loss = F.mse_loss(returns_norm, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item()}
@@ -190,31 +191,41 @@ class Model(nn.Module):
             return loss, losses
         else:
             assert not self.training
+            moves = [game[game.index('_Moves\n') + 7:].strip().split('\n') for game in games]
+            pred = self.mask_logits(pred, moves)
             return pred, v_norm  # undo normalization?
 
 
-def masked_cross_entropy(logits, action, moves):
-    num_entries = torch.tensor([len(m) for m in moves], device=logits.device)
-    mask = torch.ones_like(logits)
-    mask = mask.cumsum(dim=1)
-    mask = mask < (num_entries.unsqueeze(1) + 0.5)
-    logits = logits.masked_fill(~mask, float("-inf"))
-    return F.cross_entropy(logits, action)
+    @staticmethod
+    def mask_logits(logits, moves):
+        assert len(moves) == logits.shape[0]
+        moves_batched = moves
+        mask = torch.full_like(logits, False, dtype=torch.bool)
+        indexes = [
+            (b, n)
+            for b in range(len(moves_batched))
+            for n in range(len(moves_batched[b]))
+            if moves_batched[b][n][0] != "-"
+        ]
+        xs, ys = zip(*indexes)
+        mask[torch.tensor(xs), torch.tensor(ys)] = True
+        logits = logits.masked_fill(~mask, float("-inf"))
+        return logits
 
 
 class PolicyGradientLoss:
     def __init__(self):
         self.normalizer = RunningNormalizer()
 
-    def __call__(self, logits, pred_value, sample):
-        loss = masked_cross_entropy(logits, sample.action, sample.moves)
+    def __call__(self, logits, pred_value, action):
+        loss = F.cross_entropy(logits, action)
         policy_loss = (self.normalizer(sample.returns) * loss).mean()
         return policy_loss
 
 
 class PolicyGradientWithBaselineLoss:
-    def __call__(self, logits, pred_value, sample):
-        loss = masked_cross_entropy(logits, sample.action, sample.moves)
+    def __call__(self, logits, pred_value, action):
+        loss = F.cross_entropy(logits, action)
         policy_loss = ((samples.returns - pred_value.detach()) * loss).mean()
         return policy_loss
 

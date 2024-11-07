@@ -505,11 +505,7 @@ cdef class Player:
 
 cdef class RandomStrategy:
     def __call__(self, g: Game, nn):
-        return rndchoice(g.moves), g.moves
-
-cdef class FirstChoiceStrategy:
-    def __call__(self, g: Game, nn):
-        return g.moves[0], g.moves
+        return rndchoice([mov for mov in g.moves if mov[0] != "-"]), g.moves
 
 cdef class RandomBuyStrategy:
     def __call__(self, g: Game, nn):
@@ -517,11 +513,12 @@ cdef class RandomBuyStrategy:
         for mov in moves:
             if mov[0] == 'V':
                 return mov, moves
-        return rndchoice(moves), moves
+        return rndchoice([mov for mov in g.moves if mov[0] != "-"]), g.moves
+
 
 cdef class ArgmaxStrategy:
     def __call__(self, g: Game, nn):
-        policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
+        policy = nn([g.display_with_moves()])[0][0]
         idx = policy.argmax()
         return g.moves[idx], list(zip(policy.tolist(), g.moves))
 
@@ -533,7 +530,7 @@ cdef class PolicyGuidedMCMCStrategy:
 
     @torch.no_grad()
     def __call__(self, g: Game, nn):
-        policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
+        policy = nn([g.display_with_moves()])[0][0]
         policy_sorted = policy.argsort(descending=True)
         scores = []
         for move in policy_sorted[:self.budget]:
@@ -554,7 +551,7 @@ cdef class PolicySamplingStrategy:
         if len(g.moves) == 1:
             return g.moves[0], [(g.moves[0], 1.0)]
 
-        policy = nn([g.display_with_moves()])[0][0, :len(g.moves)]
+        policy = nn([g.display_with_moves()])[0][0]
         idx = torch.multinomial(torch.softmax(policy, dim=0), 1)
         return g.moves[idx], list(zip(torch.softmax(policy, dim=0).tolist(), g.moves))
 
@@ -596,7 +593,7 @@ cdef class Game:
         cdef int i
         cdef list moves
         for i in range(cut):
-            self.play_str(rndchoice(self.moves))
+            self.play_str(rndchoice([mov for mov in self.moves if mov[0] != '-']))
             if self.ended():
                 break
         return 0 if self.p0.points() > self.p1.points() else 1
@@ -731,8 +728,34 @@ cdef class Game:
 
         moves = []
 
-        if len(p.discard) > 0 or True:
+        if len(p.discard) > 0:
             moves.append('R')
+        else:
+            moves.append('-')
+
+        for i in range(5):
+            if i >= len(self.victory.pile):
+                moves.append('-')
+                continue
+            v = self.victory.pile[i]
+            if v.cost in p.stock:
+                moves.append(f'V{i}')
+            else:
+                moves.append('-')
+
+        for i in range(6):
+            if i >= len(self.action.pile):
+                moves.append('-')
+                continue
+
+            a = self.action.pile[i]
+            gain = self.action.on_cards[i]
+            if p.stock.size() <= i:
+                # Can't put cubes on previous cards
+                moves.append('-')
+                continue
+            give = str(p.stock)[:i]
+            moves.append(f'A{i} {give}->{gain}')
 
         i = 0
         for h in p.hand:
@@ -740,20 +763,6 @@ cdef class Game:
                 x = f'H{i} {m}'
                 moves.append(x)
             i += 1
-
-
-        for i in range(min(5, len(self.victory.pile))):
-            v = self.victory.pile[i]
-            if v.cost in p.stock:
-                moves.append(f'V{i}')
-
-        for i in range(min(6, len(self.action.pile))):
-            a = self.action.pile[i]
-            gain = self.action.on_cards[i]
-            if p.stock.size() <= i:
-                continue
-            give = str(p.stock)[:i]
-            moves.append(f'A{i} {give}->{gain}')
 
         return moves
 
