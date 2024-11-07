@@ -589,7 +589,7 @@ cdef class Game:
         g.moves = self.moves.copy()
         return g
 
-    def simulate_to_end(self: 'Game', cut: int=30) -> int:
+    def simulate_to_end(self: Game, cut: int=30) -> int:
         cdef int i
         cdef list moves
         for i in range(cut):
@@ -701,10 +701,10 @@ cdef class Game:
         self.moves = self.gen_move()
         return 1
 
-    cpdef int ended(self: 'Game'):
+    cpdef int ended(self: Game):
         return self.p0.has_finished(self.goal_cards) or self.p1.has_finished(self.goal_cards)
 
-    cpdef int winner(self: 'Game'):
+    cpdef int winner(self: Game):
         if self.p0.points() > self.p1.points():
             return 0
         else:
