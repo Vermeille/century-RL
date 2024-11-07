@@ -114,6 +114,15 @@ class FFN(nn.Module):
         return x + self.seq(x)
 
 
+class Squeeze(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        return x.squeeze(self.dim)
+
+
 class Model(nn.Module):
     def __init__(self, dim: int, num_layers: int):
         super().__init__()
@@ -134,16 +143,19 @@ class Model(nn.Module):
         self.to_pred = nn.Sequential(
             # AttentionPool1d(dim, dim // 32, dim),
             FFN(dim),
-            Pool(),
             nn.LayerNorm(dim),
-            nn.Linear(dim, 128),
+            nn.Linear(dim, 1),
+            Squeeze(-1),
+            # BL
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            First(),
             FFN(dim),
+            Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
+            Squeeze(-1),
+            # B
         )
         self.normalizer = RunningNormalizer()
         self.loss = PolicyGradientWithBaselineLoss()
@@ -156,7 +168,7 @@ class Model(nn.Module):
                 return l
 
         txts = [
-            torch.LongTensor(do_pad([ord(c) for c in txt][:maxlen])) for txt in txts
+            torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts
         ]
         return nn.utils.rnn.pad_sequence(txts, batch_first=True).to(
             self.in_embed.weight.device
@@ -166,22 +178,26 @@ class Model(nn.Module):
         txts = self.text_encode(txts, maxlen, pad=pad)
         txts = self.in_embed(txts)
 
-        return txts + pos[: min(txts.shape[1], maxlen)]
+        return txts + pos
 
     def forward(self, games, samples=None):
+        games = [game[:self.maxlen] for game in games]
         with torch.autocast("cuda", dtype=torch.bfloat16):
             enc = self.encode(
                 self.text_embed(games, self.maxlen, self.pos_enc, pad=True)
             )
             pred = self.to_pred(enc).float()
-            v_norm = self.rewards(enc).squeeze(1).float()
+            v_norm = self.rewards(enc).float()
+
+        moves_pos = [[i for i, c in enumerate(game) if game[i] == '@'] for game in games]
 
         if samples is not None:
-            samples.action = samples.action.to(device=pred.device)
+            samples.action = torch.tensor([moves_pos[i][a] for i, a in enumerate(samples.action)]).to(device=pred.device)
+            print(samples.action)
             samples.returns = samples.returns.to(device=pred.device, dtype=torch.float)
-            pred = self.mask_logits(pred, samples.moves)
-            print(samples.returns)
+            pred = self.mask_logits(pred, moves_pos)
             returns_norm = self.normalizer(samples.returns)
+            print(returns_norm)
 
             policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples)
             print(self.normalizer.undo(v_norm))
@@ -194,19 +210,18 @@ class Model(nn.Module):
             moves = [
                 game[game.index("_Moves\n") + 7 :].strip().split("\n") for game in games
             ]
-            pred = self.mask_logits(pred, moves)
+            pred = [
+                pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))
+            ]
             return pred, v_norm  # undo normalization?
 
     @staticmethod
-    def mask_logits(logits, moves):
-        assert len(moves) == logits.shape[0]
-        moves_batched = moves
+    def mask_logits(logits, moves_pos):
         mask = torch.full_like(logits, False, dtype=torch.bool)
         indexes = [
             (b, n)
-            for b in range(len(moves_batched))
-            for n in range(len(moves_batched[b]))
-            if moves_batched[b][n][0] != "-"
+            for b in range(len(moves_pos))
+            for n in moves_pos[b]
         ]
         xs, ys = zip(*indexes)
         mask[torch.tensor(xs), torch.tensor(ys)] = True

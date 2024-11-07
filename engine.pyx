@@ -505,7 +505,7 @@ cdef class Player:
 
 cdef class RandomStrategy:
     def __call__(self, g: Game, nn):
-        return rndchoice([mov for mov in g.moves if mov[0] != "-"]), g.moves
+        return rndchoice(g.moves), g.moves
 
 cdef class RandomBuyStrategy:
     def __call__(self, g: Game, nn):
@@ -513,7 +513,7 @@ cdef class RandomBuyStrategy:
         for mov in moves:
             if mov[0] == 'V':
                 return mov, moves
-        return rndchoice([mov for mov in g.moves if mov[0] != "-"]), g.moves
+        return rndchoice(g.moves), g.moves
 
 
 cdef class ArgmaxStrategy:
@@ -639,7 +639,7 @@ cdef class Game:
         cdef int i
         cdef list moves
         for i in range(cut):
-            self.play_str(rndchoice([mov for mov in self.moves if mov[0] != '-']))
+            self.play_str(rndchoice(self.moves))
             if self.ended():
                 break
         return self.max_points().index
@@ -695,7 +695,7 @@ cdef class Game:
         return '\n'.join(lines)
 
     def display_with_moves(self):
-        return self.display() + '\n_Moves\n' + '\n'.join(self.moves)
+        return self.display() + '\n_Moves\n' + '\n'.join(['@'+ mov for mov in self.moves])
 
     def buy_action(self, p, idx, give, take):
         a, s = self.action.take(idx, give)
@@ -775,29 +775,22 @@ cdef class Game:
 
         if len(p.discard) > 0:
             moves.append('R')
-        else:
-            moves.append('-')
 
         for i in range(5):
             if i >= len(self.victory.pile):
-                moves.append('-')
                 continue
             v = self.victory.pile[i]
             if v.cost in p.stock:
                 moves.append(f'V{i}')
-            else:
-                moves.append('-')
 
         for i in range(6):
             if i >= len(self.action.pile):
-                moves.append('-')
                 continue
 
             a = self.action.pile[i]
             gain = self.action.on_cards[i]
             if p.stock.size() <= i:
                 # Can't put cubes on previous cards
-                moves.append('-')
                 continue
             give = str(p.stock)[:i]
             moves.append(f'A{i} {give}->{gain}')
