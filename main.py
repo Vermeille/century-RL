@@ -133,7 +133,7 @@ class Model(nn.Module):
         self.encode = nn.Sequential(
             nn.LayerNorm(dim),
             # AlternativeEncoder(4, dim),
-            #nn.TransformerEncoder( nn.TransformerEncoderLayer( dim, dim // 64, dim * 4, norm_first=True, batch_first=True), num_layers=num_layers,),
+            # nn.TransformerEncoder( nn.TransformerEncoderLayer( dim, dim // 64, dim * 4, norm_first=True, batch_first=True), num_layers=num_layers,),
             Transformer(dim, num_layers, dim // 64, 64),
         )
         self.to_pred = nn.Sequential(
@@ -146,8 +146,8 @@ class Model(nn.Module):
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            First(),
             FFN(dim),
+            Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             Squeeze(-1),
@@ -163,9 +163,7 @@ class Model(nn.Module):
             else:
                 return l
 
-        txts = [
-            torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts
-        ]
+        txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
         return nn.utils.rnn.pad_sequence(txts, batch_first=True).to(
             self.in_embed.weight.device
         )
@@ -175,39 +173,48 @@ class Model(nn.Module):
         return txts
 
     def forward(self, games, samples=None):
-        games = [game[:self.maxlen] for game in games]
+        games = [game[: self.maxlen] for game in games]
         with torch.autocast("cuda", dtype=torch.bfloat16):
             txt = self.text_embed(games, self.maxlen, pad=True)
             enc = self.encode(self.in_embed(txt))
             pred = self.to_pred(enc).float()
             v_norm = self.rewards(enc).float()
 
-        moves_pos = [[i for i, c in enumerate(game) if game[i] == '@'] for game in games]
+        moves_pos = [
+            [i for i, c in enumerate(game) if game[i] == "@"] for game in games
+        ]
 
         if samples is not None:
-            pretrain_loss = F.cross_entropy(self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2), txt[:, 1:])
-            samples.action = torch.tensor([moves_pos[i][a] for i, a in enumerate(samples.action)]).to(device=pred.device)
+            pretrain_loss = F.cross_entropy(
+                self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2), txt[:, 1:]
+            )
+            samples.action = torch.tensor(
+                [moves_pos[i][a] for i, a in enumerate(samples.action)]
+            ).to(device=pred.device)
             pred = self.mask_logits(pred, moves_pos)
 
-            policy_loss = self.loss(pred, samples.action, pred_value=v_norm.detach(), returns=samples.normalized_returns)
+            policy_loss = self.loss(
+                pred,
+                samples.action,
+                pred_value=v_norm.detach(),
+                returns=samples.normalized_returns,
+            )
             v_loss = F.mse_loss(samples.normalized_returns, v_norm)
-            losses = {"policy": policy_loss.item(), "value": v_loss.item(), "pretrain": pretrain_loss.item()}
+            losses = {
+                "policy": policy_loss.item(),
+                "value": v_loss.item(),
+                "pretrain": pretrain_loss.item(),
+            }
             loss = policy_loss + v_loss + 1 * pretrain_loss
             return loss, losses
         else:
-            pred = [
-                pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))
-            ]
+            pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
             return pred, v_norm  # undo normalization?
 
     @staticmethod
     def mask_logits(logits, moves_pos):
         mask = torch.full_like(logits, False, dtype=torch.bool)
-        indexes = [
-            (b, n)
-            for b in range(len(moves_pos))
-            for n in moves_pos[b]
-        ]
+        indexes = [(b, n) for b in range(len(moves_pos)) for n in moves_pos[b]]
         xs, ys = zip(*indexes)
         mask[torch.tensor(xs), torch.tensor(ys)] = True
         logits = logits.masked_fill(~mask, float("-inf"))
@@ -223,7 +230,7 @@ class PolicyGradientLoss:
 
 class PolicyGradientWithBaselineLoss:
     def __call__(self, logits, action, **kwargs):
-        pred_value, returns = kwargs.pop('pred_value'), kwargs.pop('returns')
+        pred_value, returns = kwargs.pop("pred_value"), kwargs.pop("returns")
         loss = F.cross_entropy(logits, action, reduction="none")
         policy_loss = ((returns - pred_value) * loss).mean()
         return policy_loss
@@ -237,7 +244,8 @@ class TrainingSample:
     def collate(samples):
         return TrainingSample(
             **{
-                k: collate([getattr(s, k) for s in samples]) for k in samples[0].__dict__
+                k: collate([getattr(s, k) for s in samples])
+                for k in samples[0].__dict__
             }
         )
 
@@ -246,6 +254,7 @@ class TrainingSample:
             if isinstance(v, torch.Tensor):
                 self.__dict__[k] = v.to(*args, **kwargs)
         return self
+
 
 def collate(xs):
     if isinstance(xs[0], (int, float)):
@@ -285,7 +294,9 @@ class GamesData:
                     )
                 )
         all_returns = torch.tensor([o.returns for o in out])
-        normalized = (all_returns - all_returns.mean()) / all_returns.std().clamp(min=0.25)
+        normalized = (all_returns - all_returns.mean()) / all_returns.std().clamp(
+            min=0.25
+        )
         for o, n in zip(out, normalized):
             o.normalized_returns = n.item()
         return out
@@ -332,6 +343,7 @@ class GamesData:
 
     def print_short_history(self):
         import crayons
+
         colorized = {
             "A": str(crayons.red("A")),
             "H": str(crayons.green("H")),
@@ -339,8 +351,11 @@ class GamesData:
             "V": str(crayons.white("V")),
         }
         for g in self.data:
-            h = g['history']
-            print(''.join(colorized[s.moves[s.action_idx][0]] for s in h[:-1]), h[-1].current_diff_points)
+            h = g["history"]
+            print(
+                "".join(colorized[s.moves[s.action_idx][0]] for s in h[:-1]),
+                h[-1].current_diff_points,
+            )
 
     def dump(self):
         with open("game.txt", "w") as f:
@@ -387,8 +402,9 @@ def autobatch(model, input, bs=None):
 def pit(strategies, n_games, max_len):
     dat = self_play(strategies, n_games, max_len)
     dat.print_short_history()
-    return (sum((d["history"][-1].current_diff_points >= 0) for d in dat.data[::2])
-        / (len(dat.data) // 2))
+    return sum((d["history"][-1].current_diff_points >= 0) for d in dat.data[::2]) / (
+        len(dat.data) // 2
+    )
 
 
 class Record:
@@ -472,8 +488,10 @@ def warm_batchnorm(m):
             strategy(g)
         m(prompts)
 
+
 import random
 import numpy as np
+
 
 def smart_mix(old, new):
     random.shuffle(old)
@@ -497,6 +515,7 @@ def smart_mix(old, new):
             i_new += 1
     return out
 
+
 if __name__ == "__main__":
     from collections import Counter
     import sys
@@ -512,7 +531,6 @@ if __name__ == "__main__":
         m.load_state_dict(torch.load(sys.argv[2]), map_location=config.device)
     else:
         warm_batchnorm(m)
-
 
     opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=1e-4)
 
