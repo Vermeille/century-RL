@@ -18,3 +18,4 @@ self_play:
 pit:
   num_games: 64
   max_len: 160
+  every: 10

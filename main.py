@@ -552,17 +552,18 @@ if __name__ == "__main__":
                         opts=dict(title="epoch"),
                     )
             print()
-        win_rate = pit(
-            m, previous_model, config.pit.num_games, config.pit.max_len, config.device
-        )
+        if epoch % config.pit.every == 0:
+            win_rate = pit(
+                m, previous_model, config.pit.num_games, config.pit.max_len, config.device
+            )
+            viz.line(
+                torch.tensor([win_rate]),
+                torch.tensor([epoch]),
+                win="win_rate",
+                update="append",
+                opts=dict(title="win_rate"),
+            )
         del previous_model
-        viz.line(
-            torch.tensor([win_rate]),
-            torch.tensor([epoch]),
-            win="win_rate",
-            update="append",
-            opts=dict(title="win_rate"),
-        )
 
         if epoch % 10 == 0:
             torch.save(m.state_dict(), f"rl-{epoch}.pth")
