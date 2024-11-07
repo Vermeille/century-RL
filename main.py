@@ -334,6 +334,11 @@ class GamesData:
             "avg_move_summary": self.avg_move_summary(),
         }
 
+    def print_short_history(self):
+        for g in self.data:
+            h = g['history'][:-1]
+            print(''.join(s.moves[s.action_idx][0] for s in h))
+
     def dump(self):
         with open("game.txt", "w") as f:
             for i, d in enumerate(self.data):
@@ -510,6 +515,7 @@ if __name__ == "__main__":
         ]
         data = GamesData(flatten([d.data for d in data]))
         data.dump()
+        data.print_short_history()
         metrics = data.metrics()
 
         trainset = data.to_trainset()
