@@ -566,7 +566,11 @@ if __name__ == "__main__":
             print()
         if epoch % config.pit.every == 0:
             win_rate = pit(
-                m, previous_model, config.pit.num_games, config.pit.max_len, config.device
+                m,
+                previous_model,
+                config.pit.num_games,
+                config.pit.max_len,
+                config.device,
             )
             viz.line(
                 torch.tensor([win_rate]),
