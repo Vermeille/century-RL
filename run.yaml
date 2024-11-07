@@ -7,12 +7,12 @@ net:
 
 train:
   gradient_epochs: 1
-  lr: 0.00001
+  lr: 0.0001
   batch_size: 32
-  show_every: 1
+  show_every: 10
 
 self_play:
-  num_games: 64
+  num_games: 16
   max_len: 200
 
 pit:
