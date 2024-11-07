@@ -627,6 +627,11 @@ cdef class Game:
         else:
             p = self.current_player()
         lines = [f'{self.turn:4}']
+
+        lines.append('_Board')
+        lines.append(str(self.victory))
+        lines.append(str(self.action))
+
         if p == 0:
             lines.append(f'_Me {self.p0.points()}')
             lines.append(self.p0.display(hidden=False))
@@ -639,10 +644,6 @@ cdef class Game:
             lines.append(self.p0.display(hidden=True))
         else:
             assert False, f"can't display the game for player {self.current_player()}"
-
-        lines.append('_Board')
-        lines.append(str(self.victory))
-        lines.append(str(self.action))
 
         return '\n'.join(lines)
 
