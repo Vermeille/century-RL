@@ -99,21 +99,31 @@ class GEGLU(nn.Module):
         return x * F.gelu(gate)
 
 
+class Permute(nn.Module):
+    def __init__(self, *transpo):
+        super().__init__()
+        self.transpo = transpo
+
+    def forward(self, x):
+        return x.permute(*self.transpo)
+
 class TransformerBlock(nn.Module):
 
     def __init__(self, hidden_size, num_heads, head_size):
         super().__init__()
         self.layer_norm1 = nn.LayerNorm(hidden_size)
         self.sa = SelfAttention(hidden_size, num_heads, head_size)
-        self.layer_norm2 = nn.LayerNorm(hidden_size)
         self.feed_forward = nn.Sequential(
             kaiming(nn.Linear(hidden_size, 4 * hidden_size, bias=False)),
+            Permute(0, 2, 1),
+            nn.BatchNorm1d(4 * hidden_size),
+            Permute(0, 2, 1),
             GEGLU(),
             xavier(nn.Linear(2 * hidden_size, hidden_size, bias=False)))
 
     def forward(self, x):
         x = self.sa(self.layer_norm1(x)) + x
-        x = self.feed_forward(self.layer_norm2(x)).add_(x)
+        x = self.feed_forward(x).add_(x)
         return x
 
 

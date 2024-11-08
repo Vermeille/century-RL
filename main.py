@@ -198,7 +198,6 @@ class Model(nn.Module):
             loss = policy_loss + v_loss + 1 * pretrain_loss
             return loss, losses
         else:
-            assert not self.training
             pred = [
                 pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))
             ]
@@ -486,6 +485,20 @@ def load(model, file):
         return False
 
 
+def warm_batchnorm(m):
+    m.train()
+    strategy = RandomBuyStrategy()
+
+    for _ in range(50):
+        prompts = []
+        g = Game()
+        for _ in range(32):
+            if g.ended():
+                break
+            prompts.append(g.display_with_moves())
+            strategy(g)
+        m(prompts)
+
 if __name__ == "__main__":
     from collections import Counter
     import sys
@@ -496,10 +509,12 @@ if __name__ == "__main__":
 
     m = Model(config.net.dim, config.net.num_layers)
     # m = torch.compile(m)
-    if len(sys.argv) >= 3:
-        m.load_state_dict(torch.load(sys.argv[2]))
-
     m.to(config.device)
+    if len(sys.argv) >= 3:
+        m.load_state_dict(torch.load(sys.argv[2]), map_location=config.device)
+    else:
+        warm_batchnorm(m)
+
 
     opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=1e-4)
 
