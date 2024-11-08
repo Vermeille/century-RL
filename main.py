@@ -377,29 +377,11 @@ def autobatch(model, input, bs=None):
 
 
 @torch.no_grad()
-def pit(model1, model2, n_games, max_len, device):
-    model1.eval()
-    model2.eval()
-    if device is not None:
-        model1.to(device)
-        model2.to(device)
-    strategy1 = ArgmaxStrategy()
-    strategy2 = RandomBuyStrategy()
-
-    won = 0
-    for g_i in tqdm(range(n_games), desc="pit"):
-        g = Game()
-        for i_mov in range(max_len):
-            if g.ended():
-                break
-
-            if i_mov % 2 == 0:
-                mov, _ = strategy1(g, model1)
-            else:
-                mov, _ = strategy2(g, model2)
-            g.play_str(mov)
-        won += g.diff_points_for(0)
-    return won / n_games
+def pit(strategies, n_games, max_len):
+    dat = self_play(strategies, n_games, max_len)
+    dat.print_short_history()
+    return (sum((d["history"][-1].current_diff_points >= 0) for d in dat.data[::2])
+        / (len(dat.data) // 2))
 
 
 class Record:
@@ -575,11 +557,9 @@ if __name__ == "__main__":
             print()
         if epoch % config.pit.every == 0:
             win_rate = pit(
-                m,
-                previous_model,
+                [PolicySamplingStrategy(m), RandomBuyStrategy()],
                 config.pit.num_games,
                 config.pit.max_len,
-                config.device,
             )
             viz.line(
                 torch.tensor([win_rate]),
