@@ -324,9 +324,16 @@ class GamesData:
         }
 
     def print_short_history(self):
+        import crayons
+        colorized = {
+            "A": str(crayons.red("A")),
+            "H": str(crayons.green("H")),
+            "R": str(crayons.yellow("R")),
+            "V": str(crayons.white("V")),
+        }
         for g in self.data:
-            h = g['history'][:-1]
-            print(''.join(s.moves[s.action_idx][0] for s in h))
+            h = g['history']
+            print(''.join(colorized[s.moves[s.action_idx][0]] for s in h[:-1]), h[-1].current_diff_points)
 
     def dump(self):
         with open("game.txt", "w") as f:
