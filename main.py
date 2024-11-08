@@ -193,7 +193,7 @@ class Model(nn.Module):
             returns_norm = self.normalizer(samples.returns)
             print(samples.returns)
 
-            policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples)
+            policy_loss = self.loss(pred, samples.action, pred_value=v_norm.detach(), returns=returns_norm)
             print(self.normalizer.undo(v_norm))
             v_loss = F.mse_loss(returns_norm, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item(), "pretrain": pretrain_loss.item()}
@@ -231,9 +231,10 @@ class PolicyGradientLoss:
 
 
 class PolicyGradientWithBaselineLoss:
-    def __call__(self, logits, pred_value, sample):
-        loss = F.cross_entropy(logits, sample.action, reduction="none")
-        policy_loss = ((samples.returns - pred_value.detach()) * loss).mean()
+    def __call__(self, logits, action, **kwargs):
+        pred_value, returns = kwargs.pop('pred_value'), kwargs.pop('returns')
+        loss = F.cross_entropy(logits, action, reduction="none")
+        policy_loss = ((returns - pred_value) * loss).mean()
         return policy_loss
 
 
