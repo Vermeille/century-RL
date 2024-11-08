@@ -154,7 +154,6 @@ class Model(nn.Module):
             # B
         )
         self.pretrain_head = nn.Sequential(nn.LayerNorm(dim), nn.Linear(dim, 128))
-        self.normalizer = RunningNormalizer()
         self.loss = PolicyGradientWithBaselineLoss()
 
     def text_encode(self, txts, maxlen, pad=False):
@@ -189,11 +188,10 @@ class Model(nn.Module):
             pretrain_loss = F.cross_entropy(self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2), txt[:, 1:])
             samples.action = torch.tensor([moves_pos[i][a] for i, a in enumerate(samples.action)]).to(device=pred.device)
             pred = self.mask_logits(pred, moves_pos)
-            returns_norm = self.normalizer(samples.returns)
 
-            policy_loss = self.loss(pred, samples.action, pred_value=v_norm.detach(), returns=returns_norm)
+            policy_loss = self.loss(pred, samples.action, pred_value=v_norm.detach(), returns=samples.returns_norm)
             print(self.normalizer.undo(v_norm))
-            v_loss = F.mse_loss(returns_norm, v_norm)
+            v_loss = F.mse_loss(samples.returns_norm, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item(), "pretrain": pretrain_loss.item()}
             loss = policy_loss + v_loss + 1 * pretrain_loss
             return loss, losses
@@ -218,12 +216,9 @@ class Model(nn.Module):
 
 
 class PolicyGradientLoss:
-    def __init__(self):
-        self.normalizer = RunningNormalizer()
-
     def __call__(self, logits, pred_value, sample):
         loss = F.cross_entropy(logits, sample.action, reduction="none")
-        policy_loss = (self.normalizer(sample.returns) * loss).mean()
+        policy_loss = (sample.returns * loss).mean()
         return policy_loss
 
 
@@ -233,24 +228,6 @@ class PolicyGradientWithBaselineLoss:
         loss = F.cross_entropy(logits, action, reduction="none")
         policy_loss = ((returns - pred_value) * loss).mean()
         return policy_loss
-
-
-class RunningNormalizer:
-    def __init__(self):
-        self.std = None
-        self.mean = None
-
-    def __call__(self, x):
-        if self.std is None:
-            self.std = x.std().item()
-            self.mean = x.mean().item()
-        else:
-            self.std = 0.99 * self.std + 0.01 * x.std().item()
-            self.mean = 0.99 * self.mean + 0.01 * x.mean().item()
-        return (x - self.mean) / self.std
-
-    def undo(self, x):
-        return x * self.std + self.mean
 
 
 class TrainingSample:
