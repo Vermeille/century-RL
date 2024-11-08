@@ -189,9 +189,8 @@ class Model(nn.Module):
             samples.action = torch.tensor([moves_pos[i][a] for i, a in enumerate(samples.action)]).to(device=pred.device)
             pred = self.mask_logits(pred, moves_pos)
 
-            policy_loss = self.loss(pred, samples.action, pred_value=v_norm.detach(), returns=samples.returns_norm)
-            print(self.normalizer.undo(v_norm))
-            v_loss = F.mse_loss(samples.returns_norm, v_norm)
+            policy_loss = self.loss(pred, samples.action, pred_value=v_norm.detach(), returns=samples.normalized_returns)
+            v_loss = F.mse_loss(samples.normalized_returns, v_norm)
             losses = {"policy": policy_loss.item(), "value": v_loss.item(), "pretrain": pretrain_loss.item()}
             loss = policy_loss + v_loss + 1 * pretrain_loss
             return loss, losses
@@ -281,6 +280,10 @@ class GamesData:
                         current_diff_points=log.current_diff_points,
                     )
                 )
+        all_returns = torch.tensor([o.returns for o in out])
+        normalized = (all_returns - all_returns.mean()) / all_returns.std().clamp(min=0.25)
+        for o, n in zip(out, normalized):
+            o.normalized_returns = n.item()
         return out
 
     def avg_len(self):
