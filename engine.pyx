@@ -559,13 +559,17 @@ cdef class PolicySamplingStrategy:
 cdef class Game:
     cdef public Player p0
     cdef public Player p1
+    cdef public Player p2
+    cdef public Player p3
+    cdef public Player p4
     victory: VictoryPile
     cdef public ActionPile action
     cdef int turn
     cdef public list[str] moves
     cdef int goal_cards
+    cdef int num_players
 
-    def __init__(self, empty=False, int goal_cards=5):
+    def __init__(self, empty=False, int goal_cards=5, int num_players=2):
         if empty:
             return
         self.goal_cards = goal_cards
@@ -573,7 +577,14 @@ cdef class Game:
         self.p0.stock += Stock.cfrom_str('YYY')
         self.p1 = Player()
         self.p1.stock += Stock.cfrom_str('YYYY')
+        self.p2 = Player()
+        self.p2.stock += Stock.cfrom_str('YYYY')
+        self.p3 = Player()
+        self.p3.stock += Stock.cfrom_str('YYYR')
+        self.p3 = Player()
+        self.p3.stock += Stock.cfrom_str('YYYR')
 
+        self.num_players = num_players
         self.victory = VictoryPile()
         self.action = ActionPile()
         self.turn = 0
@@ -583,11 +594,46 @@ cdef class Game:
         g = Game(empty=True, goal_cards=self.goal_cards)
         g.p0 = self.p0.copy()
         g.p1 = self.p1.copy()
+        g.p2 = self.p2.copy()
+        g.p3 = self.p3.copy()
+        g.p4 = self.p4.copy()
+        g.num_players = self.num_players
         g.victory = self.victory.copy(randomize)
         g.action = self.action.copy(randomize)
         g.turn = self.turn
         g.moves = self.moves.copy()
         return g
+
+    cpdef Player get_player(self, int index):
+        assert index >= 0 and index < 5
+        if index == 0:
+            return self.p0
+        elif index == 1:
+            return self.p1
+        elif index == 2:
+            return self.p2
+        elif index == 3:
+            return self.p3
+        elif index == 4:
+            return self.p4
+        return -1
+
+    cdef rank(self, int[5] ranking):
+        ranking[0] = 0
+        ranking[1] = 1
+        ranking[2] = 2
+        ranking[3] = 3
+        ranking[4] = 4
+
+        cdef int i, j
+        cdef int tmp
+        for i in range(self.num_players):
+            for j in range(0, self.num_players - i - 1):
+                if self.points_for(ranking[j + 1]) > self.points_for(ranking[j]):
+                    tmp = ranking[j]
+                    ranking[j] = ranking[j + 1]
+                    ranking[j + 1] = tmp
+
 
     def simulate_to_end(self: Game, cut: int=30) -> int:
         cdef int i
@@ -596,51 +642,55 @@ cdef class Game:
             self.play_str(rndchoice([mov for mov in self.moves if mov[0] != '-']))
             if self.ended():
                 break
-        return 0 if self.p0.points() > self.p1.points() else 1
-
+        return self.max_points().index
 
     cpdef int current_player(self):
-        return self.turn % 2
+        return self.turn % self.num_players
 
     cpdef int diff_points(self):
-        cdef int points
-        points = self.p0.points() - self.p1.points()
-        return points if self.current_player() == 0 else -points
+        return self.diff_points_for(self.current_player())
 
     cpdef int diff_points_for(self, int me):
-        cdef int points
-        points = self.p0.points() - self.p1.points()
-        return points if me == 0 else -points
+        cdef int[5] ranking
+
+        if self.num_players == 1:
+            return self.diff_points_for(0)
+
+        if self.num_players == 2:
+            return (
+                self.points_for(me)
+                - self.points_for(1 - me)
+            )
+
+        self.rank(ranking)
+        if me == ranking[0]:
+            return self.points_for(ranking[0]) - self.points_for(ranking[1])
+        else:
+            return self.points_for(me) - self.points_for(ranking[0])
 
     cpdef points_for(self, int me):
-        return self.p0.points() if me == 0 else self.p1.points()
+        return self.get_player(me).points()
 
     cpdef points(self):
-        return self.p0.points() if self.current_player() == 0 else self.p1.points()
+        return self.get_player(self.current_player()).points()
 
-    def display(self, force=-1) -> str:
+    def display(self, int force=-1) -> str:
+        cdef int p
         if force != -1:
             p = force
         else:
             p = self.current_player()
-        lines = [f'{self.turn:4}']
+        lines = [f'{self.turn // self.num_players:4}']
 
         lines.append('_Board')
         lines.append(str(self.victory))
         lines.append(str(self.action))
 
-        if p == 0:
-            lines.append(f'_Me {self.p0.points()}')
-            lines.append(self.p0.display(hidden=False))
-            lines.append(f'_Him {self.p1.points()}')
-            lines.append(self.p1.display(hidden=True))
-        elif p == 1:
-            lines.append(f'_Me {self.p1.points()}')
-            lines.append(self.p1.display(hidden=False))
-            lines.append(f'_Him {self.p0.points()}')
-            lines.append(self.p0.display(hidden=True))
-        else:
-            assert False, f"can't display the game for player {self.current_player()}"
+        lines.append(f'_Me {self.points_for(p)}')
+        lines.append(self.get_player(p).display(hidden=False))
+        for i in range(1, self.num_players):
+            lines.append(f'_Him {i} {self.points_for((p + i) % self.num_players)}')
+            lines.append(self.get_player((p + i) % self.num_players).display(hidden=True))
 
         return '\n'.join(lines)
 
@@ -657,11 +707,7 @@ cdef class Game:
         p.stock += take
 
     cpdef int play_str(self, s: str) except 0:
-        if self.current_player() == 0:
-            p = self.p0
-        else:
-            p = self.p1
-
+        p = self.get_player(self.current_player())
 
         if s == '':
             raise Illegal()
@@ -702,13 +748,15 @@ cdef class Game:
         return 1
 
     cpdef int ended(self: Game):
-        return self.p0.has_finished(self.goal_cards) or self.p1.has_finished(self.goal_cards)
+        cdef int i
+
+        for i in range(self.num_players):
+            if self.get_player(i).has_finished(self.goal_cards):
+                return 1
+        return 0
 
     cpdef int winner(self: Game):
-        if self.p0.points() > self.p1.points():
-            return 0
-        else:
-            return 1
+        return self.max_points().index
 
     cpdef list[str] gen_move(self):
         cdef int i
@@ -721,10 +769,7 @@ cdef class Game:
         if self.ended():
             return []
 
-        if self.current_player() == 0:
-            p = self.p0
-        else:
-            p = self.p1
+        p = self.get_player(self.current_player())
 
         moves = []
 
