@@ -3,6 +3,7 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from transformer import Transformer
 from tqdm import tqdm
 
 import pyximport
@@ -129,16 +130,11 @@ class Model(nn.Module):
         self.maxlen = 768
         self.in_embed = nn.Embedding(128, dim)
         self.in_embed.weight.data.normal_(0, 0.02)
-        self.pos_enc = nn.Parameter(torch.randn(self.maxlen, dim) * 1 / math.sqrt(dim))
         self.encode = nn.Sequential(
             nn.LayerNorm(dim),
             # AlternativeEncoder(4, dim),
-            nn.TransformerEncoder(
-                nn.TransformerEncoderLayer(
-                    dim, dim // 64, dim * 4, norm_first=True, batch_first=True
-                ),
-                num_layers=num_layers,
-            ),
+            #nn.TransformerEncoder( nn.TransformerEncoderLayer( dim, dim // 64, dim * 4, norm_first=True, batch_first=True), num_layers=num_layers,),
+            Transformer(dim, num_layers, dim // 64, 64),
         )
         self.to_pred = nn.Sequential(
             # AttentionPool1d(dim, dim // 32, dim),
@@ -150,13 +146,14 @@ class Model(nn.Module):
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
+            First(),
             FFN(dim),
-            Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             Squeeze(-1),
             # B
         )
+        self.pretrain_head = nn.Sequential(nn.LayerNorm(dim), nn.Linear(dim, 128))
         self.normalizer = RunningNormalizer()
         self.loss = PolicyGradientWithBaselineLoss()
 
@@ -174,42 +171,36 @@ class Model(nn.Module):
             self.in_embed.weight.device
         )
 
-    def text_embed(self, txts, maxlen, pos, pad=False):
+    def text_embed(self, txts, maxlen, pad=False):
         txts = self.text_encode(txts, maxlen, pad=pad)
-        txts = self.in_embed(txts)
-
-        return txts + pos
+        return txts
 
     def forward(self, games, samples=None):
         games = [game[:self.maxlen] for game in games]
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            enc = self.encode(
-                self.text_embed(games, self.maxlen, self.pos_enc, pad=True)
-            )
+            txt = self.text_embed(games, self.maxlen, pad=True)
+            enc = self.encode(self.in_embed(txt))
             pred = self.to_pred(enc).float()
             v_norm = self.rewards(enc).float()
 
         moves_pos = [[i for i, c in enumerate(game) if game[i] == '@'] for game in games]
 
         if samples is not None:
+            pretrain_loss = F.cross_entropy(self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2), txt[:, 1:])
             samples.action = torch.tensor([moves_pos[i][a] for i, a in enumerate(samples.action)]).to(device=pred.device)
-            print(samples.action)
             samples.returns = samples.returns.to(device=pred.device, dtype=torch.float)
             pred = self.mask_logits(pred, moves_pos)
             returns_norm = self.normalizer(samples.returns)
-            print(returns_norm)
+            print(samples.returns)
 
             policy_loss = self.loss(pred, self.normalizer.undo(v_norm), samples)
             print(self.normalizer.undo(v_norm))
             v_loss = F.mse_loss(returns_norm, v_norm)
-            losses = {"policy": policy_loss.item(), "value": v_loss.item()}
-            loss = policy_loss + v_loss
+            losses = {"policy": policy_loss.item(), "value": v_loss.item(), "pretrain": pretrain_loss.item()}
+            loss = policy_loss + v_loss + 1 * pretrain_loss
             return loss, losses
         else:
             assert not self.training
-            moves = [
-                game[game.index("_Moves\n") + 7 :].strip().split("\n") for game in games
-            ]
             pred = [
                 pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))
             ]
