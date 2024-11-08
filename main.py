@@ -188,10 +188,8 @@ class Model(nn.Module):
         if samples is not None:
             pretrain_loss = F.cross_entropy(self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2), txt[:, 1:])
             samples.action = torch.tensor([moves_pos[i][a] for i, a in enumerate(samples.action)]).to(device=pred.device)
-            samples.returns = samples.returns.to(device=pred.device, dtype=torch.float)
             pred = self.mask_logits(pred, moves_pos)
             returns_norm = self.normalizer(samples.returns)
-            print(samples.returns)
 
             policy_loss = self.loss(pred, samples.action, pred_value=v_norm.detach(), returns=returns_norm)
             print(self.normalizer.undo(v_norm))
@@ -257,22 +255,29 @@ class RunningNormalizer:
 
 
 class TrainingSample:
-    def __init__(self, state, moves, action, score, returns):
-        self.state = state
-        self.moves = moves
-        self.action = action
-        self.score = score
-        self.returns = returns
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
+    @staticmethod
+    def collate(samples):
+        return TrainingSample(
+            **{
+                k: collate([getattr(s, k) for s in samples]) for k in samples[0].__dict__
+            }
+        )
 
-def collate(samples):
-    return TrainingSample(
-        state=[s.state for s in samples],
-        moves=[s.moves for s in samples],
-        action=torch.tensor([s.action for s in samples]),
-        score=torch.tensor([s.score for s in samples]),
-        returns=torch.tensor([s.returns for s in samples]),
-    )
+    def to(self, *args, **kwargs):
+        for k, v in self.__dict__.items():
+            if isinstance(v, torch.Tensor):
+                self.__dict__[k] = v.to(*args, **kwargs)
+        return self
+
+def collate(xs):
+    if isinstance(xs[0], (int, float)):
+        return torch.tensor(xs)
+    if isinstance(xs[0], torch.Tensor):
+        return torch.cat(xs)
+    return xs
 
 
 class GamesData:
@@ -285,7 +290,7 @@ class GamesData:
             hist = d["history"]
             rewards = [0] * (len(hist) - 1)
             for i in range(len(hist) - 1):
-                rewards[i] = (
+                rewards[i] = float(
                     hist[i + 1].current_diff_points - hist[i].current_diff_points
                 )
 
@@ -297,6 +302,7 @@ class GamesData:
                         action=log.action_idx,
                         score=d["history"][-1].current_diff_points,
                         returns=sum(rewards[i:]),
+                        current_diff_points=log.current_diff_points,
                     )
                 )
         return out
@@ -432,14 +438,9 @@ class EndState:
         self.notes = []
 
 
-def self_play(model, n_games, max_len, device):
-    model.eval()
-    print(device)
-    if device is not None:
-        model.to(device)
+@torch.no_grad()
+def self_play(strategies, n_games, max_len):
     data = [{"history": []} for _ in range(n_games * 2)]
-
-    strategy = PolicySamplingStrategy()
 
     for i in tqdm(range(n_games), desc="playing games"):
         g = Game()
@@ -448,16 +449,13 @@ def self_play(model, n_games, max_len, device):
             if g.ended():
                 break
 
-            history = data[i * 2 + g.current_player()]["history"]
-
-            with torch.no_grad():
-                mov, debug = strategy(g, model)
+            mov, debug = strategies[g.current_player()](g)
 
             rec = Record(g, mov)
             rec.notes += [str(x) for x in debug]
 
             g.play_str(mov)
-            history.append(rec)
+            data[i * 2 + g.current_player()]["history"].append(rec)
 
         data[i * 2]["history"].append(EndState(g, 0))
         data[i * 2 + 1]["history"].append(EndState(g, 1))
@@ -514,10 +512,9 @@ if __name__ == "__main__":
         print("EPOCH", epoch)
         data = [
             self_play(
-                m,
+                [PolicySamplingStrategy(m), RandomBuyStrategy()],
                 config.self_play.num_games,
                 config.self_play.max_len,
-                config.device,
             )
         ]
         data = GamesData(flatten([d.data for d in data]))
@@ -553,7 +550,7 @@ if __name__ == "__main__":
         for e in range(config.train.gradient_epochs):
             random.shuffle(trainset)
             for batch in chunk(trainset, config.train.batch_size):
-                samples = collate(batch)
+                samples = TrainingSample.collate(batch).to(config.device)
                 opt.zero_grad()
                 loss, losses = m(samples.state, samples)
                 loss.backward()
