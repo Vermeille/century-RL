@@ -269,6 +269,10 @@ class GamesData:
                     hist[i + 1].current_diff_points - hist[i].current_diff_points
                 )
 
+            def discount(rews):
+                d = 0.8
+                return sum(d**i * r for r in rews)
+
             for i, log in enumerate(hist[:-1]):
                 out.append(
                     TrainingSample(
@@ -276,7 +280,7 @@ class GamesData:
                         moves=log.moves,
                         action=log.action_idx,
                         score=d["history"][-1].current_diff_points,
-                        returns=sum(rewards[i:]),
+                        returns=discount(rewards[i:]),
                         current_diff_points=log.current_diff_points,
                     )
                 )
