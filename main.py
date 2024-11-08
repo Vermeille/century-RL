@@ -453,9 +453,9 @@ def self_play(strategies, n_games, max_len):
 
             rec = Record(g, mov)
             rec.notes += [str(x) for x in debug]
+            data[i * 2 + g.current_player()]["history"].append(rec)
 
             g.play_str(mov)
-            data[i * 2 + g.current_player()]["history"].append(rec)
 
         data[i * 2]["history"].append(EndState(g, 0))
         data[i * 2 + 1]["history"].append(EndState(g, 1))
@@ -512,7 +512,7 @@ if __name__ == "__main__":
         print("EPOCH", epoch)
         data = [
             self_play(
-                [PolicySamplingStrategy(m), RandomBuyStrategy()],
+                [PolicySamplingStrategy(m), PolicySamplingStrategy(m)],
                 config.self_play.num_games,
                 config.self_play.max_len,
             )
