@@ -400,11 +400,12 @@ def autobatch(model, input, bs=None):
 
 @torch.no_grad()
 def pit(strategies, n_games, max_len):
+    n_players = len(strategies)
     dat = self_play(strategies, n_games, max_len)
     dat.print_short_history()
-    return sum((d["history"][-1].current_diff_points >= 0) for d in dat.data[::2]) / (
-        len(dat.data) // 2
-    )
+    return sum(
+        int(d["history"][-1].current_diff_points >= 0) for d in dat.data[::n_players]
+    ) / len(dat.data[::n_players])
 
 
 class Record:
@@ -428,7 +429,8 @@ class EndState:
 
 @torch.no_grad()
 def self_play(strategies, n_games, max_len):
-    data = [{"history": []} for _ in range(n_games * 2)]
+    n_players = len(strategies)
+    data = [{"history": []} for _ in range(n_games * n_players)]
 
     for i in tqdm(range(n_games), desc="playing games"):
         g = Game()
@@ -441,12 +443,12 @@ def self_play(strategies, n_games, max_len):
 
             rec = Record(g, mov)
             rec.notes += [str(x) for x in debug]
-            data[i * 2 + g.current_player()]["history"].append(rec)
+            data[i * n_players + g.current_player()]["history"].append(rec)
 
             g.play_str(mov)
 
-        data[i * 2]["history"].append(EndState(g, 0))
-        data[i * 2 + 1]["history"].append(EndState(g, 1))
+        for p in range(n_players):
+            data[i * n_players + p]["history"].append(EndState(g, p))
 
     return GamesData(data)
 
