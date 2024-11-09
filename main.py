@@ -518,7 +518,7 @@ def smart_mix(old, new):
     return out
 
 
-if __name__ == "__main__":
+def main():
     from collections import Counter
     import sys
     import yaml
@@ -541,6 +541,7 @@ if __name__ == "__main__":
     viz.close()
     # self play
     ii = 0
+    old_trainset = []
     for epoch in range(3000):
         print("EPOCH", epoch)
         data = [
@@ -555,7 +556,7 @@ if __name__ == "__main__":
         data.print_short_history()
         metrics = data.metrics()
 
-        trainset = data.to_trainset()
+        new_trainset = data.to_trainset()
 
         for k, v in metrics.items():
             if isinstance(v, dict):
@@ -576,37 +577,39 @@ if __name__ == "__main__":
                     opts={"title": k},
                 )
         print(metrics)
-        print(len(trainset), "samples")
+        print(len(new_trainset), "samples")
         m.train()
 
-        previous_model = copy.deepcopy(m)
-        for e in range(config.train.gradient_epochs):
-            random.shuffle(trainset)
-            for batch in chunk(trainset, config.train.batch_size):
-                samples = TrainingSample.collate(batch).to(config.device)
-                opt.zero_grad()
-                loss, losses = m(samples.state, samples)
-                loss.backward()
-                opt.step()
-                ii += 1
-                if ii % config.train.show_every == 0:
-                    print("lr", opt.param_groups[0]["lr"])
-                    for k, v in losses.items():
-                        viz.line(
-                            torch.tensor([v]),
-                            torch.tensor([ii]),
-                            win="loss" + k,
-                            update="append",
-                            opts={"title": "loss." + k},
-                        )
+        trainset = smart_mix(
+            old_trainset * (config.train.gradient_epochs // 2),
+            new_trainset * (config.train.gradient_epochs // 2),
+        )
+        for batch in chunk(trainset, config.train.batch_size):
+            samples = TrainingSample.collate(batch).to(config.device)
+            opt.zero_grad()
+            loss, losses = m(samples.state, samples)
+            loss.backward()
+            opt.step()
+            ii += 1
+            if ii % config.train.show_every == 0:
+                print("lr", opt.param_groups[0]["lr"])
+                for k, v in losses.items():
                     viz.line(
-                        torch.tensor([epoch]),
+                        torch.tensor([v]),
                         torch.tensor([ii]),
-                        win="epoch",
+                        win="loss" + k,
                         update="append",
-                        opts=dict(title="epoch"),
+                        opts={"title": "loss." + k},
                     )
-            print()
+                viz.line(
+                    torch.tensor([epoch]),
+                    torch.tensor([ii]),
+                    win="epoch",
+                    update="append",
+                    opts=dict(title="epoch"),
+                )
+        old_trainset = new_trainset
+        print()
         if epoch % config.pit.every == 0:
             win_rate = pit(
                 [PolicySamplingStrategy(m), RandomBuyStrategy()],
@@ -620,7 +623,10 @@ if __name__ == "__main__":
                 update="append",
                 opts=dict(title="win_rate"),
             )
-        del previous_model
 
         if epoch % 10 == 0:
             torch.save(m.state_dict(), f"rl-{epoch}.pth")
+
+
+if __name__ == "__main__":
+    main()
