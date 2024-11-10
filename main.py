@@ -43,14 +43,10 @@ class Model(nn.Module):
         self.in_embed.weight.data.normal_(0, 0.02)
         self.encode = nn.Sequential(
             # nn.LayerNorm(dim),
-            # AlternativeEncoder(4, dim),
-            # nn.TransformerEncoder( nn.TransformerEncoderLayer( dim, dim // 64, dim * 4, norm_first=True, batch_first=True), num_layers=num_layers,),
-            Transformer(dim, num_layers // 2, dim // 64, 64),
-            Transformer(dim, num_layers // 2, dim // 64, 64),
+            Transformer(dim, num_layers, dim // 64, 64),
         )
         self.to_pred = nn.Sequential(
             # AttentionPool1d(dim, dim // 32, dim),
-            # Transformer(dim, num_layers // 2, dim // 64, 64),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             Squeeze(-1),
@@ -58,7 +54,6 @@ class Model(nn.Module):
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            # Transformer(dim, num_layers // 2, dim // 64, 64),
             Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
