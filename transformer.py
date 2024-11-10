@@ -79,13 +79,15 @@ class SelfAttention(nn.Module):
         )
         self.rotary = Rotary(head_size)
 
-    def forward(self, x):
+    def forward(self, x, attn_mask):
         b, l, h, d = x.shape[0], x.shape[1], self.num_heads, self.head_size
         # bld -> (q/k/v)bhld
         qkv = self.qkv(x).reshape(b, l, 3, h, d).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
         q, k, v = self.rotary(q, k, v)
-        att = nn.functional.scaled_dot_product_attention(q, k, v, is_causal=False)
+        att = nn.functional.scaled_dot_product_attention(
+            q, k, v, is_causal=False, attn_mask=attn_mask.unsqueeze(1)
+        )
         # bhld -> blhd
         att = att.permute(0, 2, 1, 3).contiguous().reshape(b, l, h * d)
         return self.fc(att)
@@ -123,8 +125,8 @@ class TransformerBlock(nn.Module):
             normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.0),
         )
 
-    def forward(self, x):
-        x = self.sa(self.layer_norm1(x)) + x
+    def forward(self, x, attn_mask):
+        x = self.sa(self.layer_norm1(x), attn_mask) + x
         x = self.feed_forward(x).add_(x)
         return x
 
@@ -145,7 +147,9 @@ class Transformer(nn.Module):
                 m.weight.data.fill_(1.0)
                 m.eps = 1e-6
 
-    def forward(self, x):
+    def forward(self, x, attn_mask):
+        attn_mask = attn_mask.unsqueeze(1) & attn_mask.unsqueeze(2)
+
         for i, transformer_block in enumerate(self.transformer_blocks):
-            x = transformer_block(x)
+            x = transformer_block(x, attn_mask)
         return x

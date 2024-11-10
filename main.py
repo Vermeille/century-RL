@@ -16,9 +16,9 @@ class Illegal(BaseException):
     pass
 
 
-class Pool(nn.Module):
-    def forward(self, x):
-        return x.mean(dim=1)
+def mask_pool(x, mask):
+    mask = mask.unsqueeze(-1)
+    return (x.float() * mask.float()).sum(1) / mask.float().sum(1)
 
 
 class First(nn.Module):
@@ -41,9 +41,7 @@ class Model(nn.Module):
         self.maxlen = 768
         self.in_embed = nn.Embedding(128, dim)
         self.in_embed.weight.data.normal_(0, 0.02)
-        self.encode = nn.Sequential(
-            Transformer(dim, num_layers, dim // 64, 64),
-        )
+        self.encode = Transformer(dim, num_layers, dim // 64, 64)
         self.to_pred = nn.Sequential(
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
@@ -52,7 +50,6 @@ class Model(nn.Module):
         )
 
         self.rewards = nn.Sequential(
-            Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             Squeeze(-1),
@@ -81,9 +78,10 @@ class Model(nn.Module):
         games = [game[: self.maxlen] for game in games]
         with torch.autocast("cuda", dtype=torch.bfloat16):
             txt = self.text_embed(games, self.maxlen, pad=True)
-            enc = self.encode(self.in_embed(txt))
+            attn_mask = txt != 0
+            enc = self.encode(self.in_embed(txt), attn_mask)
             pred = self.to_pred(enc).float()
-            v_norm = self.rewards(enc).float()
+            v_norm = self.rewards(mask_pool(enc, attn_mask)).float()
 
         moves_pos = [
             [i + 1 for i, c in enumerate(game[:-1]) if c == "@"] for game in games
