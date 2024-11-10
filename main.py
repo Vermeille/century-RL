@@ -16,81 +16,6 @@ class Illegal(BaseException):
     pass
 
 
-class AlternativeEncoder(nn.Module):
-    def __init__(self, n_layers, dim):
-        super().__init__()
-
-        self.layers = nn.ModuleList(
-            [
-                nn.ModuleList(
-                    [
-                        nn.Sequential(
-                            nn.GroupNorm(1, dim),
-                            nn.Conv1d(dim, dim, kernel_size=5, padding=2, groups=dim),
-                        ),
-                        nn.Sequential(
-                            nn.GroupNorm(1, dim),
-                            nn.Conv1d(dim, dim * 4, 1),
-                            nn.ReLU(True),
-                            nn.Conv1d(dim * 4, dim, 1),
-                        ),
-                    ]
-                )
-                for _ in range(n_layers)
-            ]
-        )
-
-        for layer in self.layers:
-            layer[0][-1].weight.data.zero_()
-            layer[1][-1].weight.data.zero_()
-
-    def forward(self, x):
-        x = x.transpose(2, 1)  # BLC -> BCL
-        for m in self.layers:
-            x = m[0](x).add_(x)
-            x = m[1](x).add_(x)
-        x = x.transpose(2, 1)  # BCL -> BLC
-        return x
-
-
-class AttentionPool1d(nn.Module):
-    def __init__(self, embed_dim: int, num_heads: int, output_dim: int = None):
-        super().__init__()
-        self.k_proj = nn.Linear(embed_dim, embed_dim)
-        self.q_proj = nn.Linear(embed_dim, embed_dim)
-        self.v_proj = nn.Linear(embed_dim, embed_dim)
-        self.c_proj = nn.Linear(embed_dim, output_dim or embed_dim)
-        self.query = nn.Parameter(torch.randn(embed_dim) / math.sqrt(embed_dim))
-        self.num_heads = num_heads
-
-    def forward(self, x):
-        x = x.permute(1, 0, 2)  # BLC -> LBC
-        x, _ = F.multi_head_attention_forward(
-            query=self.query.expand(1, x.shape[1], x.shape[2]),
-            key=x,
-            value=x,
-            embed_dim_to_check=x.shape[-1],
-            num_heads=self.num_heads,
-            q_proj_weight=self.q_proj.weight,
-            k_proj_weight=self.k_proj.weight,
-            v_proj_weight=self.v_proj.weight,
-            in_proj_weight=None,
-            in_proj_bias=torch.cat(
-                [self.q_proj.bias, self.k_proj.bias, self.v_proj.bias]
-            ),
-            bias_k=None,
-            bias_v=None,
-            add_zero_attn=False,
-            dropout_p=0,
-            out_proj_weight=self.c_proj.weight,
-            out_proj_bias=self.c_proj.bias,
-            use_separate_proj_weight=True,
-            training=self.training,
-            need_weights=False,
-        )
-        return x.squeeze(0) + x.mean(dim=0)
-
-
 class Pool(nn.Module):
     def forward(self, x):
         return x.mean(dim=1)
@@ -121,10 +46,11 @@ class Model(nn.Module):
             # AlternativeEncoder(4, dim),
             # nn.TransformerEncoder( nn.TransformerEncoderLayer( dim, dim // 64, dim * 4, norm_first=True, batch_first=True), num_layers=num_layers,),
             Transformer(dim, num_layers // 2, dim // 64, 64),
+            Transformer(dim, num_layers // 2, dim // 64, 64),
         )
         self.to_pred = nn.Sequential(
             # AttentionPool1d(dim, dim // 32, dim),
-            Transformer(dim, num_layers // 2, dim // 64, 64),
+            # Transformer(dim, num_layers // 2, dim // 64, 64),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             Squeeze(-1),
@@ -132,7 +58,7 @@ class Model(nn.Module):
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            Transformer(dim, num_layers // 2, dim // 64, 64),
+            # Transformer(dim, num_layers // 2, dim // 64, 64),
             Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
@@ -498,6 +424,9 @@ def smart_mix(old, new):
     return out
 
 
+import time
+
+
 def main():
     from collections import Counter
     import sys
@@ -560,10 +489,9 @@ def main():
         print(len(new_trainset), "samples")
         m.train()
 
-        trainset = smart_mix(
-            old_trainset * (config.train.gradient_epochs // 2),
-            new_trainset * (config.train.gradient_epochs // 2),
-        )
+        # trainset = smart_mix( old_trainset * (config.train.gradient_epochs // 2), new_trainset * (config.train.gradient_epochs // 2),)
+        trainset = new_trainset
+        now = time.time()
         opt.zero_grad()
         for batch in chunk(trainset, config.train.batch_size):
             samples = TrainingSample.collate(batch).to(config.device)
@@ -588,6 +516,7 @@ def main():
                     opts=dict(title="epoch"),
                 )
         opt.step()
+        print("throughput", len(trainset) / (time.time() - now))
         grad_mag = torch.nn.utils.clip_grad_norm_(m.parameters(), max_norm=100.0)
         viz.line(
             torch.tensor([grad_mag.item()]),

@@ -3,7 +3,7 @@ tag: century-encoding2
 
 net:
   num_layers: 8
-  dim: 512
+  dim: 256
 
 train:
   gradient_epochs: 2
@@ -12,10 +12,10 @@ train:
   show_every: 10
 
 self_play:
-  num_games: 4
+  num_games: 1
   max_len: 500
 
 pit:
   num_games: 32
   max_len: 220
-  every: 4
+  every: 10
