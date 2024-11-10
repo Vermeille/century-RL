@@ -184,22 +184,20 @@ class Model(nn.Module):
             [i for i, c in enumerate(game) if game[i] == "@"] for game in games
         ]
 
+        pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
+
         if samples is not None:
-            pretrain_loss = F.cross_entropy(
+            pretrain_loss = 1 * F.cross_entropy(
                 self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2), txt[:, 1:]
             )
-            samples.action = torch.tensor(
-                [moves_pos[i][a] for i, a in enumerate(samples.action)]
-            ).to(device=pred.device)
-            pred = self.mask_logits(pred, moves_pos)
 
             policy_loss = self.loss(
                 pred,
                 samples.action,
                 pred_value=v_norm.detach(),
-                returns=samples.normalized_returns,
+                returns=samples.returns,
             )
-            v_loss = F.mse_loss(samples.normalized_returns, v_norm)
+            v_loss = F.mse_loss(samples.returns, v_norm)
             losses = {
                 "policy": policy_loss.item(),
                 "value": v_loss.item(),
@@ -208,17 +206,7 @@ class Model(nn.Module):
             loss = policy_loss + v_loss + 1 * pretrain_loss
             return loss, losses
         else:
-            pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
             return pred, v_norm  # undo normalization?
-
-    @staticmethod
-    def mask_logits(logits, moves_pos):
-        mask = torch.full_like(logits, False, dtype=torch.bool)
-        indexes = [(b, n) for b in range(len(moves_pos)) for n in moves_pos[b]]
-        xs, ys = zip(*indexes)
-        mask[torch.tensor(xs), torch.tensor(ys)] = True
-        logits = logits.masked_fill(~mask, float("-inf"))
-        return logits
 
 
 class PolicyGradientLoss:
@@ -231,9 +219,14 @@ class PolicyGradientLoss:
 class PolicyGradientWithBaselineLoss:
     def __call__(self, logits, action, **kwargs):
         pred_value, returns = kwargs.pop("pred_value"), kwargs.pop("returns")
-        loss = F.cross_entropy(logits, action, reduction="none")
-        policy_loss = ((returns - pred_value) * loss).mean()
-        return policy_loss
+        assert len(pred_value) == len(returns)
+        assert len(logits) == len(returns)
+        advantage = returns - pred_value
+
+        loss = 0
+        for adv, logit, act in zip(advantage, logits, action):
+            loss += adv * F.cross_entropy(logit, act)
+        return loss / len(returns)
 
 
 class TrainingSample:
