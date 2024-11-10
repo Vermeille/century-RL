@@ -42,18 +42,16 @@ class Model(nn.Module):
         self.in_embed = nn.Embedding(128, dim)
         self.in_embed.weight.data.normal_(0, 0.02)
         self.encode = nn.Sequential(
-            # nn.LayerNorm(dim),
             Transformer(dim, num_layers, dim // 64, 64),
         )
         self.to_pred = nn.Sequential(
-            # AttentionPool1d(dim, dim // 32, dim),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             Squeeze(-1),
             # BL
         )
 
-        self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
+        self.rewards = nn.Sequential(
             Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
