@@ -457,7 +457,10 @@ cdef class Player:
         return p
 
     def points(self):
-        return sum(p.points for p in self.victory) + self.stock.points()
+        return self.victory_points() + self.stock.points()
+
+    def victory_points(self):
+        return sum(p.points for p in self.victory)
 
     cdef has_finished(self, int goal_cards):
         return len(self.victory) >= goal_cards
@@ -497,8 +500,9 @@ cdef class Player:
             for i, h in enumerate(self.hand):
                 lines.append(f'H{i} {h}')
 
-            for i, d in enumerate(self.discard):
-                lines.append(f'D{i} {d}')
+            #for i, d in enumerate(self.discard):
+                #lines.append(f'D{i} {d}')
+            lines.append(f'D {len(self.discard)}')
 
         return '\n'.join(lines)
 
@@ -684,7 +688,7 @@ cdef class Game:
         return self.get_player(me).points()
 
     cpdef points(self):
-        return self.get_player(self.current_player()).points()
+        return self.get_player(self.current_player()).victory_points()
 
     def display(self, int force=-1) -> str:
         cdef int p

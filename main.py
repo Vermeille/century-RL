@@ -3,13 +3,13 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformer import Transformer
+from transformer import Transformer, TransformerBlock
 from tqdm import tqdm
 
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from engine import *
+from engine import Game, RandomBuyStrategy, PolicySamplingStrategy
 
 
 class Illegal(BaseException):
@@ -101,20 +101,6 @@ class First(nn.Module):
         return x[:, 0, :]
 
 
-class FFN(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.seq = nn.Sequential(
-            nn.LayerNorm(dim),
-            nn.Linear(dim, dim * 4),
-            nn.GELU(),
-            nn.Linear(dim * 4, dim),
-        )
-
-    def forward(self, x):
-        return x + self.seq(x)
-
-
 class Squeeze(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -131,14 +117,14 @@ class Model(nn.Module):
         self.in_embed = nn.Embedding(128, dim)
         self.in_embed.weight.data.normal_(0, 0.02)
         self.encode = nn.Sequential(
-            nn.LayerNorm(dim),
+            # nn.LayerNorm(dim),
             # AlternativeEncoder(4, dim),
             # nn.TransformerEncoder( nn.TransformerEncoderLayer( dim, dim // 64, dim * 4, norm_first=True, batch_first=True), num_layers=num_layers,),
-            Transformer(dim, num_layers, dim // 64, 64),
+            Transformer(dim, num_layers // 2, dim // 64, 64),
         )
         self.to_pred = nn.Sequential(
             # AttentionPool1d(dim, dim // 32, dim),
-            FFN(dim),
+            Transformer(dim, num_layers // 2, dim // 64, 64),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             Squeeze(-1),
@@ -146,7 +132,7 @@ class Model(nn.Module):
         )
 
         self.rewards = nn.Sequential(  # AttentionPool1d(dim, dim // 32, dim),
-            FFN(dim),
+            Transformer(dim, num_layers // 2, dim // 64, 64),
             Pool(),
             nn.LayerNorm(dim),
             nn.Linear(dim, 1),
@@ -181,7 +167,7 @@ class Model(nn.Module):
             v_norm = self.rewards(enc).float()
 
         moves_pos = [
-            [i for i, c in enumerate(game) if game[i] == "@"] for game in games
+            [i + 1 for i, c in enumerate(game[:-1]) if c == "@"] for game in games
         ]
 
         pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
@@ -262,18 +248,25 @@ class GamesData:
         self.data = data
 
     def to_trainset(self):
+        def discount(rews):
+            d = 0.98
+            return sum(d**i * r for r in rews)
+
         out = []
         for d in self.data:
+            end = d["history"][-1]
             hist = d["history"]
             rewards = [0] * (len(hist) - 1)
             for i in range(len(hist) - 1):
-                rewards[i] = float(
-                    hist[i + 1].current_diff_points - hist[i].current_diff_points
+                rewards[i] = (
+                    float(
+                        hist[i + 1].current_diff_points
+                        - hist[i].current_diff_points
+                        - 1
+                    )
+                    / 30
                 )
-
-            def discount(rews):
-                d = 0.8
-                return sum(d**i * r for r in rews)
+            # if hist[-1].cause == "toolong": rewards[-1] -= 4
 
             for i, log in enumerate(hist[:-1]):
                 out.append(
@@ -286,12 +279,6 @@ class GamesData:
                         current_diff_points=log.current_diff_points,
                     )
                 )
-        all_returns = torch.tensor([o.returns for o in out])
-        normalized = (all_returns - all_returns.mean()) / all_returns.std().clamp(
-            min=0.25
-        )
-        for o, n in zip(out, normalized):
-            o.normalized_returns = n.item()
         return out
 
     def avg_len(self):
@@ -347,7 +334,7 @@ class GamesData:
             h = g["history"]
             print(
                 "".join(colorized[s.moves[s.action_idx][0]] for s in h[:-1]),
-                h[-1].current_diff_points,
+                h[-1].my_points,
             )
 
     def dump(self):
@@ -577,15 +564,14 @@ def main():
             old_trainset * (config.train.gradient_epochs // 2),
             new_trainset * (config.train.gradient_epochs // 2),
         )
+        opt.zero_grad()
         for batch in chunk(trainset, config.train.batch_size):
             samples = TrainingSample.collate(batch).to(config.device)
-            opt.zero_grad()
             loss, losses = m(samples.state, samples)
-            loss.backward()
-            opt.step()
+            (loss / (len(trainset) // config.train.batch_size)).backward()
             ii += 1
             if ii % config.train.show_every == 0:
-                print("lr", opt.param_groups[0]["lr"])
+                print(losses)
                 for k, v in losses.items():
                     viz.line(
                         torch.tensor([v]),
@@ -601,6 +587,15 @@ def main():
                     update="append",
                     opts=dict(title="epoch"),
                 )
+        opt.step()
+        grad_mag = torch.nn.utils.clip_grad_norm_(m.parameters(), max_norm=100.0)
+        viz.line(
+            torch.tensor([grad_mag.item()]),
+            torch.tensor([ii]),
+            win="grad_mag",
+            update="append",
+            opts=dict(title="grad_mag"),
+        )
         old_trainset = new_trainset
         print()
         if epoch % config.pit.every == 0:
