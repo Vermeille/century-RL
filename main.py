@@ -90,8 +90,8 @@ class Model(nn.Module):
         pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
 
         if samples is not None:
-            pretrain_loss = 1 * F.cross_entropy(
-                self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2), txt[:, 1:]
+            pretrain_loss = F.cross_entropy(
+                self.pretrain_head(enc[:, 1:, :].float()).transpose(1, 2), txt[:, :-1]
             )
 
             policy_loss = self.loss(
@@ -106,7 +106,7 @@ class Model(nn.Module):
                 "value": v_loss.item(),
                 "pretrain": pretrain_loss.item(),
             }
-            loss = policy_loss + v_loss + 1 * pretrain_loss
+            loss = policy_loss + v_loss + 10 * pretrain_loss
             return loss, losses
         else:
             return pred, v_norm  # undo normalization?
