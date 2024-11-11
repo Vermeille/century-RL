@@ -12,7 +12,7 @@ train:
   show_every: 10
 
 self_play:
-  num_games: 1
+  num_games: 4
   max_len: 500
 
 pit:

@@ -500,9 +500,8 @@ cdef class Player:
             for i, h in enumerate(self.hand):
                 lines.append(f'H{i} {h}')
 
-            #for i, d in enumerate(self.discard):
-                #lines.append(f'D{i} {d}')
-            lines.append(f'D {len(self.discard)}')
+            for i, d in enumerate(self.discard):
+                lines.append(f'D{i} {d}')
 
         return '\n'.join(lines)
 
@@ -585,9 +584,13 @@ cdef class Game:
     cdef int goal_cards
     cdef int num_players
 
-    def __init__(self, empty=False, int goal_cards=5, int num_players=2):
+    def __init__(self, empty=False, int goal_cards=-1, int num_players=2):
         if empty:
             return
+
+        if goal_cards == -1:
+            goal_cards = 6 if num_players <= 3 else 5
+
         self.goal_cards = goal_cards
         self.p0 = Player()
         self.p0.stock += Stock.cfrom_str('YYY')

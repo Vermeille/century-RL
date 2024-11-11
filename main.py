@@ -38,7 +38,7 @@ class Squeeze(nn.Module):
 class Model(nn.Module):
     def __init__(self, dim: int, num_layers: int):
         super().__init__()
-        self.maxlen = 768
+        self.maxlen = 2048
         self.in_embed = nn.Embedding(128, dim)
         self.in_embed.weight.data.normal_(0, 0.02)
         self.encode = Transformer(dim, num_layers, dim // 64, 64)
@@ -77,7 +77,7 @@ class Model(nn.Module):
     def forward(self, games, samples=None):
         games = [game[: self.maxlen] for game in games]
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            txt = self.text_embed(games, self.maxlen, pad=True)
+            txt = self.text_embed(games, max(len(g) for g in games), pad=True)
             attn_mask = txt != 0
             enc = self.encode(self.in_embed(txt), attn_mask)
             pred = self.to_pred(enc).float()
@@ -483,7 +483,7 @@ def main():
     # m = torch.compile(m)
     m.to(config.device)
     if len(sys.argv) >= 3:
-        m.load_state_dict(torch.load(sys.argv[2]), map_location=config.device)
+        m.load_state_dict(torch.load(sys.argv[2], map_location=config.device))
     else:
         warm_batchnorm(m)
 
