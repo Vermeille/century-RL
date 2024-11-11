@@ -223,15 +223,17 @@ class GamesData:
         return movs
 
     def prompt_size(self):
-        v = sum(
+        avg = sum(
             sum(len(h.state) for h in d["history"][:-1]) / len(d["history"][:-1])
             for d in self.data
         ) / len(self.data)
-        return v
+        min_length = min(len(h.state) for d in self.data for h in d["history"][:-1])
+        max_length = max(len(h.state) for d in self.data for h in d["history"][:-1])
+        return {"avg": avg, "min": min_length, "max": max_length}
 
     def metrics(self):
         return {
-            "prompt_size": int(self.prompt_size()),
+            "prompt_size": self.prompt_size(),
             "avg_len": self.avg_len(),
             "avg_points": self.avg_points(),
             "causes": self.stats_cause(),
@@ -257,6 +259,19 @@ class GamesData:
             win="avg_move_summary",
         )
 
+        lenghts = metrics.pop("prompt_size")
+        viz.line(
+            Y=torch.tensor([[lenghts[k] for k in ["avg", "min", "max"]]]),
+            X=torch.tensor([[epoch] * 3]),
+            opts=dict(
+                title="prompt_size",
+                legend=["avg", "min", "max"],
+                xlabel="epoch",
+                ylabel="length",
+            ),
+            update="append",
+            win="prompt_size",
+        )
         for k, v in metrics.items():
             if isinstance(v, dict):
                 for kk, vv in v.items():
