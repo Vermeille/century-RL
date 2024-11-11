@@ -238,6 +238,44 @@ class GamesData:
             "avg_move_summary": self.avg_move_summary(),
         }
 
+    def metrics_to_visdom(self, viz, epoch):
+        metrics = self.metrics()
+        avg_move_summary = metrics.pop("avg_move_summary")
+        viz.line(
+            Y=torch.tensor(
+                [[sum(avg_move_summary[k] for k in "HRVA"[: i + 1]) for i in range(4)]]
+            ),
+            X=torch.tensor([[epoch] * 4]),
+            opts=dict(
+                title="avg_move_summary",
+                fillarea=True,
+                legend=["H", "R", "V", "A"],
+                xlabel="epoch",
+                ylabel="freq",
+            ),
+            update="append",
+            win="avg_move_summary",
+        )
+
+        for k, v in metrics.items():
+            if isinstance(v, dict):
+                for kk, vv in v.items():
+                    viz.line(
+                        torch.tensor([vv]),
+                        torch.tensor([epoch]),
+                        win=k + "." + kk,
+                        update="append",
+                        opts={"title": k + "." + kk},
+                    )
+            else:
+                viz.line(
+                    torch.tensor([v]),
+                    torch.tensor([epoch]),
+                    win=k,
+                    update="append",
+                    opts={"title": k},
+                )
+
     def print_short_history(self):
         import crayons
 
@@ -454,29 +492,10 @@ def main():
         data = GamesData(flatten([d.data for d in data]))
         data.dump()
         data.print_short_history()
-        metrics = data.metrics()
+        data.metrics_to_visdom(viz, epoch)
 
         new_trainset = data.to_trainset()
 
-        for k, v in metrics.items():
-            if isinstance(v, dict):
-                for kk, vv in v.items():
-                    viz.line(
-                        torch.tensor([vv]),
-                        torch.tensor([ii]),
-                        win=k + "." + kk,
-                        update="append",
-                        opts={"title": k + "." + kk},
-                    )
-            else:
-                viz.line(
-                    torch.tensor([v]),
-                    torch.tensor([ii]),
-                    win=k,
-                    update="append",
-                    opts={"title": k},
-                )
-        print(metrics)
         print(len(new_trainset), "samples")
         m.train()
 
