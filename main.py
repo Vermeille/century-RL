@@ -480,8 +480,10 @@ def main():
         print(len(new_trainset), "samples")
         m.train()
 
-        # trainset = smart_mix( old_trainset * (config.train.gradient_epochs // 2), new_trainset * (config.train.gradient_epochs // 2),)
-        trainset = new_trainset
+        trainset = smart_mix(
+            old_trainset * (config.train.gradient_epochs // 2),
+            new_trainset * (config.train.gradient_epochs // 2),
+        )
         now = time.time()
         opt.zero_grad()
         for batch in chunk(trainset, config.train.batch_size):
