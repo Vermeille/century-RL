@@ -705,11 +705,12 @@ cdef class Game:
         lines.append(str(self.victory))
         lines.append(str(self.action))
 
-        lines.append(f'_Me {self.points_for(p)}')
-        lines.append(self.get_player(p).display(hidden=False))
         for i in range(1, self.num_players):
             lines.append(f'_Him {i} {self.points_for((p + i) % self.num_players)}')
             lines.append(self.get_player((p + i) % self.num_players).display(hidden=True))
+
+        lines.append(f'_Me {self.points_for(p)}')
+        lines.append(self.get_player(p).display(hidden=False))
 
         return '\n'.join(lines)
 

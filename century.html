@@ -157,6 +157,34 @@ A5 YYYYY->BB XXXXX->`;
 function parse_state(state) {
     let lines = state.split('\n');
     let round_num = parseInt(lines.shift());
+
+    let board_ = lines.shift();
+    console.assert(board_, '_Board');
+    let line = lines.shift();
+    let victory = []
+    while (line[0] == 'V') {
+        let desc = line.split(" ")[1].split("->");
+        victory.push(desc);
+        line = lines.shift();
+    }
+
+    let action = [];
+    while (line[0] == 'A') {
+        let [a_, transfo, token] = line.split(" ");
+        transfo = transfo.split("->");
+            console.log(transfo);
+        action.push([transfo, token]);
+        line = lines.shift();
+    }
+
+    // FIXME: only one player for now
+    let [him_, him_num, him_points] = line.split(" ");
+    console.assert(him_ == '_Him');
+    let [vv_, him_num_victory] = lines.shift().split(" ");
+    console.assert(vv_, 'V');
+    let [ss_, him_stock] = lines.shift().split(" ");
+    console.assert(ss_, 'S');
+
     let [me_, points] = lines.shift().split(" ");
     console.assert(me_ == '_Me');
     let [v_, me_num_victory] = lines.shift().split(" ");
@@ -164,7 +192,7 @@ function parse_state(state) {
     let [s_, stock] = lines.shift().split(" ");
     console.assert(s_, 'S');
     let hand = [];
-    let line = lines.shift();
+    line = lines.shift();
     while (line[0] == 'H') {
         let h = line.split(" ")[1].split("->");
         hand.push(h);
@@ -176,28 +204,10 @@ function parse_state(state) {
         line = lines.shift();
     }
 
-    let [him_, him_points] = line.split(" ");
-    console.assert(him_ == '_Him');
-    let [vv_, him_num_victory] = lines.shift().split(" ");
-    console.assert(vv_, 'V');
-    let [ss_, him_stock] = lines.shift().split(" ");
-    console.assert(ss_, 'S');
-    let board_ = lines.shift();
-    console.assert(board_, '_Board');
-
-    line = lines.shift();
-    let victory = []
-    while (line[0] == 'V') {
-        let desc = line.split(" ")[1].split("->");
-        victory.push(desc);
-        line = lines.shift();
-    }
-    let action = [];
-    while (line != undefined && line[0] == 'A') {
-        let [a_, transfo, token] = line.split(" ");
-        transfo = transfo.split("->");
-            console.log(transfo);
-        action.push([transfo, token]);
+    console.assert(line == '_Moves');
+    let moves = [];
+    while (line[0] == 'D') {
+        moves.push(line.split(" ")[1]);
         line = lines.shift();
     }
 

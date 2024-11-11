@@ -24,4 +24,4 @@ def read_root():
 
 @app.get("/board", response_class=PlainTextResponse)
 def board():
-    return game.display()
+    return game.display_with_movesdiscard()
