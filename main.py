@@ -243,13 +243,13 @@ class GamesData:
         avg_move_summary = metrics.pop("avg_move_summary")
         viz.line(
             Y=torch.tensor(
-                [[sum(avg_move_summary[k] for k in "HRVA"[: i + 1]) for i in range(4)]]
+                [[sum(avg_move_summary[k] for k in "AHRV"[: i + 1]) for i in range(4)]]
             ),
             X=torch.tensor([[epoch] * 4]),
             opts=dict(
                 title="avg_move_summary",
                 fillarea=True,
-                legend=["H", "R", "V", "A"],
+                legend=["A", "H", "R", "V"],
                 xlabel="epoch",
                 ylabel="freq",
             ),
