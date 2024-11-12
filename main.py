@@ -592,8 +592,11 @@ def main():
                 opts=dict(title="win_rate"),
             )
 
-        if epoch % 10 == 0:
-            torch.save(m.state_dict(), f"rl-{epoch}.pth")
+        if epoch % config.train.save_every == 0:
+            torch.save(
+                {"model": m.state_dict(), "opt": opt.state_dict(), "epoch": epoch},
+                f"rl-{epoch}.pth",
+            )
 
 
 if __name__ == "__main__":
