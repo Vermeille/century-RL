@@ -133,7 +133,6 @@ function parse_state(state) {
     while (line[0] == 'A') {
         let [a_, transfo, token] = line.split(" ");
         transfo = transfo.split("->");
-            console.log(transfo);
         action.push([transfo, token]);
         line = lines.shift();
     }
@@ -192,7 +191,6 @@ function parse_state(state) {
 
 function render_board(state) {
     let board = parse_state(state);
-    console.log(board.action);
     return `<div class="board">
         ${board.others.map((o) =>
             `<div class="row">
