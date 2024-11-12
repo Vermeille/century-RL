@@ -69,7 +69,7 @@ class GamesData:
                         state=log.state,
                         moves=log.moves,
                         action=log.action_idx,
-                        score=d["history"][-1].current_diff_points,
+                        score=end.current_diff_points,
                         returns=discount(rewards[i:]),
                         current_diff_points=log.current_diff_points,
                     )
@@ -304,9 +304,6 @@ def self_play(strategies, n_games, max_len):
     return GamesData(data)
 
 
-import math
-
-
 from visdom import Visdom
 
 
@@ -373,7 +370,6 @@ import time
 
 
 def main():
-    from collections import Counter
     import sys
     import yaml
     from easydict import EasyDict
