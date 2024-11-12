@@ -348,14 +348,37 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
+class PitResults:
+    def __init__(self, games, num_players):
+        self.games = games
+        self.num_players = num_players
+
+    def my_points(self, player_num):
+         return [d["history"][-1].current_diff_points for d in self.my_games(player_num)]
+
+    def my_wins(self, player_num):
+        return [p >= 0 for p in self.my_points(player_num)]
+
+    def win_rate(self, player_num):
+        d = self.data
+        my_wins = self.my_wins(player_num)
+        return sum(my_wins) / len(my_wins)
+
+    def my_games(self, player_num):
+        return self.games.data[player_num::self.num_players]
+
+    def my_avg_points(self, player_num):
+        my_points = self.my_points(player_num)
+        return sum(my_points) / len(my_points)
+
+    def print_short_history(self):
+        self.games.print_short_history()
+
 @torch.no_grad()
 def pit(strategies, n_games, max_len):
     n_players = len(strategies)
     dat = self_play(strategies, n_games, max_len)
-    dat.print_short_history()
-    return sum(
-        int(d["history"][-1].current_diff_points >= 0) for d in dat.data[::n_players]
-    ) / len(dat.data[::n_players])
+    return PitResults(dat)
 
 
 class Record:
@@ -555,13 +578,14 @@ def main():
         old_trainset = new_trainset
         print()
         if epoch % config.pit.every == 0:
-            win_rate = pit(
+            pit_results = pit(
                 [PolicySamplingStrategy(m), RandomBuyStrategy()],
                 config.pit.num_games,
                 config.pit.max_len,
             )
+            pit_results.print_short_history()
             viz.line(
-                torch.tensor([win_rate]),
+                torch.tensor([pit.win_rate(0)]),
                 torch.tensor([epoch]),
                 win="win_rate",
                 update="append",
