@@ -115,45 +115,6 @@ function render_action(from_, to_) {
        </div>`;
 }
 
-let test_str = ` 85
-_Me 16
-V 1
-S GBBB
-H0 GGG->BBB
-H1 YYY->RG
-H2 RRR->BB
-H3 RRR->GGG
-H4 YYYY->GG
-H5 RRR->YGB
-H6 YYY->B
-H7 RR->YYYG
-H8 B->YYRR
-H9 YYYYY->GGG
-H10 ->YYR
-H11 ->YY
-H12 RR->GG
-H13 ->YG
-H14 ->YYY
-H15 B->RRR
-D0 XX
-D1 GG->BB
-D2 B->YYYG
-_Him 38
-V 3
-S YRRRGGBBB
-_Board
-V0 RRBBB->16
-V1 BBBB->16
-V2 YYYGG->9
-V3 GGGGG->15
-V4 RRGGBB->19
-A0 BB->RRRGG ->YY
-A1 R->YYY X->YY
-A2 GG->RRB XX->Y
-A3 XXX XXX->Y
-A4 YYYY->GB XXXX->
-A5 YYYYY->BB XXXXX->`;
-
 function parse_state(state) {
     let lines = state.split('\n');
     let round_num = parseInt(lines.shift());
@@ -177,15 +138,19 @@ function parse_state(state) {
         line = lines.shift();
     }
 
-    // FIXME: only one player for now
-    let [him_, him_num, him_points] = line.split(" ");
-    console.assert(him_ == '_Him');
-    let [vv_, him_num_victory] = lines.shift().split(" ");
-    console.assert(vv_, 'V');
-    let [ss_, him_stock] = lines.shift().split(" ");
-    console.assert(ss_, 'S');
+    let others = [];
+    while (line.startsWith('_Him')) {
+      let [him_, him_num, him_points] = line.split(" ");
+      console.assert(him_ == '_Him');
+      let [vv_, him_num_victory] = lines.shift().split(" ");
+      console.assert(vv_, 'V');
+      let [ss_, him_stock] = lines.shift().split(" ");
+      console.assert(ss_, 'S');
+      others.push({num: him_num, points: him_points, victory: him_num_victory, stock: him_stock});
+      line = lines.shift();
+    }
 
-    let [me_, points] = lines.shift().split(" ");
+    let [me_, points] = line.split(" ");
     console.assert(me_ == '_Me');
     let [v_, me_num_victory] = lines.shift().split(" ");
     console.assert(v_, 'V');
@@ -218,11 +183,10 @@ function parse_state(state) {
         my_stock: stock,
         hand: hand,
         discard: discard,
-        him_points: him_points,
-        him_num_victory: him_num_victory,
-        him_stock: him_stock,
+        others: others,
         victory: victory,
         action: action,
+        moves: moves,
     };
 }
 
@@ -230,33 +194,35 @@ function render_board(state) {
     let board = parse_state(state);
     console.log(board.action);
     return `<div class="board">
-        <div class="row">
-            ${render_stock(board.him_stock)}
-            <div class="points white-text">${board.him_points}</div>
-    </div>
-       <hr>
+        ${board.others.map((o) =>
+            `<div class="row">
+                ${render_stock(o.stock)}
+                <div class="points white-text">${o.points} (${o.victory})</div>
+            </div>`).join('\n')
+        }
+        <hr>
         <div class="row">
             <div class="coin gold"></div>
             <div class="coin silver"></div>
         </div>
         <div class="row">
-       ${board.victory.map((a) => render_victory(a[0], a[1])).join('')}
+        ${board.victory.map((a) => render_victory(a[0], a[1])).join('')}
         </div>
-       <hr>
+        <hr>
         <div class="row">
-       ${board.action.map((a) => render_action(a[0][0], a[0][1])).join('')}
+        ${board.action.map((a) => render_action(a[0][0], a[0][1])).join('')}
         </div>
-       <hr>
+        <hr>
         <div class="row">
             ${render_stock(board.my_stock)}
-            <div class="points white-text">${board.my_points}</div>
+            <div class="points white-text">${board.my_points} (${board.my_victory_cards_num})</div>
         </div>
         <div class="row">
             <button>Reload</button>
         </div>
         <div class="decks">
             <div class="row">
-           ${board.hand.map((a) => render_action(a[0], a[1])).join('')}
+            ${board.hand.map((a) => render_action(a[0], a[1])).join('')}
             </div>
         </div>
     </div>`;
