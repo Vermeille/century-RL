@@ -510,6 +510,7 @@ cdef class RandomStrategy:
     def __call__(self, g: Game):
         return rndchoice(g.moves), g.moves
 
+
 cdef class RandomBuyStrategy:
     def __call__(self, g: Game):
         moves = g.moves
@@ -517,6 +518,25 @@ cdef class RandomBuyStrategy:
             if mov[0] == 'V':
                 return mov, moves
         return rndchoice(g.moves), g.moves
+
+
+cdef class AllActionsThenRandomBuyStrategy:
+    def __call__(self, g: Game):
+        for mov in moves:
+            if mov.startswith('A0'):
+                return mov, moves
+        for mov in moves:
+            if mov[0] == 'V':
+                return mov, moves
+        return rndchoice(g.moves), g.moves
+
+
+cdef class NoActionsRandomBuyStrategy:
+    def __call__(self, g: Game):
+        for mov in moves:
+            if mov[0] == 'V':
+                return mov, moves
+        return rndchoice([mov for mov in g.moves if mov[0] != 'A']), g.moves
 
 
 cdef class ArgmaxStrategy:
@@ -528,6 +548,7 @@ cdef class ArgmaxStrategy:
         policy = self.nn([g.display_with_moves()])[0][0]
         idx = policy.argmax()
         return g.moves[idx], list(zip(policy.tolist(), g.moves))
+
 
 cdef class PolicyGuidedMCMCStrategy:
     cdef public int budget
