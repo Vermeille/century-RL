@@ -354,7 +354,7 @@ class PitResults:
         self.num_players = num_players
 
     def my_points(self, player_num):
-         return [d["history"][-1].current_diff_points for d in self.my_games(player_num)]
+        return [d["history"][-1].current_diff_points for d in self.my_games(player_num)]
 
     def my_wins(self, player_num):
         return [p >= 0 for p in self.my_points(player_num)]
@@ -365,7 +365,7 @@ class PitResults:
         return sum(my_wins) / len(my_wins)
 
     def my_games(self, player_num):
-        return self.games.data[player_num::self.num_players]
+        return self.games.data[player_num :: self.num_players]
 
     def my_avg_points(self, player_num):
         my_points = self.my_points(player_num)
@@ -374,9 +374,9 @@ class PitResults:
     def print_short_history(self):
         self.games.print_short_history()
 
+
 @torch.no_grad()
 def pit(strategies, n_games, max_len):
-    n_players = len(strategies)
     dat = self_play(strategies, n_games, max_len)
     return PitResults(dat)
 
