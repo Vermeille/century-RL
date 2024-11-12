@@ -29,7 +29,11 @@
             background-color: #fff;
             background-size: cover;
         }
-    .vertical { flex-direction: column; }
+
+        .playable {
+            box-shadow: 0px 0px 10px gold;
+        }
+        .vertical { flex-direction: column; }
         .tokens {
             display: flex;
             justify-content: center;
@@ -60,10 +64,30 @@
         }
     .points { text-align:center; font-size:3em;}
     .white-text { color: white; }
+    .dialog {
+        display: none; /* Hidden by default */
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 20px;
+        border: 1px solid #333;
+        background-color: white;
+        z-index: 1000;
+    }
+
+    .dialog button {
+        display: block;
+        margin: 5px 0;
+    }
     </style>
 </head>
 <body>
     <div id="board"></div>
+    <div id="actionDialog" class="dialog">
+        <div id="actionList"></div>
+        <div onclick="closeDialog()">Close</div>
+    </div>
 <script>
 let COLOR = {
     Y: 'yellow',
@@ -82,16 +106,16 @@ function render_stock(description) {
     </div>`;
 }
 
-function render_victory(stock, points) {
-    return `<div class="card"">
+function render_victory(stock, points, moves) {
+  return `<div class="card" data-actions="${moves.join(",")}">
            <div class="points">${points}</div>
                 ${render_stock(stock)}
         </div>`;
 }
 
-function render_action(from_, to_) {
+function render_action(from_, to_, moves) {
     if (from_ == 'XX') {
-        return `<div class="card ">
+        return `<div class="card" data-actions="${moves.join(",")}">
                     <div class="tokens">
                         <div class="token grey"></div>
                         <div class="token grey"></div>
@@ -99,7 +123,7 @@ function render_action(from_, to_) {
                     <div class="points">→</div>
                 </div>`;
     } else if (from_ == 'XXX') {
-        return `<div class="card ">
+        return `<div class="card" data-actions="${moves.join(",")}">
                     <div class="tokens">
                         <div class="token grey"></div>
                         <div class="token grey"></div>
@@ -108,7 +132,7 @@ function render_action(from_, to_) {
                     <div class="points">→</div>
                 </div>`;
     }
-    return `<div class="card ">
+    return `<div class="card" data-actions="${moves.join(",")}">
             ${render_stock(from_)}
         <div class="points">→</div>
             ${render_stock(to_)}
@@ -169,9 +193,10 @@ function parse_state(state) {
     }
 
     console.assert(line == '_Moves');
+    line = lines.shift();
     let moves = [];
-    while (line[0] == 'D') {
-        moves.push(line.split(" ")[1]);
+    while (line != undefined) {
+        moves.push(line.substr(1));
         line = lines.shift();
     }
 
@@ -189,8 +214,14 @@ function parse_state(state) {
     };
 }
 
+function moves_for(moves, prefix) {
+    return moves.filter(m => m.startsWith(prefix));
+}
+
 function render_board(state) {
     let board = parse_state(state);
+    let moves = board.moves;
+  console.log(moves);
     return `<div class="board">
         ${board.others.map((o) =>
             `<div class="row">
@@ -204,11 +235,11 @@ function render_board(state) {
             <div class="coin silver"></div>
         </div>
         <div class="row">
-        ${board.victory.map((a) => render_victory(a[0], a[1])).join('')}
+            ${board.victory.map((a, i) => render_victory(a[0], a[1], moves_for(moves, `V${i}`))).join('')}
         </div>
         <hr>
         <div class="row">
-        ${board.action.map((a) => render_action(a[0][0], a[0][1])).join('')}
+            ${board.action.map((a, i) => render_action(a[0][0], a[0][1], moves_for(moves, `A${i}`))).join('')}
         </div>
         <hr>
         <div class="row">
@@ -216,20 +247,87 @@ function render_board(state) {
             <div class="points white-text">${board.my_points} (${board.my_victory_cards_num})</div>
         </div>
         <div class="row">
-            <button>Reload</button>
+            <div class="card" data-actions="${moves_for(moves, 'R')}">Reload</button>
         </div>
         <div class="decks">
             <div class="row">
-            ${board.hand.map((a) => render_action(a[0], a[1])).join('')}
+                ${board.hand.map((a, i) => render_action(a[0], a[1], moves_for(moves, `H${i}`))).join('')}
             </div>
         </div>
     </div>`;
 }
 
-let root = document.getElementById('board');
-fetch('/board').then((response) => response.text()).then((text) => {
-    root.innerHTML = render_board(text);
-});
+function refresh() {
+    let root = document.getElementById('board');
+    fetch('/board').then((response) => response.text()).then((text) => {
+        root.innerHTML = render_board(text);
+        make_clickable();
+    });
+}
+
+function make_clickable() {
+    document.querySelectorAll('.card').forEach(card => {
+        const actions = card.getAttribute('data-actions').split(',');
+
+        console.log(actions);
+        if (actions[0] == '') {
+            return;
+        }
+
+        card.classList.add("playable");
+
+        card.addEventListener('click', function () {
+            // Get actions from the card's data attribute and split it into an array
+            let actions = card.getAttribute('data-actions').split(',');
+            if (actions[0] == '') {
+                actions = [];
+            }
+
+            // Clear any previous actions in the dialog
+            const actionList = document.getElementById('actionList');
+            actionList.innerHTML = '';
+
+            // Add actions as buttons in the dialog
+            if (actions.length == 1) {
+                sendActionToServer(actions[0]);
+                return;
+            }
+            actions.forEach(action => {
+                const actionButton = document.createElement('button');
+                actionButton.textContent = action;
+                actionButton.onclick = function () {
+                    sendActionToServer(action);
+                    closeDialog();
+
+                };
+                actionList.appendChild(actionButton);
+            });
+
+            // Show the dialog
+            document.getElementById('actionDialog').style.display = 'block';
+        });
+    });
+}
+
+function closeDialog() {
+  document.getElementById('actionDialog').style.display = 'none';
+}
+
+function sendActionToServer(action) {
+    // Example using fetch to send action to the server
+    fetch('/do', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: action }),
+    })
+    .then(response => response.json())
+    .then(data => refresh())
+    .catch(error => console.error('Error:', error));
+}
+
+refresh();
 </script>
 </body>
 </html>
