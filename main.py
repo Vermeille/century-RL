@@ -256,7 +256,7 @@ class PitResults:
 @torch.no_grad()
 def pit(strategies, n_games, max_len):
     dat = self_play(strategies, n_games, max_len)
-    return PitResults(dat)
+    return PitResults(dat, len(strategies))
 
 
 class Record:
@@ -305,23 +305,6 @@ def self_play(strategies, n_games, max_len):
 
 
 from visdom import Visdom
-
-
-def load(model, file):
-    try:
-        ckpt = torch.load(file, map_location="cpu")
-        d = model.state_dict()
-        for k in d.keys():
-            if k in d and k in ckpt:
-                try:
-                    d[k].copy_(ckpt[k])
-                except Exception as e:
-                    print(e)
-        print("loaded")
-        return True
-    except Exception as e:
-        print(e)
-        return False
 
 
 def warm_batchnorm(m):
@@ -380,7 +363,7 @@ def main():
     # m = torch.compile(m)
     m.to(config.device)
     if len(sys.argv) >= 3:
-        m.load_state_dict(torch.load(sys.argv[2], map_location=config.device))
+        m.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["model"])
     else:
         warm_batchnorm(m)
 

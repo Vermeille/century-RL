@@ -522,6 +522,7 @@ cdef class RandomBuyStrategy:
 
 cdef class AllActionsThenRandomBuyStrategy:
     def __call__(self, g: Game):
+        moves = g.moves
         for mov in moves:
             if mov.startswith('A0'):
                 return mov, moves
@@ -533,6 +534,7 @@ cdef class AllActionsThenRandomBuyStrategy:
 
 cdef class NoActionsRandomBuyStrategy:
     def __call__(self, g: Game):
+        moves = g.moves
         for mov in moves:
             if mov[0] == 'V':
                 return mov, moves
@@ -540,6 +542,8 @@ cdef class NoActionsRandomBuyStrategy:
 
 
 cdef class ArgmaxStrategy:
+    cdef public nn
+
     def __init__(self, nn):
         nn.eval()
         self.nn = nn
