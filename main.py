@@ -1,6 +1,6 @@
 import random
 import torch
-from model import Model
+from centuryrl.rl.model import Model
 from tqdm import tqdm
 from centuryrl.century.strategies import RandomBuyStrategy, PolicySamplingStrategy
 import pyximport

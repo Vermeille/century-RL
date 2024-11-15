@@ -12,7 +12,7 @@ from centuryrl.century.strategies import (
     PolicySamplingStrategy,
 )
 from main import pit
-from model import Model
+from centuryrl.rl.model import Model
 
 
 def populate_strategies():
