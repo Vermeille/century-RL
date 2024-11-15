@@ -335,10 +335,12 @@ function sendActionToServer(action) {
             refresh();
         } else {
             let winner = document.createElement('div');
-            winner.textContent = state.points >= 0 ? 'You won!' : 'You lost!';
-            winner.textContent += '<br>';
-            winner.textContent += 'Points: ' + state.points
-            winner.textContent += '<br>';
+            winner.textHTML = state.points >= 0 ? 'You won!' : 'You lost!';
+            winner.textHTML += '<br>';
+            winner.textHTML += 'Points: ' + state.points
+            winner.textHTML += '<br>';
+            winner.textHTML += 'Number of turns: ' + state.num_plays;
+            winner.textHTML += '<br>';
             let reset_button = document.createElement('button');
             reset_button.textContent = 'Play again';
             reset_button.onclick = function () {

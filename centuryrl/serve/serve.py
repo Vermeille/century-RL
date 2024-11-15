@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 app = FastAPI()
 
 game = Game()
+num_turns = 0
 strategy = RandomBuyStrategy()
 current_dir = Path(__file__).parent
 
@@ -27,18 +28,20 @@ def board():
 
 @app.post("/do")
 def do(action: str = Body(..., embed=True)):
+    global num_turns
     if game.ended():
-        return {"continue": False, "points": game.points_for(0)}
+        return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
 
+    num_turns += 1
     game.play_str(action)
     if game.ended():
-        return {"continue": False, "points": game.points_for(0)}
+        return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
 
     move, _ = strategy(game)
 
     game.play_str(move)
     if game.ended():
-        return {"continue": False, "points": game.points_for(0)}
+        return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
 
     return {"continue": True}
 
