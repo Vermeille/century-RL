@@ -2,10 +2,8 @@ import json
 import os
 import random
 import torch
-import pyximport
 
-pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from engine import (
+from centuryrl.century.strategies import (
     RandomStrategy,
     RandomBuyStrategy,
     AllActionsThenRandomBuyStrategy,

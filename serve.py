@@ -1,7 +1,8 @@
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from engine import Game, RandomBuyStrategy
+from centuryrl.century.engine import Game
+from centuryrl.century.strategies import RandomBuyStrategy
 
 # from main import Model
 import torch

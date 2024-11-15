@@ -1,13 +1,12 @@
-import torch.multiprocessing as mp
 import random
 import torch
 from model import Model
 from tqdm import tqdm
-
+from centuryrl.century.strategies import RandomBuyStrategy, PolicySamplingStrategy
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from engine import Game, RandomBuyStrategy, PolicySamplingStrategy
+from centuryrl.century.engine import Game
 
 
 class TrainingSample:
