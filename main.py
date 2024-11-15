@@ -1,8 +1,8 @@
 import random
 import torch
 from centuryrl.rl.model import Model
-from tqdm import tqdm
 from centuryrl.century.strategies import RandomBuyStrategy, PolicySamplingStrategy
+from centuryrl.rl.eval.selfplay import self_play, pit
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
@@ -220,85 +220,6 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-class PitResults:
-    def __init__(self, games, num_players):
-        self.games = games
-        self.num_players = num_players
-
-    def my_points(self, player_num):
-        return [
-            history[-1].current_diff_points for history in self.my_games(player_num)
-        ]
-
-    def my_wins(self, player_num):
-        return [p >= 0 for p in self.my_points(player_num)]
-
-    def win_rate(self, player_num):
-        my_wins = self.my_wins(player_num)
-        return sum(my_wins) / len(my_wins)
-
-    def my_games(self, player_num):
-        return self.games.data[player_num :: self.num_players]
-
-    def my_avg_points(self, player_num):
-        my_points = self.my_points(player_num)
-        return sum(my_points) / len(my_points)
-
-    def print_short_history(self):
-        self.games.print_short_history()
-
-
-@torch.no_grad()
-def pit(strategies, n_games, max_len):
-    dat = self_play(strategies, n_games, max_len)
-    return PitResults(dat, len(strategies))
-
-
-class Record:
-    def __init__(self, game: Game, action: str):
-        self.state = game.display_with_moves()
-        self.moves = game.moves[:]
-        self.action_idx = self.moves.index(action)
-        self.current_diff_points = game.diff_points()
-        self.my_points = game.points()
-        self.notes = []
-
-
-class EndState:
-    def __init__(self, game: Game, player: int):
-        self.cause = "proper" if game.ended() else "toolong"
-        self.state = game.display(force=player)
-        self.my_points = game.points_for(player)
-        self.current_diff_points = game.diff_points_for(player)
-        self.notes = []
-
-
-@torch.no_grad()
-def self_play(strategies, n_games, max_len):
-    n_players = len(strategies)
-    data = [[] for _ in range(n_games * n_players)]
-
-    for i in tqdm(range(n_games), desc="playing games"):
-        g = Game()
-
-        for i_mov in range(max_len):
-            if g.ended():
-                break
-
-            mov, debug = strategies[g.current_player()](g)
-
-            rec = Record(g, mov)
-            rec.notes += [str(x) for x in debug]
-            data[i * n_players + g.current_player()].append(rec)
-
-            g.play_str(mov)
-
-        for p in range(n_players):
-            data[i * n_players + p].append(EndState(g, p))
-
-    return GamesData(data)
-
-
 from visdom import Visdom
 
 
@@ -377,6 +298,7 @@ def main():
             config.self_play.num_games,
             config.self_play.max_len,
         )
+        data = GamesData(flatten(data))
         data.dump()
         data.print_short_history()
         data.metrics_to_visdom(viz, epoch)
@@ -432,7 +354,7 @@ def main():
                 config.pit.num_games,
                 config.pit.max_len,
             )
-            pit_results.print_short_history()
+            GamesData(pit_results.games).print_short_history()
             viz.line(
                 torch.tensor([pit_results.win_rate(0)]),
                 torch.tensor([epoch]),
