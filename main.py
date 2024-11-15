@@ -237,7 +237,6 @@ class PitResults:
         return [p >= 0 for p in self.my_points(player_num)]
 
     def win_rate(self, player_num):
-        d = self.data
         my_wins = self.my_wins(player_num)
         return sum(my_wins) / len(my_wins)
 
@@ -441,7 +440,7 @@ def main():
             )
             pit_results.print_short_history()
             viz.line(
-                torch.tensor([pit.win_rate(0)]),
+                torch.tensor([pit_results.win_rate(0)]),
                 torch.tensor([epoch]),
                 win="win_rate",
                 update="append",
