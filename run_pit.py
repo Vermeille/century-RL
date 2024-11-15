@@ -1,18 +1,9 @@
 import json
 import os
 import random
-import torch
 
-from centuryrl.century.strategies import (
-    RandomStrategy,
-    RandomBuyStrategy,
-    AllActionsThenRandomBuyStrategy,
-    NoActionsRandomBuyStrategy,
-    ArgmaxStrategy,
-    PolicySamplingStrategy,
-)
+from centuryrl.century.strategies import strategy_from_string
 from main import pit
-from centuryrl.rl.model import Model
 
 
 def populate_strategies():
@@ -30,33 +21,6 @@ def populate_strategies():
                 strategies.append(f"policy_sampling:{os.path.join(root, file)}")
 
     return strategies
-
-
-def load_model(model_path):
-    model = Model(256, 8)
-    model.load_state_dict(torch.load(model_path)["model"])
-    model.cuda()
-    model.eval()
-    return model
-
-
-def strategy_from_string(strategy_string):
-    if strategy_string == "random":
-        return RandomStrategy()
-    elif strategy_string == "random_buy":
-        return RandomBuyStrategy()
-    elif strategy_string == "all_actions_then_random_buy":
-        return AllActionsThenRandomBuyStrategy()
-    elif strategy_string == "no_actions_random_buy":
-        return NoActionsRandomBuyStrategy()
-    elif strategy_string.startswith("argmax"):
-        model_path = strategy_string.split(":")[1]
-        return ArgmaxStrategy(load_model(model_path))
-    elif strategy_string.startswith("policy_sampling"):
-        model_path = strategy_string.split(":")[1]
-        return PolicySamplingStrategy(load_model(model_path))
-    else:
-        raise ValueError(f"Unknown strategy: {strategy_string}")
 
 
 def main():

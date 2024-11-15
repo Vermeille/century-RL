@@ -449,7 +449,15 @@ def main():
 
         if epoch % config.train.save_every == 0:
             torch.save(
-                {"model": m.state_dict(), "opt": opt.state_dict(), "epoch": epoch},
+                {
+                    "model": m.state_dict(),
+                    "opt": opt.state_dict(),
+                    "epoch": epoch,
+                    "config": {
+                        "num_layers": config.net.num_layers,
+                        "dim": config.net.dim,
+                    },
+                },
                 f"rl-{epoch}.pth",
             )
 

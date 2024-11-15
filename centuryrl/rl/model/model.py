@@ -118,3 +118,13 @@ class PolicyGradientWithBaselineLoss:
         for adv, logit, act in zip(advantage, logits, action):
             loss += adv * F.cross_entropy(logit, act)
         return loss / len(returns)
+
+
+def load_model(model_path):
+    ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
+    model = Model(ckpt["config"]["dim"], ckpt["config"]["num_layers"])
+    model.load_state_dict(ckpt["model"])
+    if torch.cuda.is_available():
+        model.cuda()
+    model.eval()
+    return model

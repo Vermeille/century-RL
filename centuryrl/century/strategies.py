@@ -1,6 +1,7 @@
 import torch
 from random import choice as rndchoice
 
+from centuryrl.rl.model import load_model
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
@@ -90,3 +91,22 @@ class PolicySamplingStrategy:
         policy = self.nn([g.display_with_moves()])[0][0]
         idx = torch.multinomial(torch.softmax(policy, dim=0), 1)
         return g.moves[idx], list(zip(torch.softmax(policy, dim=0).tolist(), g.moves))
+
+
+def strategy_from_string(strategy_string):
+    if strategy_string == "random":
+        return RandomStrategy()
+    elif strategy_string == "random_buy":
+        return RandomBuyStrategy()
+    elif strategy_string == "all_actions_then_random_buy":
+        return AllActionsThenRandomBuyStrategy()
+    elif strategy_string == "no_actions_random_buy":
+        return NoActionsRandomBuyStrategy()
+    elif strategy_string.startswith("argmax"):
+        model_path = strategy_string.split(":")[1]
+        return ArgmaxStrategy(load_model(model_path))
+    elif strategy_string.startswith("policy_sampling"):
+        model_path = strategy_string.split(":")[1]
+        return PolicySamplingStrategy(load_model(model_path))
+    else:
+        raise ValueError(f"Unknown strategy: {strategy_string}")
