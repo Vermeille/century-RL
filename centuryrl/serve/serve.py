@@ -27,7 +27,24 @@ def board():
 
 @app.post("/do")
 def do(action: str = Body(..., embed=True)):
+    if game.ended():
+        return {"continue": False, "points": game.points_for(0)}
+
     game.play_str(action)
+    if game.ended():
+        return {"continue": False, "points": game.points_for(0)}
+
     move, _ = strategy(game)
+
     game.play_str(move)
+    if game.ended():
+        return {"continue": False, "points": game.points_for(0)}
+
+    return {"continue": True}
+
+
+@app.get("/reset")
+def reset():
+    global game
+    game = Game()
     return True

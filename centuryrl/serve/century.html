@@ -84,8 +84,8 @@
 </head>
 <body>
     <div id="board"></div>
-    <div id="actionDialog" class="dialog">
-        <div id="actionList"></div>
+    <div id="dialog" class="dialog">
+        <div id="dialogContent"></div>
         <div onclick="closeDialog()">Close</div>
     </div>
 <script>
@@ -265,6 +265,17 @@ function refresh() {
     });
 }
 
+
+function show_dialog(content) {
+    document.getElementById('dialogContent').innerHTML = '';
+    document.getElementById('dialogContent').appendChild(content);
+    document.getElementById('dialog').style.display = 'block';
+}
+
+function closeDialog() {
+  document.getElementById('dialog').style.display = 'none';
+}
+
 function make_clickable() {
     document.querySelectorAll('.card').forEach(card => {
         const actions = card.getAttribute('data-actions').split(',');
@@ -284,7 +295,7 @@ function make_clickable() {
             }
 
             // Clear any previous actions in the dialog
-            const actionList = document.getElementById('actionList');
+            const actionList = document.createElement('div');
             actionList.innerHTML = '';
 
             // Add actions as buttons in the dialog
@@ -304,13 +315,9 @@ function make_clickable() {
             });
 
             // Show the dialog
-            document.getElementById('actionDialog').style.display = 'block';
+            show_dialog(actionList);
         });
     });
-}
-
-function closeDialog() {
-  document.getElementById('actionDialog').style.display = 'none';
 }
 
 function sendActionToServer(action) {
@@ -323,8 +330,26 @@ function sendActionToServer(action) {
         body: JSON.stringify({ action: action }),
     })
     .then(response => response.json())
-    .then(data => refresh())
-    .catch(error => console.error('Error:', error));
+    .then(state => {
+        if (state.continue) {
+            refresh();
+        } else {
+            let winner = document.createElement('div');
+            winner.textContent = state.points >= 0 ? 'You won!' : 'You lost!';
+            winner.textContent += '<br>';
+            winner.textContent += 'Points: ' + state.points
+            winner.textContent += '<br>';
+            let reset_button = document.createElement('button');
+            reset_button.textContent = 'Play again';
+            reset_button.onclick = function () {
+                fetch('/reset').then(() => refresh());
+                closeDialog();
+                refresh();
+            };
+            winner.appendChild(reset_button);
+            show_dialog(winner);
+        }
+    }) .catch(error => console.error('Error:', error));
 }
 
 refresh();
