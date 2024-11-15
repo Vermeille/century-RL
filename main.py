@@ -37,53 +37,49 @@ def collate(xs):
     return xs
 
 
+def to_trainset(games_data):
+    def discount(rews):
+        d = 0.98
+        return sum(d**i * r for r in rews)
+
+    out = []
+    for hist in games_data.data:
+        end = hist[-1]
+        rewards = [0] * (len(hist) - 1)
+        for i in range(len(hist) - 1):
+            rewards[i] = (
+                float(hist[i + 1].current_diff_points - hist[i].current_diff_points - 1)
+                / 30
+            )
+        # if hist[-1].cause == "toolong": rewards[-1] -= 4
+
+        for i, log in enumerate(hist[:-1]):
+            out.append(
+                TrainingSample(
+                    state=log.state,
+                    moves=log.moves,
+                    action=log.action_idx,
+                    score=end.current_diff_points,
+                    returns=discount(rewards[i:]),
+                    current_diff_points=log.current_diff_points,
+                )
+            )
+    return out
+
+
 class GamesData:
     def __init__(self, data):
         self.data = data
 
-    def to_trainset(self):
-        def discount(rews):
-            d = 0.98
-            return sum(d**i * r for r in rews)
-
-        out = []
-        for d in self.data:
-            end = d["history"][-1]
-            hist = d["history"]
-            rewards = [0] * (len(hist) - 1)
-            for i in range(len(hist) - 1):
-                rewards[i] = (
-                    float(
-                        hist[i + 1].current_diff_points
-                        - hist[i].current_diff_points
-                        - 1
-                    )
-                    / 30
-                )
-            # if hist[-1].cause == "toolong": rewards[-1] -= 4
-
-            for i, log in enumerate(hist[:-1]):
-                out.append(
-                    TrainingSample(
-                        state=log.state,
-                        moves=log.moves,
-                        action=log.action_idx,
-                        score=end.current_diff_points,
-                        returns=discount(rewards[i:]),
-                        current_diff_points=log.current_diff_points,
-                    )
-                )
-        return out
-
     def avg_len(self):
-        return sum(len(d["history"]) for d in self.data) / len(self.data)
+        return sum(len(history) for history in self.data) / len(self.data)
 
     def avg_points(self):
-        return sum(d["history"][-1].my_points for d in self.data) / (len(self.data))
+        return sum(history[-1].my_points for history in self.data) / (len(self.data))
 
     def stats_cause(self):
-        proper = sum(1 for d in self.data if d["history"][-1].cause == "proper")
-        toolong = sum(1 for d in self.data if d["history"][-1].cause == "toolong")
+        proper = sum(1 for history in self.data if history[-1].cause == "proper")
+        toolong = sum(1 for history in self.data if history[-1].cause == "toolong")
         n = len(self.data)
         return {"proper": proper / n, "toolong": toolong / n}
 
@@ -92,8 +88,8 @@ class GamesData:
         for typ in "HRVA":
             v = sum(
                 1
-                for d in self.data
-                for h in d["history"][:-1]
+                for history in self.data
+                for h in history[:-1]
                 if h.moves[h.action_idx][0] == typ
             )
             movs[typ] = v / len(self.data)
@@ -101,11 +97,11 @@ class GamesData:
 
     def prompt_size(self):
         avg = sum(
-            sum(len(h.state) for h in d["history"][:-1]) / len(d["history"][:-1])
-            for d in self.data
+            sum(len(h.state) for h in history[:-1]) / len(history[:-1])
+            for history in self.data
         ) / len(self.data)
-        min_length = min(len(h.state) for d in self.data for h in d["history"][:-1])
-        max_length = max(len(h.state) for d in self.data for h in d["history"][:-1])
+        min_length = min(len(h.state) for history in self.data for h in history[:-1])
+        max_length = max(len(h.state) for history in self.data for h in history[:-1])
         return {"avg": avg, "min": min_length, "max": max_length}
 
     def metrics(self):
@@ -177,8 +173,7 @@ class GamesData:
             "R": str(crayons.yellow("R")),
             "V": str(crayons.white("V")),
         }
-        for g in self.data:
-            h = g["history"]
+        for h in self.data:
             print(
                 "".join(colorized[s.moves[s.action_idx][0]] for s in h[:-1]),
                 h[-1].my_points,
@@ -186,13 +181,13 @@ class GamesData:
 
     def dump(self):
         with open("game.txt", "w") as f:
-            for i, d in enumerate(self.data):
+            for i, history in enumerate(self.data):
                 print(f"== GAME {i} ==", file=f)
-                for log in d["history"][:-1]:
+                for log in history[:-1]:
                     print(log.state, file=f)
                     print(">", log.moves[log.action_idx], ",".join(log.notes), file=f)
                     print(file=f)
-                log = d["history"][-1]
+                log = history[-1]
                 print(log.state, file=f)
                 print("END", ",".join(log.notes), file=f)
                 print(file=f)
@@ -231,7 +226,9 @@ class PitResults:
         self.num_players = num_players
 
     def my_points(self, player_num):
-        return [d["history"][-1].current_diff_points for d in self.my_games(player_num)]
+        return [
+            history[-1].current_diff_points for history in self.my_games(player_num)
+        ]
 
     def my_wins(self, player_num):
         return [p >= 0 for p in self.my_points(player_num)]
@@ -279,7 +276,7 @@ class EndState:
 @torch.no_grad()
 def self_play(strategies, n_games, max_len):
     n_players = len(strategies)
-    data = [{"history": []} for _ in range(n_games * n_players)]
+    data = [[] for _ in range(n_games * n_players)]
 
     for i in tqdm(range(n_games), desc="playing games"):
         g = Game()
@@ -292,12 +289,12 @@ def self_play(strategies, n_games, max_len):
 
             rec = Record(g, mov)
             rec.notes += [str(x) for x in debug]
-            data[i * n_players + g.current_player()]["history"].append(rec)
+            data[i * n_players + g.current_player()].append(rec)
 
             g.play_str(mov)
 
         for p in range(n_players):
-            data[i * n_players + p]["history"].append(EndState(g, p))
+            data[i * n_players + p].append(EndState(g, p))
 
     return GamesData(data)
 
@@ -375,19 +372,16 @@ def main():
     old_trainset = []
     for epoch in range(3000):
         print("EPOCH", epoch)
-        data = [
-            self_play(
-                [PolicySamplingStrategy(m), PolicySamplingStrategy(m)],
-                config.self_play.num_games,
-                config.self_play.max_len,
-            )
-        ]
-        data = GamesData(flatten([d.data for d in data]))
+        data = self_play(
+            [PolicySamplingStrategy(m), PolicySamplingStrategy(m)],
+            config.self_play.num_games,
+            config.self_play.max_len,
+        )
         data.dump()
         data.print_short_history()
         data.metrics_to_visdom(viz, epoch)
 
-        new_trainset = data.to_trainset()
+        new_trainset = to_trainset(data)
 
         print(len(new_trainset), "samples")
         m.train()
