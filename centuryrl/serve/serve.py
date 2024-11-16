@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from fastapi import FastAPI, Body
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -6,7 +7,42 @@ import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 from centuryrl.century.engine import Game
-from centuryrl.century.strategies import RandomBuyStrategy
+from centuryrl.century.strategies import RandomBuyStrategy, strategy_from_string
+
+
+class Strategies:
+    def __init__(self, cache_len=5):
+        self.strategies = self.populate_strategies()
+        self.cache = []
+        self.cache_len = cache_len
+
+    @staticmethod
+    def populate_strategies():
+        strategies = [
+            "random",
+            "random_buy",
+            "all_actions_then_random_buy",
+            "no_actions_random_buy",
+        ]
+        # find all .pth files in all directories
+        for root, dirs, files in os.walk("."):
+            for file in files:
+                if file.endswith(".pth"):
+                    # strategies.append(f"argmax:{os.path.join(root, file)}")
+                    strategies.append(f"policy_sampling:{os.path.join(root, file)}")
+
+        return strategies
+
+    def get_strategy(self, name):
+        for cache_name, strategy in self.cache:
+            if cache_name == name:
+                return strategy
+        self.cache = self.cache[-self.cache_len :]
+        self.cache.append((name, strategy_from_string(name)))
+        return self.cache[-1][1]
+
+
+strategies = Strategies()
 
 app = FastAPI()
 
@@ -21,18 +57,23 @@ def read_root():
     return open(current_dir / "century.html").read()
 
 
+@app.get("/strategies")
+def get_strategies():
+    return strategies.strategies
+
+
 @app.get("/board", response_class=PlainTextResponse)
 def board():
     return game.display_with_moves()
 
 
 @app.get("/analyze")
-def analyze():
-    return strategy(game)[1]
+def analyze(strategy: str):
+    return strategies.get_strategy(strategy)(game)[1]
 
 
 @app.post("/do")
-def do(action: str = Body(..., embed=True)):
+def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True)):
     global num_turns
     if game.ended():
         return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
@@ -42,7 +83,7 @@ def do(action: str = Body(..., embed=True)):
     if game.ended():
         return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
 
-    move, _ = strategy(game)
+    move, _ = strategies.get_strategy(strategy)(game)
 
     game.play_str(move)
     if game.ended():
