@@ -225,33 +225,70 @@ cdef class VictoryCard:
         return VictoryCard(c, int(p))
 
 
+joker2_moves = [
+    'Y->R',
+    'R->G',
+    'G->B',
+
+    'YY->RR',
+    'YR->RG',
+    'YG->RB',
+
+    # 'RY->GR', Already covered by YR->RG
+    'RR->GG',
+    'RG->GB',
+
+    # 'GY->BR', Already covered by YG->RB
+    # 'GR->BG', Already covered by RG->GB
+    'GG->BB',
+
+    'Y->G',
+    'R->B',
+]
+
+joker3_moves = joker2_moves + [
+    # Y->R
+    'YYY->RRR',
+    'YYR->RRG',
+    'YYG->RRB',
+
+    'YRR->RGG',
+    'YRG->RGB',
+
+    'YGG->RBB',
+
+    'YY->RG',
+    'YR->RB',
+
+    # R->G
+    'RRR->GGG',
+    'RRG->GGB',
+
+    'RGG->GBB',
+
+    'YR->GG',
+    'RR->GB',
+
+    # G->B
+    'GGG->BBB',
+
+    'YG->GB',
+    'RG->BB',
+
+    #
+    'Y->B',
+]
+
 class Joker(ActionCard):
 
     def __init__(self, n):
         assert n <= 3
+        if n == 2:
+            moves = joker2_moves
+        elif n == 3:
+            moves = joker3_moves
         self.n = n
-        self.instances = [
-            ActionCard.from_str('Y->R'),
-            ActionCard.from_str('R->G'),
-            ActionCard.from_str('G->B'),
-        ]
-        start = 0
-        for i in range(2, n + 1):
-            new = []
-            for ins in self.instances[start:]:
-                for base in self.instances[:3]:
-                    # parallel upgrades
-                    new.append(
-                        ActionCard(ins.takes() + base.takes(),
-                                   ins.gives() + base.gives()))
-            if i == 2:
-                new.append(ActionCard.from_str('Y->G'))
-                new.append(ActionCard.from_str('R->B'))
-            if i == 3:
-                new.append(ActionCard.from_str('Y->B'))
-            start = len(self.instances)
-            self.instances += new
-            n -= 1
+        self.instances = [ActionCard.from_str(move) for move in moves]
 
     def __str__(self):
         return 'X' * self.n

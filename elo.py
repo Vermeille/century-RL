@@ -71,6 +71,8 @@ def main():
             ),
             torch.sigmoid(torch.tensor([P(random_buy) - P(random)]) / D).tolist(),
         )
+    for i, r in enumerate(ranking):
+        print(i, players[r], P.weight[r].int().item())
 
 
 if __name__ == "__main__":
