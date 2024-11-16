@@ -1,12 +1,12 @@
 from pathlib import Path
+from fastapi import FastAPI, Body
+from fastapi.responses import HTMLResponse, PlainTextResponse
+
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 from centuryrl.century.engine import Game
 from centuryrl.century.strategies import RandomBuyStrategy
-
-from fastapi import FastAPI, Body
-from fastapi.responses import HTMLResponse, PlainTextResponse
 
 app = FastAPI()
 
@@ -24,6 +24,11 @@ def read_root():
 @app.get("/board", response_class=PlainTextResponse)
 def board():
     return game.display_with_moves()
+
+
+@app.get("/analyze")
+def analyze():
+    return strategy(game)[1]
 
 
 @app.post("/do")
