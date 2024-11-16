@@ -8,6 +8,7 @@
 body {
     display: flex;
     justify-content: center;
+    flex-direction: column;  /* Stack children vertically */
     align-items: center;
     height: 100vh;
     background-color: #333;
@@ -105,6 +106,10 @@ body {
     <div id="dialog" class="dialog">
         <div id="dialogContent"></div>
         <div onclick="closeDialog()">Close</div>
+    </div>
+    <div>
+        <select id="strategies"></select>
+        <button onclick="analyze()">Analyze</button>
     </div>
 <script>
 let COLOR = {
@@ -285,7 +290,6 @@ function render_board(state) {
                 ).join('')}
             </div>
         </div>
-        <button onclick="analyze()">Analyze</button>
     </div>`;
 }
 
@@ -359,7 +363,7 @@ async function sendActionToServer(action) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: action }),
+        body: JSON.stringify({ action: action, strategy: document.getElementById('strategies').value})
     });
     const state = await response.json();
 
@@ -386,7 +390,9 @@ async function sendActionToServer(action) {
 }
 
 async function analyze() {
-    const response = await fetch('/analyze');
+    const response = await fetch('/analyze?' + new URLSearchParams({
+        strategy: document.getElementById('strategies').value,
+    }));
     const data = await response.json();
     document.querySelectorAll('.analysis').forEach(cardElement => {
         cardElement.innerHTML = '';
@@ -401,7 +407,21 @@ async function analyze() {
     }
 }
 
+async function get_strategies() {
+    const response = await fetch('/strategies');
+    const data = await response.json();
+    const select = document.getElementById('strategies');
+    select.innerHTML = '';
+    for (const strategy of data) {
+        const option = document.createElement('option');
+        option.value = strategy;
+        option.textContent = strategy;
+        select.appendChild(option);
+    }
+}
+
 refresh();
+get_strategies();
 </script>
 </body>
 </html>
