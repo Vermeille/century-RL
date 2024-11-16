@@ -10,7 +10,9 @@ from centuryrl.century.engine import Game
 
 class RandomStrategy:
     def __call__(self, g: Game):
-        return rndchoice(g.moves), g.moves
+        return rndchoice(g.moves), {
+            "moves": {move: 1 / len(g.moves) for move in g.moves}
+        }
 
 
 class RandomBuyStrategy:
@@ -18,8 +20,8 @@ class RandomBuyStrategy:
         moves = g.moves
         for mov in moves:
             if mov[0] == "V":
-                return mov, moves
-        return rndchoice(g.moves), g.moves
+                return mov, {"moves": {move: 1 if move == mov else 0 for move in moves}}
+        return rndchoice(g.moves), {"moves": {move: 1 / len(moves) for move in moves}}
 
 
 class AllActionsThenRandomBuyStrategy:
@@ -27,11 +29,13 @@ class AllActionsThenRandomBuyStrategy:
         moves = g.moves
         for mov in moves:
             if mov.startswith("A0"):
-                return mov, moves
+                return mov, {"moves": {move: 1 if move == mov else 0 for move in moves}}
+
         for mov in moves:
             if mov[0] == "V":
-                return mov, moves
-        return rndchoice(g.moves), g.moves
+                return mov, {"moves": {move: 1 if move == mov else 0 for move in moves}}
+
+        return rndchoice(g.moves), {"moves": {move: 1 / len(moves) for move in moves}}
 
 
 class NoActionsRandomBuyStrategy:
@@ -39,8 +43,14 @@ class NoActionsRandomBuyStrategy:
         moves = g.moves
         for mov in moves:
             if mov[0] == "V":
-                return mov, moves
-        return rndchoice([mov for mov in g.moves if mov[0] != "A"]), g.moves
+                return mov, {"moves": {move: 1 if move == mov else 0 for move in moves}}
+
+        num_no_action = sum(1 for mov in g.moves if mov[0] != "A")
+        return rndchoice([mov for mov in g.moves if mov[0] != "A"]), {
+            "moves": {
+                move: (1 / num_no_action) if move[0] != "A" else 0 for move in g.moves
+            }
+        }
 
 
 class ArgmaxStrategy:
@@ -51,7 +61,9 @@ class ArgmaxStrategy:
     def __call__(self, g: Game):
         policy = self.nn([g.display_with_moves()])[0][0]
         idx = policy.argmax()
-        return g.moves[idx], list(zip(policy.tolist(), g.moves))
+        return g.moves[idx], {
+            "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
+        }
 
 
 class PolicyGuidedMCMCStrategy:
@@ -90,7 +102,9 @@ class PolicySamplingStrategy:
 
         policy = self.nn([g.display_with_moves()])[0][0]
         idx = torch.multinomial(torch.softmax(policy, dim=0), 1)
-        return g.moves[idx], list(zip(torch.softmax(policy, dim=0).tolist(), g.moves))
+        return g.moves[idx], {
+            "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
+        }
 
 
 def strategy_from_string(strategy_string):
