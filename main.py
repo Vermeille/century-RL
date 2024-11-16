@@ -1,5 +1,9 @@
 import random
 import torch
+import numpy as np
+import time
+from visdom import Visdom
+
 from centuryrl.rl.model import Model
 from centuryrl.century.strategies import RandomBuyStrategy, PolicySamplingStrategy
 from centuryrl.rl.eval.selfplay import self_play, pit
@@ -220,9 +224,6 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-from visdom import Visdom
-
-
 def warm_batchnorm(m):
     m.train()
     strategy = RandomBuyStrategy()
@@ -236,10 +237,6 @@ def warm_batchnorm(m):
             prompts.append(g.display_with_moves())
             strategy(g)
         m(prompts)
-
-
-import random
-import numpy as np
 
 
 def smart_mix(old, new):
@@ -263,9 +260,6 @@ def smart_mix(old, new):
             out.append(new[i_new])
             i_new += 1
     return out
-
-
-import time
 
 
 def main():
