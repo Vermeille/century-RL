@@ -685,8 +685,11 @@ cdef class Game:
 
         return '\n'.join(lines)
 
-    def display_with_moves(self):
-        return self.display() + '\n_Moves\n' + '\n'.join(['@'+ mov for mov in self.moves])
+    def display_with_moves(self, int force=-1) -> str:
+        out = self.display(force=force) + '\n_Moves\n'
+        if force == -1 or force == self.current_player():
+            out += '\n'.join(['@'+ mov for mov in self.moves])
+        return out
 
     def buy_action(self, p, idx, give, take):
         a, s = self.action.take(idx, give)
@@ -795,4 +798,6 @@ cdef class Game:
 
         return moves
 
+    cpdef round(self: Game):
+        return self.turn // self.num_players
 

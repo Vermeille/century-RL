@@ -5,3 +5,4 @@ visdom
 fastapi[standard]
 easydict
 pyyaml
+natsort

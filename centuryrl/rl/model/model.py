@@ -122,8 +122,12 @@ class PolicyGradientWithBaselineLoss:
 
 def load_model(model_path):
     ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
+
+    if "config" not in ckpt:
+        ckpt["config"] = {"dim": 256, "num_layers": 8}
+
     model = Model(ckpt["config"]["dim"], ckpt["config"]["num_layers"])
-    model.load_state_dict(ckpt["model"])
+    print(model.load_state_dict(ckpt["model"]))
     if torch.cuda.is_available():
         model.cuda()
     model.eval()

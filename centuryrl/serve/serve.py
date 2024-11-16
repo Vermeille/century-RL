@@ -1,4 +1,5 @@
 import os
+from natsort import natsorted
 from pathlib import Path
 from fastapi import FastAPI, Body
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -18,12 +19,7 @@ class Strategies:
 
     @staticmethod
     def populate_strategies():
-        strategies = [
-            "random",
-            "random_buy",
-            "all_actions_then_random_buy",
-            "no_actions_random_buy",
-        ]
+        strategies = []
         # find all .pth files in all directories
         for root, dirs, files in os.walk("."):
             for file in files:
@@ -31,6 +27,13 @@ class Strategies:
                     # strategies.append(f"argmax:{os.path.join(root, file)}")
                     strategies.append(f"policy_sampling:{os.path.join(root, file)}")
 
+        strategies = natsorted(strategies)
+        strategies += [
+            "random",
+            "random_buy",
+            "all_actions_then_random_buy",
+            "no_actions_random_buy",
+        ]
         return strategies
 
     def get_strategy(self, name):
@@ -47,7 +50,6 @@ strategies = Strategies()
 app = FastAPI()
 
 game = Game()
-num_turns = 0
 strategy = RandomBuyStrategy()
 current_dir = Path(__file__).parent
 
@@ -64,7 +66,7 @@ def get_strategies():
 
 @app.get("/board", response_class=PlainTextResponse)
 def board():
-    return game.display_with_moves()
+    return game.display_with_moves(force=0)
 
 
 @app.get("/analyze")
@@ -76,18 +78,30 @@ def analyze(strategy: str):
 def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True)):
     global num_turns
     if game.ended():
-        return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
+        return {
+            "continue": False,
+            "points": game.diff_points_for(0),
+            "num_turns": game.round(),
+        }
 
     num_turns += 1
     game.play_str(action)
     if game.ended():
-        return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
+        return {
+            "continue": False,
+            "points": game.diff_points_for(0),
+            "num_turns": game.round(),
+        }
 
     move, _ = strategies.get_strategy(strategy)(game)
 
     game.play_str(move)
     if game.ended():
-        return {"continue": False, "points": game.points_for(0), "num_turns": num_turns}
+        return {
+            "continue": False,
+            "points": game.diff_points_for(0),
+            "num_turns": game.round(),
+        }
 
     return {"continue": True}
 
