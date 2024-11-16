@@ -5,81 +5,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Board Game Layout</title>
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #333;
-        }
-        .board {
-            background-color: #222;
-            padding: 20px;
-            border-radius: 10px;
-        }
-        .row {
-            display: flex;
-            margin-bottom: 10px;
-        }
-        .card {
-            width: 80px;
-            height: 130px;
-            margin: 0 5px;
-            border-radius: 5px;
-            background-color: #fff;
-            background-size: cover;
-        }
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #333;
+}
+.board {
+    background-color: #222;
+    padding: 20px;
+    border-radius: 10px;
+}
+.row {
+    display: flex;
+    margin-bottom: 10px;
+}
+.card {
+    width: 80px;
+    height: 130px;
+    margin: 0 5px;
+    border-radius: 5px;
+    background-color: #fff;
+    background-size: cover;
+}
 
-        .playable {
-            box-shadow: 0px 0px 10px gold;
-        }
-        .vertical { flex-direction: column; }
-        .tokens {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 10px;
-        }
-        .token {
-            width: 20px;
-            height: 20px;
-            margin: 2px 2px;
-        }
-        .yellow { background-color: gold; }
-        .red { background-color: red; }
-        .green { background-color: green; }
-        .brown { background-color: brown; }
-        .grey { background-color: grey; }
-    .silver { background-color: silver; }
-    .gold { background-color: gold; }
-        .coin {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            margin: 0 30px;
-        }
-        .decks {
-            display: flex;
-            justify-content: center;
-            margin-top: 10px;
-        }
-    .points { text-align:center; font-size:3em;}
-    .white-text { color: white; }
-    .dialog {
-        display: none; /* Hidden by default */
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        padding: 20px;
-        border: 1px solid #333;
-        background-color: white;
-        z-index: 1000;
-    }
+.playable {
+    box-shadow: 0px 0px 10px gold;
+}
+.vertical { flex-direction: column; }
+.tokens {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+.token {
+    width: 20px;
+    height: 20px;
+    margin: 2px 2px;
+}
+.yellow { background-color: gold; }
+.red { background-color: red; }
+.green { background-color: green; }
+.brown { background-color: brown; }
+.grey { background-color: grey; }
+.silver { background-color: silver; }
+.gold { background-color: gold; }
+.coin {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin: 0 30px;
+}
+.decks {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+.points { text-align:center; font-size:3em;}
+.white-text { color: white; }
+.dialog {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 20px;
+    border: 1px solid #333;
+    background-color: white;
+    z-index: 1000;
+}
 
-    .dialog button {
-        display: block;
-        margin: 5px 0;
-    }
+.dialog button {
+    display: block;
+    margin: 5px 0;
+}
     </style>
 </head>
 <body>
@@ -98,43 +98,47 @@ let COLOR = {
 }
 
 function render_stock(description) {
-    return `<div class="tokens">
-           ${[...description].map(
-                (x) =>
+    return `
+    <div class="tokens">
+        ${[...description].map((x) =>
             `<div class="token ${COLOR[x]}"></div>`
-            ).join('')}
+        ).join('')}
     </div>`;
 }
 
 function render_victory(stock, points, moves) {
-  return `<div class="card" data-actions="${moves.join(",")}">
-           <div class="points">${points}</div>
-                ${render_stock(stock)}
+    return `
+        <div class="card" data-actions="${moves.join(",")}">
+            <div class="points">${points}</div>
+            ${render_stock(stock)}
         </div>`;
 }
 
 function render_action(from_, to_, moves) {
     if (from_ == 'XX') {
-        return `<div class="card" data-actions="${moves.join(",")}">
-                    <div class="tokens">
-                        <div class="token grey"></div>
-                        <div class="token grey"></div>
-                    </div>
-                    <div class="points">→</div>
-                </div>`;
+        return `
+            <div class="card" data-actions="${moves.join(",")}">
+                <div class="tokens">
+                    <div class="token grey"></div>
+                    <div class="token grey"></div>
+                </div>
+                <div class="points">→</div>
+            </div>`;
     } else if (from_ == 'XXX') {
-        return `<div class="card" data-actions="${moves.join(",")}">
-                    <div class="tokens">
-                        <div class="token grey"></div>
-                        <div class="token grey"></div>
-                        <div class="token grey"></div>
-                    </div>
-                    <div class="points">→</div>
-                </div>`;
+        return `
+            <div class="card" data-actions="${moves.join(",")}">
+                <div class="tokens">
+                    <div class="token grey"></div>
+                    <div class="token grey"></div>
+                    <div class="token grey"></div>
+                </div>
+                <div class="points">→</div>
+            </div>`;
     }
-    return `<div class="card" data-actions="${moves.join(",")}">
+    return `
+        <div class="card" data-actions="${moves.join(",")}">
             ${render_stock(from_)}
-        <div class="points">→</div>
+            <div class="points">→</div>
             ${render_stock(to_)}
        </div>`;
 }
