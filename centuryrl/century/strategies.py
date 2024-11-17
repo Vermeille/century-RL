@@ -59,11 +59,15 @@ class ArgmaxStrategy:
         self.nn = nn
 
     def __call__(self, g: Game):
-        policy = self.nn([g.display_with_moves()])[0][0]
+        policy = self.nn([g.display_with_moves()]).policy[0]
         idx = policy.argmax()
         return g.moves[idx], {
             "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
         }
+
+
+def mean(xs):
+    return sum(xs) / len(xs)
 
 
 class PolicyGuidedMCMCStrategy:
@@ -74,20 +78,21 @@ class PolicyGuidedMCMCStrategy:
 
     @torch.no_grad()
     def __call__(self, g: Game):
-        policy = self.nn([g.display_with_moves()])[0][0]
-        policy_sorted = policy.argsort(descending=True)
-        scores = []
-        for move in policy_sorted[: self.budget]:
-            me = g.current_player()
+        model_out = self.nn([g.display_with_moves()])
+        policy = torch.softmax(model_out.policy[0], dim=0)
+        value = model_out.value[0]
+        current_points = g.diff_points()
+        scores = [[s] for s in (policy + value + current_points).tolist()]
+        for _ in range(self.budget):
+            best_idx = torch.multinomial(policy, 1).item()
             g2 = g.copy()
-            g2.play_str(g.moves[move.item()])
-
-            if not g2.ended():
-                g2.simulate_to_end()
-            scores.append(g2.diff_points_for(me))
-        return g.moves[policy_sorted[scores.index(max(scores))]], list(
-            zip(policy.tolist(), scores, g.moves)
-        )
+            g2.play_str(g.moves[best_idx])
+            g2.simulate_to_end(RandomBuyStrategy())
+            scores[best_idx].append(g2.diff_points_for(g.current_player()))
+        return g.moves[max(range(len(scores)), key=lambda i: mean(scores[i]))], {
+            "moves": dict(zip(g.moves, zip(policy.tolist(), scores))),
+            "board": value.item(),
+        }
 
 
 class PolicySamplingStrategy:

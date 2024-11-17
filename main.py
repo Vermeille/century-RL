@@ -6,7 +6,11 @@ import time
 from visdom import Visdom
 
 from centuryrl.rl.model import Model
-from centuryrl.century.strategies import RandomBuyStrategy, PolicySamplingStrategy
+from centuryrl.century.strategies import (
+    RandomBuyStrategy,
+    PolicySamplingStrategy,
+    PolicyGuidedMCMCStrategy,
+)
 from centuryrl.rl.eval.selfplay import self_play, pit
 import pyximport
 
@@ -288,7 +292,7 @@ def main():
     for epoch in range(3000):
         print("EPOCH", epoch)
         data = self_play(
-            [PolicySamplingStrategy(m), PolicySamplingStrategy(m)],
+            [PolicyGuidedMCMCStrategy(10, m), PolicyGuidedMCMCStrategy(10, m)],
             config.self_play.num_games,
             config.self_play.max_len,
         )

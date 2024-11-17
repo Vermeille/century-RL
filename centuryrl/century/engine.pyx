@@ -625,14 +625,13 @@ cdef class Game:
                     ranking[j + 1] = tmp
 
 
-    def simulate_to_end(self: Game, cut: int=30) -> int:
+    def simulate_to_end(self: Game, strategy, cut: int=30):
         cdef int i
         cdef list moves
         for i in range(cut):
-            self.play_str(rndchoice(self.moves))
             if self.ended():
                 break
-        return self.max_points().index
+            self.play_str(strategy(self))
 
     cpdef int current_player(self):
         return self.turn % self.num_players
