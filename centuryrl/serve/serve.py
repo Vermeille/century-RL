@@ -76,7 +76,6 @@ def analyze(strategy: str):
 
 @app.post("/do")
 def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True)):
-    global num_turns
     if game.ended():
         return {
             "continue": False,
@@ -84,7 +83,6 @@ def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True
             "num_turns": game.round(),
         }
 
-    num_turns += 1
     game.play_str(action)
     if game.ended():
         return {
