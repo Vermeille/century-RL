@@ -100,7 +100,7 @@ class PolicySamplingStrategy:
         if len(g.moves) == 1:
             return g.moves[0], [(g.moves[0], 1.0)]
 
-        policy = self.nn([g.display_with_moves()])[0][0]
+        policy = self.nn([g.display_with_moves()]).policy[0]
         idx = torch.multinomial(torch.softmax(policy, dim=0), 1)
         return g.moves[idx], {
             "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))

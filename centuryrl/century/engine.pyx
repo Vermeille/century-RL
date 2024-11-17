@@ -571,8 +571,8 @@ cdef class Game:
         self.p2.stock += Stock.cfrom_str('YYYY')
         self.p3 = Player()
         self.p3.stock += Stock.cfrom_str('YYYR')
-        self.p3 = Player()
-        self.p3.stock += Stock.cfrom_str('YYYR')
+        self.p4 = Player()
+        self.p4.stock += Stock.cfrom_str('YYYR')
 
         self.num_players = num_players
         self.victory = VictoryPile()

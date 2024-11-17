@@ -1,3 +1,4 @@
+from collections import namedtuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,6 +22,9 @@ class Squeeze(nn.Module):
 
     def forward(self, x):
         return x.squeeze(self.dim)
+
+
+PolicyValue = namedtuple("PolicyValue", ["policy", "value"])
 
 
 class Model(nn.Module):
@@ -97,7 +101,7 @@ class Model(nn.Module):
             loss = policy_loss + v_loss + 10 * pretrain_loss
             return loss, losses
         else:
-            return pred, v_norm  # undo normalization?
+            return PolicyValue(pred, v_norm)  # undo normalization?
 
 
 class PolicyGradientLoss:

@@ -41,7 +41,7 @@ def self_play(strategies, n_games, max_len, desc="playing games"):
             mov, debug = strategies[g.current_player()](g)
 
             rec = Record(g, mov)
-            rec.notes += [str(x) for x in debug]
+            rec.notes += [str(debug)]
             data[i][g.current_player()].append(rec)
 
             g.play_str(mov)
