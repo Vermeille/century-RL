@@ -587,6 +587,7 @@ cdef class Game:
         g.p2 = self.p2.copy()
         g.p3 = self.p3.copy()
         g.p4 = self.p4.copy()
+        g.goal_cards = self.goal_cards
         g.num_players = self.num_players
         g.victory = self.victory.copy(randomize)
         g.action = self.action.copy(randomize)
@@ -631,7 +632,7 @@ cdef class Game:
         for i in range(cut):
             if self.ended():
                 break
-            self.play_str(strategy(self))
+            self.play_str(strategy(self)[0])
 
     cpdef int current_player(self):
         return self.turn % self.num_players
