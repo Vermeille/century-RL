@@ -129,9 +129,10 @@ function render_stock(description) {
     </div>`;
 }
 
-function render_card(content, moves, id) {
+function render_card(content, moves, id, over='') {
     return `
         <div class="card-container" data-id="${id}">
+            ${over}
             <div class="card" data-actions="${moves.join(",")}">
                 ${content}
             </div>
@@ -145,7 +146,10 @@ function render_victory(stock, points, moves, id) {
     `, moves, id);
 }
 
-function render_action(from_, to_, moves, id) {
+function render_action(from_, to_, moves, id, cost='') {
+    if (cost != '') {
+        cost = render_stock(cost);
+    }
     if (from_ == 'XX') {
         return render_card(`
             <div class="tokens">
@@ -153,7 +157,7 @@ function render_action(from_, to_, moves, id) {
                 <div class="token grey"></div>
             </div>
             <div class="points">→</div>
-        `, moves, id);
+        `, moves, id, cost);
     } else if (from_ == 'XXX') {
         return render_card(`
             <div class="tokens">
@@ -162,13 +166,13 @@ function render_action(from_, to_, moves, id) {
                 <div class="token grey"></div>
             </div>
             <div class="points">→</div>
-        `, moves, id);
+        `, moves, id, cost);
     }
     return render_card(`
         ${render_stock(from_)}
         <div class="points">→</div>
         ${render_stock(to_)}
-    `, moves, id);
+    `, moves, id, cost);
 }
 
 function parse_state(state) {
@@ -189,6 +193,7 @@ function parse_state(state) {
     while (line[0] == 'A') {
         let [a_, transfo, token] = line.split(" ");
         transfo = transfo.split("->");
+        token = token.split("->");
         action.push([transfo, token]);
         line = lines.shift();
     }
@@ -274,7 +279,7 @@ function render_board(state) {
         <hr>
         <div class="row">
             ${board.action.map((a, i) =>
-                render_action(a[0][0], a[0][1], moves_for(moves, `A${i}`), `A${i}`)
+                render_action(a[0][0], a[0][1], moves_for(moves, `A${i}`), `A${i}`, a[1][1])
             ).join('')}
         </div>
         <hr>
