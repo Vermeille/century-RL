@@ -70,6 +70,9 @@ cdef class Stock:
 
 
     def __contains__(self, ref: Stock):
+        return self.contains(ref)
+
+    cdef int contains(self, ref: Stock):
         return (self.Y >= ref.Y and self.R >= ref.R and self.G >= ref.G
                 and self.B >= ref.B)
 
@@ -83,7 +86,7 @@ cdef class Stock:
         return Stock.sub(self, ref)
 
     cdef inline Stock sub(self, ref: Stock):
-        if not ref in self:
+        if not self.contains(ref):
             raise Illegal()
         out = Stock()
         out.Y = self.Y - ref.Y
@@ -114,7 +117,7 @@ cdef class Stock:
         return self
 
     cdef int isub(self, ref: Stock) except 0:
-        if not ref in self:
+        if not self.contains(ref):
             raise Illegal()
         self.Y -= ref.Y
         self.R -= ref.R
@@ -189,23 +192,23 @@ cdef class ActionCard:
             return
         i = 1
         needed = self.from_.ccopy()
-        while needed in stock:
+        while stock.contains(needed):
             yield self.str_cache[i]
             Stock.iadd(needed, self.from_)
             i += 1
 
     def allows(self, from_: Stock, to_: Stock):
         if self.from_.size() == 0:
-            return to_ in self.to_
+            return self.to_.contains(to_)
 
         cdef Stock gen_
         from_ = from_.ccopy()
         gen = Stock()
-        while self.from_ in from_:
+        while from_.contains(self.from_):
             Stock.isub(from_, self.from_)
             Stock.iadd(gen, self.to_)
 
-        return to_ in gen
+        return gen.contains(to_)
 
 
 
@@ -778,7 +781,7 @@ cdef class Game:
             if i >= len(self.victory.pile):
                 continue
             v = self.victory.pile[i]
-            if v.cost in p.stock:
+            if p.stock.contains(v.cost):
                 moves.append(f'V{i}')
 
         for i in range(6):
