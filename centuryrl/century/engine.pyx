@@ -25,7 +25,10 @@ cdef class Stock:
         self.G = 0
         self.B = 0
 
-    def __str__(self) -> str:
+    def __str__(self):
+        return self.str()
+
+    cdef str str(self):
         #return 'Y' * self.Y + 'R' * self.R + 'G' * self.G + 'B' * self.B
         out = []
         for i in range(self.Y):
@@ -73,8 +76,8 @@ cdef class Stock:
     cdef int size(self) nogil:
         return self.Y + self.R + self.G + self.B
 
-    def __len__(self) -> int:
-        return self.Y + self.R + self.G + self.B
+    def __len__(self):
+        return self.size()
 
     def __sub__(self, ref: Stock):
         return Stock.sub(self, ref)
@@ -123,11 +126,11 @@ cdef class Stock:
         Stock.isub(self, ref)
         return self
 
-    def points(self):
+    cdef points(self):
         return self.R + self.G + self.B
 
-    def trim(self):
-        while len(self) > 10:
+    cdef trim(self):
+        while self.size() > 10:
             #m = max(list(self.__dict__.items()), key=lambda x: x[1])[0]
             m = max(list({
                 'Y': self.Y,
@@ -155,7 +158,7 @@ cdef class ActionCard:
         self.from_ = (from_
                       if isinstance(from_, Stock) else Stock.cfrom_str(from_))
         self.to_ = (to_ if isinstance(to_, Stock) else Stock.cfrom_str(to_))
-        self.str_cache = [str(self.from_) + '->' + str(self.to_)]
+        self.str_cache = [self.from_.str() + '->' + self.to_.str()]
         if self.from_.size() > 0:
             needed = self.from_.ccopy()
             gen = self.to_.ccopy()
@@ -215,7 +218,7 @@ cdef class VictoryCard:
         self.cost = (cost if isinstance(cost, Stock) else Stock.cfrom_str(cost))
 
     def __str__(self):
-        return str(self.cost) + '->' + str(self.points)
+        return self.cost.str() + '->' + str(self.points)
 
     __repr__ = __str__
 
@@ -448,7 +451,7 @@ cdef class ActionPile:
             for i, p in enumerate(self.visible())
         ])
 
-    def take(self, idx, bonus: Stock()) -> Tuple[ActionCard, Stock]:
+    def take(self, idx, bonus: str) -> Tuple[ActionCard, Stock]:
         if idx >= min(6, len(self.pile)):
             raise Illegal()
 
@@ -530,7 +533,7 @@ cdef class Player:
         lines = []
         lines.append(f'V {len(self.victory)}')
 
-        lines += ['S ' + str(self.stock)]
+        lines += ['S ' + self.stock.str()]
 
         if not hidden:
             for i, h in enumerate(self.hand):
@@ -787,7 +790,7 @@ cdef class Game:
             if p.stock.size() <= i:
                 # Can't put cubes on previous cards
                 continue
-            give = str(p.stock)[:i]
+            give = p.stock.str()[:i]
             moves.append(f'A{i} {give}->{gain}')
 
         i = 0
