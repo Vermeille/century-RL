@@ -642,9 +642,10 @@ cdef class Game:
 
     cpdef int diff_points_for(self, int me):
         cdef int[5] ranking
+        assert me <= self.num_players
 
         if self.num_players == 1:
-            return self.diff_points_for(0)
+            return self.points_for(0)
 
         if self.num_players == 2:
             return (
@@ -662,7 +663,7 @@ cdef class Game:
         return self.get_player(me).points()
 
     cpdef points(self):
-        return self.get_player(self.current_player()).victory_points()
+        return self.points_for(self.current_player())
 
     def display(self, int force=-1) -> str:
         cdef int p

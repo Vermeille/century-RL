@@ -49,7 +49,7 @@ def collate(xs):
 def to_trainset(games_data):
     def discount(rews):
         d = 0.98
-        return sum(d**i * r for r in rews)
+        return sum(d**i * r for i, r in enumerate(rews))
 
     out = []
     for hist in games_data.data:
