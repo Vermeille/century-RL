@@ -294,12 +294,12 @@ def main():
     m = Model(config.net.dim, config.net.num_layers)
     # m = torch.compile(m)
     m.to(config.device)
+    opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=1e-4)
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["model"])
+        opt.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["opt"])
     else:
         warm_batchnorm(m)
-
-    opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=1e-4)
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
     viz = Visdom(env=f"{config.tag}-lr={config.train.lr}")
