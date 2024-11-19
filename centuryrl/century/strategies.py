@@ -97,17 +97,21 @@ class PolicyGuidedMCMCStrategy:
 
 
 class PolicySamplingStrategy:
-    def __init__(self, nn):
+    def __init__(self, nn, temperature=1.0, epsilon=0):
         self.nn = nn
         nn.eval()
+        self.temperature = temperature
+        self.epsilon = epsilon
 
     @torch.no_grad()
     def __call__(self, g: Game):
         if len(g.moves) == 1:
             return g.moves[0], [(g.moves[0], 1.0)]
 
-        policy = self.nn([g.display_with_moves()]).policy[0]
-        idx = torch.multinomial(torch.softmax(policy, dim=0), 1)
+        policy = self.nn([g.display_with_moves()]).policy[0] / self.temperature
+        policy = torch.softmax(policy, dim=0)
+        policy = (1 - self.epsilon) * policy + self.epsilon / len(g.moves)
+        idx = torch.multinomial(policy, 1)
         return g.moves[idx], {
             "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
         }
