@@ -78,6 +78,7 @@ class PolicyGuidedMCMCStrategy:
 
     @torch.no_grad()
     def __call__(self, g: Game):
+        assert g.num_players == 2
         model_out = self.nn([g.display_with_moves()])
         policy = torch.softmax(model_out.policy[0], dim=0)
         value = model_out.value[0]

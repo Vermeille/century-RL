@@ -553,7 +553,7 @@ cdef class Game:
     cdef int turn
     cdef public list[str] moves
     cdef int goal_cards
-    cdef int num_players
+    cdef public int num_players
 
     def __init__(self, empty=False, int goal_cards=-1, int num_players=2):
         if empty:
