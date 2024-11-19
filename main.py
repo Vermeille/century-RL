@@ -113,6 +113,22 @@ class GamesData:
         max_length = max(len(h.state) for history in self.data for h in history[:-1])
         return {"avg": avg, "min": min_length, "max": max_length}
 
+    def buy_highest(self):
+        num_highest = []
+        for history in self.data:
+            for h in history[:-1]:
+                if h.moves[h.action_idx][0] == "V":
+                    victory_cards = [
+                        l for l in h.state.split("\n") if "->" in l and l[0] == "V"
+                    ]
+                    victories_points = [int(v.split("->")[1]) for v in victory_cards]
+                    highest_card = max(
+                        range(len(victories_points)), key=lambda i: victories_points[i]
+                    )
+                    buy_idx = int(h.moves[h.action_idx].split(" ")[0][1:])
+                    num_highest.append(buy_idx == highest_card)
+        return sum(num_highest) / len(num_highest)
+
     def metrics(self):
         return {
             "prompt_size": self.prompt_size(),
@@ -120,6 +136,7 @@ class GamesData:
             "avg_points": self.avg_points(),
             "causes": self.stats_cause(),
             "avg_move_summary": self.avg_move_summary(),
+            "buy_highest": self.buy_highest(),
         }
 
     def metrics_to_visdom(self, viz, epoch):
