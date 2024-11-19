@@ -81,18 +81,23 @@ class PolicyGuidedMCMCStrategy:
         assert g.num_players == 2
         model_out = self.nn([g.display_with_moves()])
         policy = torch.softmax(model_out.policy[0], dim=0)
-        value = model_out.value[0]
-        current_points = g.diff_points()
-        scores = [[s] for s in (policy + value + current_points).tolist()]
-        for _ in range(self.budget):
-            best_idx = torch.multinomial(policy, 1).item()
+        value = model_out.value[0].item()
+        prompts = []
+        for i in torch.multinomial(policy, self.budget, replacement=True):
             g2 = g.copy()
-            g2.play_str(g.moves[best_idx])
-            g2.simulate_to_end(RandomBuyStrategy())
-            scores[best_idx].append(g2.diff_points_for(g.current_player()))
+            g2.play_str(g.moves[i])
+            if not g2.ended():
+                prompts.append((i, g2.display_with_moves()))
+
+        scores = [[value] for _ in range(len(g.moves))]
+        if prompts:
+            for i, val in zip(
+                [p[0] for p in prompts], self.nn([p[1] for p in prompts]).value.tolist()
+            ):
+                scores[i].append(-val)
         return g.moves[max(range(len(scores)), key=lambda i: mean(scores[i]))], {
             "moves": dict(zip(g.moves, zip(policy.tolist(), scores))),
-            "board": value.item(),
+            "board": value,
         }
 
 
