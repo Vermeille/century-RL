@@ -12,6 +12,7 @@ def populate_strategies():
         "random_buy",
         "all_actions_then_random_buy",
         "no_actions_random_buy",
+        "pick_best_mc_value:10",
     ]
     # find all .pth files in all directories
     for root, dirs, files in os.walk("."):
@@ -24,6 +25,16 @@ def populate_strategies():
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--games", type=int, default=32)
+    parser.add_argument("--max_len", type=int, default=200)
+    parser.add_argument("--num_games", type=int, default=32)
+    parser.add_argument("--player1", type=str, default=None)
+    parser.add_argument("--player2", type=str, default=None)
+    opts = parser.parse_args()
+
     all_games = []
     try:
         with open("games.json", "r") as f:
@@ -33,11 +44,13 @@ def main():
 
     strategies = populate_strategies()
     print(strategies)
-    while True:
-        player1 = random.choice(strategies)
-        player2 = random.choice(strategies)
+    for _ in range(opts.games):
+        player1 = opts.player1 or random.choice(strategies)
+        player2 = opts.player2 or random.choice(strategies)
         pit_results = pit(
-            [strategy_from_string(player1), strategy_from_string(player2)], 32, 200
+            [strategy_from_string(player1), strategy_from_string(player2)],
+            opts.num_games,
+            opts.max_len,
         )
         for points in pit_results.my_points(0):
             all_games.append({"player1": player1, "player2": player2, "points": points})

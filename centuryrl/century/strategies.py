@@ -70,6 +70,25 @@ def mean(xs):
     return sum(xs) / len(xs)
 
 
+class PickBestMCValueStrategy:
+    def __init__(self, budget: int):
+        self.budget = budget
+
+    def __call__(self, g: Game):
+        values = [[] for _ in g.moves]
+        me = g.current_player()
+
+        for _ in range(self.budget):
+            for m in g.moves:
+                g2 = g.copy()
+                g2.play_str(m)
+                g2.simulate_to_end(RandomBuyStrategy())
+                values[g.moves.index(m)].append(g2.diff_points_for(me))
+        return g.moves[max(range(len(values)), key=lambda i: mean(values[i]))], {
+            "moves": dict(zip(g.moves, [mean(vs) for vs in values])),
+        }
+
+
 class PolicyGuidedMCMCStrategy:
     def __init__(self, budget: int, nn):
         self.budget = budget
@@ -137,5 +156,8 @@ def strategy_from_string(strategy_string):
     elif strategy_string.startswith("policy_sampling"):
         model_path = strategy_string.split(":")[1]
         return PolicySamplingStrategy(load_model(model_path))
+    elif strategy_string.startswith("pick_best_mc_value"):
+        budget = int(strategy_string.split(":")[1])
+        return PickBestMCValueStrategy(budget)
     else:
         raise ValueError(f"Unknown strategy: {strategy_string}")
