@@ -143,12 +143,10 @@ class TransformerBlock(nn.Module):
         self.layer_norm1 = nn.LayerNorm(hidden_size)
         self.sa = SelfAttention(hidden_size, num_heads, head_size)
         self.feed_forward = nn.Sequential(
+            nn.LayerNorm(hidden_size),
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
-            Permute(0, 2, 1),
-            nn.BatchNorm1d(4 * hidden_size),
-            Permute(0, 2, 1),
             GEGLU(),  # better than GELU
             normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.0),
         )

@@ -247,21 +247,6 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-def warm_batchnorm(m):
-    m.train()
-    strategy = RandomBuyStrategy()
-
-    for _ in range(50):
-        prompts = []
-        g = Game()
-        for _ in range(32):
-            if g.ended():
-                break
-            prompts.append(g.display_with_moves())
-            strategy(g)
-        m(prompts)
-
-
 def smart_mix(old, new):
     random.shuffle(old)
     random.shuffle(new)
