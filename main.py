@@ -304,42 +304,48 @@ def main():
         data.print_short_history()
         data.metrics_to_visdom(viz, epoch)
 
-        new_trainset = to_trainset(data)
+        trainset = to_trainset(data)
 
-        print(len(new_trainset), "samples")
+        print(len(trainset), "samples")
         m.train()
 
-        trainset = new_trainset
         now = time.time()
-        total_losses = defaultdict(float)
-        opt.zero_grad()
-        for batch in chunk(trainset, config.train.batch_size):
-            samples = TrainingSample.collate(batch).to(config.device)
-            loss, losses = m(samples.state, samples)
-            (loss / len(trainset) * len(batch)).backward()
-            for k, v in losses.items():
-                total_losses[k] += v / len(trainset) * len(batch)
+        for grad_ep in range(config.train.gradient_epochs):
+            grad_ep_pct = grad_ep / config.train.gradient_epochs
+            total_losses = defaultdict(float)
+            random.shuffle(trainset)
+            opt.zero_grad()
+            for batch in chunk(trainset, config.train.batch_size):
+                samples = TrainingSample.collate(batch).to(config.device)
+                loss, losses = m(samples.state, samples)
+                (loss).backward()
+                for k, v in losses.items():
+                    total_losses[k] += v / len(trainset) * len(batch)
 
-        opt.step()
-        print(total_losses)
-        for k, v in total_losses.items():
+                grad_mag = torch.nn.utils.clip_grad_norm_(
+                    m.parameters(), max_norm=100.0
+                )
+            opt.step()
+            print(total_losses)
+            for k, v in total_losses.items():
+                viz.line(
+                    torch.tensor([v]),
+                    torch.tensor([epoch + grad_ep_pct]),
+                    win="loss" + k,
+                    update="append",
+                    opts={"title": "loss." + k},
+                )
             viz.line(
-                torch.tensor([v]),
-                torch.tensor([epoch]),
-                win="loss" + k,
+                torch.tensor([grad_mag.item()]),
+                torch.tensor([epoch + grad_ep_pct]),
+                win="grad_mag",
                 update="append",
-                opts={"title": "loss." + k},
+                opts=dict(title="grad_mag"),
             )
-        print("throughput", len(trainset) / (time.time() - now))
-        grad_mag = torch.nn.utils.clip_grad_norm_(m.parameters(), max_norm=100.0)
-        viz.line(
-            torch.tensor([grad_mag.item()]),
-            torch.tensor([epoch]),
-            win="grad_mag",
-            update="append",
-            opts=dict(title="grad_mag"),
+        print(
+            "throughput",
+            len(trainset) * config.train.gradient_epochs / (time.time() - now),
         )
-        old_trainset = new_trainset
         print()
         if epoch % config.pit.every == 0:
             pit_results = pit(
