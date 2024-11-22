@@ -79,11 +79,11 @@ class PickBestMCValueStrategy:
         me = g.current_player()
 
         for _ in range(self.budget):
-            for m in g.moves:
+            for m_i, m in enumerate(g.moves):
                 g2 = g.copy()
                 g2.play_str(m)
                 g2.simulate_to_end(RandomBuyStrategy())
-                values[g.moves.index(m)].append(g2.diff_points_for(me))
+                values[m_i].append(g2.diff_points_for(me))
         return g.moves[max(range(len(values)), key=lambda i: mean(values[i]))], {
             "moves": dict(zip(g.moves, [mean(vs) for vs in values])),
         }
