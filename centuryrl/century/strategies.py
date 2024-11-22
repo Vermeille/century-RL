@@ -142,10 +142,8 @@ class PolicySamplingStrategy:
         policy = self.nn([g.display_with_moves()]).policy[0] / self.temperature
         policy = torch.softmax(policy, dim=0)
         policy = (1 - self.epsilon) * policy + self.epsilon / len(g.moves)
-        idx = torch.multinomial(policy, 1)
-        return g.moves[idx], {
-            "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
-        }
+        idx = torch.multinomial(policy, 1).item()
+        return g.moves[idx], {"moves": dict(zip(g.moves, policy.tolist()))}
 
 
 def strategy_from_string(strategy_string):
