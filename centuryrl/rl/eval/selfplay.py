@@ -31,7 +31,7 @@ def self_play(strategies, n_games, max_len, desc="playing games"):
     n_players = len(strategies)
     data = [[[] for _ in range(n_players)] for _ in range(n_games)]
 
-    for i in tqdm(range(n_games), desc=desc):
+    for i_game in tqdm(range(n_games), desc=desc):
         g = Game()
 
         for i_mov in range(max_len):
@@ -42,12 +42,12 @@ def self_play(strategies, n_games, max_len, desc="playing games"):
 
             rec = Record(g, mov)
             rec.notes += [str(debug)]
-            data[i][g.current_player()].append(rec)
+            data[i_game][g.current_player()].append(rec)
 
             g.play_str(mov)
 
         for p in range(n_players):
-            data[i][p].append(EndState(g, p))
+            data[i_game][p].append(EndState(g, p))
 
     return data
 
