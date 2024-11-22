@@ -42,24 +42,24 @@ def collate(xs):
     if isinstance(xs[0], (int, float)):
         return torch.tensor(xs)
     if isinstance(xs[0], torch.Tensor):
-        return torch.cat(xs)
+        return torch.stack(xs, 0)
     return xs
 
 
-def to_trainset(games_data):
-    def discount(rews):
-        d = 0.98
-        return sum(d**i * r for i, r in enumerate(rews))
+def discount(rews):
+    d = 0.98
+    return sum(d**i * r for i, r in enumerate(rews))
 
+
+def to_trainset(games_data):
     out = []
     for hist in games_data.data:
         end = hist[-1]
         rewards = [0] * (len(hist) - 1)
         for i in range(len(hist) - 1):
             rewards[i] = (
-                float(hist[i + 1].current_diff_points - hist[i].current_diff_points - 1)
-                / 30
-            )
+                hist[i + 1].current_diff_points - hist[i].current_diff_points
+            ) / 10
         # if hist[-1].cause == "toolong": rewards[-1] -= 4
 
         for i, log in enumerate(hist[:-1]):
@@ -284,14 +284,11 @@ def main():
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["model"])
         opt.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["opt"])
-    else:
-        warm_batchnorm(m)
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
     viz = Visdom(env=f"{config.tag}-lr={config.train.lr}")
     viz.close()
     # self play
-    old_trainset = []
     for epoch in range(3000):
         print("EPOCH", epoch)
         data = self_play(
