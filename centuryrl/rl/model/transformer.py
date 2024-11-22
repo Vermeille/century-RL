@@ -66,29 +66,54 @@ class Rotary(torch.nn.Module):
         )
 
 
+class SelfAttnOp(nn.Module):
+    def __init__(self, head_size, num_heads, rotary=True, alibi=True):
+        super().__init__()
+        self.rotary = None
+        if rotary:
+            self.rotary = Rotary(head_size)
+
+        self.alibi = None
+        if alibi:
+            self.alibi = nn.Parameter(torch.rand(num_heads))
+
+    def forward(self, q, k, v, attn_mask):
+        if self.rotary is not None:
+            q, k, v = self.rotary(q, k, v)
+
+        attn_mask = attn_mask.unsqueeze(1)
+        if self.alibi is not None:
+            mask = -torch.abs(
+                torch.arange(q.shape[-2]).unsqueeze(1) - torch.arange(k.shape[-2])
+            ).to(attn_mask.device) * self.alibi.unsqueeze(-1).unsqueeze(-1)
+            attn_mask = torch.where(attn_mask, mask, float("-inf"))
+
+        att = nn.functional.scaled_dot_product_attention(
+            q, k, v, is_causal=False, attn_mask=attn_mask
+        )
+
+        return att
+
+
 class SelfAttention(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size):
         super().__init__()
         self.num_heads = num_heads
         self.head_size = head_size
-        self.qkv = normal_init(
+        self.qkv = xavier(
             nn.Linear(hidden_size, head_size * num_heads * 3, bias=True),
-            math.sqrt(2 / (5 * hidden_size)),
         )
         self.fc = normal_init(
             nn.Linear(head_size * num_heads, hidden_size, bias=True), 0.0
         )
-        self.rotary = Rotary(head_size)
+        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=False, alibi=False)
 
     def forward(self, x, attn_mask):
         b, l, h, d = x.shape[0], x.shape[1], self.num_heads, self.head_size
         # bld -> (q/k/v)bhld
         qkv = self.qkv(x).reshape(b, l, 3, h, d).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
-        q, k, v = self.rotary(q, k, v)
-        att = nn.functional.scaled_dot_product_attention(
-            q, k, v, is_causal=False, attn_mask=attn_mask.unsqueeze(1)
-        )
+        att = self.attn_op(q, k, v, attn_mask)
         # bhld -> blhd
         att = att.permute(0, 2, 1, 3).contiguous().reshape(b, l, h * d)
         return self.fc(att)
