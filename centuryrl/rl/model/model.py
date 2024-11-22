@@ -181,6 +181,14 @@ class Model(nn.Module):
             return PolicyValue(pred, v_norm)  # undo normalization?
 
 
+class ImitationLoss:
+    def __call__(self, logits, action, **kwargs):
+        loss = 0
+        for logit, act in zip(logits, action):
+            loss += F.cross_entropy(logit, act)
+        return loss / len(action)
+
+
 class PolicyGradientLoss:
     def __call__(self, logits, pred_value, sample):
         loss = F.cross_entropy(logits, sample.action, reduction="none")

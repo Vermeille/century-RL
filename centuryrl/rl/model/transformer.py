@@ -41,6 +41,7 @@ class Rotary(torch.nn.Module):
         self.sin_cached = None
 
     def forward(self, q, k, v, seq_dim=-2):
+        # B H L D
         seq_len = q.shape[seq_dim]
         if seq_len != self.seq_len_cached:
             self.seq_len_cached = seq_len
