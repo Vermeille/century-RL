@@ -89,6 +89,13 @@ class PickBestMCValueStrategy:
         }
 
 
+class LongestMoveStrategy:
+    def __call__(self, g: Game):
+        return max(g.moves, key=len), {
+            "moves": {move: 1 / len(g.moves) for move in g.moves}
+        }
+
+
 class PolicyGuidedMCMCStrategy:
     def __init__(self, budget: int, nn):
         self.budget = budget
