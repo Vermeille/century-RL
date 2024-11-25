@@ -316,7 +316,9 @@ class Joker(ActionCard):
 cdef class VictoryPile:
     cdef public list pile
 
-    def __init__(self):
+    def __init__(self, empty=False):
+        if empty:
+            return
         self.pile = [
             VictoryCard.from_str('YRGB->12'),
             VictoryCard.from_str('YRGGGB->18'),
@@ -359,7 +361,7 @@ cdef class VictoryPile:
         # FIXME add coins
 
     def copy(self, randomize=True):
-        v = copy.copy(self)
+        v = VictoryPile(empty=True)
         v.pile = self.pile[:]
         if randomize:
             random.shuffle(v.pile[5:])
@@ -384,7 +386,9 @@ cdef class ActionPile:
     cdef public list pile
     cdef public list on_cards
 
-    def __init__(self):
+    def __init__(self, empty=False):
+        if empty:
+            return
         self.pile = [
             ActionCard.from_str('RRR->GGYY'),
             ActionCard.from_str('RR->BYY'),
@@ -435,7 +439,7 @@ cdef class ActionPile:
         self.on_cards = [Stock() for _ in range(6)]
 
     def copy(self, randomize=True):
-        a = copy.copy(self)
+        a = ActionPile(empty=True)
         a.pile = self.pile[:]
         if randomize:
             random.shuffle(self.pile[6:])
@@ -587,22 +591,22 @@ cdef class Game:
         self.moves = self.gen_move()
 
     def copy(self, randomize=True):
-        g = Game(empty=True, goal_cards=self.goal_cards)
+        g = Game(empty=True)
         g.p0 = self.p0.copy()
         g.p1 = self.p1.copy()
         g.p2 = self.p2.copy()
         g.p3 = self.p3.copy()
         g.p4 = self.p4.copy()
-        g.goal_cards = self.goal_cards
-        g.num_players = self.num_players
         g.victory = self.victory.copy(randomize)
         g.action = self.action.copy(randomize)
         g.turn = self.turn
         g.moves = self.moves.copy()
+        g.goal_cards = self.goal_cards
+        g.num_players = self.num_players
         return g
 
     cpdef Player get_player(self, int index):
-        assert index >= 0 and index < 5
+        assert index >= 0 and index < self.num_players
         if index == 0:
             return self.p0
         elif index == 1:
@@ -638,7 +642,8 @@ cdef class Game:
         for i in range(cut):
             if self.ended():
                 break
-            self.play_str(strategy(self)[0])
+            distr = strategy(self)[0]
+            self.play_idx(torch.multinomial(distr, 1).item())
 
     cpdef int current_player(self):
         return self.turn % self.num_players
@@ -706,6 +711,9 @@ cdef class Game:
         p.new_card(a)
         p.stock -= Stock.cfrom_str(give)
         p.stock += take
+
+    cpdef int play_idx(self, idx: int) except 0:
+        return self.play_str(self.moves[idx])
 
     cpdef int play_str(self, s: str) except 0:
         p = self.get_player(self.current_player())

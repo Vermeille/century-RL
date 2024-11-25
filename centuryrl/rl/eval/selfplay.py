@@ -8,10 +8,11 @@ from centuryrl.century.engine import Game
 
 
 class Record:
-    def __init__(self, game: Game, action: str):
+    def __init__(self, game: Game, action_distribution, action: int):
         self.state = game.display_with_moves()
         self.moves = game.moves[:]
-        self.action_idx = self.moves.index(action)
+        self.action_distribution = action_distribution
+        self.action_idx = action
         self.current_diff_points = game.diff_points()
         self.my_points = game.points()
         self.notes = []
@@ -38,13 +39,14 @@ def self_play(strategies, n_games, max_len, desc="playing games"):
             if g.ended():
                 break
 
-            mov, debug = strategies[g.current_player()](g)
+            dist, debug = strategies[g.current_player()](g)
+            action = torch.multinomial(dist, 1).item()
 
-            rec = Record(g, mov)
+            rec = Record(g, dist, action)
             rec.notes += [str(debug)]
             data[i_game][g.current_player()].append(rec)
 
-            g.play_str(mov)
+            g.play_idx(action)
 
         for p in range(n_players):
             data[i_game][p].append(EndState(g, p))
