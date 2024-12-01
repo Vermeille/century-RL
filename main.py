@@ -9,7 +9,7 @@ from centuryrl.rl.model import Model
 from centuryrl.century.strategies import (
     RandomBuyStrategy,
     PolicySamplingStrategy,
-    PolicyGuidedMCMCStrategy,
+    PickBestMCValueStrategy,
 )
 from centuryrl.rl.eval.selfplay import self_play, pit
 import pyximport

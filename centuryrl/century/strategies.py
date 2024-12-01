@@ -112,38 +112,6 @@ class LongestMoveStrategy:
         return one_hot, {"moves": {move: len(g.moves) / total for move in g.moves}}
 
 
-class PolicyGuidedMCMCStrategy:
-    def __init__(self, budget: int, nn):
-        assert False, "This is currently broken"
-        self.budget = budget
-        nn.eval()
-        self.nn = nn
-
-    @torch.no_grad()
-    def __call__(self, g: Game):
-        assert g.num_players == 2
-        model_out = self.nn([g.display_with_moves()])
-        policy = torch.softmax(model_out.policy[0], dim=0)
-        value = model_out.value[0].item()
-        prompts = []
-        for i in torch.multinomial(policy, self.budget, replacement=True):
-            g2 = g.copy()
-            g2.play_str(g.moves[i])
-            if not g2.ended():
-                prompts.append((i, g2.display_with_moves()))
-
-        scores = [[value] for _ in range(len(g.moves))]
-        if prompts:
-            for i, val in zip(
-                [p[0] for p in prompts], self.nn([p[1] for p in prompts]).value.tolist()
-            ):
-                scores[i].append(-val)
-        return g.moves[max(range(len(scores)), key=lambda i: mean(scores[i]))], {
-            "moves": dict(zip(g.moves, zip(policy.tolist(), scores))),
-            "board": value,
-        }
-
-
 class PolicySamplingStrategy:
     def __init__(self, nn, temperature=1.0, epsilon=0):
         self.nn = nn
