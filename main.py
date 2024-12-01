@@ -295,6 +295,35 @@ def main():
     # self play
     for epoch in range(3000):
         print("EPOCH", epoch)
+        if epoch % config.pit.every == 0:
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                pit_results = pit(
+                    [PolicySamplingStrategy(m), RandomBuyStrategy()],
+                    config.pit.num_games,
+                    config.pit.max_len,
+                )
+            GamesData(pit_results.games).print_short_history()
+            viz.line(
+                torch.tensor([pit_results.win_rate(0)]),
+                torch.tensor([epoch]),
+                win="win_rate",
+                update="append",
+                opts=dict(title="win_rate"),
+            )
+
+        if epoch % config.train.save_every == 0:
+            torch.save(
+                {
+                    "model": m.state_dict(),
+                    "opt": opt.state_dict(),
+                    "epoch": epoch,
+                    "config": {
+                        "num_layers": config.net.num_layers,
+                        "dim": config.net.dim,
+                    },
+                },
+                f"rl-{epoch}.pth",
+            )
         data = self_play(
             [PolicyGuidedMCMCStrategy(10, m), PolicyGuidedMCMCStrategy(10, m)],
             config.self_play.num_games,
@@ -348,34 +377,6 @@ def main():
             len(trainset) * config.train.gradient_epochs / (time.time() - now),
         )
         print()
-        if epoch % config.pit.every == 0:
-            pit_results = pit(
-                [PolicySamplingStrategy(m), RandomBuyStrategy()],
-                config.pit.num_games,
-                config.pit.max_len,
-            )
-            GamesData(pit_results.games).print_short_history()
-            viz.line(
-                torch.tensor([pit_results.win_rate(0)]),
-                torch.tensor([epoch]),
-                win="win_rate",
-                update="append",
-                opts=dict(title="win_rate"),
-            )
-
-        if epoch % config.train.save_every == 0:
-            torch.save(
-                {
-                    "model": m.state_dict(),
-                    "opt": opt.state_dict(),
-                    "epoch": epoch,
-                    "config": {
-                        "num_layers": config.net.num_layers,
-                        "dim": config.net.dim,
-                    },
-                },
-                f"rl-{epoch}.pth",
-            )
 
 
 if __name__ == "__main__":
