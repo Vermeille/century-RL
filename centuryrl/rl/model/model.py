@@ -181,7 +181,7 @@ class Model(nn.Module):
             loss = policy_loss + v_loss + self.pretrain_weight * pretrain_loss
             return loss, losses
         else:
-            return PolicyValue(pred, v_norm)  # undo normalization?
+            return PolicyValue(pred, v_norm)
 
 
 class ImitationLoss:
