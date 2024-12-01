@@ -34,6 +34,8 @@ class TrainingSample:
         for k, v in self.__dict__.items():
             if isinstance(v, torch.Tensor):
                 self.__dict__[k] = v.to(*args, **kwargs)
+            elif isinstance(v[0], torch.Tensor):
+                self.__dict__[k] = [x.to(*args, **kwargs) for x in v]
         return self
 
 
@@ -41,7 +43,10 @@ def collate(xs):
     if isinstance(xs[0], (int, float)):
         return torch.tensor(xs)
     if isinstance(xs[0], torch.Tensor):
-        return torch.stack(xs, 0)
+        try:
+            return torch.stack(xs, dim=0)
+        except RuntimeError:
+            return xs
     return xs
 
 
