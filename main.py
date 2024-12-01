@@ -15,7 +15,6 @@ from centuryrl.rl.eval.selfplay import self_play, pit
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from centuryrl.century.engine import Game
 
 
 class TrainingSample:
