@@ -671,7 +671,8 @@ cdef class Game:
             return self.points_for(me) - self.points_for(ranking[0])
 
     cpdef points_for(self, int me):
-        return self.get_player(me).points()
+        # FIXME:: this should be .points() but it seems to drive to just play with cubes?
+        return self.get_player(me).victory_points()
 
     cpdef points(self):
         return self.points_for(self.current_player())
