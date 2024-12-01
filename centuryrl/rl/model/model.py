@@ -52,7 +52,6 @@ class SinusoidalPositional(torch.nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
 
-        pe = pe.unsqueeze(0)
         self.register_buffer("pe", pe, persistent=False)
 
 
@@ -73,7 +72,7 @@ class ScaledSinosoidal(SinusoidalPositional):
         Examples:
             >>> output = pos_encoder(x)
         """
-        return self.scale_factor * self.pe[:, : input_ids.shape[1], :] + input_ids
+        return self.scale_factor * self.pe[: input_ids.shape[1], :] + input_ids
 
 
 class ValueHead(nn.Module):
