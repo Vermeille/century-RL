@@ -115,7 +115,7 @@ class Model(nn.Module):
         super().__init__()
         self.maxlen = 2048
         self.in_embed = nn.Sequential(
-            nn.Embedding(128, dim),
+            nn.Embedding(128, dim, padding_idx=0),
             ScaledSinosoidal(dim, self.maxlen),
             # nn.LayerNorm(dim),
         )
