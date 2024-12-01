@@ -2,12 +2,16 @@ from collections import namedtuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from centuryrl.rl.model.transformer import Transformer
+from centuryrl.rl.model.transformer import Transformer, Permute
+from centuryrl.rl.model.utils import js_div, jeffreys_div
 
 
 def mask_pool(x, mask):
+    # mask: BL1
+    # x * mask: BLD * BL1 = BLD => BD
+    # mask.sum(1): B1
     mask = mask.unsqueeze(-1)
-    return (x.float() * mask.float()).sum(1) / mask.float().sum(1)
+    return (x * mask.to(x.dtype)).sum(1) / mask.to(x.dtype).sum(1)
 
 
 class First(nn.Module):
@@ -182,10 +186,53 @@ class Model(nn.Module):
 
 
 class ImitationLoss:
-    def __call__(self, logits, action, **kwargs):
+    def __init__(self, function=None):
+        """
+        Imiation Loss: Loss function for imitation learning.
+        Args:
+            function (str): loss function to use. One of "cross_entropy", "kl", "reverse_kl", "jeffreys", "js"
+        """
+        self.function = function
+
+    def __call__(self, logits, action, returns, **kwargs):
+        """
+        Calculate the loss for imitation learning.
+        Args:
+            logits (list[torch.Tensor]): List of logit tensors. Shape: (batch_size, num_classes).
+            action (list[torch.Tensor]): List of action tensors. Shape: (batch_size) if discrete, (batch_size, num_classes) if continuous, logits.
+            returns (torch.Tensor): Returns for each sample in the batch. Shape: (batch_size).
+        """
+        assert len(logits) == len(action)
         loss = 0
-        for logit, act in zip(logits, action):
-            loss += F.cross_entropy(logit, act)
+        for logit, act, r in zip(logits, action, returns.abs()):
+            assert logit.shape == act.shape
+            assert logit.ndim == 1
+            logit = logit.unsqueeze(0)
+            act = act.unsqueeze(0)
+            if self.function == "cross_entropy":
+                loss += F.cross_entropy(logit, F.softmax(act, dim=1))
+            elif self.function == "kl":
+                loss += F.kl_div(
+                    F.log_softmax(logit, dim=1),
+                    F.log_softmax(act, dim=1),
+                    reduction="batchmean",
+                    log_target=True,
+                )
+            elif self.function == "reverse_kl":
+                loss += F.kl_div(
+                    F.log_softmax(act, dim=1),
+                    F.log_softmax(logit, dim=1),
+                    reduction="batchmean",
+                    log_target=True,
+                )
+            elif self.function == "jeffreys":
+                loss += jeffreys_div(
+                    F.log_softmax(logit, dim=1), F.log_softmax(act, dim=1)
+                )
+            elif self.function == "js":
+                loss += js_div(F.log_softmax(logit, dim=1), F.log_softmax(act, dim=1))
+            else:
+                raise ValueError(f"Unknown loss function: {self.function}")
         return loss / len(action)
 
 
