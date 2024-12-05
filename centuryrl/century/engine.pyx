@@ -10,6 +10,47 @@ import random
 from random import choice as rndchoice
 from typing import Tuple, List
 from libc.math cimport sqrt, log
+from libc.stdlib cimport rand, RAND_MAX
+from libc.stdlib cimport malloc, free
+from libc.string cimport memset
+from cpython.unicode cimport PyUnicode_DecodeLatin1
+
+
+cdef random_buy_fast(Game g):
+    moves = g.moves
+    for mov in moves:
+        if mov[0] == "V":
+            return mov
+
+    return random.choice(moves)
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cpdef int fast_sample(x):
+    assert x.ndim == 1 or (x.ndim == 2 and x.shape[0] == 1)
+    x = x.detach().cpu().contiguous()
+    x = x.numpy() if x.ndim == 1 else x[0].numpy()
+    cdef float[:] x_view = x
+    cdef float* x_ = &x_view[0]
+    cdef float total = 0.
+    cdef float r
+    cdef float acc = 0
+    cdef int i
+    cdef int n = x.shape[0]
+
+    for i in range(n):
+        total += x_[i]
+
+    r = rand() / RAND_MAX * total
+    for i in range(n):
+        acc += x_[i]
+        if acc >= r:
+            return i
+    print(x)
+    assert False, ("Should not reach here. Called fast_sample on "
+        "an invalid distribution (all zeros or negative values)")
+
 
 class Illegal(BaseException):
     pass
@@ -576,15 +617,15 @@ cdef class Game:
 
         self.goal_cards = goal_cards
         self.p0 = Player()
-        self.p0.stock += Stock.cfrom_str('YYY')
+        self.p0.stock = Stock.cfrom_str('YYY')
         self.p1 = Player()
-        self.p1.stock += Stock.cfrom_str('YYYY')
+        self.p1.stock = Stock.cfrom_str('YYYY')
         self.p2 = Player()
-        self.p2.stock += Stock.cfrom_str('YYYY')
+        self.p2.stock = Stock.cfrom_str('YYYY')
         self.p3 = Player()
-        self.p3.stock += Stock.cfrom_str('YYYR')
+        self.p3.stock = Stock.cfrom_str('YYYR')
         self.p4 = Player()
-        self.p4.stock += Stock.cfrom_str('YYYR')
+        self.p4.stock = Stock.cfrom_str('YYYR')
 
         self.num_players = num_players
         self.victory = VictoryPile()
