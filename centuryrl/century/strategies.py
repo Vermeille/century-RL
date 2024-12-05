@@ -1,10 +1,11 @@
 import torch
 from random import choice as rndchoice
+import random
 
 from centuryrl.rl.model import load_model
 import pyximport
 
-pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
+pyximport.install()
 from centuryrl.century.engine import Game
 
 
