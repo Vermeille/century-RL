@@ -756,6 +756,12 @@ cdef class Game:
         p.stock -= Stock.cfrom_str(give)
         p.stock += take
 
+    cpdef int play_distribution(self, x) except 0:
+        cdef int idx
+        idx = fast_sample(x)
+        move = self.moves[idx]
+        return self.play_str(move)
+
     cpdef int play_idx(self, idx: int) except 0:
         return self.play_str(self.moves[idx])
 
