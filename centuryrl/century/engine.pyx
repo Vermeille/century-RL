@@ -679,14 +679,14 @@ cdef class Game:
                     ranking[j + 1] = tmp
 
 
-    def simulate_to_end(self: Game, strategy, cut: int=30):
+    def simulate_to_end(self: Game, cut: int=30):
         cdef int i
         cdef list moves
         for i in range(cut):
             if self.ended():
                 break
-            distr = strategy(self)[0]
-            self.play_idx(torch.multinomial(distr, 1).item())
+            action = random_buy_fast(self)
+            self.play_str(action)
 
     cpdef int current_player(self):
         return self.turn % self.num_players
