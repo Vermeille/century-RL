@@ -1,4 +1,6 @@
-#cython: language_level=3, profile=True
+# cython: profile=False
+# cython: language_level=3
+# cython: linetrace=False
 import torch
 import cython
 from cpython cimport array
