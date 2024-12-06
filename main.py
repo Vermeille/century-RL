@@ -225,7 +225,7 @@ class GamesData:
 
 def chunk(data, size):
     i = 0
-    while i < len(data):
+    while i + size < len(data):
         yield data[i : i + size]
         i += size
 
