@@ -64,14 +64,13 @@ def to_trainset(games_data):
             rewards[i] = (
                 hist[i + 1].current_diff_points - hist[i].current_diff_points
             ) / 10
-        # if hist[-1].cause == "toolong": rewards[-1] -= 4
 
         for i, log in enumerate(hist[:-1]):
             out.append(
                 TrainingSample(
                     state=log.state,
                     moves=log.moves,
-                    action=log.action_idx,
+                    action=log.action_distribution,
                     score=end.current_diff_points,
                     returns=discount(rewards[i:]),
                     current_diff_points=log.current_diff_points,
