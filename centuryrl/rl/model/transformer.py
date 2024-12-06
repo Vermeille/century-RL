@@ -104,7 +104,7 @@ class SelfAttention(nn.Module):
             nn.Linear(hidden_size, head_size * num_heads * 3, bias=True),
         )
         self.fc = normal_init(
-            nn.Linear(head_size * num_heads, hidden_size, bias=True), 0.0
+            nn.Linear(head_size * num_heads, hidden_size, bias=True), 0.02
         )
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=False, alibi=False)
 
@@ -148,13 +148,22 @@ class TransformerBlock(nn.Module):
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
             GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.0),
+            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
         )
 
     def forward(self, x, attn_mask):
         x = self.sa(self.layer_norm1(x), attn_mask) + x
-        x = self.feed_forward(x).add_(x)
+        x = self.feed_forward(x) + x
         return x
+
+
+class WithMask(nn.Module):
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+
+    def forward(self, x, mask):
+        return self.module(x)
 
 
 class Transformer(nn.Module):
@@ -166,6 +175,17 @@ class Transformer(nn.Module):
                 for _ in range(num_layers)
             ]
         )
+        for i, tfb in enumerate(self.transformer_blocks):
+            if i % 1 == 0:
+                tfb.sa = WithMask(
+                    nn.Sequential(
+                        Permute(0, 2, 1),
+                        nn.Conv1d(
+                            hidden_size, hidden_size, 7, padding=3, groups=hidden_size
+                        ),
+                        Permute(0, 2, 1),
+                    )
+                )
 
         for m in self.modules():
             if isinstance(m, nn.LayerNorm):
