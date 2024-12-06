@@ -273,6 +273,9 @@ def smart_mix(old, new):
     return out
 
 
+import copy
+
+
 def main():
     import sys
     import yaml
@@ -283,7 +286,7 @@ def main():
     m = Model(config.net.dim, config.net.num_layers)
     # m = torch.compile(m)
     m.to(config.device)
-    opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=1e-4)
+    opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=0.01)
     if len(sys.argv) >= 3:
         m.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["model"])
         opt.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["opt"])
@@ -331,7 +334,10 @@ def main():
                 f"rl-{epoch}.pth",
             )
         data = self_play(
-            [PolicyGuidedMCMCStrategy(10, m), PolicyGuidedMCMCStrategy(10, m)],
+            [
+                PickBestMCValueStrategy(10),
+                PickBestMCValueStrategy(10),
+            ],
             config.self_play.num_games,
             config.self_play.max_len,
         )
