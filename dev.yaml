@@ -3,10 +3,10 @@ tag: dev
 
 net:
   num_layers: 4
-  dim: 128
+  dim: 64
 
 train:
-  gradient_epochs: 1
+  gradient_epochs: 4
   lr: 0.0001
   batch_size: 4
   show_every: 1
@@ -14,9 +14,9 @@ train:
 
 self_play:
   num_games: 4
-  max_len: 15
+  max_len: 200
 
 pit:
-  num_games: 4
-  max_len: 15
+  num_games: 8
+  max_len: 200
   every: 1
