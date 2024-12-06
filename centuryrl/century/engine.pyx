@@ -2,12 +2,12 @@
 # cython: language_level=3
 # cython: linetrace=False
 import torch
-import cython
+cimport cython
+from cython cimport numeric
 from cpython cimport array
 import array
 import copy
 import random
-from random import choice as rndchoice
 from typing import Tuple, List
 from libc.math cimport sqrt, log
 from libc.stdlib cimport rand, RAND_MAX
@@ -56,51 +56,64 @@ class Illegal(BaseException):
     pass
 
 
+@cython.profile(False)
+cdef Stock make_stock():
+    cdef Stock s = Stock()
+    s.Y = 0
+    s.R = 0
+    s.G = 0
+    s.B = 0
+    return s
+
+
+@cython.final
 cdef class Stock:
     cdef int Y
     cdef int R
     cdef int G
     cdef int B
 
-    def __init__(self):
-        self.Y = 0
-        self.R = 0
-        self.G = 0
-        self.B = 0
+    cpdef str to_str(self):
+        cdef int total = self.Y + self.R + self.G + self.B
+        cdef int pos = 0
+        if total == 0:
+            return ""  # Return an empty string if no characters to process
 
-    def __str__(self):
-        return self.str()
+        # Allocate memory for the result
+        cdef char* buff = <char*>malloc(total * sizeof(char))
+        if not buff:
+            raise MemoryError()
 
-    cdef str str(self):
-        #return 'Y' * self.Y + 'R' * self.R + 'G' * self.G + 'B' * self.B
-        out = []
-        for i in range(self.Y):
-            out.append('Y')
-        for i in range(self.R):
-            out.append('R')
-        for i in range(self.G):
-            out.append('G')
-        for i in range(self.B):
-            out.append('B')
-        return ''.join(out)
+        try:
+            # Fill the buffer with characters
+            memset(buff, ord('Y'), self.Y)
+            pos += self.Y
+            memset(buff + pos, ord('R'), self.R)
+            pos += self.R
+            memset(buff + pos, ord('G'), self.G)
+            pos += self.G
+            memset(buff + pos, ord('B'), self.B)
 
-    cdef Stock ccopy(self):
-        o = Stock()
+            # Convert to Python string
+            return PyUnicode_DecodeLatin1(buff, total, NULL)
+        finally:
+            free(buff)
+
+    @cython.profile(False)
+    cpdef inline Stock ccopy(self):
+        o = make_stock()
         Stock.iadd(o, self)
         return o
 
-    def copy(self):
-        return Stock.ccopy(self)
-
     @staticmethod
-    cdef Stock cfrom_str(s: str):
+    cdef inline Stock cfrom_str(s: str):
         cdef Py_UCS4 c
-        stock = Stock()
+        cdef Stock stock
+        stock = make_stock()
         for c in s:
             if c not in 'YRGB':
                 raise Illegal()
 
-            #stock.__dict__[c] += 1
             if c == 'Y':
                 stock.Y += 1
             elif c == 'R':
@@ -111,54 +124,45 @@ cdef class Stock:
                 stock.B += 1
         return stock
 
-
-    def __contains__(self, ref: Stock):
-        return self.contains(ref)
-
-    cdef int contains(self, ref: Stock):
+    @cython.profile(False)
+    cpdef inline int contains(Stock self, Stock ref) nogil:
         return (self.Y >= ref.Y and self.R >= ref.R and self.G >= ref.G
                 and self.B >= ref.B)
 
-    cdef int size(self) nogil:
+    @cython.profile(False)
+    cdef inline int size(self) noexcept nogil:
         return self.Y + self.R + self.G + self.B
 
-    def __len__(self):
-        return self.size()
-
-    def __sub__(self, ref: Stock):
-        return Stock.sub(self, ref)
-
+    @cython.profile(False)
     cdef inline Stock sub(self, ref: Stock):
         if not self.contains(ref):
             raise Illegal()
-        out = Stock()
+        cdef Stock out
+        out = make_stock()
         out.Y = self.Y - ref.Y
         out.R = self.R - ref.R
         out.G = self.G - ref.G
         out.B = self.B - ref.B
         return out
 
-    cdef Stock add(self, ref: Stock):
-        out = Stock()
+    @cython.profile(False)
+    cdef inline Stock add(self, ref: Stock):
+        cdef Stock out
+        out = make_stock()
         out.Y = self.Y + ref.Y
         out.R = self.R + ref.R
         out.G = self.G + ref.G
         out.B = self.B + ref.B
         return out
 
-    def __add__(self, ref: Stock):
-        return Stock.add(self, ref)
-
+    @cython.profile(False)
     cdef void iadd(self: Stock, ref: Stock) nogil:
         self.Y += ref.Y
         self.R += ref.R
         self.G += ref.G
         self.B += ref.B
 
-    def __iadd__(self, ref: Stock):
-        Stock.iadd(self, ref)
-        return self
-
+    @cython.profile(False)
     cdef int isub(self, ref: Stock) except 0:
         if not self.contains(ref):
             raise Illegal()
@@ -168,30 +172,42 @@ cdef class Stock:
         self.B -= ref.B
         return 1
 
+    def __iadd__(self, ref: Stock):
+        Stock.iadd(self, ref)
+        return self
+
     def __isub__(self, ref: Stock):
         Stock.isub(self, ref)
         return self
 
-    cdef points(self):
+    @cython.profile(False)
+    cdef int points(self):
         return self.R + self.G + self.B
 
-    cdef trim(self):
+    cdef void trim(self) nogil:
+        cdef int max_val
+        cdef char max_color
         while self.size() > 10:
-            #m = max(list(self.__dict__.items()), key=lambda x: x[1])[0]
-            m = max(list({
-                'Y': self.Y,
-                'R': self.R,
-                'G': self.G,
-                'B': self.B
-            }.items()),
-                    key=lambda x: x[1])[0]
-            if m == 'Y':
+            max_val = self.Y
+            max_color = b'Y'
+
+            if self.R > max_val:
+                max_val = self.R
+                max_color = b'R'
+            if self.G > max_val:
+                max_val = self.G
+                max_color = b'G'
+            if self.B > max_val:
+                max_val = self.B
+                max_color = b'B'
+
+            if max_color == b'Y':
                 self.Y -= 1
-            elif m == 'R':
+            elif max_color == b'R':
                 self.R -= 1
-            elif m == 'G':
+            elif max_color == b'G':
                 self.G -= 1
-            elif m == 'B':
+            elif max_color == b'B':
                 self.B -= 1
 
 
@@ -204,28 +220,28 @@ cdef class ActionCard:
         self.from_ = (from_
                       if isinstance(from_, Stock) else Stock.cfrom_str(from_))
         self.to_ = (to_ if isinstance(to_, Stock) else Stock.cfrom_str(to_))
-        self.str_cache = [self.from_.str() + '->' + self.to_.str()]
+        self.str_cache = [self.from_.to_str() + '->' + self.to_.to_str()]
         if self.from_.size() > 0:
             needed = self.from_.ccopy()
             gen = self.to_.ccopy()
             while needed.size() <= 10:
-                self.str_cache.append(f'{needed}->{gen}')
+                self.str_cache.append(f'{needed.to_str()}->{gen.to_str()}')
                 Stock.iadd(needed, self.from_)
                 Stock.iadd(gen, self.to_)
 
     def __str__(self):
         return self.str_cache[0]
 
-    def takes(self):
+    cpdef takes(self):
         return self.from_
 
-    def gives(self):
+    cpdef gives(self):
         return self.to_
 
     __repr__ = __str__
 
     @staticmethod
-    def from_str(s):
+    cdef from_str(s):
         f, t = s.split('->')
         return ActionCard(f, t)
 
@@ -240,13 +256,13 @@ cdef class ActionCard:
             Stock.iadd(needed, self.from_)
             i += 1
 
-    def allows(self, from_: Stock, to_: Stock):
+    cpdef allows(self, from_: Stock, to_: Stock):
         if self.from_.size() == 0:
             return self.to_.contains(to_)
 
         cdef Stock gen_
         from_ = from_.ccopy()
-        gen = Stock()
+        gen = make_stock()
         while from_.contains(self.from_):
             Stock.isub(from_, self.from_)
             Stock.iadd(gen, self.to_)
@@ -264,12 +280,12 @@ cdef class VictoryCard:
         self.cost = (cost if isinstance(cost, Stock) else Stock.cfrom_str(cost))
 
     def __str__(self):
-        return self.cost.str() + '->' + str(self.points)
+        return self.cost.to_str() + '->' + str(self.points)
 
     __repr__ = __str__
 
     @staticmethod
-    def from_str(s):
+    cdef from_str(s):
         c, p = s.split('->')
         return VictoryCard(c, int(p))
 
@@ -328,7 +344,9 @@ joker3_moves = joker2_moves + [
     'Y->B',
 ]
 
-class Joker(ActionCard):
+cdef class Joker(ActionCard):
+    cdef int n
+    cdef list instances
 
     def __init__(self, n):
         assert n <= 3
@@ -348,10 +366,10 @@ class Joker(ActionCard):
                 return True
         return False
 
-    def gen_move(self, stock):
+    def gen_move(self, Stock stock):
         moves = []
         for ins in self.instances:
-            if ins.takes() in stock:
+            if stock.contains(ins.takes()):
                 moves.append(str(ins))
         return moves
 
@@ -479,14 +497,14 @@ cdef class ActionPile:
             ActionCard.from_str('B->GG'),
         ]
         random.shuffle(self.pile)
-        self.on_cards = [Stock() for _ in range(6)]
+        self.on_cards = [make_stock() for _ in range(6)]
 
     def copy(self, randomize=True):
         a = ActionPile(empty=True)
         a.pile = self.pile[:]
         if randomize:
             random.shuffle(self.pile[6:])
-        a.on_cards = [s.copy() for s in self.on_cards]
+        a.on_cards = [s.ccopy() for s in self.on_cards]
         return a
 
     def visible(self)->[Tuple[ActionCard, Stock]]:
@@ -497,24 +515,24 @@ cdef class ActionPile:
 
     def __str__(self):
         return '\n'.join([
-            f'A{i} {p[0]} {"X" * i}->{p[1]}'
+            f'A{i} {p[0]} {"X" * i}->{p[1].to_str()}'
             for i, p in enumerate(self.visible())
         ])
 
-    def take(self, idx, bonus: str) -> Tuple[ActionCard, Stock]:
+    cpdef Tuple[ActionCard, Stock] take(self, int idx, str bonus):
         if idx >= min(6, len(self.pile)):
             raise Illegal()
 
         if len(bonus) != idx:
             raise Illegal()
 
-        for i, b in enumerate(str(bonus)):
+        for i, b in enumerate(bonus):
             self.on_cards[i] += Stock.cfrom_str(b)
 
         a = self.pile.pop(idx)
 
         s = self.on_cards.pop(idx)
-        self.on_cards += [Stock()]
+        self.on_cards += [make_stock()]
 
         return a, s
 
@@ -535,14 +553,14 @@ cdef class Player:
             Joker(2),
         ]
         self.discard = []
-        self.stock = Stock()
+        self.stock = make_stock()
 
     def copy(self):
         p = Player(empty=True)
         p.victory = self.victory[:]
         p.hand = self.hand[:]
         p.discard = self.discard[:]
-        p.stock = self.stock.copy()
+        p.stock = self.stock.ccopy()
         return p
 
     def points(self):
@@ -558,7 +576,7 @@ cdef class Player:
         self.hand += self.discard
         self.discard = []
 
-    def play(self, idx, from_, to_):
+    cpdef int play(self, int idx, Stock from_, Stock to_) except 0:
         if idx >= len(self.hand):
             raise Illegal()
 
@@ -566,7 +584,7 @@ cdef class Player:
         if not c.allows(from_, to_):
             raise Illegal()
         self.stock -= from_
-        self.stock += to_
+        self.stock.iadd(to_)
 
         self.discard.append(c)
         del self.hand[idx]
@@ -579,11 +597,13 @@ cdef class Player:
     def new_card(self, c):
         self.hand.append(c)
 
-    def display(self, hidden=False):
-        lines = []
+    cpdef display(self, int hidden=False):
+        cdef list lines = []
+        cdef int i
+        cdef ActionCard h, d
         lines.append(f'V {len(self.victory)}')
 
-        lines += ['S ' + self.stock.str()]
+        lines += ['S ' + self.stock.to_str()]
 
         if not hidden:
             for i, h in enumerate(self.hand):
@@ -633,6 +653,7 @@ cdef class Game:
         self.turn = 0
         self.moves = self.gen_move()
 
+    @cython.profile(True)
     def copy(self, randomize=True):
         g = Game(empty=True)
         g.p0 = self.p0.copy()
@@ -688,7 +709,7 @@ cdef class Game:
             action = random_buy_fast(self)
             self.play_str(action)
 
-    cpdef int current_player(self):
+    cpdef int current_player(self) noexcept:
         return self.turn % self.num_players
 
     cpdef int diff_points(self):
@@ -747,14 +768,16 @@ cdef class Game:
             out += '\n'.join(['@'+ mov for mov in self.moves])
         return out
 
-    def buy_action(self, p, idx, give, take):
+    cpdef void buy_action(self, Player p, int idx, str give, str take):
+        cdef ActionCard  a
+        cdef Stock s, take_s
         a, s = self.action.take(idx, give)
-        take = Stock.cfrom_str(take)
-        if take not in s:
+        take_s = Stock.cfrom_str(take)
+        if not s.contains(take_s):
             raise Illegal()
         p.new_card(a)
         p.stock -= Stock.cfrom_str(give)
-        p.stock += take
+        p.stock.iadd(take_s)
 
     cpdef int play_distribution(self, x) except 0:
         cdef int idx
@@ -851,8 +874,8 @@ cdef class Game:
             if p.stock.size() <= i:
                 # Can't put cubes on previous cards
                 continue
-            give = p.stock.str()[:i]
-            moves.append(f'A{i} {give}->{gain}')
+            give = p.stock.to_str()[:i]
+            moves.append(f'A{i} {give}->{gain.to_str()}')
 
         i = 0
         for h in p.hand:
