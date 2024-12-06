@@ -343,37 +343,45 @@ def main():
         trainset = to_trainset(data)
 
         print(len(trainset), "samples")
-        m.train()
+        print(trainset[0])
 
+        m.train()
         now = time.time()
+        grad_ep_pct = 1 / config.train.gradient_epochs
         for grad_ep in range(config.train.gradient_epochs):
-            grad_ep_pct = grad_ep / config.train.gradient_epochs
-            total_losses = defaultdict(float)
-            random.shuffle(trainset)
+            batch_pct = 1 / (len(trainset) // config.train.batch_size)
+            indices = torch.randperm(len(trainset))
             opt.zero_grad()
-            for batch in chunk(trainset, config.train.batch_size):
-                samples = TrainingSample.collate(batch).to(config.device)
+            total_losses = defaultdict(float)
+            for b_i, batch in enumerate(chunk(indices, config.train.batch_size)):
+                with torch.no_grad():
+                    samples = TrainingSample.collate(
+                        [copy.deepcopy(trainset[bi]) for bi in batch]
+                    ).to(config.device)
                 loss, losses = m(samples.state, samples)
-                (loss).backward()
+                (loss * len(batch) / len(trainset)).backward()
+                # loss.backward()
                 for k, v in losses.items():
                     total_losses[k] += v / len(trainset) * len(batch)
 
-                grad_mag = torch.nn.utils.clip_grad_norm_(
-                    m.parameters(), max_norm=100.0
-                )
+            grad_mag = torch.nn.utils.clip_grad_norm_(m.parameters(), max_norm=5.0)
             opt.step()
             print(total_losses)
             for k, v in total_losses.items():
                 viz.line(
                     torch.tensor([v]),
-                    torch.tensor([epoch + grad_ep_pct]),
+                    torch.tensor(
+                        [epoch + grad_ep * grad_ep_pct + b_i * batch_pct * grad_ep_pct]
+                    ),
                     win="loss" + k,
                     update="append",
                     opts={"title": "loss." + k},
                 )
             viz.line(
                 torch.tensor([grad_mag.item()]),
-                torch.tensor([epoch + grad_ep_pct]),
+                torch.tensor(
+                    [epoch + grad_ep * grad_ep_pct + b_i * batch_pct * grad_ep_pct]
+                ),
                 win="grad_mag",
                 update="append",
                 opts=dict(title="grad_mag"),
