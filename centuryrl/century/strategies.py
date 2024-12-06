@@ -12,7 +12,7 @@ from centuryrl.century.engine import Game
 class RandomStrategy:
     def __call__(self, g: Game):
         uniform = torch.tensor([1 / len(g.moves)] * len(g.moves))
-        return uniform, {
+        return uniform.log(), {
             "moves": dict(zip(g.moves, uniform.tolist())),
         }
 
@@ -24,10 +24,10 @@ class RandomBuyStrategy:
             if mov[0] == "V":
                 one_hot = torch.zeros(len(g.moves), dtype=torch.float)
                 one_hot[g.moves.index(mov)] = 1
-                return one_hot, {"moves": dict(zip(g.moves, one_hot.tolist()))}
+                return one_hot.log(), {"moves": dict(zip(g.moves, one_hot.tolist()))}
 
         uniform = torch.tensor([1 / len(g.moves)] * len(g.moves))
-        return uniform, {"moves": dict(zip(g.moves, uniform.tolist()))}
+        return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
 class AllActionsThenRandomBuyStrategy:
@@ -37,16 +37,16 @@ class AllActionsThenRandomBuyStrategy:
             if mov.startswith("A0"):
                 one_hot = torch.zeros(len(g.moves), dtype=torch.float)
                 one_hot[g.moves.index(mov)] = 1
-                return one_hot, {"moves": dict(zip(g.moves, one_hot.tolist()))}
+                return one_hot.log(), {"moves": dict(zip(g.moves, one_hot.tolist()))}
 
         for mov in moves:
             if mov[0] == "V":
                 one_hot = torch.zeros(len(g.moves), dtype=torch.float)
                 one_hot[g.moves.index(mov)] = 1
-                return one_hot, {"moves": dict(zip(g.moves, one_hot.tolist()))}
+                return one_hot.log(), {"moves": dict(zip(g.moves, one_hot.tolist()))}
 
         uniform = torch.tensor([1 / len(g.moves)] * len(g.moves))
-        return uniform, {"moves": dict(zip(g.moves, uniform.tolist()))}
+        return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
 class NoActionsRandomBuyStrategy:
@@ -56,15 +56,13 @@ class NoActionsRandomBuyStrategy:
             if mov[0] == "V":
                 one_hot = torch.zeros(len(g.moves), dtype=torch.float)
                 one_hot[g.moves.index(mov)] = 1
-                return one_hot, {"moves": dict(zip(g.moves, one_hot.tolist()))}
+                return one_hot.log(), {"moves": dict(zip(g.moves, one_hot.tolist()))}
 
         num_no_action = sum(1 for mov in g.moves if mov[0] != "A")
         dist = torch.tensor(
             [(1 / num_no_action) if move[0] != "A" else 0 for move in g.moves]
         )
-        return rndchoice([mov for mov in g.moves if mov[0] != "A"]), {
-            "moves": dict(zip(g.moves, dist.tolist()))
-        }
+        return dist.log(), {"moves": dict(zip(g.moves, dist.tolist()))}
 
 
 class ArgmaxStrategy:
@@ -76,7 +74,7 @@ class ArgmaxStrategy:
         policy = self.nn([g.display_with_moves()]).policy[0]
         one_hot = torch.zeros(len(g.moves), dtype=torch.float)
         one_hot[torch.argmax(policy).item()] = 1
-        return one_hot, {
+        return one_hot.log(), {
             "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
         }
 
@@ -100,7 +98,8 @@ class PickBestMCValueStrategy:
                 g2.simulate_to_end()
                 values[m_i].append(g2.diff_points_for(me))
         means = [mean(vs) for vs in values]
-        return torch.softmax(torch.tensor(means) * 100, dim=0), {
+        policy = torch.median(torch.tensor(values).float(), dim=1).values
+        return policy - torch.median(policy), {
             "moves": dict(zip(g.moves, means)),
         }
 
@@ -128,7 +127,7 @@ class PolicySamplingStrategy:
         policy = self.nn([g.display_with_moves()]).policy[0] / self.temperature
         policy = torch.softmax(policy, dim=0)
         policy = (1 - self.epsilon) * policy + self.epsilon / len(g.moves)
-        return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
+        return policy.log(), {"moves": dict(zip(g.moves, policy.tolist()))}
 
 
 def strategy_from_string(strategy_string):
