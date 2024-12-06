@@ -3,8 +3,8 @@ from tqdm import tqdm
 import itertools
 import pyximport
 
-pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from centuryrl.century.engine import Game
+pyximport.install()
+from centuryrl.century.engine import Game, fast_sample
 
 
 class Record:
@@ -40,7 +40,7 @@ def self_play(strategies, n_games, max_len, desc="playing games"):
                 break
 
             dist, debug = strategies[g.current_player()](g)
-            action = torch.multinomial(dist, 1).item()
+            action = fast_sample(torch.softmax(dist, dim=0))
 
             rec = Record(g, dist, action)
             rec.notes += [str(debug)]
