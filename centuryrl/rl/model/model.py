@@ -99,19 +99,21 @@ class PolicyHead(nn.Module):
         self.tfblock = Transformer(dim, 1, dim // 64, 64)
         self.out = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.GELU(),
-            nn.Linear(dim, 1),
-            Squeeze(-1),
+            # nn.GELU(),
+            nn.Linear(dim, dim),
             # BL
         )
 
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
-        return self.out(x)
+        x = self.out(x)
+        m = mask_pool(x, attn_mask)  # BD
+        out = torch.bmm(x, m.unsqueeze(-1)).squeeze(-1)
+        return out
 
 
 class Model(nn.Module):
-    def __init__(self, dim: int, num_layers: int):
+    def __init__(self, dim: int, num_layers: int, head_size: int = 64):
         super().__init__()
         self.maxlen = 2048
         self.in_embed = nn.Sequential(
@@ -119,15 +121,15 @@ class Model(nn.Module):
             ScaledSinosoidal(dim, self.maxlen),
             # nn.LayerNorm(dim),
         )
-        self.in_embed[0].weight.data.normal_(0, 0.02)
-        self.encode = Transformer(dim, num_layers - 1, dim // 64, 64)
+        self.in_embed[0].weight.data.normal_(0, 1 / dim**0.5)
+        self.encode = Transformer(dim, num_layers - 1, dim // head_size, head_size)
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
         self.pretrain_head = nn.Sequential(
             nn.LayerNorm(dim), nn.GELU(), nn.Linear(dim, 128)
         )
-        self.loss = ImitationLoss()  # PolicyGradientWithBaselineLoss()
-        self.pretrain_weight = 0.001
+        self.loss = ImitationLoss("js")
+        self.pretrain_weight = 0
 
     def text_encode(self, txts, maxlen, pad=False):
         def do_pad(l):
@@ -137,30 +139,30 @@ class Model(nn.Module):
                 return l
 
         txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
-        return nn.utils.rnn.pad_sequence(txts, batch_first=True).to(
-            self.in_embed[0].weight.device
-        )
+        return torch.stack(txts, dim=0).to(self.in_embed[0].weight.device)
 
     def text_embed(self, txts, maxlen, pad=False):
         txts = self.text_encode(txts, maxlen, pad=pad)
         return txts
 
     def forward(self, games: list[str], samples=None):
-        games = [game[: self.maxlen] for game in games]
-        with torch.autocast("cuda", dtype=torch.bfloat16):
-            txt = self.text_embed(games, max(len(g) for g in games), pad=True)
-            attn_mask = txt != 0
-            enc = self.encode(self.in_embed(txt), attn_mask)
-            pred = self.to_pred(enc, attn_mask).float()
-            v_norm = self.rewards(enc, attn_mask).float()
+        # games = [game.replace("\n", "") for game in games]
+        # games = self.tokenize.encode_batch(games)
+        txt = self.text_embed(games, 2048, pad=True)
+        attn_mask = txt != 0
+        enc = self.encode(self.in_embed(txt), attn_mask)
+        pred = self.to_pred(enc, attn_mask)
+        v_norm = self.rewards(enc, attn_mask)
 
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
 
         pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
 
         if samples is not None:
+            assert len(pred) == len(samples.action)
+            assert len(games) == len(pred)
             pretrain_loss = F.cross_entropy(
-                self.pretrain_head(enc[:, :-1, :].float()).transpose(1, 2),
+                self.pretrain_head(enc[:, :-1, :]).transpose(1, 2),
                 txt[:, 1:],
                 ignore_index=0,
             )
@@ -178,7 +180,7 @@ class Model(nn.Module):
                 "pretrain": pretrain_loss.item(),
             }
 
-            loss = policy_loss + v_loss + self.pretrain_weight * pretrain_loss
+            loss = policy_loss  # + 0 * v_loss + self.pretrain_weight * pretrain_loss
             return loss, losses
         else:
             return PolicyValue(pred, v_norm)
@@ -206,6 +208,7 @@ class ImitationLoss:
         for logit, act, r in zip(logits, action, returns.abs()):
             assert logit.shape == act.shape
             assert logit.ndim == 1
+            print(F.softmax(logit, dim=0), F.softmax(act, dim=0))
             logit = logit.unsqueeze(0)
             act = act.unsqueeze(0)
             if self.function == "cross_entropy":
@@ -225,11 +228,9 @@ class ImitationLoss:
                     log_target=True,
                 )
             elif self.function == "jeffreys":
-                loss += jeffreys_div(
-                    F.log_softmax(logit, dim=1), F.log_softmax(act, dim=1)
-                )
+                loss += jeffreys_div(logit, act)
             elif self.function == "js":
-                loss += js_div(F.log_softmax(logit, dim=1), F.log_softmax(act, dim=1))
+                loss += js_div(logit, act)
             else:
                 raise ValueError(f"Unknown loss function: {self.function}")
         return loss / len(action)
