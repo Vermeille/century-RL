@@ -309,6 +309,13 @@ def main():
                 update="append",
                 opts=dict(title="win_rate"),
             )
+            viz.line(
+                torch.tensor([pit_results.my_avg_points(0)]),
+                torch.tensor([epoch]),
+                win="avg_pit_points",
+                update="append",
+                opts=dict(title="pit_points"),
+            )
 
         if epoch % config.train.save_every == 0:
             torch.save(
