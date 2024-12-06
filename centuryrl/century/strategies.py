@@ -97,7 +97,7 @@ class PickBestMCValueStrategy:
             for m_i, m in enumerate(g.moves):
                 g2 = g.copy()
                 g2.play_str(m)
-                g2.simulate_to_end(RandomBuyStrategy())
+                g2.simulate_to_end()
                 values[m_i].append(g2.diff_points_for(me))
         means = [mean(vs) for vs in values]
         return torch.softmax(torch.tensor(means) * 100, dim=0), {
