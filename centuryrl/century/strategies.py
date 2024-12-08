@@ -99,7 +99,7 @@ class PickBestMCValueStrategy:
                 values[m_i].append(g2.diff_points_for(me))
         means = [mean(vs) for vs in values]
         policy = torch.median(torch.tensor(values).float(), dim=1).values
-        return policy - torch.median(policy), {
+        return policy, {  # - torch.median(policy), {
             "moves": dict(zip(g.moves, means)),
         }
 

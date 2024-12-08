@@ -291,6 +291,15 @@ def main():
         m.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["model"])
         opt.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["opt"])
 
+    pit_results = pit(
+        [PickBestMCValueStrategy(10), RandomBuyStrategy()],
+        config.pit.num_games,
+        config.pit.max_len,
+    )
+    print("MC VS RandomBUY")
+    GamesData(pit_results.games).print_short_history()
+    print("win rate", pit_results.win_rate(0))
+
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
     viz = Visdom(env=f"{config.tag}-lr={config.train.lr}")
     viz.close()
@@ -300,7 +309,7 @@ def main():
         if epoch % config.pit.every == 0:
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 pit_results = pit(
-                    [PolicySamplingStrategy(m), RandomBuyStrategy()],
+                    [PolicySamplingStrategy(m, temperature=0.001), RandomBuyStrategy()],
                     config.pit.num_games,
                     config.pit.max_len,
                 )
@@ -357,18 +366,21 @@ def main():
         for grad_ep in range(config.train.gradient_epochs):
             batch_pct = 1 / (len(trainset) // config.train.batch_size)
             indices = torch.randperm(len(trainset))
-            opt.zero_grad()
             total_losses = defaultdict(float)
+            opt.zero_grad()
             for b_i, batch in enumerate(chunk(indices, config.train.batch_size)):
                 with torch.no_grad():
                     samples = TrainingSample.collate(
                         [copy.deepcopy(trainset[bi]) for bi in batch]
                     ).to(config.device)
                 loss, losses = m(samples.state, samples)
-                (loss * len(batch) / len(trainset)).backward()
+                (loss).backward()
                 # loss.backward()
                 for k, v in losses.items():
                     total_losses[k] += v / len(trainset) * len(batch)
+
+            for p in m.parameters():
+                p.grad.data *= len(batch) / len(trainset)
 
             grad_mag = torch.nn.utils.clip_grad_norm_(m.parameters(), max_norm=5.0)
             opt.step()

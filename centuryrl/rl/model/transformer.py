@@ -7,7 +7,7 @@ import torch.nn.functional as F
 def normal_init(m, std):
     assert isinstance(m.weight, torch.Tensor)
     nn.init.normal_(m.weight, 0, std)
-    if hasattr(m, "biais") and m.bias is not None:
+    if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
         nn.init.constant_(m.bias, 0)
     return m
@@ -16,7 +16,7 @@ def normal_init(m, std):
 def xavier(m):
     assert isinstance(m.weight, torch.Tensor)
     nn.init.xavier_normal_(m.weight)
-    if hasattr(m, "biais") and m.bias is not None:
+    if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
         nn.init.constant_(m.bias, 0)
     return m
@@ -25,7 +25,7 @@ def xavier(m):
 def kaiming(m):
     assert isinstance(m.weight, torch.Tensor)
     nn.init.kaiming_normal_(m.weight)
-    if hasattr(m, "biais") and m.bias is not None:
+    if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
         nn.init.constant_(m.bias, 0)
     return m
@@ -86,7 +86,7 @@ class SelfAttnOp(nn.Module):
             mask = -torch.abs(
                 torch.arange(q.shape[-2]).unsqueeze(1) - torch.arange(k.shape[-2])
             ).to(attn_mask.device) * self.alibi.unsqueeze(-1).unsqueeze(-1)
-            attn_mask = torch.where(attn_mask, mask, float("-inf"))
+            attn_mask = torch.where(attn_mask.bool(), mask, float("-inf"))
 
         att = nn.functional.scaled_dot_product_attention(
             q, k, v, is_causal=False, attn_mask=attn_mask
@@ -175,15 +175,22 @@ class Transformer(nn.Module):
                 for _ in range(num_layers)
             ]
         )
-        for i, tfb in enumerate(self.transformer_blocks):
-            if i % 1 == 0:
+        for i, tfb in enumerate(
+            self.transformer_blocks[: len(self.transformer_blocks) - 2]
+        ):
+            if True or i % 3 != 2:
                 tfb.sa = WithMask(
                     nn.Sequential(
-                        Permute(0, 2, 1),
+                        Permute(0, 2, 1),  # bld -> bdl
                         nn.Conv1d(
-                            hidden_size, hidden_size, 7, padding=3, groups=hidden_size
+                            hidden_size,
+                            hidden_size,
+                            7,
+                            padding=3,
+                            groups=hidden_size,
                         ),
-                        Permute(0, 2, 1),
+                        nn.Conv1d(hidden_size, hidden_size, 1),
+                        Permute(0, 2, 1),  # bdl -> bld
                     )
                 )
 

@@ -60,7 +60,9 @@ class ScaledSinosoidal(SinusoidalPositional):
 
     def __init__(self, embedding_dim, max_seq_length):
         super().__init__(embedding_dim, max_seq_length)
-        self.scale_factor = torch.nn.Parameter(torch.tensor([1.0 / embedding_dim**0.5]))
+        self.scale_factor = torch.nn.Parameter(
+            0.02 * torch.tensor([1.0 / embedding_dim**0.5])
+        )
 
     def forward(self, input_ids):
         r"""Inputs of forward function
@@ -99,17 +101,18 @@ class PolicyHead(nn.Module):
         self.tfblock = Transformer(dim, 1, dim // 64, 64)
         self.out = nn.Sequential(
             nn.LayerNorm(dim),
-            # nn.GELU(),
-            nn.Linear(dim, dim),
+            nn.GELU(),
+            nn.Linear(dim, 1),
             # BL
         )
 
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
+        # m = mask_pool(x, attn_mask)  # BD
         x = self.out(x)
-        m = mask_pool(x, attn_mask)  # BD
-        out = torch.bmm(x, m.unsqueeze(-1)).squeeze(-1)
-        return out
+        # out = torch.bmm(x, m.unsqueeze(-1)).squeeze(-1)
+        # return out
+        return x.squeeze(-1)
 
 
 class Model(nn.Module):
@@ -128,8 +131,9 @@ class Model(nn.Module):
         self.pretrain_head = nn.Sequential(
             nn.LayerNorm(dim), nn.GELU(), nn.Linear(dim, 128)
         )
-        self.loss = ImitationLoss("js")
+        self.loss = ImitationLoss("kl")
         self.pretrain_weight = 0
+        print(self)
 
     def text_encode(self, txts, maxlen, pad=False):
         def do_pad(l):
@@ -148,7 +152,7 @@ class Model(nn.Module):
     def forward(self, games: list[str], samples=None):
         # games = [game.replace("\n", "") for game in games]
         # games = self.tokenize.encode_batch(games)
-        txt = self.text_embed(games, 2048, pad=True)
+        txt = self.text_embed(games, self.maxlen, pad=True)
         attn_mask = txt != 0
         enc = self.encode(self.in_embed(txt), attn_mask)
         pred = self.to_pred(enc, attn_mask)
@@ -180,7 +184,7 @@ class Model(nn.Module):
                 "pretrain": pretrain_loss.item(),
             }
 
-            loss = policy_loss  # + 0 * v_loss + self.pretrain_weight * pretrain_loss
+            loss = policy_loss + 0 * v_loss + self.pretrain_weight * pretrain_loss
             return loss, losses
         else:
             return PolicyValue(pred, v_norm)
@@ -208,9 +212,11 @@ class ImitationLoss:
         for logit, act, r in zip(logits, action, returns.abs()):
             assert logit.shape == act.shape
             assert logit.ndim == 1
-            print(F.softmax(logit, dim=0), F.softmax(act, dim=0))
+            # print(F.softmax(logit, dim=0), F.softmax(act, dim=0))
+            # print(logit, act)
             logit = logit.unsqueeze(0)
             act = act.unsqueeze(0)
+            print(F.softmax(logit, dim=1), F.softmax(act, dim=1))
             if self.function == "cross_entropy":
                 loss += F.cross_entropy(logit, F.softmax(act, dim=1))
             elif self.function == "kl":
@@ -231,6 +237,8 @@ class ImitationLoss:
                 loss += jeffreys_div(logit, act)
             elif self.function == "js":
                 loss += js_div(logit, act)
+            elif self.function == "mse":
+                loss += F.mse_loss(logit, act)
             else:
                 raise ValueError(f"Unknown loss function: {self.function}")
         return loss / len(action)
