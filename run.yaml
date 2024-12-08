@@ -7,7 +7,7 @@ net:
 
 train:
   gradient_epochs: 2
-  lr: 0.0001
+  lr: 0.00001
   batch_size: 16
   show_every: 10
   save_every: 10

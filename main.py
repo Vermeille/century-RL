@@ -309,7 +309,11 @@ def main():
         if epoch % config.pit.every == 0:
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 pit_results = pit(
-                    [PolicySamplingStrategy(m, temperature=0.001), RandomBuyStrategy()],
+                    [
+                        PolicySamplingStrategy(m, temperature=0.001),
+                        # RandomBuyStrategy()
+                        PickBestMCValueStrategy(10),
+                    ],
                     config.pit.num_games,
                     config.pit.max_len,
                 )
@@ -344,8 +348,8 @@ def main():
             )
         data = self_play(
             [
-                PickBestMCValueStrategy(10),
-                PickBestMCValueStrategy(10),
+                PickBestMCValueStrategy(20),
+                PickBestMCValueStrategy(20),
             ],
             config.self_play.num_games,
             config.self_play.max_len,
