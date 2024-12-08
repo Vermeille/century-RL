@@ -184,7 +184,7 @@ class Model(nn.Module):
                 "pretrain": pretrain_loss.item(),
             }
 
-            loss = policy_loss + 0 * v_loss + self.pretrain_weight * pretrain_loss
+            loss = policy_loss + v_loss + self.pretrain_weight * pretrain_loss
             return loss, losses
         else:
             return PolicyValue(pred, v_norm)

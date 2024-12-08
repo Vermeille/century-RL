@@ -99,7 +99,28 @@ class PickBestMCValueStrategy:
                 values[m_i].append(g2.diff_points_for(me))
         means = [mean(vs) for vs in values]
         policy = torch.median(torch.tensor(values).float(), dim=1).values
-        return policy, {  # - torch.median(policy), {
+        return policy, {
+            "moves": dict(zip(g.moves, means)),
+        }
+
+
+class PickBestMCValueStrategy:
+    def __init__(self, budget: int):
+        self.budget = budget
+
+    def __call__(self, g: Game):
+        values = [[] for _ in g.moves]
+        me = g.current_player()
+
+        for _ in range(self.budget):
+            for m_i, m in enumerate(g.moves):
+                g2 = g.copy()
+                g2.play_str(m)
+                g2.simulate_to_end()
+                values[m_i].append(g2.diff_points_for(me))
+        means = [mean(vs) for vs in values]
+        policy = torch.median(torch.tensor(values).float(), dim=1).values
+        return policy, {
             "moves": dict(zip(g.moves, means)),
         }
 
