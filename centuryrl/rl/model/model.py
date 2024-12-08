@@ -40,7 +40,9 @@ class SinusoidalPositional(torch.nn.Module):
 
     def __init__(self, embedding_dim, max_seq_length=5000):
         super().__init__()
+        self.make_pe(embedding_dim, max_seq_length)
 
+    def make_pe(self, embedding_dim, max_seq_length):
         import math
 
         pe = torch.zeros(max_seq_length, embedding_dim)
@@ -74,6 +76,8 @@ class ScaledSinosoidal(SinusoidalPositional):
         Examples:
             >>> output = pos_encoder(x)
         """
+        if input_ids.shape[1] > self.pe.shape[0]:
+            self.make_pe(input_ids.shape[2], input_ids.shape[1])
         return self.scale_factor * self.pe[: input_ids.shape[1], :] + input_ids
 
 
