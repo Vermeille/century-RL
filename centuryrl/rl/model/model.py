@@ -137,7 +137,6 @@ class Model(nn.Module):
         )
         self.loss = ImitationLoss("kl")
         self.pretrain_weight = 0
-        print(self)
 
     def text_encode(self, txts, maxlen, pad=False):
         def do_pad(l):

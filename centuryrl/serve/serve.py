@@ -1,4 +1,5 @@
 import os
+import torch
 from natsort import natsorted
 from pathlib import Path
 from fastapi import FastAPI, Body
@@ -91,9 +92,10 @@ def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True
             "num_turns": game.round(),
         }
 
-    move, _ = strategies.get_strategy(strategy)(game)
+    dist, _ = strategies.get_strategy(strategy)(game)
+    dist = torch.softmax(dist, dim=0)
+    game.play_distribution(dist)
 
-    game.play_str(move)
     if game.ended():
         return {
             "continue": False,
