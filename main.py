@@ -303,18 +303,22 @@ def main():
     print("win rate", pit_results.win_rate(0))
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
-    viz = Visdom(env=f"{config.tag}-lr={config.train.lr}")
+    viz = Visdom(
+        env=f"{config.tag}-lr={config.train.lr}",
+        server="https://visdom.vermeille.fr",
+        port=443,
+    )
     viz.close()
     # self play
     for epoch in range(3000):
         print("EPOCH", epoch)
         if epoch % config.pit.every == 0:
-            with torch.autocast("cuda", dtype=torch.bfloat16):
+            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=False):
                 pit_results = pit(
                     [
                         PolicySamplingStrategy(m, temperature=0.001),
-                        # RandomBuyStrategy()
-                        PickBestMCValueStrategy(10),
+                        RandomBuyStrategy(),
+                        # PickBestMCValueStrategy(10),
                     ],
                     config.pit.num_games,
                     config.pit.max_len,

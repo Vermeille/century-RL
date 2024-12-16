@@ -1,22 +1,22 @@
 device: cuda
-tag: century-encoding2
+tag: century-convheadrotary
 
 net:
   num_layers: 8
   dim: 256
 
 train:
-  gradient_epochs: 2
-  lr: 0.00001
-  batch_size: 16
+  gradient_epochs: 1
+  lr: 0.0001
+  batch_size: 12
   show_every: 10
   save_every: 10
 
 self_play:
-  num_games: 4
+  num_games: 8
   max_len: 500
 
 pit:
   num_games: 32
   max_len: 220
-  every: 1
+  every: 4
