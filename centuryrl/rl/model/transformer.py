@@ -73,9 +73,19 @@ class SelfAttnOp(nn.Module):
         if rotary:
             self.rotary = Rotary(head_size)
 
-        self.alibi = None
         if alibi:
-            self.alibi = nn.Parameter(torch.rand(num_heads))
+            print("WARNING: Using alibi uses a fuckton of memory")
+            self.register_buffer(
+                "alibi",
+                torch.tensor(
+                    [
+                        1 / ((2**8) ** (1 / num_heads)) ** (h + 1)
+                        for h in range(num_heads)
+                    ]
+                ),
+            )
+        else:
+            self.alibi = None
 
     def forward(self, q, k, v, attn_mask):
         if self.rotary is not None:
