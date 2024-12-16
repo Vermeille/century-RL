@@ -283,7 +283,9 @@ def main():
 
     config = EasyDict(yaml.safe_load(open(sys.argv[1])))
 
-    m = Model(config.net.dim, config.net.num_layers)
+    m = Model(config.net.dim, config.net.num_layers, config.net.head_size)
+    print(m)
+    print(sum(p.numel() for p in m.parameters()) / 1e6, "M parameters")
     # m = torch.compile(m)
     m.to(config.device)
     opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=0.01)
