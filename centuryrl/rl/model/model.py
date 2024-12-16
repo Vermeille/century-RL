@@ -78,6 +78,7 @@ class ScaledSinosoidal(SinusoidalPositional):
         """
         if input_ids.shape[1] > self.pe.shape[0]:
             self.make_pe(input_ids.shape[2], input_ids.shape[1])
+            self.pe = self.pe.to(input_ids.device)
         return self.scale_factor * self.pe[: input_ids.shape[1], :] + input_ids
 
 
