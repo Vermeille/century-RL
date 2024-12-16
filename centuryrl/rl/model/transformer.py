@@ -116,7 +116,7 @@ class SelfAttention(nn.Module):
         self.fc = normal_init(
             nn.Linear(head_size * num_heads, hidden_size, bias=True), 0.02
         )
-        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=False, alibi=False)
+        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=True, alibi=False)
 
     def forward(self, x, attn_mask):
         b, l, h, d = x.shape[0], x.shape[1], self.num_heads, self.head_size
