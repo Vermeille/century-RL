@@ -26,7 +26,9 @@ class Strategies:
             for file in files:
                 if file.endswith(".pth"):
                     # strategies.append(f"argmax:{os.path.join(root, file)}")
-                    strategies.append(f"policy_sampling:{os.path.join(root, file)}")
+                    strategies.append(
+                        f"policy_sampling,model={os.path.join(root, file)}"
+                    )
 
         strategies = natsorted(strategies)
         strategies += [

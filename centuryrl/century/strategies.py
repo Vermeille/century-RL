@@ -1,6 +1,5 @@
 import torch
-from random import choice as rndchoice
-import random
+import inspect
 
 from centuryrl.rl.model import load_model
 import pyximport
@@ -8,8 +7,35 @@ import pyximport
 pyximport.install()
 from centuryrl.century.engine import Game
 
+strategy_registry = {}
 
+
+def register_strategy(cls):
+    # Extract the argument names, types, and defaults from the __init__ method
+    if "__init__" in cls.__dict__:
+        sig = inspect.signature(cls.__init__)
+        params = sig.parameters
+        arg_info = {
+            name: (
+                param.annotation
+                if param.annotation != inspect.Parameter.empty
+                else lambda x: x,
+                param.default,
+            )
+            for name, param in params.items()
+            if name != "self"
+        }
+    else:
+        arg_info = {}
+
+    strategy_registry[cls.name] = (cls, arg_info)
+    return cls
+
+
+@register_strategy
 class RandomStrategy:
+    name = "random"
+
     def __call__(self, g: Game):
         uniform = torch.tensor([1 / len(g.moves)] * len(g.moves))
         return uniform.log(), {
@@ -17,7 +43,10 @@ class RandomStrategy:
         }
 
 
+@register_strategy
 class RandomBuyStrategy:
+    name = "random_buy"
+
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -30,7 +59,10 @@ class RandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
+@register_strategy
 class AllActionsThenRandomBuyStrategy:
+    name = "all_actions_then_random_buy"
+
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -49,7 +81,10 @@ class AllActionsThenRandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
+@register_strategy
 class NoActionsRandomBuyStrategy:
+    name = "no_actions_random_buy"
+
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -65,7 +100,10 @@ class NoActionsRandomBuyStrategy:
         return dist.log(), {"moves": dict(zip(g.moves, dist.tolist()))}
 
 
+@register_strategy
 class ArgmaxStrategy:
+    name = "argmax"
+
     def __init__(self, nn):
         nn.eval()
         self.nn = nn
@@ -83,7 +121,10 @@ def mean(xs):
     return sum(xs) / len(xs)
 
 
+@register_strategy
 class PickBestMCValueStrategy:
+    name = "pick_best_mc_value"
+
     def __init__(self, budget: int):
         self.budget = budget
 
@@ -104,9 +145,14 @@ class PickBestMCValueStrategy:
         }
 
 
-class PickBestMCValueStrategy:
-    def __init__(self, budget: int):
+@register_strategy
+class PickBestValueStrategy:
+    name = "pick_best_value"
+
+    def __init__(self, budget: int, model):
         self.budget = budget
+        self.model = model
+        model.eval()
 
     def __call__(self, g: Game):
         values = [[] for _ in g.moves]
@@ -125,7 +171,10 @@ class PickBestMCValueStrategy:
         }
 
 
+@register_strategy
 class LongestMoveStrategy:
+    name = "longest_move"
+
     def __call__(self, g: Game):
         one_hot = torch.zeros(len(g.moves), dtype=torch.float)
         one_hot[max(range(len(g.moves)), key=lambda i: len(g.moves[i]))] = 1
@@ -133,10 +182,13 @@ class LongestMoveStrategy:
         return one_hot, {"moves": {move: len(g.moves) / total for move in g.moves}}
 
 
+@register_strategy
 class PolicySamplingStrategy:
-    def __init__(self, nn, temperature=1.0, epsilon=0):
-        self.nn = nn
-        nn.eval()
+    name = "policy_sampling"
+
+    def __init__(self, model, temperature: float = 1.0, epsilon: float = 0):
+        self.nn = model
+        model.eval()
         self.temperature = temperature
         self.epsilon = epsilon
 
@@ -151,23 +203,22 @@ class PolicySamplingStrategy:
         return policy.log(), {"moves": dict(zip(g.moves, policy.tolist()))}
 
 
-def strategy_from_string(strategy_string):
-    if strategy_string == "random":
-        return RandomStrategy()
-    elif strategy_string == "random_buy":
-        return RandomBuyStrategy()
-    elif strategy_string == "all_actions_then_random_buy":
-        return AllActionsThenRandomBuyStrategy()
-    elif strategy_string == "no_actions_random_buy":
-        return NoActionsRandomBuyStrategy()
-    elif strategy_string.startswith("argmax"):
-        model_path = strategy_string.split(":")[1]
-        return ArgmaxStrategy(load_model(model_path))
-    elif strategy_string.startswith("policy_sampling"):
-        model_path = strategy_string.split(":")[1]
-        return PolicySamplingStrategy(load_model(model_path))
-    elif strategy_string.startswith("pick_best_mc_value"):
-        budget = int(strategy_string.split(":")[1])
-        return PickBestMCValueStrategy(budget)
-    else:
+def strategy_from_string(strategy_string, model=None):
+    strategy_name, *arg_list = strategy_string.split(",")
+    args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
+
+    if strategy_name not in strategy_registry:
         raise ValueError(f"Unknown strategy: {strategy_string}")
+
+    strategy_class, arg_info = strategy_registry[strategy_name]
+    init_args = {}
+
+    for arg_name, (arg_type, default) in arg_info.items():
+        if arg_name == "model":
+            init_args[arg_name] = model or load_model(args.get(arg_name, "this"))
+        elif arg_name in args:
+            init_args[arg_name] = arg_type(args[arg_name])
+        else:
+            init_args[arg_name] = default
+
+    return strategy_class(**init_args)

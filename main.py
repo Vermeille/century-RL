@@ -6,11 +6,7 @@ import time
 from visdom import Visdom
 
 from centuryrl.rl.model import Model
-from centuryrl.century.strategies import (
-    RandomBuyStrategy,
-    PolicySamplingStrategy,
-    PickBestMCValueStrategy,
-)
+from centuryrl.century.strategies import strategy_from_string
 from centuryrl.rl.eval.selfplay import self_play, pit
 import pyximport
 
@@ -293,15 +289,6 @@ def main():
         m.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["model"])
         opt.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["opt"])
 
-    pit_results = pit(
-        [PickBestMCValueStrategy(10), RandomBuyStrategy()],
-        config.pit.num_games,
-        config.pit.max_len,
-    )
-    print("MC VS RandomBUY")
-    GamesData(pit_results.games).print_short_history()
-    print("win rate", pit_results.win_rate(0))
-
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
     viz = Visdom(
         env=f"{config.tag}-lr={config.train.lr}",
@@ -314,12 +301,9 @@ def main():
         print("EPOCH", epoch)
         if epoch % config.pit.every == 0:
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=False):
+                print("PIT: ", " VS ".join(config.pit.strategies))
                 pit_results = pit(
-                    [
-                        PolicySamplingStrategy(m, temperature=0.001),
-                        RandomBuyStrategy(),
-                        # PickBestMCValueStrategy(10),
-                    ],
+                    [strategy_from_string(s, model=m) for s in config.pit.strategies],
                     config.pit.num_games,
                     config.pit.max_len,
                 )
@@ -352,11 +336,9 @@ def main():
                 },
                 f"rl-{epoch}.pth",
             )
+        print("SELF PLAY: ", " VS ".join(config.self_play.strategies))
         data = self_play(
-            [
-                PickBestMCValueStrategy(20),
-                PickBestMCValueStrategy(20),
-            ],
+            [strategy_from_string(s) for s in config.self_play.strategies],
             config.self_play.num_games,
             config.self_play.max_len,
         )
