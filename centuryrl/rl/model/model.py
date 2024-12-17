@@ -2,7 +2,7 @@ from collections import namedtuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from centuryrl.rl.model.transformer import Transformer, Permute
+from centuryrl.rl.model.transformer import Transformer
 from centuryrl.rl.model.utils import js_div, jeffreys_div
 
 
@@ -130,7 +130,9 @@ class Model(nn.Module):
             # nn.LayerNorm(dim),
         )
         self.in_embed[0].weight.data.normal_(0, 1 / dim**0.5)
-        self.encode = Transformer(dim, num_layers - 1, dim // head_size, head_size)
+        self.encode = Transformer(
+            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=4
+        )
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
         self.pretrain_head = nn.Sequential(

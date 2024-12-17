@@ -119,6 +119,8 @@ class SelfAttention(nn.Module):
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=True, alibi=False)
 
     def forward(self, x, attn_mask):
+        attn_mask = attn_mask.unsqueeze(1) & attn_mask.unsqueeze(2)
+
         b, l, h, d = x.shape[0], x.shape[1], self.num_heads, self.head_size
         # bld -> (q/k/v)bhld
         qkv = self.qkv(x).reshape(b, l, 3, h, d).permute(2, 0, 3, 1, 4)
@@ -167,42 +169,52 @@ class TransformerBlock(nn.Module):
         return x
 
 
-class WithMask(nn.Module):
-    def __init__(self, module):
+class ConvTrunkBlock(nn.Module):
+    def __init__(self, hidden_size):
         super().__init__()
-        self.module = module
+        self.sa = nn.Sequential(
+            nn.LayerNorm(hidden_size),
+            Permute(0, 2, 1),  # bld -> bdl
+            nn.Conv1d(
+                hidden_size,
+                hidden_size,
+                7,
+                padding=3,
+                groups=hidden_size,
+            ),
+            nn.Conv1d(hidden_size, hidden_size, 1),
+            Permute(0, 2, 1),  # bdl -> bld
+        )
+        self.feed_forward = nn.Sequential(
+            nn.LayerNorm(hidden_size),
+            kaiming(
+                nn.Linear(hidden_size, 4 * hidden_size, bias=True)
+            ),  # bias is better
+            GEGLU(),  # better than GELU
+            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
+        )
 
-    def forward(self, x, mask):
-        return self.module(x)
+    def forward(self, x, attn_mask):
+        x = self.sa(x).masked_fill_(~attn_mask.unsqueeze(-1), 0.0) + x
+        x = self.feed_forward(x) + x
+        return x
 
 
 class Transformer(nn.Module):
-    def __init__(self, hidden_size, num_layers, num_heads, head_size):
+    def __init__(
+        self, hidden_size, num_layers, num_heads, head_size, num_conv_blocks=0
+    ):
         super().__init__()
         self.transformer_blocks = nn.ModuleList(
             [
-                TransformerBlock(hidden_size, num_heads, head_size)
-                for _ in range(num_layers)
+                (
+                    ConvTrunkBlock(hidden_size)
+                    if i < num_conv_blocks
+                    else TransformerBlock(hidden_size, num_heads, head_size)
+                )
+                for i in range(num_layers)
             ]
         )
-        for i, tfb in enumerate(
-            self.transformer_blocks[: len(self.transformer_blocks) - 2]
-        ):
-            if True or i % 3 != 2:
-                tfb.sa = WithMask(
-                    nn.Sequential(
-                        Permute(0, 2, 1),  # bld -> bdl
-                        nn.Conv1d(
-                            hidden_size,
-                            hidden_size,
-                            7,
-                            padding=3,
-                            groups=hidden_size,
-                        ),
-                        nn.Conv1d(hidden_size, hidden_size, 1),
-                        Permute(0, 2, 1),  # bdl -> bld
-                    )
-                )
 
         for m in self.modules():
             if isinstance(m, nn.LayerNorm):
@@ -211,8 +223,6 @@ class Transformer(nn.Module):
                 m.eps = 1e-6
 
     def forward(self, x, attn_mask):
-        attn_mask = attn_mask.unsqueeze(1) & attn_mask.unsqueeze(2)
-
         for i, transformer_block in enumerate(self.transformer_blocks):
             x = transformer_block(x, attn_mask)
         return x
