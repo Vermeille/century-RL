@@ -272,13 +272,32 @@ def smart_mix(old, new):
 import copy
 
 
+class Visualizer:
+    def __init__(self, tag):
+        self.viz = Visdom(
+            env=tag,
+            server="https://visdom.vermeille.fr",
+            port=443,
+        )
+        self.viz.close()
+
+    def push(self, name, value, epoch):
+        self.viz.line(
+            torch.tensor([value]),
+            torch.tensor([epoch]),
+            win=name,
+            update="append",
+            opts=dict(title=name),
+        )
+
+
 def main():
     import sys
     import yaml
     from easydict import EasyDict
 
-    config = EasyDict(yaml.safe_load(open(sys.argv[1])))
-
+    with open(sys.argv[1]) as f:
+        config = EasyDict(yaml.safe_load(f))
     m = Model(config.net.dim, config.net.num_layers, config.net.head_size)
     print(m)
     print(sum(p.numel() for p in m.parameters()) / 1e6, "M parameters")
@@ -290,12 +309,7 @@ def main():
         opt.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["opt"])
 
     print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
-    viz = Visdom(
-        env=f"{config.tag}-lr={config.train.lr}",
-        server="https://visdom.vermeille.fr",
-        port=443,
-    )
-    viz.close()
+    viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
     # self play
     for epoch in range(3000):
         print("EPOCH", epoch)
@@ -308,20 +322,8 @@ def main():
                     config.pit.max_len,
                 )
             GamesData(pit_results.games).print_short_history()
-            viz.line(
-                torch.tensor([pit_results.win_rate(0)]),
-                torch.tensor([epoch]),
-                win="win_rate",
-                update="append",
-                opts=dict(title="win_rate"),
-            )
-            viz.line(
-                torch.tensor([pit_results.my_avg_points(0)]),
-                torch.tensor([epoch]),
-                win="avg_pit_points",
-                update="append",
-                opts=dict(title="pit_points"),
-            )
+            viz.push("win_rate", pit_results.win_rate(0), epoch)
+            viz.push("avg_points", pit_results.my_avg_points(0), epoch)
 
         if epoch % config.train.save_every == 0:
             torch.save(
@@ -354,9 +356,8 @@ def main():
 
         m.train()
         now = time.time()
-        grad_ep_pct = 1 / config.train.gradient_epochs
+        grad_pct = 1 / config.train.gradient_epochs
         for grad_ep in range(config.train.gradient_epochs):
-            batch_pct = 1 / (len(trainset) // config.train.batch_size)
             indices = torch.randperm(len(trainset))
             total_losses = defaultdict(float)
             opt.zero_grad()
@@ -366,8 +367,7 @@ def main():
                         [copy.deepcopy(trainset[bi]) for bi in batch]
                     ).to(config.device)
                 loss, losses = m(samples.state, samples)
-                (loss).backward()
-                # loss.backward()
+                loss.backward()
                 for k, v in losses.items():
                     total_losses[k] += v / len(trainset) * len(batch)
 
@@ -376,26 +376,11 @@ def main():
 
             grad_mag = torch.nn.utils.clip_grad_norm_(m.parameters(), max_norm=5.0)
             opt.step()
+
             print(total_losses)
             for k, v in total_losses.items():
-                viz.line(
-                    torch.tensor([v]),
-                    torch.tensor(
-                        [epoch + grad_ep * grad_ep_pct + b_i * batch_pct * grad_ep_pct]
-                    ),
-                    win="loss" + k,
-                    update="append",
-                    opts={"title": "loss." + k},
-                )
-            viz.line(
-                torch.tensor([grad_mag.item()]),
-                torch.tensor(
-                    [epoch + grad_ep * grad_ep_pct + b_i * batch_pct * grad_ep_pct]
-                ),
-                win="grad_mag",
-                update="append",
-                opts=dict(title="grad_mag"),
-            )
+                viz.push(f"loss.{k}", v, epoch + grad_ep * grad_pct)
+            viz.push("grad_mag", grad_mag.item(), epoch + grad_ep * grad_pct)
         print(
             "throughput",
             len(trainset) * config.train.gradient_epochs / (time.time() - now),
