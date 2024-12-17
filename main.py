@@ -291,6 +291,65 @@ class Visualizer:
         )
 
 
+def log_pit(*, strategies, num_games, max_len, epoch, model, viz):
+    print("PIT: ", " VS ".join(strategies))
+    pit_results = pit(
+        [strategy_from_string(s, model=model) for s in strategies],
+        num_games,
+        max_len,
+    )
+    GamesData(pit_results.games).print_short_history()
+    viz.push("win_rate", pit_results.win_rate(0), epoch)
+    viz.push("avg_points", pit_results.my_avg_points(0), epoch)
+
+
+def train_epoch(*, model, opt, data, config, viz, epoch):
+    model.train()
+    now = time.time()
+    grad_pct = 1 / config.train.gradient_epochs
+    for grad_ep in range(config.train.gradient_epochs):
+        indices = torch.randperm(len(data))
+        total_losses = defaultdict(float)
+        opt.zero_grad()
+        for b_i, batch in enumerate(chunk(indices, config.train.batch_size)):
+            with torch.no_grad():
+                samples = TrainingSample.collate(
+                    [copy.deepcopy(data[bi]) for bi in batch]
+                ).to(config.device)
+            loss, losses = model(samples.state, samples)
+            loss.backward()
+            for k, v in losses.items():
+                total_losses[k] += v / len(data) * len(batch)
+
+        for p in model.parameters():
+            p.grad.data *= len(batch) / len(data)
+
+        grad_mag = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+        opt.step()
+
+        print(total_losses)
+        for k, v in total_losses.items():
+            viz.push(f"loss.{k}", v, epoch + grad_ep * grad_pct)
+        viz.push("grad_mag", grad_mag.item(), epoch + grad_ep * grad_pct)
+    print(
+        "throughput",
+        len(data) * config.train.gradient_epochs / (time.time() - now),
+    )
+    print()
+
+
+def save_model(model, opt, epoch, config):
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "opt": opt.state_dict(),
+            "epoch": epoch,
+            "config": config,
+        },
+        f"rl-{epoch}.pth",
+    )
+
+
 def main():
     import sys
     import yaml
@@ -314,30 +373,11 @@ def main():
     for epoch in range(3000):
         print("EPOCH", epoch)
         if epoch % config.pit.every == 0:
-            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=False):
-                print("PIT: ", " VS ".join(config.pit.strategies))
-                pit_results = pit(
-                    [strategy_from_string(s, model=m) for s in config.pit.strategies],
-                    config.pit.num_games,
-                    config.pit.max_len,
-                )
-            GamesData(pit_results.games).print_short_history()
-            viz.push("win_rate", pit_results.win_rate(0), epoch)
-            viz.push("avg_points", pit_results.my_avg_points(0), epoch)
+            log_pit(model=m, viz=viz, epoch=epoch, **config.pit)
 
         if epoch % config.train.save_every == 0:
-            torch.save(
-                {
-                    "model": m.state_dict(),
-                    "opt": opt.state_dict(),
-                    "epoch": epoch,
-                    "config": {
-                        "num_layers": config.net.num_layers,
-                        "dim": config.net.dim,
-                    },
-                },
-                f"rl-{epoch}.pth",
-            )
+            save_model(m, opt, epoch, config.net)
+
         print("SELF PLAY: ", " VS ".join(config.self_play.strategies))
         data = self_play(
             [strategy_from_string(s) for s in config.self_play.strategies],
@@ -353,39 +393,9 @@ def main():
 
         print(len(trainset), "samples")
         print(trainset[0])
-
-        m.train()
-        now = time.time()
-        grad_pct = 1 / config.train.gradient_epochs
-        for grad_ep in range(config.train.gradient_epochs):
-            indices = torch.randperm(len(trainset))
-            total_losses = defaultdict(float)
-            opt.zero_grad()
-            for b_i, batch in enumerate(chunk(indices, config.train.batch_size)):
-                with torch.no_grad():
-                    samples = TrainingSample.collate(
-                        [copy.deepcopy(trainset[bi]) for bi in batch]
-                    ).to(config.device)
-                loss, losses = m(samples.state, samples)
-                loss.backward()
-                for k, v in losses.items():
-                    total_losses[k] += v / len(trainset) * len(batch)
-
-            for p in m.parameters():
-                p.grad.data *= len(batch) / len(trainset)
-
-            grad_mag = torch.nn.utils.clip_grad_norm_(m.parameters(), max_norm=5.0)
-            opt.step()
-
-            print(total_losses)
-            for k, v in total_losses.items():
-                viz.push(f"loss.{k}", v, epoch + grad_ep * grad_pct)
-            viz.push("grad_mag", grad_mag.item(), epoch + grad_ep * grad_pct)
-        print(
-            "throughput",
-            len(trainset) * config.train.gradient_epochs / (time.time() - now),
+        train_epoch(
+            model=m, opt=opt, data=trainset, config=config, viz=viz, epoch=epoch
         )
-        print()
 
 
 if __name__ == "__main__":
