@@ -4,6 +4,7 @@ tag: century-convheadrotary
 net:
   num_layers: 8
   dim: 256
+  head_size: 64
 
 train:
   gradient_epochs: 1
