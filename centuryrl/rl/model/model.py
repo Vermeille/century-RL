@@ -135,11 +135,7 @@ class Model(nn.Module):
         )
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
-        self.pretrain_head = nn.Sequential(
-            nn.LayerNorm(dim), nn.GELU(), nn.Linear(dim, 128)
-        )
         self.loss = ImitationLoss("kl")
-        self.pretrain_weight = 0
 
     def text_encode(self, txts, maxlen, pad=False):
         def do_pad(l):
@@ -156,8 +152,6 @@ class Model(nn.Module):
         return txts
 
     def forward(self, games: list[str], samples=None):
-        # games = [game.replace("\n", "") for game in games]
-        # games = self.tokenize.encode_batch(games)
         txt = self.text_embed(games, self.maxlen, pad=True)
         attn_mask = txt != 0
         enc = self.encode(self.in_embed(txt), attn_mask)
@@ -171,12 +165,6 @@ class Model(nn.Module):
         if samples is not None:
             assert len(pred) == len(samples.action)
             assert len(games) == len(pred)
-            pretrain_loss = F.cross_entropy(
-                self.pretrain_head(enc[:, :-1, :]).transpose(1, 2),
-                txt[:, 1:],
-                ignore_index=0,
-            )
-
             policy_loss = self.loss(
                 pred,
                 samples.action,
@@ -187,10 +175,9 @@ class Model(nn.Module):
             losses = {
                 "policy": policy_loss.item(),
                 "value": v_loss.item(),
-                "pretrain": pretrain_loss.item(),
             }
 
-            loss = policy_loss + v_loss + self.pretrain_weight * pretrain_loss
+            loss = policy_loss + v_loss
             return loss, losses
         else:
             return PolicyValue(pred, v_norm)
