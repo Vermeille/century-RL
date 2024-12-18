@@ -93,9 +93,14 @@ def imitation_reverse_kl_loss(pred_policy, pred_value, sample):
 
 @register_loss
 def policy_gradient_loss(pred_policy, pred_value, sample):
-    loss = F.cross_entropy(pred_policy, sample.action_idx, reduction="none")
-    policy_loss = (sample.returns * loss).mean()
-    return policy_loss
+    assert len(pred_policy) == len(sample.action_idx)
+    loss = 0
+    for logit, act, r in zip(pred_policy, sample.action_idx, sample.returns):
+        logit = logit.unsqueeze(0)
+        act = act.unsqueeze(0)
+
+        loss += r * F.cross_entropy(logit, act, reduction="none")
+    return loss / len(sample.action_idx)
 
 
 @register_loss
@@ -105,8 +110,11 @@ def policy_gradient_with_baseline_loss(pred_policy, pred_value, sample):
     advantage = sample.returns - pred_value
 
     loss = 0
-    for adv, logit, act in zip(advantage, pred_policy, sample.action_idx):
-        loss += adv * F.cross_entropy(logit, act)
+    for logit, act, adv in zip(pred_policy, sample.action_idx, advantage):
+        logit = logit.unsqueeze(0)
+        act = act.unsqueeze(0)
+
+        loss += adv * F.cross_entropy(logit, act, reduction="none")
     return loss / len(sample.returns)
 
 

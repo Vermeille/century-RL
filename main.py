@@ -382,7 +382,10 @@ class Trainer:
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
         data = self_play(
-            [strategy_from_string(s) for s in self.config.self_play.strategies],
+            [
+                strategy_from_string(s, model=self.model)
+                for s in self.config.self_play.strategies
+            ],
             self.config.self_play.num_games,
             self.config.self_play.max_len,
         )

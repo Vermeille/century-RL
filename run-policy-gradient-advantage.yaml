@@ -1,5 +1,5 @@
 device: cuda
-tag: century-imitatemc10
+tag: century-policygradientbaseline
 
 net:
   num_layers: 8
@@ -14,14 +14,14 @@ train:
   save_every: 10
   loss:
     value: value_mse_loss
-    policy: imitation_kl_loss
+    policy: policy_gradient_with_baseline_loss
 
 self_play:
-  num_games: 8
+  num_games: 4
   max_len: 500
   strategies:
-    - pick_best_mc_value,budget=10
-    - pick_best_mc_value,budget=10
+    - policy_sampling,model=this
+    - policy_sampling,model=this
 
 pit:
   num_games: 32
