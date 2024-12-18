@@ -4,8 +4,10 @@ import torch
 import numpy as np
 import time
 from visdom import Visdom
+from tqdm import tqdm
 
 from centuryrl.rl.model import Model
+from centuryrl.rl.model.loss import loss_from_string
 from centuryrl.century.strategies import strategy_from_string
 from centuryrl.rl.eval.selfplay import self_play, pit
 import pyximport
@@ -66,7 +68,8 @@ def to_trainset(games_data):
                 TrainingSample(
                     state=log.state,
                     moves=log.moves,
-                    action=log.action_distribution,
+                    action_idx=log.action_idx,
+                    action_distribution=log.action_distribution,
                     score=end.current_diff_points,
                     returns=discount(rewards[i:]),
                     current_diff_points=log.current_diff_points,
@@ -297,6 +300,8 @@ class Trainer:
         self.model = Model(**self.config.net)
         self.model.to(config.device)
         self.opt = torch.optim.AdamW(self.model.parameters(), lr=config.train.lr)
+        self.policy_loss = loss_from_string(config.train.loss.policy)
+        self.value_loss = loss_from_string(config.train.loss.value)
         self.viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
         self.epoch = 0
 
@@ -327,15 +332,23 @@ class Trainer:
             indices = torch.randperm(len(data))
             total_losses = defaultdict(float)
             self.opt.zero_grad()
-            for b_i, batch in enumerate(chunk(indices, self.config.train.batch_size)):
+            for b_i, batch in enumerate(
+                tqdm(
+                    chunk(indices, self.config.train.batch_size),
+                    desc=f"epoch {self.epoch}",
+                )
+            ):
                 with torch.no_grad():
                     samples = TrainingSample.collate(
                         [copy.deepcopy(data[bi]) for bi in batch]
                     ).to(self.config.device)
-                loss, losses = self.model(samples.state, samples)
+                policy, value = self.model(samples.state, samples)
+                policy_loss = self.policy_loss(policy, value, samples)
+                value_loss = self.value_loss(policy, value, samples)
+                loss = policy_loss + value_loss
                 loss.backward()
-                for k, v in losses.items():
-                    total_losses[k] += v / len(data) * len(batch)
+                total_losses["policy"] += policy_loss.item() / len(data) * len(batch)
+                total_losses["value"] += value_loss.item() / len(data) * len(batch)
 
             for p in self.model.parameters():
                 p.grad.data *= len(batch) / len(data)

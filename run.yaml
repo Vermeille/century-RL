@@ -12,6 +12,9 @@ train:
   batch_size: 12
   show_every: 10
   save_every: 10
+  loss:
+    value: value_mse_loss
+    policy: imitation_kl_loss
 
 self_play:
   num_games: 8
