@@ -1,9 +1,7 @@
 from collections import namedtuple
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from centuryrl.rl.model.transformer import Transformer
-from centuryrl.rl.model.utils import js_div, jeffreys_div
 
 
 def mask_pool(x, mask):
@@ -12,11 +10,6 @@ def mask_pool(x, mask):
     # mask.sum(1): B1
     mask = mask.unsqueeze(-1)
     return (x * mask.to(x.dtype)).sum(1) / mask.to(x.dtype).sum(1)
-
-
-class First(nn.Module):
-    def forward(self, x):
-        return x[:, 0, :]
 
 
 class Squeeze(nn.Module):
@@ -135,7 +128,6 @@ class Model(nn.Module):
         )
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
-        self.loss = ImitationLoss("kl")
 
     def text_encode(self, txts, maxlen, pad=False):
         def do_pad(l):
@@ -156,105 +148,13 @@ class Model(nn.Module):
         attn_mask = txt != 0
         enc = self.encode(self.in_embed(txt), attn_mask)
         pred = self.to_pred(enc, attn_mask)
-        v_norm = self.rewards(enc, attn_mask)
+        value = self.rewards(enc, attn_mask)
 
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
 
         pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
 
-        if samples is not None:
-            assert len(pred) == len(samples.action)
-            assert len(games) == len(pred)
-            policy_loss = self.loss(
-                pred,
-                samples.action,
-                pred_value=v_norm.detach(),
-                returns=samples.returns,
-            )
-            v_loss = F.mse_loss(samples.returns, v_norm)
-            losses = {
-                "policy": policy_loss.item(),
-                "value": v_loss.item(),
-            }
-
-            loss = policy_loss + v_loss
-            return loss, losses
-        else:
-            return PolicyValue(pred, v_norm)
-
-
-class ImitationLoss:
-    def __init__(self, function=None):
-        """
-        Imiation Loss: Loss function for imitation learning.
-        Args:
-            function (str): loss function to use. One of "cross_entropy", "kl", "reverse_kl", "jeffreys", "js"
-        """
-        self.function = function
-
-    def __call__(self, logits, action, returns, **kwargs):
-        """
-        Calculate the loss for imitation learning.
-        Args:
-            logits (list[torch.Tensor]): List of logit tensors. Shape: (batch_size, num_classes).
-            action (list[torch.Tensor]): List of action tensors. Shape: (batch_size) if discrete, (batch_size, num_classes) if continuous, logits.
-            returns (torch.Tensor): Returns for each sample in the batch. Shape: (batch_size).
-        """
-        assert len(logits) == len(action)
-        loss = 0
-        for logit, act, r in zip(logits, action, returns.abs()):
-            assert logit.shape == act.shape
-            assert logit.ndim == 1
-            # print(F.softmax(logit, dim=0), F.softmax(act, dim=0))
-            # print(logit, act)
-            logit = logit.unsqueeze(0)
-            act = act.unsqueeze(0)
-            print(F.softmax(logit, dim=1), F.softmax(act, dim=1))
-            if self.function == "cross_entropy":
-                loss += F.cross_entropy(logit, F.softmax(act, dim=1))
-            elif self.function == "kl":
-                loss += F.kl_div(
-                    F.log_softmax(logit, dim=1),
-                    F.log_softmax(act, dim=1),
-                    reduction="batchmean",
-                    log_target=True,
-                )
-            elif self.function == "reverse_kl":
-                loss += F.kl_div(
-                    F.log_softmax(act, dim=1),
-                    F.log_softmax(logit, dim=1),
-                    reduction="batchmean",
-                    log_target=True,
-                )
-            elif self.function == "jeffreys":
-                loss += jeffreys_div(logit, act)
-            elif self.function == "js":
-                loss += js_div(logit, act)
-            elif self.function == "mse":
-                loss += F.mse_loss(logit, act)
-            else:
-                raise ValueError(f"Unknown loss function: {self.function}")
-        return loss / len(action)
-
-
-class PolicyGradientLoss:
-    def __call__(self, logits, pred_value, sample):
-        loss = F.cross_entropy(logits, sample.action, reduction="none")
-        policy_loss = (sample.returns * loss).mean()
-        return policy_loss
-
-
-class PolicyGradientWithBaselineLoss:
-    def __call__(self, logits, action, **kwargs):
-        pred_value, returns = kwargs.pop("pred_value"), kwargs.pop("returns")
-        assert len(pred_value) == len(returns)
-        assert len(logits) == len(returns)
-        advantage = returns - pred_value
-
-        loss = 0
-        for adv, logit, act in zip(advantage, logits, action):
-            loss += adv * F.cross_entropy(logit, act)
-        return loss / len(returns)
+        return PolicyValue(pred, value)
 
 
 def load_model(model_path):
