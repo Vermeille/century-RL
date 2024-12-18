@@ -321,8 +321,8 @@ class Trainer:
             self.config.pit.max_len,
         )
         GamesData(pit_results.games).print_short_history()
-        self.viz.push("win_rate", pit_results.win_rate(0), self.epoch)
-        self.viz.push("avg_points", pit_results.my_avg_points(0), self.epoch)
+        self.viz.push("pit.win_rate", pit_results.win_rate(0), self.epoch)
+        self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
 
     def _train_epoch(self, data):
         self.model.train()
