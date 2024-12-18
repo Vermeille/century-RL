@@ -291,63 +291,111 @@ class Visualizer:
         )
 
 
-def log_pit(*, strategies, num_games, max_len, epoch, model, viz):
-    print("PIT: ", " VS ".join(strategies))
-    pit_results = pit(
-        [strategy_from_string(s, model=model) for s in strategies],
-        num_games,
-        max_len,
-    )
-    GamesData(pit_results.games).print_short_history()
-    viz.push("win_rate", pit_results.win_rate(0), epoch)
-    viz.push("avg_points", pit_results.my_avg_points(0), epoch)
+class Trainer:
+    def __init__(self, config, checkpoint_path=None):
+        self.config = config
+        self.model = Model(**self.config.net)
+        self.model.to(config.device)
+        self.opt = torch.optim.AdamW(self.model.parameters(), lr=config.train.lr)
+        self.viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
+        self.epoch = 0
 
+        if checkpoint_path is not None:
+            ckpt = torch.load(checkpoint_path)
+            self.model.load_state_dict(ckpt["model"])
+            self.opt.load_state_dict(ckpt["opt"])
 
-def train_epoch(*, model, opt, data, config, viz, epoch):
-    model.train()
-    now = time.time()
-    grad_pct = 1 / config.train.gradient_epochs
-    for grad_ep in range(config.train.gradient_epochs):
-        indices = torch.randperm(len(data))
-        total_losses = defaultdict(float)
-        opt.zero_grad()
-        for b_i, batch in enumerate(chunk(indices, config.train.batch_size)):
-            with torch.no_grad():
-                samples = TrainingSample.collate(
-                    [copy.deepcopy(data[bi]) for bi in batch]
-                ).to(config.device)
-            loss, losses = model(samples.state, samples)
-            loss.backward()
-            for k, v in losses.items():
-                total_losses[k] += v / len(data) * len(batch)
+    def _log_pit(self):
+        print("PIT: ", " VS ".join(self.config.pit.strategies))
+        pit_results = pit(
+            [
+                strategy_from_string(s, model=self.model)
+                for s in self.config.pit.strategies
+            ],
+            self.config.pit.num_games,
+            self.config.pit.max_len,
+        )
+        GamesData(pit_results.games).print_short_history()
+        self.viz.push("win_rate", pit_results.win_rate(0), self.epoch)
+        self.viz.push("avg_points", pit_results.my_avg_points(0), self.epoch)
 
-        for p in model.parameters():
-            p.grad.data *= len(batch) / len(data)
+    def _train_epoch(self, data):
+        self.model.train()
+        now = time.time()
+        grad_pct = 1 / self.config.train.gradient_epochs
+        for grad_ep in range(self.config.train.gradient_epochs):
+            indices = torch.randperm(len(data))
+            total_losses = defaultdict(float)
+            self.opt.zero_grad()
+            for b_i, batch in enumerate(chunk(indices, self.config.train.batch_size)):
+                with torch.no_grad():
+                    samples = TrainingSample.collate(
+                        [copy.deepcopy(data[bi]) for bi in batch]
+                    ).to(self.config.device)
+                loss, losses = self.model(samples.state, samples)
+                loss.backward()
+                for k, v in losses.items():
+                    total_losses[k] += v / len(data) * len(batch)
 
-        grad_mag = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-        opt.step()
+            for p in self.model.parameters():
+                p.grad.data *= len(batch) / len(data)
 
-        print(total_losses)
-        for k, v in total_losses.items():
-            viz.push(f"loss.{k}", v, epoch + grad_ep * grad_pct)
-        viz.push("grad_mag", grad_mag.item(), epoch + grad_ep * grad_pct)
-    print(
-        "throughput",
-        len(data) * config.train.gradient_epochs / (time.time() - now),
-    )
-    print()
+            grad_mag = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=5.0
+            )
+            self.opt.step()
 
+            print(total_losses)
+            for k, v in total_losses.items():
+                self.viz.push(f"loss.{k}", v, self.epoch + grad_ep * grad_pct)
+            self.viz.push("grad_mag", grad_mag.item(), self.epoch + grad_ep * grad_pct)
+        print(
+            "throughput",
+            len(data) * self.config.train.gradient_epochs / (time.time() - now),
+        )
+        print()
 
-def save_model(model, opt, epoch, config):
-    torch.save(
-        {
-            "model": model.state_dict(),
-            "opt": opt.state_dict(),
-            "epoch": epoch,
-            "config": config,
-        },
-        f"rl-{epoch}.pth",
-    )
+    def _save_model(self):
+        torch.save(
+            {
+                "model": self.model.state_dict(),
+                "opt": self.opt.state_dict(),
+                "epoch": self.epoch,
+                "config": self.config,
+            },
+            f"rl-{self.epoch}.pth",
+        )
+
+    def _run_episode(self):
+        print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
+        data = self_play(
+            [strategy_from_string(s) for s in self.config.self_play.strategies],
+            self.config.self_play.num_games,
+            self.config.self_play.max_len,
+        )
+        data = GamesData(flatten(data))
+        data.dump()
+        data.print_short_history()
+        data.metrics_to_visdom(self.viz.viz, self.epoch)
+        return data
+
+    def train(self):
+        print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
+        for epoch in range(3000):
+            self.epoch = epoch
+
+            print("EPOCH", epoch)
+            if epoch % self.config.pit.every == 0:
+                self._log_pit()
+
+            if epoch % self.config.train.save_every == 0:
+                self._save_model()
+
+            data = self._run_episode()
+            trainset = to_trainset(data)
+
+            print(len(trainset), "samples")
+            self._train_epoch(trainset)
 
 
 def main():
@@ -357,45 +405,7 @@ def main():
 
     with open(sys.argv[1]) as f:
         config = EasyDict(yaml.safe_load(f))
-    m = Model(config.net.dim, config.net.num_layers, config.net.head_size)
-    print(m)
-    print(sum(p.numel() for p in m.parameters()) / 1e6, "M parameters")
-    # m = torch.compile(m)
-    m.to(config.device)
-    opt = torch.optim.AdamW(m.parameters(), lr=config.train.lr, weight_decay=0.01)
-    if len(sys.argv) >= 3:
-        m.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["model"])
-        opt.load_state_dict(torch.load(sys.argv[2], map_location=config.device)["opt"])
-
-    print("#parameters", sum(p.numel() for p in m.parameters()) / 1e6, "M")
-    viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
-    # self play
-    for epoch in range(3000):
-        print("EPOCH", epoch)
-        if epoch % config.pit.every == 0:
-            log_pit(model=m, viz=viz, epoch=epoch, **config.pit)
-
-        if epoch % config.train.save_every == 0:
-            save_model(m, opt, epoch, config.net)
-
-        print("SELF PLAY: ", " VS ".join(config.self_play.strategies))
-        data = self_play(
-            [strategy_from_string(s) for s in config.self_play.strategies],
-            config.self_play.num_games,
-            config.self_play.max_len,
-        )
-        data = GamesData(flatten(data))
-        data.dump()
-        data.print_short_history()
-        data.metrics_to_visdom(viz, epoch)
-
-        trainset = to_trainset(data)
-
-        print(len(trainset), "samples")
-        print(trainset[0])
-        train_epoch(
-            model=m, opt=opt, data=trainset, config=config, viz=viz, epoch=epoch
-        )
+    Trainer(config, sys.argv[2] if len(sys.argv) > 2 else None).train()
 
 
 if __name__ == "__main__":
