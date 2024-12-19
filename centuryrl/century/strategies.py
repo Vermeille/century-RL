@@ -209,21 +209,50 @@ class PickBestValueStrategy:
         self.model = model
         model.eval()
 
-    def __call__(self, g: Game):
+    @torch.no_grad()
+    async def async_call(self, g: Game):
         values = [[] for _ in g.moves]
         me = g.current_player()
 
-        for _ in range(self.budget):
-            for m_i, m in enumerate(g.moves):
-                g2 = g.copy()
-                g2.play_str(m)
-                g2.simulate_to_end()
+        processor = BatchProcessor(batch_size=64, process_fn=self.model, timeout=0.1)
+
+        async def try_move(m_i):
+            m = g.moves[m_i]
+            g2 = g.copy()
+            g2.play_str(m)
+            for p in range(g2.num_players - 1):
+                if g2.ended():
+                    break
+                board = g2.display_with_moves()
+                policy = (await processor.send(board)).policy[0]
+                assert len(policy) == (sum(1 for c in board if c == "@"))
+                m_j = fast_sample(torch.softmax(policy, dim=0))
+                g2.play_idx(m_j)
+            if g2.ended():
                 values[m_i].append(g2.diff_points_for(me))
+            else:
+                assert g2.current_player() == me
+                values[m_i].append(
+                    g2.diff_points_for(me)
+                    + (await processor.send(g2.display_with_moves())).value[0].item()
+                )
+
+        tasks = [
+            asyncio.create_task(try_move(m_i))
+            for m_i in range(len(g.moves))
+            for _ in range(self.budget)
+        ]
+        await asyncio.gather(*tasks)
         means = [mean(vs) for vs in values]
+        print(means)
         policy = torch.median(torch.tensor(values).float(), dim=1).values
+        print(policy)
         return policy, {
             "moves": dict(zip(g.moves, means)),
         }
+
+    def __call__(self, g: Game):
+        return asyncio.run(self.async_call(g))
 
 
 @register_strategy("longest_move")
