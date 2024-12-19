@@ -5,7 +5,7 @@ from centuryrl.rl.model import load_model
 import pyximport
 
 pyximport.install()
-from centuryrl.century.engine import Game
+from centuryrl.century.engine import Game, fast_sample, random_buy_fast
 
 strategy_registry = {}
 

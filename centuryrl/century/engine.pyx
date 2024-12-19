@@ -16,7 +16,7 @@ from libc.string cimport memset
 from cpython.unicode cimport PyUnicode_DecodeLatin1
 
 
-cdef random_buy_fast(Game g):
+cpdef random_buy_fast(Game g):
     moves = g.moves
     for mov in moves:
         if mov[0] == "V":
