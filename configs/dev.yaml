@@ -1,23 +1,32 @@
 device: cpu
-tag: dev
+tag: century-policygradient
 
 net:
-  num_layers: 4
+  num_layers: 2
   dim: 64
   head_size: 16
 
 train:
-  gradient_epochs: 4
+  gradient_epochs: 1
   lr: 0.0001
-  batch_size: 4
-  show_every: 1
+  batch_size: 12
+  show_every: 10
   save_every: 10
+  loss:
+    value: value_mse_loss
+    policy: policy_gradient_loss
 
 self_play:
   num_games: 4
-  max_len: 200
+  max_len: 500
+  strategies:
+    - policy_sampling,model=this
+    - policy_sampling,model=this
 
 pit:
-  num_games: 8
-  max_len: 200
-  every: 1
+  num_games: 32
+  max_len: 220
+  every: 4
+  strategies:
+    - policy_sampling,model=this,temperature=0.001
+    - random_buy
