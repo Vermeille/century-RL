@@ -10,32 +10,33 @@ from centuryrl.century.engine import Game
 strategy_registry = {}
 
 
-def register_strategy(cls):
-    # Extract the argument names, types, and defaults from the __init__ method
-    if "__init__" in cls.__dict__:
-        sig = inspect.signature(cls.__init__)
-        params = sig.parameters
-        arg_info = {
-            name: (
-                param.annotation
-                if param.annotation != inspect.Parameter.empty
-                else lambda x: x,
-                param.default,
-            )
-            for name, param in params.items()
-            if name != "self"
-        }
-    else:
-        arg_info = {}
+def register_strategy(name):
+    def register(cls):
+        # Extract the argument names, types, and defaults from the __init__ method
+        if "__init__" in cls.__dict__:
+            sig = inspect.signature(cls.__init__)
+            params = sig.parameters
+            arg_info = {
+                name: (
+                    param.annotation
+                    if param.annotation != inspect.Parameter.empty
+                    else lambda x: x,
+                    param.default,
+                )
+                for name, param in params.items()
+                if name != "self"
+            }
+        else:
+            arg_info = {}
 
-    strategy_registry[cls.name] = (cls, arg_info)
-    return cls
+        strategy_registry[name] = (cls, arg_info)
+        return cls
+
+    return register
 
 
-@register_strategy
+@register_strategy("random")
 class RandomStrategy:
-    name = "random"
-
     def __call__(self, g: Game):
         uniform = torch.tensor([1 / len(g.moves)] * len(g.moves))
         return uniform.log(), {
@@ -43,10 +44,8 @@ class RandomStrategy:
         }
 
 
-@register_strategy
+@register_strategy("random_buy")
 class RandomBuyStrategy:
-    name = "random_buy"
-
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -59,10 +58,8 @@ class RandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
-@register_strategy
+@register_strategy("all_actions_then_random_buy")
 class AllActionsThenRandomBuyStrategy:
-    name = "all_actions_then_random_buy"
-
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -81,10 +78,8 @@ class AllActionsThenRandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
-@register_strategy
+@register_strategy("no_actions_random_buy")
 class NoActionsRandomBuyStrategy:
-    name = "no_actions_random_buy"
-
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -100,10 +95,8 @@ class NoActionsRandomBuyStrategy:
         return dist.log(), {"moves": dict(zip(g.moves, dist.tolist()))}
 
 
-@register_strategy
+@register_strategy("argmax")
 class ArgmaxStrategy:
-    name = "argmax"
-
     def __init__(self, nn):
         nn.eval()
         self.nn = nn
@@ -121,10 +114,8 @@ def mean(xs):
     return sum(xs) / len(xs)
 
 
-@register_strategy
+@register_strategy("pick_best_mc_value")
 class PickBestMCValueStrategy:
-    name = "pick_best_mc_value"
-
     def __init__(self, budget: int):
         self.budget = budget
 
@@ -145,10 +136,8 @@ class PickBestMCValueStrategy:
         }
 
 
-@register_strategy
+@register_strategy("pick_best_value")
 class PickBestValueStrategy:
-    name = "pick_best_value"
-
     def __init__(self, budget: int, model):
         self.budget = budget
         self.model = model
@@ -171,10 +160,8 @@ class PickBestValueStrategy:
         }
 
 
-@register_strategy
+@register_strategy("longest_move")
 class LongestMoveStrategy:
-    name = "longest_move"
-
     def __call__(self, g: Game):
         one_hot = torch.zeros(len(g.moves), dtype=torch.float)
         one_hot[max(range(len(g.moves)), key=lambda i: len(g.moves[i]))] = 1
@@ -182,10 +169,8 @@ class LongestMoveStrategy:
         return one_hot, {"moves": {move: len(g.moves) / total for move in g.moves}}
 
 
-@register_strategy
+@register_strategy("policy_sampling")
 class PolicySamplingStrategy:
-    name = "policy_sampling"
-
     def __init__(self, model, temperature: float = 1.0, epsilon: float = 0):
         self.nn = model
         model.eval()
