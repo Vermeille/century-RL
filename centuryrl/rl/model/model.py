@@ -21,7 +21,18 @@ class Squeeze(nn.Module):
         return x.squeeze(self.dim)
 
 
-PolicyValue = namedtuple("PolicyValue", ["policy", "value"])
+class PolicyValue:
+    def __init__(self, policy, value):
+        self.policy = policy
+        self.value = value
+
+    def __iter__(self):
+        return iter([self.policy, self.value])
+
+    def unbatched(self):
+        return [
+            PolicyValue([p], v) for p, v in zip(self.policy, self.value.unsqueeze(1))
+        ]
 
 
 class SinusoidalPositional(torch.nn.Module):
