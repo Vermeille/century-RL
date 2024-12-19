@@ -22,6 +22,15 @@ def imitation_ce_loss(pred_policy, pred_value, sample):
 
 
 @register_loss
+def ce_loss(pred_policy, pred_value, sample):
+    assert len(pred_policy) == len(sample.action_idx)
+    loss = 0
+    for logit, act in zip(pred_policy, sample.action_idx):
+        loss += F.cross_entropy(logit, act)
+    return loss / len(sample.action_distribution)
+
+
+@register_loss
 def imitation_jeffreys_loss(pred_policy, pred_value, sample):
     assert len(pred_policy) == len(sample.action_distribution)
     loss = 0
