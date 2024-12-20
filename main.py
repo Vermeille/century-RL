@@ -59,9 +59,7 @@ def to_trainset(games_data):
         end = hist[-1]
         rewards = [0] * (len(hist) - 1)
         for i in range(len(hist) - 1):
-            rewards[i] = (
-                hist[i + 1].current_diff_points - hist[i].current_diff_points
-            ) / 10
+            rewards[i] = hist[i + 1].current_diff_points - hist[i].current_diff_points
 
         for i, log in enumerate(hist[:-1]):
             out.append(
