@@ -213,6 +213,7 @@ class PickBestValueStrategy:
     async def async_call(self, g: Game):
         values = [[] for _ in g.moves]
         me = g.current_player()
+        temp = 0.01
 
         processor = BatchProcessor(batch_size=64, process_fn=self.model, timeout=0.1)
 
@@ -225,8 +226,7 @@ class PickBestValueStrategy:
                     break
                 board = g2.display_with_moves()
                 policy = (await processor.send(board)).policy[0]
-                assert len(policy) == (sum(1 for c in board if c == "@"))
-                m_j = fast_sample(torch.softmax(policy, dim=0))
+                m_j = fast_sample(torch.softmax(policy / temp, dim=0))
                 g2.play_idx(m_j)
             if g2.ended():
                 values[m_i].append(g2.diff_points_for(me))
@@ -234,7 +234,8 @@ class PickBestValueStrategy:
                 assert g2.current_player() == me
                 values[m_i].append(
                     g2.diff_points_for(me)
-                    + (await processor.send(g2.display_with_moves())).value[0].item()
+                    + 0.98
+                    * (await processor.send(g2.display_with_moves())).value[0].item()
                 )
 
         tasks = [
