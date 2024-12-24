@@ -129,7 +129,9 @@ def policy_gradient_with_baseline_loss(pred_policy, pred_value, sample):
 
 @register_loss
 def value_mse_loss(pred_policy, pred_value, sample):
-    return F.mse_loss(pred_value, sample.returns)
+    print(pred_value.std().item(), pred_value)
+    std = sample.returns.std()
+    return F.mse_loss(pred_value / std, sample.returns / std) * 0.1
 
 
 def loss_from_string(name):
