@@ -91,17 +91,29 @@ class ValueHead(nn.Module):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // 64, 64)
         self.out = nn.Sequential(
-            nn.LayerNorm(dim),
-            nn.GELU(),
+            #nn.LayerNorm(dim),
+            #nn.GELU(),
             nn.Linear(dim, 1),
             Squeeze(-1),
+            Scale(1),
             # B
         )
 
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
-        x = mask_pool(x, attn_mask)
-        return self.out(x)
+        #x = mask_pool(x, attn_mask)
+        x = x[:, 0]
+        out = self.out(x)
+        return out * 10
+
+
+class Scale(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.scale = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x):
+        return x * self.scale
 
 
 class PolicyHead(nn.Module):
@@ -109,8 +121,8 @@ class PolicyHead(nn.Module):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // 64, 64)
         self.out = nn.Sequential(
-            nn.LayerNorm(dim),
-            nn.GELU(),
+            #nn.LayerNorm(dim),
+            #nn.GELU(),
             nn.Linear(dim, 1),
             # BL
         )
