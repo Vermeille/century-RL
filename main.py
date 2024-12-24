@@ -70,7 +70,7 @@ def to_trainset(games_data):
                     action_distribution=log.action_distribution,
                     score=end.current_diff_points,
                     returns=discount(rewards[i:]),
-                    current_diff_points=log.current_diff_points,
+                    current_diff_points=float(log.current_diff_points),
                 )
             )
     return out
