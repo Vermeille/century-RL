@@ -245,10 +245,10 @@ class PickBestValueStrategy:
         ]
         await asyncio.gather(*tasks)
         means = [mean(vs) for vs in values]
-        print(means)
-        policy = torch.median(torch.tensor(values).float(), dim=1).values
-        print(policy)
-        return policy, {
+        policy = torch.median(torch.tensor(values).float(), dim=1).values / temp
+        sm = torch.softmax(policy, dim=0)
+        sm = 0.95 * sm + 0.05 / len(g.moves)
+        return sm.log(), {
             "moves": dict(zip(g.moves, means)),
         }
 
