@@ -871,7 +871,7 @@ cdef class Game:
 
             a = self.action.pile[i]
             gain = self.action.on_cards[i]
-            if p.stock.size() <= i:
+            if p.stock.size() < i:
                 # Can't put cubes on previous cards
                 continue
             give = p.stock.to_str()[:i]
