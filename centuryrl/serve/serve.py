@@ -36,6 +36,9 @@ class Strategies:
             "random_buy",
             "all_actions_then_random_buy",
             "no_actions_random_buy",
+            "pick_best_mc_value,budget=5",
+            "pick_best_mc_value,budget=10",
+            "pick_best_mc_value,budget=100",
         ]
         return strategies
 
