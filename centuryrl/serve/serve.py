@@ -23,6 +23,9 @@ class Strategies:
         strategies = []
         # find all .pth files in all directories
         for root, dirs, files in os.walk("."):
+            for d in dirs:
+                if d.startswith("."):
+                    dirs.remove(d)
             for file in files:
                 if file.endswith(".pth"):
                     # strategies.append(f"argmax:{os.path.join(root, file)}")
