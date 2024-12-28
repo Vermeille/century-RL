@@ -91,17 +91,16 @@ class ValueHead(nn.Module):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // 64, 64)
         self.out = nn.Sequential(
-            #nn.LayerNorm(dim),
-            #nn.GELU(),
-            nn.Linear(dim, 1),
-            Squeeze(-1),
-            Scale(1),
-            # B
+            # nn.LayerNorm(dim),
+            # nn.GELU(),
+            nn.Linear(dim, 2),
+            Scale(2),
+            # B2
         )
 
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
-        #x = mask_pool(x, attn_mask)
+        # x = mask_pool(x, attn_mask)
         x = x[:, 0]
         out = self.out(x)
         return out * 10
@@ -121,8 +120,8 @@ class PolicyHead(nn.Module):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // 64, 64)
         self.out = nn.Sequential(
-            #nn.LayerNorm(dim),
-            #nn.GELU(),
+            # nn.LayerNorm(dim),
+            # nn.GELU(),
             nn.Linear(dim, 1),
             # BL
         )
@@ -177,7 +176,12 @@ class Model(nn.Module):
 
         pred = [pred[i][torch.tensor(moves_pos[i])] for i in range(len(games))]
 
-        return PolicyValue(pred, value)
+        return PolicyValue(
+            pred,
+            torch.distributions.Normal(
+                value[:, 0], torch.nn.functional.softplus(value[:, 1])
+            ),
+        )
 
 
 def load_model(model_path):
