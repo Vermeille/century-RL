@@ -247,29 +247,6 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-def smart_mix(old, new):
-    random.shuffle(old)
-    random.shuffle(new)
-    out = []
-    i_old, i_new = 0, 0
-    for j in np.linspace(0, 1, len(old) + len(new)):
-        if i_old == len(old):
-            out += new[i_new:]
-            break
-
-        if i_new == len(new):
-            out = old[i_old:] + out
-            break
-
-        if random.random() > j:
-            out.append(old[i_old])
-            i_old += 1
-        else:
-            out.append(new[i_new])
-            i_new += 1
-    return out
-
-
 import copy
 
 
