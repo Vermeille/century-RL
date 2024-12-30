@@ -306,8 +306,7 @@ class Trainer:
         grad_pct = 1 / self.config.train.gradient_epochs
         for grad_ep in range(self.config.train.gradient_epochs):
             indices = torch.randperm(len(data))
-            total_losses = defaultdict(float)
-            self.opt.zero_grad()
+            batch_pct = 1 / (len(indices) // self.config.train.batch_size)
             for b_i, batch in enumerate(
                 tqdm(
                     chunk(indices, self.config.train.batch_size),
@@ -318,6 +317,8 @@ class Trainer:
                     samples = TrainingSample.collate(
                         [copy.deepcopy(data[bi]) for bi in batch]
                     ).to(self.config.device)
+                self.opt.zero_grad()
+                total_losses = defaultdict(float)
                 policy, value = self.model(samples.state, samples)
                 policy_loss = self.policy_loss(policy, value, samples)
                 value_loss = self.value_loss(policy, value, samples)
@@ -326,18 +327,18 @@ class Trainer:
                 total_losses["policy"] += policy_loss.item() / len(data) * len(batch)
                 total_losses["value"] += value_loss.item() / len(data) * len(batch)
 
-            for p in self.model.parameters():
-                p.grad.data *= len(batch) / len(data)
+                for p in self.model.parameters():
+                    p.grad.data *= len(batch) / len(data)
 
-            grad_mag = torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), max_norm=5.0
-            )
-            self.opt.step()
+                grad_mag = torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), max_norm=5.0
+                )
+                self.opt.step()
 
-            print(total_losses)
-            for k, v in total_losses.items():
-                self.viz.push(f"loss.{k}", v, self.epoch + grad_ep * grad_pct)
-            self.viz.push("grad_mag", grad_mag.item(), self.epoch + grad_ep * grad_pct)
+                print(total_losses)
+                for k, v in total_losses.items():
+                    self.viz.push(f"loss.{k}", v, self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct)
+                self.viz.push("grad_mag", grad_mag.item(), self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct)
         print(
             "throughput",
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
