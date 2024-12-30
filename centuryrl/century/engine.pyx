@@ -764,8 +764,8 @@ cdef class Game:
 
     def display_with_moves(self, int force=-1) -> str:
         out = self.display(force=force) + '\n_Moves\n'
-        if force == -1 or force == self.current_player():
-            out += '\n'.join(['@'+ mov for mov in self.moves])
+        assert force == -1 or force == self.current_player()
+        out += ''.join(['@' for mov in self.moves])
         return out
 
     cpdef void buy_action(self, Player p, int idx, str give, str take):
