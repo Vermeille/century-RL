@@ -64,6 +64,7 @@ def to_trainset(games_data):
         for i, log in enumerate(hist[:-1]):
             out.append(
                 TrainingSample(
+                    round=i,
                     state=log.state,
                     moves=log.moves,
                     action_idx=log.action_idx,
