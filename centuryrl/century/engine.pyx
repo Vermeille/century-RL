@@ -747,7 +747,7 @@ cdef class Game:
             p = force
         else:
             p = self.current_player()
-        lines = [f'{self.turn // self.num_players:4}']
+        lines = [f'{self.round():4}']
 
         lines.append('_Board')
         lines.append(str(self.victory))
