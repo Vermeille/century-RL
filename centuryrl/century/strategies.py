@@ -170,9 +170,9 @@ class PickBestValueStrategy:
                 board = g2.display_with_moves()
                 values[m_i].append(
                     g2.diff_points_for(me)
-                    + 0.98
-                    * (await processor.send(board)).value.mean[0].item()
+                    + 0.98 * (await processor.send(board)).value.mean[0].item()
                 )
+            print(m_i, m, values[m_i])
 
         processor.run_tasks(
             [try_move(m_i) for m_i in range(len(g.moves)) for _ in range(self.budget)]

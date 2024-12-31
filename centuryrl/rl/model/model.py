@@ -36,9 +36,18 @@ class PolicyValue:
     def __iter__(self):
         return iter([self.policy, self.value])
 
+    def __len__(self):
+        return len(self.policy)
+
     def unbatched(self):
         return [
-            PolicyValue([p], v) for p, v in zip(self.policy, self.value.unsqueeze(1))
+            PolicyValue(
+                [self.policy[i]],
+                torch.distributions.Normal(
+                    self.value.mean[i, None], self.value.scale[i, None]
+                ),
+            )
+            for i in range(len(self))
         ]
 
 
