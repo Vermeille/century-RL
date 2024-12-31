@@ -129,14 +129,15 @@ def policy_gradient_with_baseline_loss(pred_policy, pred_value, sample):
 
 @register_loss
 def value_mse_loss(pred_policy, pred_value, sample):
-    print(pred_value.std().item(), pred_value)
-    std = sample.returns.std()
-    return F.mse_loss(pred_value.mean / std, sample.returns / std)
+    print("\npred", pred_value.mean, "\ntarget", sample.returns)
+    return F.mse_loss(pred_value.mean, sample.returns)
 
 
 @register_loss
 def value_log_prob(pred_policy, pred_value, sample):
-    print(pred_value.mean, pred_value.scale)
+    print(
+        "\nmean", pred_value.mean, "\nvar", pred_value.scale, "\ntarget", sample.returns
+    )
     return -pred_value.log_prob(sample.returns).mean()
 
 
