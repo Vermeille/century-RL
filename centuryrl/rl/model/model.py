@@ -116,10 +116,10 @@ class ValueHead(nn.Module):
 
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
-        # x = mask_pool(x, attn_mask)
-        x = x[:, 0]
+        x = mask_energy_pool(x, attn_mask)
+        # x = x[:, 0]
         out = self.out(x)
-        return out * 10
+        return out
 
 
 class Scale(nn.Module):
@@ -158,7 +158,7 @@ class Model(nn.Module):
         self.in_embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
             ScaledSinosoidal(dim, self.maxlen),
-            # nn.LayerNorm(dim),
+            nn.LayerNorm(dim),
         )
         self.in_embed[0].weight.data.normal_(0, 1 / dim**0.5)
         self.encode = Transformer(
