@@ -350,7 +350,7 @@ class Trainer:
                 "model": self.model.state_dict(),
                 "opt": self.opt.state_dict(),
                 "epoch": self.epoch,
-                "config": self.config,
+                "config": self.config.net,
             },
             f"rl-{self.epoch}.pth",
         )
