@@ -1,6 +1,7 @@
 from collections import deque
 from typing import Any, List, Callable
 import asyncio
+import inspect
 
 
 class BatchProcessor:
@@ -68,3 +69,57 @@ class BatchProcessor:
 
         ret = asyncio.run(do())
         return ret
+
+
+class RegisterByName:
+    def __init__(self, arg_readers=None):
+        self.registry = {}
+        self.arg_readers = arg_readers or {}
+
+    def register(self, name):
+        def foo(cls):
+            # Extract the argument names, types, and defaults from the __init__ method
+            if "__init__" in cls.__dict__:
+                sig = inspect.signature(cls.__init__)
+                params = sig.parameters
+                arg_info = {
+                    name: (
+                        param.annotation
+                        if param.annotation != inspect.Parameter.empty
+                        else lambda x: x,
+                        param.default,
+                    )
+                    for name, param in params.items()
+                    if name != "self"
+                }
+            else:
+                arg_info = {}
+
+            self.registry[name] = (cls, arg_info)
+            return cls
+
+        return foo
+
+    def __call__(self, descr_string, **provided_args):
+        name, *arg_list = descr_string.split(",")
+        args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
+
+        if name not in self.registry:
+            raise ValueError(f"Unknown strategy: {descr_string}")
+
+        strategy_class, arg_info = self.registry[name]
+        init_args = {}
+
+        for arg_name, (arg_type, default) in arg_info.items():
+            if arg_name in provided_args:
+                init_args[arg_name] = provided_args[arg_name]
+            elif arg_name in self.arg_readers:
+                init_args[arg_name] = self.arg_readers[arg_name](
+                    args.get(arg_name, default)
+                )
+            elif arg_name in args:
+                init_args[arg_name] = arg_type(args[arg_name])
+            else:
+                init_args[arg_name] = default
+
+        return strategy_class(**init_args)
