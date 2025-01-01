@@ -275,7 +275,7 @@ class Trainer:
         self.config = config
         self.model = Model(**self.config.net)
         self.model.to(config.device)
-        self.opt = torch.optim.AdamW(self.model.parameters(), lr=config.train.lr, betas=(0.8, 0.99))
+        self.opt = torch.optim.AdamW(self.model.parameters(), lr=config.train.lr, betas=(0., 0.99))
         self.policy_loss = loss_from_string(config.train.loss.policy)
         self.value_loss = loss_from_string(config.train.loss.value)
         self.viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
