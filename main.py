@@ -64,12 +64,12 @@ def to_trainset(games_data):
         for i, log in enumerate(hist[:-1]):
             out.append(
                 TrainingSample(
-                    round=i,
+                    round=float(i),
                     state=log.state,
                     moves=log.moves,
                     action_idx=log.action_idx,
                     action_distribution=log.action_distribution,
-                    score=end.current_diff_points,
+                    score=float(end.current_diff_points),
                     returns=discount(rewards[i:]),
                     current_diff_points=float(log.current_diff_points),
                 )
@@ -327,8 +327,7 @@ class Trainer:
                 total_losses["policy"] += policy_loss.item() / len(data) * len(batch)
                 total_losses["value"] += value_loss.item() / len(data) * len(batch)
 
-                for p in self.model.parameters():
-                    p.grad.data *= len(batch) / len(data)
+                #for p in self.model.parameters(): p.grad.data *= len(batch) / len(data)
 
                 grad_mag = torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), max_norm=5.0

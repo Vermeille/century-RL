@@ -178,8 +178,8 @@ class PickBestValueStrategy:
             [try_move(m_i) for m_i in range(len(g.moves)) for _ in range(self.budget)]
         )
         means = [mean(vs) for vs in values]
-        policy = torch.median(torch.tensor(values).float(), dim=1).values / temp
-        sm = torch.softmax(policy, dim=0)
+        policy = torch.median(torch.tensor(values).float(), dim=1).values
+        sm = torch.softmax(policy / temp, dim=0)
         sm = 0.95 * sm + 0.05 / len(g.moves)
         return sm.log(), {
             "moves": dict(zip(g.moves, means)),
