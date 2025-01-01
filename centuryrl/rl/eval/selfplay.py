@@ -16,6 +16,7 @@ class Record:
         self.current_diff_points = game.diff_points()
         self.my_points = game.points()
         self.notes = []
+        self.final = False
 
 
 class EndState:
@@ -25,6 +26,7 @@ class EndState:
         self.my_points = game.points_for(player)
         self.current_diff_points = game.diff_points_for(player)
         self.notes = []
+        self.final = True
 
 
 @torch.no_grad()

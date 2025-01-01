@@ -1,3 +1,4 @@
+import torch
 import torch.nn.functional as F
 from centuryrl.rl.model.utils import js_div, jeffreys_div
 from centuryrl.century.utils import RegisterByName
@@ -151,3 +152,22 @@ class ValueLogProb:
             sample.returns,
         )
         return -pred_value.log_prob(sample.returns).mean()
+
+
+@loss_from_string.register("bootstrap_mse_loss")
+class BootstrapMSELoss:
+    def __init__(self, model, discount: float = 0.98):
+        self.model = model
+        self.discount = discount
+
+    def __call__(self, pred_policy, pred_value, sample):
+        with torch.no_grad():
+            bootstrap_value = self.model([n.state for n in sample.next]).value.mean
+            bootstrap_value = torch.where(
+                torch.tensor([n.final for n in sample.next]),
+                torch.tensor(0.0),
+                bootstrap_value,
+            )
+        target = sample.reward + self.discount * bootstrap_value
+        print("\npred", pred_value.mean, "\ntarget", target)
+        return F.mse_loss(pred_value.mean, target)

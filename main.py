@@ -61,7 +61,7 @@ def to_trainset(games_data):
         for i in range(len(hist) - 1):
             rewards[i] = hist[i + 1].current_diff_points - hist[i].current_diff_points
 
-        for i, log in enumerate(hist[:-1]):
+        for i, log in reversed(list(enumerate(hist[:-1]))):
             out.append(
                 TrainingSample(
                     round=float(i),
@@ -70,8 +70,11 @@ def to_trainset(games_data):
                     action_idx=log.action_idx,
                     action_distribution=log.action_distribution,
                     score=float(end.current_diff_points),
+                    reward=float(rewards[i]),
                     returns=discount(rewards[i:]),
                     current_diff_points=float(log.current_diff_points),
+                    next=end if i == len(hist) - 2 else out[-1],
+                    final=False,
                 )
             )
     return out
@@ -276,8 +279,8 @@ class Trainer:
         self.model = Model(**self.config.net)
         self.model.to(config.device)
         self.opt = torch.optim.AdamW(self.model.parameters(), lr=config.train.lr, betas=(0., 0.99))
-        self.policy_loss = loss_from_string(config.train.loss.policy)
-        self.value_loss = loss_from_string(config.train.loss.value)
+        self.policy_loss = loss_from_string(config.train.loss.policy, model=self.model)
+        self.value_loss = loss_from_string(config.train.loss.value, model=self.model)
         self.viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
         self.epoch = 0
 
