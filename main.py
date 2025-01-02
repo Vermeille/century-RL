@@ -80,7 +80,7 @@ def to_trainset(games_data):
     return out
 
 
-class GamesData:
+class CenturyMetrics:
     def __init__(self, data):
         self.data = data
 
@@ -299,7 +299,7 @@ class Trainer:
             self.config.pit.num_games,
             self.config.pit.max_len,
         )
-        GamesData(pit_results.games).print_short_history()
+        CenturyMetrics(pit_results.games).print_short_history()
         self.viz.push("pit.win_rate", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
 
@@ -368,8 +368,7 @@ class Trainer:
             self.config.self_play.num_games,
             self.config.self_play.max_len,
         )
-        data = GamesData(flatten(data))
-        data.dump()
+        data = CenturyMetrics(flatten(data))
         data.print_short_history()
         data.metrics_to_visdom(self.viz.viz, self.epoch)
         return data

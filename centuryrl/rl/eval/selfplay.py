@@ -4,7 +4,10 @@ import itertools
 import pyximport
 
 pyximport.install()
-from centuryrl.century.engine import Game, fast_sample
+from centuryrl.century.engine import Century, fast_sample
+
+
+class Game: ...
 
 
 class Record:
@@ -35,7 +38,7 @@ def self_play(strategies, n_games, max_len, desc="playing games"):
     data = [[[] for _ in range(n_players)] for _ in range(n_games)]
 
     for i_game in tqdm(range(n_games), desc=desc):
-        g = Game(num_players=n_players)
+        g = Century(num_players=n_players)
 
         for i_mov in range(max_len):
             if g.ended():

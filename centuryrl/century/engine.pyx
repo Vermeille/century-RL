@@ -16,7 +16,7 @@ from libc.string cimport memset
 from cpython.unicode cimport PyUnicode_DecodeLatin1
 
 
-cpdef random_buy_fast(Game g):
+cpdef random_buy_fast(Century g):
     moves = g.moves
     for mov in moves:
         if mov[0] == "V":
@@ -615,7 +615,7 @@ cdef class Player:
         return '\n'.join(lines)
 
 
-cdef class Game:
+cdef class Century:
     cdef public Player p0
     cdef public Player p1
     cdef public Player p2
@@ -655,7 +655,7 @@ cdef class Game:
 
     @cython.profile(True)
     def copy(self, randomize=True):
-        g = Game(empty=True)
+        g = Century(empty=True)
         g.p0 = self.p0.copy()
         g.p1 = self.p1.copy()
         g.p2 = self.p2.copy()
@@ -700,7 +700,7 @@ cdef class Game:
                     ranking[j + 1] = tmp
 
 
-    def simulate_to_end(self: Game, cut: int=30):
+    def simulate_to_end(self: Century, cut: int=30):
         cdef int i
         cdef list moves
         for i in range(cut):
@@ -829,7 +829,7 @@ cdef class Game:
         self.moves = self.gen_move()
         return 1
 
-    cpdef int ended(self: Game):
+    cpdef int ended(self: Century):
         cdef int i
 
         for i in range(self.num_players):
@@ -837,7 +837,7 @@ cdef class Game:
                 return 1
         return 0
 
-    cpdef int winner(self: Game):
+    cpdef int winner(self: Century):
         return self.max_points().index
 
     cpdef list[str] gen_move(self):
@@ -886,6 +886,6 @@ cdef class Game:
 
         return moves
 
-    cpdef round(self: Game):
+    cpdef round(self: Century):
         return self.turn // self.num_players
 

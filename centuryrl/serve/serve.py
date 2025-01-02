@@ -8,8 +8,8 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from centuryrl.century.engine import Game
-from centuryrl.century.strategies import RandomBuyStrategy, strategy_from_string
+from centuryrl.century.engine import Century
+from centuryrl.century.strategies import strategy_from_string
 
 
 class Strategies:
@@ -58,8 +58,7 @@ strategies = Strategies()
 
 app = FastAPI()
 
-game = Game()
-strategy = RandomBuyStrategy()
+game = Century()
 current_dir = Path(__file__).parent
 
 
@@ -117,5 +116,5 @@ def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True
 @app.get("/reset")
 def reset():
     global game
-    game = Game()
+    game = Century()
     return True

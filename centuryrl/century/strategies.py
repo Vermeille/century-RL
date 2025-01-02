@@ -5,7 +5,28 @@ from centuryrl.rl.model import load_model
 import pyximport
 
 pyximport.install()
-from centuryrl.century.engine import Game, fast_sample
+from centuryrl.century.engine import fast_sample
+
+
+class Game:
+    moves: list[str]
+    num_players: int
+
+    def current_player(self) -> int: ...
+
+    def display_with_moves(self) -> str: ...
+
+    def copy(self) -> "Game": ...
+
+    def play_str(self, move: str): ...
+
+    def play_idx(self, move: int): ...
+
+    def simulate_to_end(self): ...
+
+    def diff_points_for(self, player: int) -> float: ...
+
+    def ended(self) -> bool: ...
 
 
 strategy_from_string = RegisterByName(arg_readers={"model": load_model})
@@ -20,8 +41,8 @@ class RandomStrategy:
         }
 
 
-@strategy_from_string.register("random_buy")
-class RandomBuyStrategy:
+@strategy_from_string.register("century_random_buy")
+class CenturyRandomBuyStrategy:
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -34,8 +55,8 @@ class RandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
-@strategy_from_string.register("all_actions_then_random_buy")
-class AllActionsThenRandomBuyStrategy:
+@strategy_from_string.register("century_all_actions_then_random_buy")
+class CenturyAllActionsThenRandomBuyStrategy:
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -54,8 +75,8 @@ class AllActionsThenRandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
-@strategy_from_string.register("no_actions_random_buy")
-class NoActionsRandomBuyStrategy:
+@strategy_from_string.register("century_no_actions_random_buy")
+class CenturyNoActionsRandomBuyStrategy:
     def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
