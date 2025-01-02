@@ -135,10 +135,11 @@ class PickBestMCValueStrategy:
 
 @strategy_from_string.register("pick_best_value")
 class PickBestValueStrategy:
-    def __init__(self, budget: int, model):
+    def __init__(self, budget: int, model, discount: float):
         self.budget = budget
         self.model = model
         model.eval()
+        self.discount = discount
 
     @torch.no_grad()
     def __call__(self, g: Game):
@@ -166,7 +167,7 @@ class PickBestValueStrategy:
                 board = g2.display_with_moves()
                 values[m_i].append(
                     g2.diff_points_for(me)
-                    + 0.98 * (await processor.send(board)).value.mean[0].item()
+                    + self.discount * (await processor.send(board)).value.mean[0].item()
                 )
             print(m_i, m, values[m_i])
 
