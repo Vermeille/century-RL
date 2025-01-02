@@ -135,17 +135,17 @@ class PickBestMCValueStrategy:
 
 @strategy_from_string.register("pick_best_value")
 class PickBestValueStrategy:
-    def __init__(self, budget: int, model, discount: float):
+    def __init__(self, budget: int, model, discount: float, temperature: float = 0.001):
         self.budget = budget
         self.model = model
         model.eval()
         self.discount = discount
+        self.temperature = temperature
 
     @torch.no_grad()
     def __call__(self, g: Game):
         values = [[] for _ in g.moves]
         me = g.current_player()
-        temp = 0.01
 
         processor = BatchProcessor(batch_size=64, process_fn=self.model, timeout=0.1)
 
@@ -158,7 +158,7 @@ class PickBestValueStrategy:
                     break
                 board = g2.display_with_moves()
                 policy = (await processor.send(board)).policy[0]
-                m_j = fast_sample(torch.softmax(policy / temp, dim=0))
+                m_j = fast_sample(torch.softmax(policy, dim=0))
                 g2.play_idx(m_j)
             if g2.ended():
                 values[m_i].append(g2.diff_points_for(me))
@@ -176,7 +176,7 @@ class PickBestValueStrategy:
         )
         means = [mean(vs) for vs in values]
         policy = torch.median(torch.tensor(values).float(), dim=1).values
-        sm = torch.softmax(policy / temp, dim=0)
+        sm = torch.softmax(policy / self.temperature, dim=0)
         sm = 0.95 * sm + 0.05 / len(g.moves)
         return sm.log(), {
             "moves": dict(zip(g.moves, means)),
