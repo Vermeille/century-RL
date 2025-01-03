@@ -7,7 +7,7 @@ from tqdm import tqdm
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.eval.selfplay import self_play, pit
-from boardrl.games import century
+from boardrl.games import games_library
 
 
 class TrainingSample:
@@ -134,7 +134,7 @@ class Trainer:
         self.value_loss = loss_from_string(config.train.loss.value, model=self.model)
         self.viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
         self.epoch = 0
-        self.game_desc = century()
+        self.game_desc = games_library("tictactoe")()
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
