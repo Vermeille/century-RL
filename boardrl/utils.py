@@ -2,6 +2,10 @@ from collections import deque
 from typing import Any, List, Callable
 import asyncio
 import inspect
+import pyximport
+
+pyximport.install()
+from boardrl.cyutils import fast_sample
 
 
 class BatchProcessor:
