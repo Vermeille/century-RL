@@ -1,18 +1,13 @@
 from collections import defaultdict
-import random
 import torch
-import numpy as np
 import time
 from visdom import Visdom
 from tqdm import tqdm
 
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
-from boardrl.century.strategies import strategy_from_string
 from boardrl.rl.eval.selfplay import self_play, pit
-import pyximport
-
-pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
+from boardrl.games import strategy_from_string
 
 
 class TrainingSample:

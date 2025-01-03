@@ -4,7 +4,8 @@ import itertools
 import pyximport
 
 pyximport.install()
-from boardrl.century.engine import Century, fast_sample
+from boardrl.cyutils import fast_sample
+from boardrl.games import Century
 
 
 class Game: ...

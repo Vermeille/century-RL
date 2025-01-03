@@ -3,17 +3,13 @@
 # cython: linetrace=False
 import torch
 cimport cython
-from cython cimport numeric
-from cpython cimport array
-import array
 import copy
 import random
 from typing import Tuple, List
-from libc.math cimport sqrt, log
-from libc.stdlib cimport rand, RAND_MAX
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset
 from cpython.unicode cimport PyUnicode_DecodeLatin1
+from boardrl.cyutils import fast_sample
 
 
 cpdef random_buy_fast(Century g):
@@ -23,33 +19,6 @@ cpdef random_buy_fast(Century g):
             return mov
 
     return random.choice(moves)
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-cpdef int fast_sample(x):
-    assert x.ndim == 1 or (x.ndim == 2 and x.shape[0] == 1)
-    x = x.detach().cpu().contiguous()
-    x = x.numpy() if x.ndim == 1 else x[0].numpy()
-    cdef float[:] x_view = x
-    cdef float* x_ = &x_view[0]
-    cdef float total = 0.
-    cdef float r
-    cdef float acc = 0
-    cdef int i
-    cdef int n = x.shape[0]
-
-    for i in range(n):
-        total += x_[i]
-
-    r = rand() / RAND_MAX * total
-    for i in range(n):
-        acc += x_[i]
-        if acc >= r:
-            return i
-    print(x)
-    assert False, ("Should not reach here. Called fast_sample on "
-        "an invalid distribution (all zeros or negative values)")
 
 
 class Illegal(BaseException):

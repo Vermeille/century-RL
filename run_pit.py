@@ -2,7 +2,7 @@ import json
 import os
 import random
 
-from boardrl.century.strategies import strategy_from_string
+from boardrl.games import strategy_from_string
 from boardrl.rl.eval.selfplay import pit
 
 

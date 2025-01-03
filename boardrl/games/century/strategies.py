@@ -1,11 +1,11 @@
 import torch
 
-from boardrl.century.utils import BatchProcessor, RegisterByName
+from boardrl.utils import BatchProcessor, RegisterByName
 from boardrl.rl.model import load_model
 import pyximport
 
 pyximport.install()
-from boardrl.century.engine import fast_sample
+from boardrl.games.century.engine import fast_sample
 
 
 class Game:

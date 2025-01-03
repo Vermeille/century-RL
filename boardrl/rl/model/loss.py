@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from boardrl.rl.model.utils import js_div, jeffreys_div
-from boardrl.century.utils import RegisterByName
+from boardrl.utils import RegisterByName
 
 loss_from_string = RegisterByName()
 
