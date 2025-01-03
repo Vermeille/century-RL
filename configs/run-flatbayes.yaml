@@ -1,0 +1,32 @@
+device: cpu
+tag: century-imitatemc10
+
+net:
+  num_layers: 2
+  dim: 64
+  head_size: 64
+
+train:
+  gradient_epochs: 1
+  lr: 0.001
+  batch_size: 12
+  show_every: 10
+  save_every: 10
+  loss:
+    value: bootstrap_mse_loss,discount=0.8
+    policy: ce_loss
+
+self_play:
+  num_games: 1
+  max_len: 100
+  strategies:
+    - pick_best_value,budget=1,discount=0.8
+    - pick_best_value,budget=1,discount=0.8
+
+pit:
+  num_games: 4
+  max_len: 100
+  every: 10
+  strategies:
+    - policy_sampling,model=this,temperature=0.001
+    - century_random_buy
