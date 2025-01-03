@@ -6,3 +6,4 @@ fastapi[standard]
 easydict
 pyyaml
 natsort
+crayons
