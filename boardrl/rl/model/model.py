@@ -191,7 +191,10 @@ class Model(nn.Module):
 
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
 
-        pred = [(pred[i][torch.tensor(moves_pos[i])] if len(moves_pos[i]) else []) for i in range(len(games))]
+        pred = [
+            (pred[i][torch.tensor(moves_pos[i])] if len(moves_pos[i]) else [])
+            for i in range(len(games))
+        ]
 
         return PolicyValue(
             pred,

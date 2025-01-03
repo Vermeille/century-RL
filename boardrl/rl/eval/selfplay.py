@@ -5,10 +5,7 @@ import pyximport
 
 pyximport.install()
 from boardrl.cyutils import fast_sample
-from boardrl.games import Century
-
-
-class Game: ...
+from boardrl.utils import Game
 
 
 class Record:
@@ -34,12 +31,12 @@ class EndState:
 
 
 @torch.no_grad()
-def self_play(strategies, n_games, max_len, desc="playing games"):
+def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
     n_players = len(strategies)
     data = [[[] for _ in range(n_players)] for _ in range(n_games)]
 
     for i_game in tqdm(range(n_games), desc=desc):
-        g = Century(num_players=n_players)
+        g = make_game(num_players=n_players)
 
         for i_mov in range(max_len):
             if g.ended():
@@ -89,6 +86,6 @@ flatten = itertools.chain.from_iterable
 
 
 @torch.no_grad()
-def pit(strategies, n_games, max_len):
-    dat = self_play(strategies, n_games, max_len)
+def pit(make_game, strategies, n_games, max_len):
+    dat = self_play(make_game, strategies, n_games, max_len)
     return PitResults(list(flatten(dat)), len(strategies))

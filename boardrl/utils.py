@@ -100,6 +100,9 @@ class RegisterByName:
 
         return foo
 
+    def update(self, other: "RegisterByName"):
+        self.registry.update(other.registry)
+
     def __call__(self, descr_string, **provided_args):
         name, *arg_list = descr_string.split(",")
         args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
@@ -123,3 +126,26 @@ class RegisterByName:
                 init_args[arg_name] = default
 
         return strategy_class(**init_args)
+
+
+class Game:
+    moves: list[str]
+    num_players: int
+
+    def current_player(self) -> int: ...
+
+    def display_with_moves(self) -> str: ...
+
+    def copy(self) -> "Game": ...
+
+    def play_str(self, move: str): ...
+
+    def play_idx(self, move: int): ...
+
+    def simulate_to_end(self): ...
+
+    def diff_points_for(self, player: int) -> float: ...
+
+    def ended(self) -> bool: ...
+
+    ...
