@@ -8,8 +8,8 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from centuryrl.century.engine import Century
-from centuryrl.century.strategies import strategy_from_string
+from boardrl.century.engine import Century
+from boardrl.century.strategies import strategy_from_string
 
 
 class Strategies:

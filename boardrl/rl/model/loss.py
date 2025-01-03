@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
-from centuryrl.rl.model.utils import js_div, jeffreys_div
-from centuryrl.century.utils import RegisterByName
+from boardrl.rl.model.utils import js_div, jeffreys_div
+from boardrl.century.utils import RegisterByName
 
 loss_from_string = RegisterByName()
 
@@ -169,5 +169,7 @@ class BootstrapMSELoss:
                 bootstrap_value,
             )
         target = sample.reward + self.discount * bootstrap_value
-        print("\npred", pred_value.mean, "\ntarget", target)
+        print(
+            "\ndiscount", self.discount, "\npred", pred_value.mean, "\ntarget", target
+        )
         return F.mse_loss(pred_value.mean, target)

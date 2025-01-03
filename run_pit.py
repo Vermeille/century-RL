@@ -2,8 +2,8 @@ import json
 import os
 import random
 
-from centuryrl.century.strategies import strategy_from_string
-from centuryrl.rl.eval.selfplay import pit
+from boardrl.century.strategies import strategy_from_string
+from boardrl.rl.eval.selfplay import pit
 
 
 def populate_strategies():

@@ -6,10 +6,10 @@ import time
 from visdom import Visdom
 from tqdm import tqdm
 
-from centuryrl.rl.model import Model
-from centuryrl.rl.model.loss import loss_from_string
-from centuryrl.century.strategies import strategy_from_string
-from centuryrl.rl.eval.selfplay import self_play, pit
+from boardrl.rl.model import Model
+from boardrl.rl.model.loss import loss_from_string
+from boardrl.century.strategies import strategy_from_string
+from boardrl.rl.eval.selfplay import self_play, pit
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
@@ -329,8 +329,6 @@ class Trainer:
                 loss.backward()
                 total_losses["policy"] += policy_loss.item() / len(data) * len(batch)
                 total_losses["value"] += value_loss.item() / len(data) * len(batch)
-
-                #for p in self.model.parameters(): p.grad.data *= len(batch) / len(data)
 
                 grad_mag = torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), max_norm=5.0

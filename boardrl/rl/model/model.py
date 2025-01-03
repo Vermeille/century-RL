@@ -1,7 +1,7 @@
 from collections import namedtuple
 import torch
 import torch.nn as nn
-from centuryrl.rl.model.transformer import Transformer
+from boardrl.rl.model.transformer import Transformer
 
 
 def mask_mean_pool(x, mask):
@@ -10,6 +10,7 @@ def mask_mean_pool(x, mask):
     # mask.sum(1): B1
     mask = mask.unsqueeze(-1)
     return (x * mask.to(x.dtype)).sum(1) / mask.to(x.dtype).sum(1)
+
 
 def mask_energy_pool(x, mask):
     # mask: BL1
