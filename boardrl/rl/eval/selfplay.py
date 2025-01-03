@@ -68,7 +68,9 @@ class PitResults:
         ]
 
     def my_wins(self, player_num):
-        return [p >= 0 for p in self.my_points(player_num)]
+        return [
+            (1 if p > 0 else 0.5 if p == 0 else 0) for p in self.my_points(player_num)
+        ]
 
     def win_rate(self, player_num):
         my_wins = self.my_wins(player_num)
