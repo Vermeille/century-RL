@@ -806,9 +806,6 @@ cdef class Century:
                 return 1
         return 0
 
-    cpdef int winner(self: Century):
-        return self.max_points().index
-
     cpdef list[str] gen_move(self):
         cdef int i
         cdef Player p
