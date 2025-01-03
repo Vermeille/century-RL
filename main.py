@@ -230,7 +230,7 @@ class Trainer:
         )
         data = self.game_desc.make_metrics(flatten(data))
         data.print_short_history()
-        data.metrics_to_visdom(self.viz.viz, self.epoch)
+        data.metrics_to_visdom(self.viz, self.epoch)
         return data
 
     def train(self):

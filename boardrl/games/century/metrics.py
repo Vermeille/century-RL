@@ -69,7 +69,7 @@ class Metrics:
     def metrics_to_visdom(self, viz, epoch):
         metrics = self.metrics()
         avg_move_summary = metrics.pop("avg_move_summary")
-        viz.line(
+        viz.viz.line(
             Y=torch.tensor(
                 [[sum(avg_move_summary[k] for k in "AHRV"[: i + 1]) for i in range(4)]]
             ),
@@ -86,7 +86,7 @@ class Metrics:
         )
 
         lenghts = metrics.pop("prompt_size")
-        viz.line(
+        viz.viz.line(
             Y=torch.tensor([[lenghts[k] for k in ["avg", "min", "max"]]]),
             X=torch.tensor([[epoch] * 3]),
             opts=dict(
@@ -101,20 +101,16 @@ class Metrics:
         for k, v in metrics.items():
             if isinstance(v, dict):
                 for kk, vv in v.items():
-                    viz.line(
-                        torch.tensor([vv]),
-                        torch.tensor([epoch]),
-                        win=k + "." + kk,
-                        update="append",
-                        opts={"title": k + "." + kk},
+                    viz.push(
+                        f"{k}.{kk}",
+                        vv,
+                        epoch,
                     )
             else:
-                viz.line(
-                    torch.tensor([v]),
-                    torch.tensor([epoch]),
-                    win=k,
-                    update="append",
-                    opts={"title": k},
+                viz.push(
+                    k,
+                    v,
+                    epoch,
                 )
 
     def print_short_history(self):
