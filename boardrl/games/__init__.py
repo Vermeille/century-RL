@@ -35,3 +35,12 @@ class TicTacToe:
         from boardrl.games.tictactoe.metrics import Metrics
 
         return GameDesc(TicTacToe, strategy_from_string, Metrics)
+
+
+@games_library.register("connectfour")
+class ConnectFour:
+    def __call__(self):
+        from boardrl.games.connectfour.game import ConnectFour
+        from boardrl.games.connectfour.metrics import Metrics
+
+        return GameDesc(ConnectFour, strategy_from_string, Metrics)
