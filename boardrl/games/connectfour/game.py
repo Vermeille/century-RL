@@ -5,6 +5,7 @@ from boardrl.utils import fast_sample
 class ConnectFour:
     def __init__(self, num_players=2):
         assert num_players == 2
+        self.num_players = num_players
         self.width = 7
         self.height = 6
         self.board = [[None for _ in range(self.height)] for _ in range(self.width)]

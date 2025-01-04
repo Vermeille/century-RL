@@ -80,6 +80,12 @@ class RegisterByName:
         self.registry = {}
         self.arg_readers = arg_readers or {}
 
+    def copy(self):
+        new_register = RegisterByName()
+        new_register.registry = self.registry.copy()
+        new_register.arg_readers = self.arg_readers.copy()
+        return new_register
+
     def register(self, name):
         def foo(cls):
             # Extract the argument names, types, and defaults from the __init__ method

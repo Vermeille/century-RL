@@ -13,8 +13,8 @@ games_library = RegisterByName()
 
 
 @games_library.register("century")
-class Century:
-    def __call__(self):
+class Century(GameDesc):
+    def __init__(self):
         import pyximport
 
         pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
@@ -24,23 +24,23 @@ class Century:
         from boardrl.games.century.engine import Century
         from boardrl.games.century.metrics import Metrics
 
-        century_strategy_from_string.update(strategy_from_string)
-        return GameDesc(Century, century_strategy_from_string, Metrics)
+        strats = century_strategy_from_string.copy().update(strategy_from_string)
+        super().__init__(Century, strats, Metrics)
 
 
 @games_library.register("tictactoe")
-class TicTacToe:
-    def __call__(self):
+class TicTacToe(GameDesc):
+    def __init__(self):
         from boardrl.games.tictactoe.game import TicTacToe
         from boardrl.games.tictactoe.metrics import Metrics
 
-        return GameDesc(TicTacToe, strategy_from_string, Metrics)
+        super().__init__(TicTacToe, strategy_from_string, Metrics)
 
 
 @games_library.register("connectfour")
-class ConnectFour:
-    def __call__(self):
+class ConnectFour(GameDesc):
+    def __init__(self):
         from boardrl.games.connectfour.game import ConnectFour
         from boardrl.games.connectfour.metrics import Metrics
 
-        return GameDesc(ConnectFour, strategy_from_string, Metrics)
+        super().__init__(ConnectFour, strategy_from_string, Metrics)
