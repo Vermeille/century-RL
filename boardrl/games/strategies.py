@@ -52,7 +52,7 @@ class PickBestMCValueStrategy:
             for m_i, m in enumerate(g.moves):
                 g2 = g.copy()
                 g2.play_str(m)
-                g2.simulate_to_end()
+                g2.simulate_to_end(cut=100)
                 values[m_i].append(g2.diff_points_for(me))
         means = [mean(vs) for vs in values]
         policy = torch.median(torch.tensor(values).float(), dim=1).values

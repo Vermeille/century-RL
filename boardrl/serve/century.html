@@ -224,7 +224,7 @@ function parse_state(state) {
         line = lines.shift();
     }
     let discard = [];
-    while (line[0] == 'D') {
+    while (line != undefined && line[0] == 'D') {
         discard.push(line.split(" ")[1]);
         line = lines.shift();
     }

@@ -8,8 +8,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-from boardrl.century.engine import Century
-from boardrl.century.strategies import strategy_from_string
+from boardrl.games import games_library
 
 
 class Strategies:
@@ -50,7 +49,7 @@ class Strategies:
             if cache_name == name:
                 return strategy
         self.cache = self.cache[-self.cache_len :]
-        self.cache.append((name, strategy_from_string(name)))
+        self.cache.append((name, century.strategy_from_string(name)))
         return self.cache[-1][1]
 
 
@@ -58,7 +57,8 @@ strategies = Strategies()
 
 app = FastAPI()
 
-game = Century()
+century = games_library("century")()
+game = century.make_game()
 current_dir = Path(__file__).parent
 
 
@@ -74,7 +74,10 @@ def get_strategies():
 
 @app.get("/board", response_class=PlainTextResponse)
 def board():
-    return game.display_with_moves(force=0)
+    if game.ended():
+        return game.display(force=0)
+    else:
+        return game.display_with_moves(force=0)
 
 
 @app.get("/analyze")

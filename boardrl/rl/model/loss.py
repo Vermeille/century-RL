@@ -120,9 +120,9 @@ class PolicyGradientLoss:
 @loss_from_string.register("policy_gradient_with_baseline_loss")
 class PolicyGradientWithBaselineLoss:
     def __call__(self, pred_policy, pred_value, sample):
-        assert len(pred_value) == len(sample.returns)
+        assert len(pred_value.mean) == len(sample.returns)
         assert len(pred_policy) == len(sample.returns)
-        advantage = sample.returns - pred_value
+        advantage = sample.returns - pred_value.mean
 
         loss = 0
         for logit, act, adv in zip(pred_policy, sample.action_idx, advantage):
