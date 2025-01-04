@@ -104,9 +104,9 @@ class ScaledSinosoidal(SinusoidalPositional):
 
 
 class ValueHead(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, head_size):
         super().__init__()
-        self.tfblock = Transformer(dim, 1, dim // 64, 64)
+        self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # nn.LayerNorm(dim),
             # nn.GELU(),
@@ -133,9 +133,9 @@ class Scale(nn.Module):
 
 
 class PolicyHead(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, head_size):
         super().__init__()
-        self.tfblock = Transformer(dim, 1, dim // 64, 64)
+        self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # nn.LayerNorm(dim),
             # nn.GELU(),
@@ -158,15 +158,15 @@ class Model(nn.Module):
         self.maxlen = 2048
         self.in_embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
-            ScaledSinosoidal(dim, self.maxlen),
             nn.LayerNorm(dim),
+            ScaledSinosoidal(dim, self.maxlen),
         )
         self.in_embed[0].weight.data.normal_(0, 1 / dim**0.5)
         self.encode = Transformer(
             dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=4
         )
-        self.to_pred = PolicyHead(dim)
-        self.rewards = ValueHead(dim)
+        self.to_pred = PolicyHead(dim, head_size)
+        self.rewards = ValueHead(dim, head_size)
 
     def text_encode(self, txts, maxlen, pad=False):
         def do_pad(l):
