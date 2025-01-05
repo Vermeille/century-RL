@@ -132,9 +132,9 @@ class Trainer:
         self.opt = torch.optim.AdamW(self.model.parameters(), lr=config.train.lr, betas=(0., 0.99))
         self.policy_loss = loss_from_string(config.train.loss.policy, model=self.model)
         self.value_loss = loss_from_string(config.train.loss.value, model=self.model)
-        self.viz = Visualizer(f"{config.tag}-lr={config.train.lr}")
+        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
         self.epoch = 0
-        self.game_desc = games_library("tictactoe")()
+        self.game_desc = games_library(config.game)
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
