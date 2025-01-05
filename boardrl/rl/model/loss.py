@@ -122,7 +122,8 @@ class PolicyGradientWithBaselineLoss:
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_value.mean) == len(sample.returns)
         assert len(pred_policy) == len(sample.returns)
-        advantage = sample.returns - pred_value.mean
+        # WARNING: NOT TODAY SATAN: Don't forget to detach the value function
+        advantage = sample.returns - pred_value.mean.detach()
 
         loss = 0
         for logit, act, adv in zip(pred_policy, sample.action_idx, advantage):
@@ -137,6 +138,7 @@ class PolicyGradientWithBaselineLoss:
 class ValueMSELoss:
     def __call__(self, pred_policy, pred_value, sample):
         print("\npred", pred_value.mean, "\ntarget", sample.returns)
+        assert pred_value.mean.shape == sample.returns.shape
         return F.mse_loss(pred_value.mean, sample.returns)
 
 
