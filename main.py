@@ -162,7 +162,7 @@ class Trainer:
         grad_pct = 1 / self.config.train.gradient_epochs
         for grad_ep in range(self.config.train.gradient_epochs):
             indices = torch.randperm(len(data))
-            batch_pct = 1 / (len(indices) // self.config.train.batch_size)
+            batch_pct = 1 / (len(indices) / self.config.train.batch_size)
             for b_i, batch in enumerate(
                 tqdm(
                     chunk(indices, self.config.train.batch_size),
@@ -175,7 +175,7 @@ class Trainer:
                     ).to(self.config.device)
                 self.opt.zero_grad()
                 total_losses = defaultdict(float)
-                policy, value = self.model(samples.state, samples)
+                policy, value = self.model(samples.state)
                 policy_loss = self.policy_loss(policy, value, samples)
                 value_loss = self.value_loss(policy, value, samples)
                 loss = policy_loss + value_loss
