@@ -171,7 +171,7 @@ class Model(nn.Module):
     def text_encode(self, txts, maxlen, pad=False):
         def do_pad(l):
             if pad:
-                return l + [1] + [0] * (maxlen - len(l) - 1)
+                return l + [1] + [0] * (maxlen - len(l))
             else:
                 return l
 
@@ -182,8 +182,8 @@ class Model(nn.Module):
         txts = self.text_encode(txts, maxlen, pad=pad)
         return txts
 
-    def forward(self, games: list[str], samples=None):
-        txt = self.text_embed(games, self.maxlen, pad=True)
+    def forward(self, games: list[str]):
+        txt = self.text_embed(games, (max(len(g) for g in games)), pad=True)
         attn_mask = txt != 0
         enc = self.encode(self.in_embed(txt), attn_mask)
         pred = self.to_pred(enc, attn_mask)

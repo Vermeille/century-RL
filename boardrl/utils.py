@@ -112,6 +112,7 @@ class RegisterByName:
 
     def update(self, other: "RegisterByName"):
         self.registry.update(other.registry)
+        return self
 
     def __call__(self, descr_string, **provided_args):
         name, *arg_list = descr_string.split(",")
