@@ -129,4 +129,11 @@ if __name__ == "__main__":
     print(g.display_with_moves())
     g.play_str("3")  # Middle column
     print(g.ended())
+    print(g.current_player())
     print(g.display_with_moves())
+    g.play_str("3")  # Middle column
+    print(g.current_player())
+    print(g.ended())
+    print(g.display_with_moves())
+    print(g.display(0))
+    print(g.display(1))
