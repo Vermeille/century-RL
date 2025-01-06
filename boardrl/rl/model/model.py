@@ -17,7 +17,13 @@ def mask_energy_pool(x, mask):
     # x * mask: BLD * BL1 = BLD => BD
     # mask.sum(1): B1
     mask = x.norm(dim=-1, keepdim=True) * mask.unsqueeze(-1)
-    return (x * mask.to(x.dtype)).sum(1) / mask.to(x.dtype).sum(1)
+    mask = mask / mask.to(x.dtype).sum(1, keepdim=True)
+    # print( mask.squeeze(2) .sort(descending=True, dim=1) .values.cumsum(dim=1) .le(0.95) .float() .sum(1))
+    return (x * mask.to(x.dtype)).sum(1)
+
+
+def pool_first(x, mask):
+    return x[:, 0]
 
 
 class Squeeze(nn.Module):
