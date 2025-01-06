@@ -106,6 +106,9 @@ class ImitationReverseKLLoss:
 
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
+    def __init__(self, label_smoothing: float = 0.05):
+        self.label_smoothing = label_smoothing
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
         loss = 0
@@ -113,12 +116,18 @@ class PolicyGradientLoss:
             logit = logit.unsqueeze(0)
             act = act.unsqueeze(0)
 
-            loss += r * F.cross_entropy(logit, act, reduction="none")
+            # print("\nlogit", logit, "\nact", act, "\nreturns", r)
+            loss += r * F.cross_entropy(
+                logit, act, reduction="none", label_smoothing=self.label_smoothing
+            )
         return loss / len(sample.action_idx)
 
 
 @loss_from_string.register("policy_gradient_with_baseline_loss")
 class PolicyGradientWithBaselineLoss:
+    def __init__(self, label_smoothing: float = 0.05):
+        self.label_smoothing = label_smoothing
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_value.mean) == len(sample.returns)
         assert len(pred_policy) == len(sample.returns)
@@ -130,16 +139,21 @@ class PolicyGradientWithBaselineLoss:
             logit = logit.unsqueeze(0)
             act = act.unsqueeze(0)
 
-            loss += adv * F.cross_entropy(logit, act, reduction="none")
+            loss += adv * F.cross_entropy(
+                logit, act, reduction="none", label_smoothing=self.label_smoothing
+            )
         return loss / len(sample.returns)
 
 
 @loss_from_string.register("value_mse_loss")
 class ValueMSELoss:
+    def __init__(self, strength: float = 1):
+        self.strength = strength
+
     def __call__(self, pred_policy, pred_value, sample):
-        print("\npred", pred_value.mean, "\ntarget", sample.returns)
+        # print("\npred", pred_value.mean, "\ntarget", sample.returns)
         assert pred_value.mean.shape == sample.returns.shape
-        return F.mse_loss(pred_value.mean, sample.returns)
+        return self.strength * F.mse_loss(pred_value.mean, sample.returns)
 
 
 @loss_from_string.register("value_log_prob")

@@ -65,8 +65,9 @@ class SinusoidalPositional(torch.nn.Module):
     functions of different frequencies.
     """
 
-    def __init__(self, embedding_dim, max_seq_length=5000):
+    def __init__(self, embedding_dim, max_seq_length=512, theta=10000):
         super().__init__()
+        self.theta = theta
         self.make_pe(embedding_dim, max_seq_length)
 
     def make_pe(self, embedding_dim, max_seq_length):
@@ -76,7 +77,7 @@ class SinusoidalPositional(torch.nn.Module):
         position = torch.arange(0, max_seq_length, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(
             torch.arange(0, embedding_dim, 2).float()
-            * (-math.log(10000.0) / embedding_dim)
+            * (-math.log(self.theta) / embedding_dim)
         )
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
@@ -87,8 +88,8 @@ class SinusoidalPositional(torch.nn.Module):
 class ScaledSinosoidal(SinusoidalPositional):
     """Sinusoidal with scaling (see FLASH paper)."""
 
-    def __init__(self, embedding_dim, max_seq_length):
-        super().__init__(embedding_dim, max_seq_length)
+    def __init__(self, embedding_dim, max_seq_length, theta=10_000):
+        super().__init__(embedding_dim, max_seq_length, theta)
         self.scale_factor = torch.nn.Parameter(
             0.02 * torch.tensor([1.0 / embedding_dim**0.5])
         )
