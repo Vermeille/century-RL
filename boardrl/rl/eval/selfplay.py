@@ -18,6 +18,7 @@ class Record:
         self.my_points = game.points()
         self.notes = []
         self.final = False
+        self.player = game.current_player()
 
 
 class EndState:
@@ -27,6 +28,7 @@ class EndState:
         self.my_points = game.points_for(player)
         self.current_diff_points = game.diff_points_for(player)
         self.notes = []
+        self.player = player
         self.final = True
 
 
@@ -42,12 +44,13 @@ def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
             if g.ended():
                 break
 
-            dist, debug = strategies[g.current_player()](g)
+            p = g.current_player()
+            dist, debug = strategies[p](g)
             action = fast_sample(torch.softmax(dist, dim=0))
 
             rec = Record(g, dist, action)
             rec.notes += [str(debug)]
-            data[i_game][g.current_player()].append(rec)
+            data[i_game][p].append(rec)
 
             g.play_idx(action)
 
