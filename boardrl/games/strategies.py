@@ -85,8 +85,9 @@ class PickBestValueStrategy:
                 if g2.ended():
                     break
                 board = g2.display_with_moves()
-                policy = (await processor.send(board)).policy[0]
-                m_j = fast_sample(torch.softmax(policy, dim=0))
+                pred = await processor.send(board)
+                policy = pred.policy[0]
+                m_j = fast_sample(torch.softmax(policy / self.temperature, dim=0))
                 g2.play_idx(m_j)
             if g2.ended():
                 values[m_i].append(g2.diff_points_for(me))
@@ -97,7 +98,6 @@ class PickBestValueStrategy:
                     g2.diff_points_for(me)
                     + self.discount * (await processor.send(board)).value.mean[0].item()
                 )
-            print(m_i, m, values[m_i])
 
         processor.run_tasks(
             [try_move(m_i) for m_i in range(len(g.moves)) for _ in range(self.budget)]
@@ -105,6 +105,7 @@ class PickBestValueStrategy:
         means = [mean(vs) for vs in values]
         policy = torch.median(torch.tensor(values).float(), dim=1).values
         sm = torch.softmax(policy / self.temperature, dim=0)
+        print(sm)
         sm = 0.95 * sm + 0.05 / len(g.moves)
         return sm.log(), {
             "moves": dict(zip(g.moves, means)),
