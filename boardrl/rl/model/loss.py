@@ -116,9 +116,10 @@ class PolicyGradientLoss:
             logit = logit.unsqueeze(0)
             act = act.unsqueeze(0)
 
-            # print("\nlogit", logit, "\nact", act, "\nreturns", r)
-            loss += r * F.cross_entropy(
-                logit, act, reduction="none", label_smoothing=self.label_smoothing
+            loss += (1 - self.label_smoothing) * r * F.cross_entropy(
+                logit, act
+            ) + self.label_smoothing * F.cross_entropy(
+                logit, act, reduction="none", label_smoothing=1
             )
         return loss / len(sample.action_idx)
 
