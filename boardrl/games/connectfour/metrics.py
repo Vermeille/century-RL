@@ -6,12 +6,20 @@ class Metrics:
         self.data = data
 
     def print_short_history(self):
-        for h in self.data[::2]:
+        for h1, h2 in zip(self.data[::2], self.data[1::2]):
             print(
-                h[-1]
+                "".join(hh.moves[hh.action_idx] for hh in h1[:-1]),
+                h1[-1].current_diff_points,
+            )
+            print(
+                "".join(hh.moves[hh.action_idx] for hh in h2[:-1]),
+                h2[-1].current_diff_points,
+            )
+            print(
+                h1[-1]
                 .state.replace("O", str(crayons.green("O")))
                 .replace("X", str(crayons.red("X"))),
-                h[-1].my_points,
+                h1[-1].my_points,
             )
             print()
 
