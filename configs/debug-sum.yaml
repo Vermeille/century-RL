@@ -15,7 +15,7 @@ train:
   show_every: 10
   save_every: 100
   loss:
-    value: value_mse_loss,strength=1
+    value: value_mse_loss,strength=0.1
     policy: ce_loss
 
 self_play:
