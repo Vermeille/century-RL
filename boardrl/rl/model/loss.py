@@ -21,11 +21,14 @@ class ImitationCELoss:
 
 @loss_from_string.register("ce_loss")
 class CELoss:
+    def __init__(self, label_smoothing: float = 0.0):
+        self.label_smoothing = label_smoothing
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_idx):
-            loss += F.cross_entropy(logit, act)
+            loss += F.cross_entropy(logit, act, label_smoothing=self.label_smoothing)
         return loss / len(sample.action_distribution)
 
 
