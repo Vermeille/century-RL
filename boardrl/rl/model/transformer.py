@@ -113,9 +113,7 @@ class SelfAttention(nn.Module):
         self.qkv = xavier(
             nn.Linear(hidden_size, head_size * num_heads * 3, bias=True),
         )
-        self.fc = normal_init(
-            nn.Linear(head_size * num_heads, hidden_size, bias=True), 0.02
-        )
+        self.fc = xavier(nn.Linear(head_size * num_heads, hidden_size, bias=True))
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=True, alibi=False)
 
     def forward(self, x, attn_mask):
@@ -160,7 +158,7 @@ class TransformerBlock(nn.Module):
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
             GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
+            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.0),
         )
 
     def forward(self, x, attn_mask):
@@ -170,19 +168,22 @@ class TransformerBlock(nn.Module):
 
 
 class ConvTrunkBlock(nn.Module):
-    def __init__(self, hidden_size):
+    def __init__(self, hidden_size, num_heads, head_size):
         super().__init__()
         self.sa = nn.Sequential(
             nn.LayerNorm(hidden_size),
             Permute(0, 2, 1),  # bld -> bdl
-            nn.Conv1d(
-                hidden_size,
-                hidden_size,
-                7,
-                padding=3,
-                groups=hidden_size,
+            xavier(
+                nn.Conv1d(
+                    hidden_size,
+                    num_heads * head_size,
+                    7,
+                    padding=3,
+                    groups=hidden_size,
+                )
             ),
-            nn.Conv1d(hidden_size, hidden_size, 1),
+            # nn.GELU(),
+            normal_init(nn.Conv1d(hidden_size, hidden_size, 1), 0.0),
             Permute(0, 2, 1),  # bdl -> bld
         )
         self.feed_forward = nn.Sequential(
@@ -191,8 +192,9 @@ class ConvTrunkBlock(nn.Module):
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
             GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
+            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.0),
         )
+        # self.sa[2].weight.data.fill_(1 / 7.0)
 
     def forward(self, x, attn_mask):
         x = self.sa(x).masked_fill_(~attn_mask.unsqueeze(-1), 0.0) + x
@@ -208,7 +210,7 @@ class Transformer(nn.Module):
         self.transformer_blocks = nn.ModuleList(
             [
                 (
-                    ConvTrunkBlock(hidden_size)
+                    ConvTrunkBlock(hidden_size, num_heads, head_size)
                     if i < num_conv_blocks
                     else TransformerBlock(hidden_size, num_heads, head_size)
                 )
@@ -220,7 +222,6 @@ class Transformer(nn.Module):
             if isinstance(m, nn.LayerNorm):
                 m.bias.data.zero_()
                 m.weight.data.fill_(1.0)
-                m.eps = 1e-6
 
     def forward(self, x, attn_mask):
         for i, transformer_block in enumerate(self.transformer_blocks):

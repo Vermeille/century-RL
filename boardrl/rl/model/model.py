@@ -1,7 +1,7 @@
 from collections import namedtuple
 import torch
 import torch.nn as nn
-from boardrl.rl.model.transformer import Transformer
+from boardrl.rl.model.transformer import Rotary, Transformer
 
 
 def mask_mean_pool(x, mask):
@@ -90,9 +90,7 @@ class ScaledSinosoidal(SinusoidalPositional):
 
     def __init__(self, embedding_dim, max_seq_length, theta=10_000):
         super().__init__(embedding_dim, max_seq_length, theta)
-        self.scale_factor = torch.nn.Parameter(
-            0.02 * torch.tensor([1.0 / embedding_dim**0.5])
-        )
+        self.scale_factor = torch.nn.Parameter(torch.tensor([0.0]))
 
     def forward(self, input_ids):
         r"""Inputs of forward function
@@ -115,17 +113,16 @@ class ValueHead(nn.Module):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
-            # nn.LayerNorm(dim),
+            nn.LayerNorm(dim),
             # nn.GELU(),
             nn.Linear(dim, 2),
-            Scale(2),
+            # Scale(2),
             # B2
         )
 
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
         x = mask_energy_pool(x, attn_mask)
-        # x = x[:, 0]
         out = self.out(x)
         return out
 
@@ -159,38 +156,64 @@ class PolicyHead(nn.Module):
         return x.squeeze(-1)
 
 
+class RotarySingle(torch.nn.Module):
+    def __init__(self, dim, base=10000):
+        super().__init__()
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer("inv_freq", inv_freq)
+        self.seq_len_cached = None
+        self.cos_cached = None
+        self.sin_cached = None
+
+    def forward(self, q, seq_dim=-2):
+        # B H L D
+        seq_len = q.shape[seq_dim]
+        if seq_len != self.seq_len_cached:
+            self.seq_len_cached = seq_len
+            t = torch.arange(q.shape[seq_dim], device=q.device).type_as(self.inv_freq)
+            freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+            emb = torch.cat((freqs, freqs), dim=-1).to(q.device)
+            self.cos_cached = emb.cos()[:, :]
+            self.sin_cached = emb.sin()[:, :]
+        return self.apply_rotary_pos_emb(q, self.cos_cached, self.sin_cached)
+
+    def rotate_half(self, x):
+        x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
+        return torch.cat(
+            (-x2, x1), dim=x1.ndim - 1
+        )  # dim=-1 triggers a bug in torch < 1.8.0
+
+    def apply_rotary_pos_emb(self, q, cos, sin):
+        return (q * cos) + (self.rotate_half(q) * sin)
+
+
 class Model(nn.Module):
     def __init__(self, dim: int, num_layers: int, head_size: int = 64):
         super().__init__()
         self.maxlen = 2048
         self.in_embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
+            # ScaledSinosoidal(dim, 1000, theta=10_000),
             nn.LayerNorm(dim),
-            ScaledSinosoidal(dim, self.maxlen),
+            RotarySingle(dim),
         )
-        self.in_embed[0].weight.data.normal_(0, 1 / dim**0.5)
+        self.in_embed[0].weight.data.normal_(0, 0.02)
         self.encode = Transformer(
-            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=4
+            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=0
         )
         self.to_pred = PolicyHead(dim, head_size)
         self.rewards = ValueHead(dim, head_size)
+        print(self)
 
-    def text_encode(self, txts, maxlen, pad=False):
+    def text_encode(self, txts, maxlen):
         def do_pad(l):
-            if pad:
-                return l + [1] + [0] * (maxlen - len(l))
-            else:
-                return l
+            return l + [1, 1] + [0] * (maxlen + 2 - len(l))
 
         txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
         return torch.stack(txts, dim=0).to(self.in_embed[0].weight.device)
 
-    def text_embed(self, txts, maxlen, pad=False):
-        txts = self.text_encode(txts, maxlen, pad=pad)
-        return txts
-
     def forward(self, games: list[str]):
-        txt = self.text_embed(games, (max(len(g) for g in games)), pad=True)
+        txt = self.text_encode(games, (max(len(g) for g in games)))
         attn_mask = txt != 0
         enc = self.encode(self.in_embed(txt), attn_mask)
         pred = self.to_pred(enc, attn_mask)
@@ -199,7 +222,7 @@ class Model(nn.Module):
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
 
         pred = [
-            (pred[i][torch.tensor(moves_pos[i])] if len(moves_pos[i]) else [])
+            (pred[i, torch.tensor(moves_pos[i])] if len(moves_pos[i]) else [])
             for i in range(len(games))
         ]
 
