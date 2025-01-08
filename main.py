@@ -77,7 +77,7 @@ def to_trainset(games_data):
 
 def chunk(data, size):
     i = 0
-    while i + size < len(data):
+    while i < len(data):
         yield data[i : i + size]
         i += size
 
