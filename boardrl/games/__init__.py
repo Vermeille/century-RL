@@ -44,3 +44,16 @@ class ConnectFour(GameDesc):
         from boardrl.games.connectfour.metrics import Metrics
 
         super().__init__(ConnectFour, strategy_from_string, Metrics)
+
+
+@games_library.register("sum")
+class Sum(GameDesc):
+    def __init__(self):
+        from boardrl.games.sum.game import Sum
+        from boardrl.games.sum.metrics import Metrics
+        from boardrl.games.sum.strategies import (
+            strategy_from_string as sum_strategy_from_string,
+        )
+
+        strats = sum_strategy_from_string.copy().update(strategy_from_string)
+        super().__init__(Sum, strats, Metrics)
