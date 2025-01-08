@@ -123,11 +123,10 @@ class LongestMoveStrategy:
 
 @strategy_from_string.register("policy_sampling")
 class PolicySamplingStrategy:
-    def __init__(self, model, temperature: float = 1.0, epsilon: float = 0):
+    def __init__(self, model, temperature: float = 1.0):
         self.nn = model
         model.eval()
         self.temperature = temperature
-        self.epsilon = epsilon
 
     @torch.no_grad()
     def __call__(self, g: Game):
@@ -135,6 +134,4 @@ class PolicySamplingStrategy:
             return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
 
         policy = self.nn([g.display_with_moves()]).policy[0] / self.temperature
-        policy = torch.softmax(policy, dim=0)
-        policy = (1 - self.epsilon) * policy + self.epsilon / len(g.moves)
-        return policy.log(), {"moves": dict(zip(g.moves, policy.tolist()))}
+        return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
