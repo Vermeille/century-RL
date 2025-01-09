@@ -106,7 +106,6 @@ class PickBestValueStrategy:
         policy = torch.median(torch.tensor(values).float(), dim=1).values
         sm = torch.softmax(policy / self.temperature, dim=0)
         print(sm)
-        sm = 0.95 * sm + 0.05 / len(g.moves)
         return sm.log(), {
             "moves": dict(zip(g.moves, means)),
         }

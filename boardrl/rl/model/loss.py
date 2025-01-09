@@ -109,7 +109,7 @@ class ImitationReverseKLLoss:
 
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
-    def __init__(self, label_smoothing: float = 0.05):
+    def __init__(self, label_smoothing: float = 0.0):
         self.label_smoothing = label_smoothing
 
     def __call__(self, pred_policy, pred_value, sample):
