@@ -178,20 +178,18 @@ class ValueLogProb:
 
 @loss_from_string.register("bootstrap_mse_loss")
 class BootstrapMSELoss:
-    def __init__(self, model, discount: float = 0.98):
-        self.model = model
+    def __init__(self, discount: float, strength: float = 1, prev_model=None):
+        self.prev_model = prev_model
         self.discount = discount
+        self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
         with torch.no_grad():
-            bootstrap_value = self.model([n.state for n in sample.next]).value.mean
+            bootstrap_value = self.prev_model([n.state for n in sample.next]).value.mean
             bootstrap_value = torch.where(
                 torch.tensor([n.final for n in sample.next]),
                 torch.tensor(0.0),
                 bootstrap_value,
             )
         target = sample.reward + self.discount * bootstrap_value
-        print(
-            "\ndiscount", self.discount, "\npred", pred_value.mean, "\ntarget", target
-        )
-        return F.mse_loss(pred_value.mean, target)
+        return self.strength * F.mse_loss(pred_value.mean, target)
