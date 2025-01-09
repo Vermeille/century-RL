@@ -141,18 +141,15 @@ class PolicyHead(nn.Module):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
-            # nn.LayerNorm(dim),
-            # nn.GELU(),
+            # it looks Detrimental but actually smoothes the gradient norm
+            nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             # BL
         )
 
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
-        # m = mask_pool(x, attn_mask)  # BD
         x = self.out(x)
-        # out = torch.bmm(x, m.unsqueeze(-1)).squeeze(-1)
-        # return out
         return x.squeeze(-1)
 
 
@@ -193,27 +190,28 @@ class Model(nn.Module):
         self.maxlen = 2048
         self.in_embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
-            # ScaledSinosoidal(dim, 1000, theta=10_000),
             nn.LayerNorm(dim),
             RotarySingle(dim),
         )
         self.in_embed[0].weight.data.normal_(0, 0.02)
         self.encode = Transformer(
-            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=0
+            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=2
         )
         self.to_pred = PolicyHead(dim, head_size)
         self.rewards = ValueHead(dim, head_size)
         print(self)
 
     def text_encode(self, txts, maxlen):
+        maxlen = min(maxlen, max(len(g) for g in txts))
+
         def do_pad(l):
-            return l + [1, 1] + [0] * (maxlen + 2 - len(l))
+            return l + [1] + [0] * (maxlen + 1 - len(l))
 
         txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
         return torch.stack(txts, dim=0).to(self.in_embed[0].weight.device)
 
-    def forward(self, games: list[str]):
-        txt = self.text_encode(games, (max(len(g) for g in games)))
+    def forward(self, games: list[str], return_hidden=False):
+        txt = self.text_encode(games, self.maxlen)
         attn_mask = txt != 0
         enc = self.encode(self.in_embed(txt), attn_mask)
         pred = self.to_pred(enc, attn_mask)
@@ -226,12 +224,15 @@ class Model(nn.Module):
             for i in range(len(games))
         ]
 
-        return PolicyValue(
-            pred,
-            torch.distributions.Normal(
-                value[:, 0], torch.nn.functional.softplus(value[:, 1])
-            ),
-        )
+        if not return_hidden:
+            return PolicyValue(
+                pred,
+                torch.distributions.Normal(
+                    value[:, 0], torch.nn.functional.softplus(value[:, 1])
+                ),
+            )
+        else:
+            return enc
 
 
 def load_model(model_path):
