@@ -49,6 +49,7 @@ class Sum:
             self.current_player_ = 1 - self.current_player_
             return
         self.scores[self.current_player_] += 1
+        self.make_board()
 
     def ended(self):
         return 3 in self.scores

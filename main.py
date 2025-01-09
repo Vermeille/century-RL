@@ -170,9 +170,9 @@ class Trainer:
                 )
             ):
                 with torch.no_grad():
-                    samples = TrainingSample.collate(
-                        [copy.deepcopy(data[bi]) for bi in batch]
-                    ).to(self.config.device)
+                    samples = TrainingSample.collate([data[bi] for bi in batch]).to(
+                        self.config.device
+                    )
                 self.opt.zero_grad()
                 total_losses = defaultdict(float)
                 policy, value = self.model(samples.state)
