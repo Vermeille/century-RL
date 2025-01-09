@@ -129,24 +129,26 @@ class PolicyGradientLoss:
 
 @loss_from_string.register("policy_gradient_with_baseline_loss")
 class PolicyGradientWithBaselineLoss:
-    def __init__(self, label_smoothing: float = 0.05):
+    def __init__(self, label_smoothing: float = 0.0, prev_model=None):
+        assert prev_model is not None
         self.label_smoothing = label_smoothing
+        self.prev_model = prev_model
 
     def __call__(self, pred_policy, pred_value, sample):
-        assert len(pred_value.mean) == len(sample.returns)
         assert len(pred_policy) == len(sample.returns)
         # WARNING: NOT TODAY SATAN: Don't forget to detach the value function
-        advantage = sample.returns - pred_value.mean.detach()
+        with torch.no_grad():
+            advantage = sample.returns - self.prev_model(sample.state).value.mean
 
         loss = 0
         for logit, act, adv in zip(pred_policy, sample.action_idx, advantage):
             logit = logit.unsqueeze(0)
             act = act.unsqueeze(0)
 
-            loss += adv * F.cross_entropy(
-                logit, act, reduction="none", label_smoothing=self.label_smoothing
-            )
-        return loss / len(sample.returns)
+            loss += (1 - self.label_smoothing) * adv * F.cross_entropy(
+                logit, act
+            ) + self.label_smoothing * F.cross_entropy(logit, act, label_smoothing=1)
+        return loss / len(sample.returns) * 1
 
 
 @loss_from_string.register("value_mse_loss")
