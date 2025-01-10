@@ -138,6 +138,15 @@ class RegisterByName:
 
         return strategy_class(**init_args)
 
+    def display(self):
+        for fun, args in self.registry.items():
+            fun_display = fun
+            for arg, (arg_type, default) in args[1].items():
+                if default == inspect.Parameter.empty:
+                    default = "?"
+                fun_display += f",{arg}={default}"
+            print(fun_display)
+
 
 class Game:
     moves: list[str]
