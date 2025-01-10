@@ -1,11 +1,13 @@
 from collections import defaultdict
 import torch
 import time
+import copy
 from visdom import Visdom
 from tqdm import tqdm
 
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
+from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit
 from boardrl.games import games_library
 
@@ -129,17 +131,28 @@ class Trainer:
         self.config = config
         self.model = Model(**self.config.net)
         self.model.to(config.device)
-        self.opt = torch.optim.AdamW(self.model.parameters(), lr=config.train.lr, betas=(0., 0.99))
-        self.policy_loss = loss_from_string(config.train.loss.policy, model=self.model)
-        self.value_loss = loss_from_string(config.train.loss.value, model=self.model)
-        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
-        self.epoch = 0
-        self.game_desc = games_library(config.game)
+        self.opt = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=config.train.lr,
+            betas=(0.9, 0.95),
+            weight_decay=0.0,
+        )
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
             self.model.load_state_dict(ckpt["model"])
             self.opt.load_state_dict(ckpt["opt"])
+
+        self.prev_model = copy.deepcopy(self.model)
+        self.policy_loss = loss_from_string(
+            config.train.loss.policy, model=self.model, prev_model=self.prev_model
+        )
+        self.value_loss = loss_from_string(
+            config.train.loss.value, model=self.model, prev_model=self.prev_model
+        )
+        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
+        self.epoch = 0
+        self.game_desc = games_library(config.game)
 
     def _log_pit(self):
         print("PIT: ", " VS ".join(self.config.pit.strategies))
@@ -178,6 +191,7 @@ class Trainer:
                 policy, value = self.model(samples.state)
                 policy_loss = self.policy_loss(policy, value, samples)
                 value_loss = self.value_loss(policy, value, samples)
+                print(policy_loss, value_loss)
                 loss = policy_loss + value_loss
                 loss.backward()
                 total_losses["policy"] += policy_loss.item() / len(data) * len(batch)
@@ -188,23 +202,52 @@ class Trainer:
                 )
                 self.opt.step()
 
+                step = self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct
                 print(total_losses)
                 for k, v in total_losses.items():
                     self.viz.push(
                         f"loss.{k}",
                         v,
-                        self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
+                        step,
                     )
                 self.viz.push(
                     "grad_mag",
                     grad_mag.item(),
-                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
+                    step,
+                )
+                self.viz.push(
+                    "perplexity",
+                    sum(
+                        torch.exp(
+                            torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0))
+                        )
+                        / len(p)
+                        for p in policy
+                    )
+                    / len(policy),
+                    step,
+                )
+                pearson = pearson_corr(value.mean, samples.returns)
+                self.viz.push(
+                    "pearson",
+                    pearson.item(),
+                    step,
+                )
+                self.viz.push(
+                    "R²",
+                    pearson**2,
+                    step,
                 )
         print(
             "throughput",
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
         )
         print()
+
+        for prev_param, param in zip(
+            self.prev_model.state_dict().values(), self.model.state_dict().values()
+        ):
+            prev_param.data.copy_(param.data)
 
     def _save_model(self):
         torch.save(
@@ -252,6 +295,151 @@ class Trainer:
             self._train_epoch(trainset)
 
 
+import torch.nn as nn
+from boardrl.rl.model import RotarySingle
+
+
+class StatePredictor(nn.Module):
+    def __init__(self, dim, head_size) -> None:
+        super().__init__()
+        self.norm_hidden = nn.LayerNorm(dim)
+        self.emb = nn.Embedding(256, dim, padding_idx=0)
+        self.norm_in = nn.LayerNorm(dim)
+        self.rotary = RotarySingle(dim)
+        self.body = nn.ModuleList(
+            [
+                nn.TransformerDecoderLayer(
+                    dim,
+                    dim // head_size,
+                    batch_first=True,
+                    norm_first=True,
+                )
+                for _ in range(3)
+            ]
+        )
+        self.proj = nn.Linear(dim, 256)
+
+    def forward(self, hidden, target):
+        hidden = self.norm_hidden(hidden)
+        target = self.emb(target)
+        target = self.norm_in(target)
+        target = self.rotary(target)
+        for layer in self.body:
+            target = layer(
+                target,
+                hidden,
+                tgt_is_causal=True,
+                tgt_mask=nn.Transformer.generate_square_subsequent_mask(
+                    target.size(1), device=target.device
+                ),
+            )
+        return self.proj(target)
+
+
+class PreTrainer:
+    def __init__(self, config):
+        self.config = config
+        self.model = torch.nn.ModuleList(
+            [
+                Model(**self.config.net),
+                StatePredictor(self.config.net.dim, self.config.net.head_size),
+            ]
+        )
+        self.model.to(config.device)
+        self.opt = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=config.train.lr * 10,
+            betas=(0.9, 0.95),
+            weight_decay=0.0,
+        )
+
+        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
+        self.epoch = 0
+        self.game_desc = games_library(config.game)
+
+    def _train_epoch(self, data):
+        self.model.train()
+        grad_pct = 1 / self.config.train.gradient_epochs
+        for grad_ep in range(self.config.train.gradient_epochs):
+            indices = torch.randperm(len(data))
+            batch_pct = 1 / (len(indices) / self.config.train.batch_size)
+            for b_i, batch in enumerate(
+                tqdm(
+                    chunk(indices, self.config.train.batch_size),
+                    desc=f"epoch {self.epoch}",
+                )
+            ):
+                with torch.no_grad():
+                    samples = TrainingSample.collate([data[bi] for bi in batch]).to(
+                        self.config.device
+                    )
+                self.opt.zero_grad()
+                target = self.model[0].text_encode(
+                    [chr(1) + n.state for n in samples.next],
+                    # [chr(1) + s for s in samples.state],
+                    2048,
+                )
+                hidden = self.model[0](
+                    [
+                        f"{samples.state[i]}\n{samples.moves[i][samples.action_idx[i]]}"
+                        for i in range(len(samples.state))
+                    ],
+                    return_hidden=True,
+                )
+                pred = self.model[1](hidden, target[:, :-1])
+                loss = nn.functional.cross_entropy(pred.transpose(1, 2), target[:, 1:])
+                loss.backward()
+                self.opt.step()
+
+                self.viz.viz.text(
+                    samples.state[0].replace("\n", "<br>")
+                    + "<hr>"
+                    + "".join(
+                        f'<span style="color:{"green" if correct else "red"}">{chr(int(c)).replace(" ", "_")}</span>'
+                        for c, correct in zip(
+                            target[0, 1:], pred[0].argmax(-1) == target[0, 1:]
+                        )
+                    ).replace("\n", "<br>"),
+                    win="display",
+                )
+                self.viz.push(
+                    "pretrain loss",
+                    loss.item(),
+                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
+                )
+                self.viz.push(
+                    "pretrain acc",
+                    (pred.argmax(-1) == target[:, 1:]).float().mean().item(),
+                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
+                )
+
+    def _run_episode(self):
+        print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
+        data = self_play(
+            self.game_desc.make_game,
+            [
+                self.game_desc.strategy_from_string("random")
+                for s in self.config.self_play.strategies
+            ],
+            self.config.self_play.num_games,
+            self.config.self_play.max_len,
+        )
+        data = self.game_desc.make_metrics(flatten(data))
+        return data
+
+    def pretrain(self):
+        for epoch in range(100):
+            print("EPOCH", epoch)
+            self.epoch = epoch
+
+            data = self._run_episode()
+            trainset = to_trainset(data)
+
+            print(len(trainset), "samples")
+            self._train_epoch(trainset)
+        return self.model[0]
+
+
 def main():
     import sys
     import yaml
@@ -259,7 +447,17 @@ def main():
 
     with open(sys.argv[1]) as f:
         config = EasyDict(yaml.safe_load(f))
-    Trainer(config, sys.argv[2] if len(sys.argv) > 2 else None).train()
+    ckpt = sys.argv[2] if len(sys.argv) > 2 else None
+    if ckpt is None:
+        model = PreTrainer(config).pretrain()
+        trainer = Trainer(config, ckpt)
+        for trainer_model, pretrain_model in zip(
+            trainer.model.parameters(), model.parameters()
+        ):
+            trainer_model.data.copy_(pretrain_model.data)
+        trainer.train()
+    else:
+        Trainer(config, ckpt).train()
 
 
 if __name__ == "__main__":
