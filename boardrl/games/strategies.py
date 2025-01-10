@@ -11,10 +11,16 @@ from boardrl.cyutils import fast_sample
 strategy_from_string = RegisterByName(arg_readers={"model": load_model})
 
 
+def one_hot(i, n, smooth=0.0):
+    x = torch.ones(n, dtype=torch.float) * smooth / n
+    x[i] += 1 - smooth
+    return x
+
+
 @strategy_from_string.register("random")
 class RandomStrategy:
     def __call__(self, g: Game):
-        uniform = torch.tensor([1 / len(g.moves)] * len(g.moves))
+        uniform = one_hot(0, len(g.moves), smooth=1)  # uniform distribution
         return uniform.log(), {
             "moves": dict(zip(g.moves, uniform.tolist())),
         }
@@ -28,9 +34,8 @@ class ArgmaxStrategy:
 
     def __call__(self, g: Game):
         policy = self.nn([g.display_with_moves()]).policy[0]
-        one_hot = torch.zeros(len(g.moves), dtype=torch.float)
-        one_hot[torch.argmax(policy).item()] = 1
-        return one_hot.log(), {
+        distribution = one_hot(torch.argmax(policy).item(), len(g.moves))
+        return distribution.log(), {
             "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
         }
 
@@ -87,7 +92,7 @@ class PickBestValueStrategy:
                 board = g2.display_with_moves()
                 pred = await processor.send(board)
                 policy = pred.policy[0]
-                m_j = fast_sample(torch.softmax(policy / self.temperature, dim=0))
+                m_j = fast_sample(torch.softmax(policy, dim=0))
                 g2.play_idx(m_j)
             if g2.ended():
                 values[m_i].append(g2.diff_points_for(me))
@@ -104,8 +109,8 @@ class PickBestValueStrategy:
         )
         means = [mean(vs) for vs in values]
         policy = torch.median(torch.tensor(values).float(), dim=1).values
-        sm = torch.softmax(policy / self.temperature, dim=0)
-        print(sm)
+        print(policy)
+        sm = one_hot(torch.argmax(policy).item(), len(g.moves), smooth=0.05)
         return sm.log(), {
             "moves": dict(zip(g.moves, means)),
         }
@@ -114,10 +119,11 @@ class PickBestValueStrategy:
 @strategy_from_string.register("longest_move")
 class LongestMoveStrategy:
     def __call__(self, g: Game):
-        one_hot = torch.zeros(len(g.moves), dtype=torch.float)
-        one_hot[max(range(len(g.moves)), key=lambda i: len(g.moves[i]))] = 1
+        distribution = one_hot(
+            max(range(len(g.moves)), key=lambda i: len(g.moves[i])), len(g.moves)
+        )
         total = sum(len(move) for move in g.moves)
-        return one_hot, {"moves": {move: len(g.moves) / total for move in g.moves}}
+        return distribution, {"moves": {move: len(g.moves) / total for move in g.moves}}
 
 
 @strategy_from_string.register("policy_sampling")
