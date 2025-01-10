@@ -184,6 +184,15 @@ class RotarySingle(torch.nn.Module):
         return (q * cos) + (self.rotate_half(q) * sin)
 
 
+class PositionalEncoding(nn.Module):
+    def __init__(self, dim, max_len=2048):
+        super().__init__()
+        self.pos_enc = nn.Parameter(torch.zeros(max_len, dim), requires_grad=True)
+
+    def forward(self, x):
+        return x + self.pos_enc[: x.shape[1]]
+
+
 class Model(nn.Module):
     def __init__(self, dim: int, num_layers: int, head_size: int = 64):
         super().__init__()
@@ -192,6 +201,7 @@ class Model(nn.Module):
             nn.Embedding(128, dim, padding_idx=0),
             nn.LayerNorm(dim),
             RotarySingle(dim),
+            PositionalEncoding(dim, self.maxlen),
         )
         self.in_embed[0].weight.data.normal_(0, 0.02)
         self.encode = Transformer(
