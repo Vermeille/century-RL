@@ -1,32 +1,34 @@
 device: cpu
-tag: century-imitatemc10
+tag: flatbayes
+
+game: connectfour
 
 net:
-  num_layers: 2
-  dim: 64
-  head_size: 64
+  num_layers: 6
+  dim: 256
+  head_size: 32
 
 train:
-  gradient_epochs: 1
-  lr: 0.001
+  gradient_epochs: 4
+  lr: 0.00001
   batch_size: 12
   show_every: 10
   save_every: 10
   loss:
-    value: bootstrap_mse_loss,discount=0.8
-    policy: ce_loss
+    value: value_mse_loss,strength=1
+    policy: policy_gradient_with_baseline_loss,label_smoothing=0.05
 
 self_play:
-  num_games: 1
+  num_games: 4
   max_len: 100
   strategies:
-    - pick_best_value,budget=1,discount=0.8
-    - pick_best_value,budget=1,discount=0.8
+    - minimax_value,budget=5,discount=1
+    - minimax_value,budget=5,discount=1
 
 pit:
-  num_games: 4
+  num_games: 16
   max_len: 100
   every: 10
   strategies:
-    - policy_sampling,model=this,temperature=0.001
-    - century_random_buy
+    - policy_sampling,model=this
+    - random
