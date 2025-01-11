@@ -45,12 +45,11 @@ def collate(xs):
     return xs
 
 
-def discount(rews):
-    d = 1.0
+def discount(rews, discount_factor):
     return sum(d**i * r for i, r in enumerate(rews))
 
 
-def to_trainset(games_data):
+def to_trainset(games_data, discount_factor):
     out = []
     print("to trainset", len(games_data.data))
     for hist in games_data.data:
@@ -69,7 +68,7 @@ def to_trainset(games_data):
                     action_distribution=log.action_distribution,
                     score=float(end.current_diff_points),
                     reward=float(rewards[i]),
-                    returns=discount(rewards[i:]),
+                    returns=discount(rewards[i:], discount_factor),
                     current_diff_points=float(log.current_diff_points),
                     next=end if i == len(hist) - 2 else out[-1],
                     final=False,
@@ -282,7 +281,7 @@ class Trainer:
                 self._save_model()
 
             data = self._run_episode()
-            trainset = to_trainset(data)
+            trainset = to_trainset(data, self.config.train.discount_factor)
 
             print(len(trainset), "samples")
             self._train_epoch(trainset)
