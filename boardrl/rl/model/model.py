@@ -111,18 +111,18 @@ class ScaledSinosoidal(SinusoidalPositional):
 class ValueHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
+        self.proj_in = nn.Linear(dim, dim)
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
-            nn.LayerNorm(dim),
-            # nn.GELU(),
             nn.Linear(dim, 2),
             # Scale(2),
             # B2
         )
 
     def forward(self, x, attn_mask):
+        x = self.proj_in(x)
         x = self.tfblock(x, attn_mask)
-        x = mask_energy_pool(x, attn_mask)
+        x = mask_mean_pool(x, attn_mask)
         out = self.out(x)
         return out
 
@@ -139,15 +139,17 @@ class Scale(nn.Module):
 class PolicyHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
+        self.proj_in = nn.Linear(dim, dim)
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # it looks Detrimental but actually smoothes the gradient norm
-            nn.LayerNorm(dim),
+            # nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             # BL
         )
 
     def forward(self, x, attn_mask):
+        x = self.proj_in(x)
         x = self.tfblock(x, attn_mask)
         x = self.out(x)
         return x.squeeze(-1)
@@ -234,15 +236,16 @@ class Model(nn.Module):
             for i in range(len(games))
         ]
 
+        out = PolicyValue(
+            pred,
+            torch.distributions.Normal(
+                value[:, 0], torch.nn.functional.softplus(value[:, 1])
+            ),
+        )
         if not return_hidden:
-            return PolicyValue(
-                pred,
-                torch.distributions.Normal(
-                    value[:, 0], torch.nn.functional.softplus(value[:, 1])
-                ),
-            )
+            return out
         else:
-            return enc
+            return out, enc
 
 
 def load_model(model_path):
