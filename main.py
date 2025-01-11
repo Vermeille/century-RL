@@ -46,12 +46,13 @@ def collate(xs):
 
 
 def discount(rews):
-    d = 0.98
+    d = 1.0
     return sum(d**i * r for i, r in enumerate(rews))
 
 
 def to_trainset(games_data):
     out = []
+    print("to trainset", len(games_data.data))
     for hist in games_data.data:
         end = hist[-1]
         rewards = [0] * (len(hist) - 1)
@@ -104,9 +105,6 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-import copy
-
-
 class Visualizer:
     def __init__(self, tag):
         self.viz = Visdom(
@@ -135,7 +133,7 @@ class Trainer:
             self.model.parameters(),
             lr=config.train.lr,
             betas=(0.9, 0.95),
-            weight_decay=0.0,
+            weight_decay=0.01,
         )
 
         if checkpoint_path is not None:
@@ -233,11 +231,6 @@ class Trainer:
                     pearson.item(),
                     step,
                 )
-                self.viz.push(
-                    "R²",
-                    pearson**2,
-                    step,
-                )
         print(
             "throughput",
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
@@ -304,7 +297,7 @@ class StatePredictor(nn.Module):
         super().__init__()
         self.norm_hidden = nn.LayerNorm(dim)
         self.emb = nn.Embedding(256, dim, padding_idx=0)
-        self.norm_in = nn.LayerNorm(dim)
+        self.norm_in = nn.Linear(dim, dim)
         self.rotary = RotarySingle(dim)
         self.body = nn.ModuleList(
             [
@@ -314,7 +307,7 @@ class StatePredictor(nn.Module):
                     batch_first=True,
                     norm_first=True,
                 )
-                for _ in range(3)
+                for _ in range(1)
             ]
         )
         self.proj = nn.Linear(dim, 256)
@@ -350,7 +343,7 @@ class PreTrainer:
             self.model.parameters(),
             lr=config.train.lr * 10,
             betas=(0.9, 0.95),
-            weight_decay=0.0,
+            weight_decay=0.01,
         )
 
         self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
@@ -376,18 +369,22 @@ class PreTrainer:
                 self.opt.zero_grad()
                 target = self.model[0].text_encode(
                     [chr(1) + n.state for n in samples.next],
-                    # [chr(1) + s for s in samples.state],
                     2048,
                 )
-                hidden = self.model[0](
-                    [
-                        f"{samples.state[i]}\n{samples.moves[i][samples.action_idx[i]]}"
-                        for i in range(len(samples.state))
-                    ],
+                board_moves = [
+                    f"{samples.state[i]}\n{samples.moves[i][samples.action_idx[i]]}"
+                    for i in range(len(samples.state))
+                ]
+                (policy, value), hidden = self.model[0](
+                    board_moves,
                     return_hidden=True,
                 )
                 pred = self.model[1](hidden, target[:, :-1])
-                loss = nn.functional.cross_entropy(pred.transpose(1, 2), target[:, 1:])
+                pretrain_loss = nn.functional.cross_entropy(
+                    pred.transpose(1, 2), target[:, 1:], ignore_index=0
+                )
+                value_loss = nn.functional.mse_loss(value.mean, samples.returns)
+                loss = pretrain_loss + value_loss
                 loss.backward()
                 self.opt.step()
 
@@ -404,12 +401,21 @@ class PreTrainer:
                 )
                 self.viz.push(
                     "pretrain loss",
-                    loss.item(),
+                    pretrain_loss.item(),
                     self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
                 )
                 self.viz.push(
                     "pretrain acc",
-                    (pred.argmax(-1) == target[:, 1:]).float().mean().item(),
+                    ((pred.argmax(-1) == target[:, 1:]) & (target[:, 1:] != 0))
+                    .float()
+                    .sum()
+                    .item()
+                    / (target[:, 1:] != 0).sum().item(),
+                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
+                )
+                self.viz.push(
+                    "value loss",
+                    value_loss,
                     self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
                 )
 
