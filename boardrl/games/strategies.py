@@ -66,8 +66,8 @@ class PickBestMCValueStrategy:
         }
 
 
-@strategy_from_string.register("pick_best_value")
-class PickBestValueStrategy:
+@strategy_from_string.register("minimax_value")
+class MinimaxValueStrategy:
     def __init__(self, budget: int, model, discount: float, temperature: float = 0.001):
         self.budget = budget
         self.model = model
@@ -107,12 +107,11 @@ class PickBestValueStrategy:
         processor.run_tasks(
             [try_move(m_i) for m_i in range(len(g.moves)) for _ in range(self.budget)]
         )
-        means = [mean(vs) for vs in values]
-        policy = torch.median(torch.tensor(values).float(), dim=1).values
+        policy = torch.min(torch.tensor(values).float(), dim=1).values
         print(policy)
         sm = one_hot(torch.argmax(policy).item(), len(g.moves), smooth=0.05)
         return sm.log(), {
-            "moves": dict(zip(g.moves, means)),
+            "moves": dict(zip(g.moves, policy)),
         }
 
 
