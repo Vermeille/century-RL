@@ -157,23 +157,19 @@ class ValueMSELoss:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        # print("\npred", pred_value.mean, "\ntarget", sample.returns)
+        print("\npred", pred_value.mean, "\ntarget", sample.returns)
         assert pred_value.mean.shape == sample.returns.shape
         return self.strength * F.mse_loss(pred_value.mean, sample.returns)
 
 
 @loss_from_string.register("value_log_prob")
 class ValueLogProb:
+    def __init__(self, strength: float = 1.0):
+        self.strength = strength
+
     def __call__(self, pred_policy, pred_value, sample):
-        print(
-            "\nmean",
-            pred_value.mean,
-            "\nvar",
-            pred_value.scale,
-            "\ntarget",
-            sample.returns,
-        )
-        return -pred_value.log_prob(sample.returns).mean()
+        lp = pred_value.log_prob(sample.returns)
+        return -self.strength * lp.mean()
 
 
 @loss_from_string.register("bootstrap_mse_loss")
