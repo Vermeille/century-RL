@@ -1,6 +1,6 @@
 import torch
 
-from boardrl.utils import BatchProcessor, RegisterByName, Game
+from boardrl.utils import CachedBatchProcessor, RegisterByName, Game
 from boardrl.rl.model import load_model
 import pyximport
 
@@ -80,7 +80,9 @@ class MinimaxValueStrategy:
         values = [[] for _ in g.moves]
         me = g.current_player()
 
-        processor = BatchProcessor(batch_size=64, process_fn=self.model, timeout=0.1)
+        processor = CachedBatchProcessor(
+            batch_size=64, process_fn=self.model, timeout=0.01, cache_size=1000
+        )
 
         async def try_move(m_i):
             m = g.moves[m_i]

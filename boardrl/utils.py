@@ -75,6 +75,28 @@ class BatchProcessor:
         return ret
 
 
+class CachedBatchProcessor(BatchProcessor):
+    def __init__(
+        self,
+        batch_size: int,
+        process_fn: Callable[[List[Any]], Any],
+        timeout: float = 1.0,
+        cache_size: int = 100,
+    ):
+        super().__init__(batch_size, process_fn, timeout)
+        self.cache = {}
+        self.cache_size = cache_size
+
+    async def send(self, data: Any):
+        if data in self.cache:
+            return self.cache[data]
+        result = await super().send(data)
+        if len(self.cache) >= self.cache_size:
+            self.cache.popitem()
+        self.cache[data] = result
+        return result
+
+
 class RegisterByName:
     def __init__(self, arg_readers=None):
         self.registry = {}
