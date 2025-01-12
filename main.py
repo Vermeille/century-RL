@@ -270,6 +270,10 @@ class Trainer:
 
     def train(self):
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
+        import random
+
+        trainset_limit = 100
+        full_trainset = []
         for epoch in range(3000):
             self.epoch = epoch
 
@@ -283,8 +287,12 @@ class Trainer:
             data = self._run_episode()
             trainset = to_trainset(data, self.config.train.discount_factor)
 
-            print(len(trainset), "samples")
-            self._train_epoch(trainset)
+            full_trainset += trainset
+            full_trainset = full_trainset[-trainset_limit:]
+            copy_trainset = full_trainset.copy()
+            random.shuffle(copy_trainset)
+            print(len(copy_trainset), "samples")
+            self._train_epoch(copy_trainset)
 
 
 import torch.nn as nn
@@ -340,7 +348,7 @@ class PreTrainer:
         self.model.to(config.device)
         self.opt = torch.optim.AdamW(
             self.model.parameters(),
-            lr=config.train.lr * 10,
+            lr=config.train.lr,
             betas=(0.9, 0.95),
             weight_decay=0.01,
         )
