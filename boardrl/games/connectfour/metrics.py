@@ -30,12 +30,13 @@ class Metrics:
         avg_len = sum(len(h) for h in self.data) / len(self.data)
         viz.push("avg_len", avg_len, epoch)
         winning_games = [h for h in self.data if h[-1].current_diff_points > 0]
-        viz.push(
-            "avg_winning_move_probability",
-            sum(
-                torch.softmax(w[-2].action_distribution, 0)[w[-2].action_idx]
-                for w in winning_games
+        if len(winning_games) > 0:
+            viz.push(
+                "avg_winning_move_probability",
+                sum(
+                    torch.softmax(w[-2].action_distribution, 0)[w[-2].action_idx]
+                    for w in winning_games
+                )
+                / len(winning_games),
+                epoch,
             )
-            / len(winning_games),
-            epoch,
-        )
