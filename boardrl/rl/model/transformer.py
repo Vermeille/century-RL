@@ -158,12 +158,16 @@ class TransformerBlock(nn.Module):
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
             GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.0),
+            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
         )
+        self.gating1 = nn.Linear(hidden_size, hidden_size)
+        self.gating2 = nn.Linear(hidden_size, hidden_size)
 
     def forward(self, x, attn_mask):
-        x = self.sa(self.layer_norm1(x), attn_mask) + x
-        x = self.feed_forward(x) + x
+        y = self.sa(self.layer_norm1(x), attn_mask)
+        x = torch.sigmoid(self.gating1(x)) * y + x
+        y = self.feed_forward(x)
+        x = torch.sigmoid(self.gating1(x)) * y + x
         return x
 
 

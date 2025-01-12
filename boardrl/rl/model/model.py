@@ -207,7 +207,7 @@ class Model(nn.Module):
         )
         self.in_embed[0].weight.data.normal_(0, 0.02)
         self.encode = Transformer(
-            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=2
+            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=0
         )
         self.to_pred = PolicyHead(dim, head_size)
         self.rewards = ValueHead(dim, head_size)
