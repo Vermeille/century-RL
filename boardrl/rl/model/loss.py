@@ -32,7 +32,7 @@ class CELoss:
         return loss / len(sample.action_distribution)
 
 
-@loss_from_string.register("imitation_js_loss")
+@loss_from_string.register("imitation_jeffreys_loss")
 class ImitationJeffreysLoss:
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
@@ -46,7 +46,7 @@ class ImitationJeffreysLoss:
 
 
 @loss_from_string.register("imitation_js_loss")
-class ImiationJSLoss:
+class ImitationJSLoss:
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
