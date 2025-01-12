@@ -7,17 +7,18 @@ net:
   head_size: 64
 
 train:
+  discount_factor: 1
   gradient_epochs: 1
   lr: 0.0001
   batch_size: 12
   show_every: 10
-  save_every: 10
+  save_every: 100
   loss:
-    value: value_mse_loss
-    policy: policy_gradient_loss
+    value: value_mse_loss,strength=0.1
+    policy: policy_gradient_with_baseline_loss,label_smoothing=0.05
 
 self_play:
-  num_games: 4
+  num_games: 10
   max_len: 500
   strategies:
     - policy_sampling,model=this
@@ -26,7 +27,7 @@ self_play:
 pit:
   num_games: 32
   max_len: 220
-  every: 4
+  every: 50
   strategies:
-    - policy_sampling,model=this,temperature=0.001
-    - random_buy
+    - policy_sampling,model=this
+    - random
