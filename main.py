@@ -188,11 +188,11 @@ class Trainer:
                 policy, value = self.model(samples.state)
                 policy_loss = self.policy_loss(policy, value, samples)
                 value_loss = self.value_loss(policy, value, samples)
-                print(policy_loss, value_loss)
                 loss = policy_loss + value_loss
+                loss = loss * len(samples.state) / self.config.train.batch_size
                 loss.backward()
-                total_losses["policy"] += policy_loss.item() / len(data) * len(batch)
-                total_losses["value"] += value_loss.item() / len(data) * len(batch)
+                total_losses["policy"] += policy_loss.item()
+                total_losses["value"] += value_loss.item()
 
                 grad_mag = torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), max_norm=5.0
