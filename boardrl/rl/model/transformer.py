@@ -176,10 +176,8 @@ class TransformerBlock(nn.Module):
         self.gating2 = nn.Linear(hidden_size, hidden_size)
 
     def forward(self, x, attn_mask):
-        y = self.sa(self.layer_norm1(x), attn_mask)
-        x = torch.sigmoid(self.gating1(x)) * y + x
-        y = self.feed_forward(x)
-        x = torch.sigmoid(self.gating1(x)) * y + x
+        x = torch.sigmoid(self.gating1(x)) * self.sa(self.layer_norm1(x), attn_mask) + x
+        x = torch.sigmoid(self.gating2(x)) * self.feed_forward(x) + x
         return x
 
 
