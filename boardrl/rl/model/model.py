@@ -17,7 +17,7 @@ def mask_energy_pool(x, mask):
     # x * mask: BLD * BL1 = BLD => BD
     # mask.sum(1): B1
     mask = x.norm(dim=-1, keepdim=True) * mask.unsqueeze(-1)
-    mask = mask / mask.to(x.dtype).sum(1, keepdim=True)
+    mask = mask / (1e-6 + mask.to(x.dtype).sum(1, keepdim=True))
     # print( mask.squeeze(2) .sort(descending=True, dim=1) .values.cumsum(dim=1) .le(0.95) .float() .sum(1))
     return (x * mask.to(x.dtype)).sum(1)
 
@@ -111,18 +111,18 @@ class ScaledSinosoidal(SinusoidalPositional):
 class ValueHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
-        self.proj_in = nn.Linear(dim, dim)
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
+            nn.LayerNorm(dim),
             nn.Linear(dim, 2),
             # Scale(2),
             # B2
         )
 
     def forward(self, x, attn_mask):
-        x = self.proj_in(x)
         x = self.tfblock(x, attn_mask)
-        x = mask_mean_pool(x, attn_mask)
+        # x = mask_mean_pool(x, attn_mask)
+        x = x[:, 0]
         out = self.out(x)
         return out
 
@@ -139,17 +139,15 @@ class Scale(nn.Module):
 class PolicyHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
-        self.proj_in = nn.Linear(dim, dim)
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # it looks Detrimental but actually smoothes the gradient norm
-            # nn.LayerNorm(dim),
+            nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             # BL
         )
 
     def forward(self, x, attn_mask):
-        x = self.proj_in(x)
         x = self.tfblock(x, attn_mask)
         x = self.out(x)
         return x.squeeze(-1)
