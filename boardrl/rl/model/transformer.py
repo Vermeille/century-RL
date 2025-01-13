@@ -70,6 +70,8 @@ class SelfAttnOp(nn.Module):
     def __init__(self, head_size, num_heads, rotary=True, alibi=True):
         super().__init__()
         self.rotary = None
+        self.num_heads = num_heads
+        self.head_size = head_size
         if rotary:
             self.rotary = Rotary(head_size)
 
@@ -88,6 +90,13 @@ class SelfAttnOp(nn.Module):
             self.alibi = None
 
     def forward(self, q, k, v, attn_mask):
+        # q, k, v: B L D
+        b, l, d, h = q.shape[0], q.shape[1], self.head_size, self.num_heads
+        # BLD->BHLD
+        q = q.reshape(q.shape[0], q.shape[1], -1, self.num_heads).permute(0, 3, 1, 2)
+        k = k.reshape(k.shape[0], k.shape[1], -1, self.num_heads).permute(0, 3, 1, 2)
+        v = v.reshape(v.shape[0], v.shape[1], -1, self.num_heads).permute(0, 3, 1, 2)
+
         if self.rotary is not None:
             q, k, v = self.rotary(q, k, v)
 
@@ -101,7 +110,8 @@ class SelfAttnOp(nn.Module):
         att = nn.functional.scaled_dot_product_attention(
             q, k, v, is_causal=False, attn_mask=attn_mask
         )
-
+        # BHLD->BLHD
+        att = att.permute(0, 2, 1, 3).contiguous().reshape(b, l, h * d)
         return att
 
 
@@ -120,12 +130,14 @@ class SelfAttention(nn.Module):
         attn_mask = attn_mask.unsqueeze(1) & attn_mask.unsqueeze(2)
 
         b, l, h, d = x.shape[0], x.shape[1], self.num_heads, self.head_size
-        # bld -> (q/k/v)bhld
-        qkv = self.qkv(x).reshape(b, l, 3, h, d).permute(2, 0, 3, 1, 4)
+
+        # bld -> (q/k/v)bl(hd)
+        qkv = self.qkv(x).reshape(b, l, 3, h * d).permute(2, 0, 1, 3)
         q, k, v = qkv[0], qkv[1], qkv[2]
+
         att = self.attn_op(q, k, v, attn_mask)
         # bhld -> blhd
-        att = att.permute(0, 2, 1, 3).contiguous().reshape(b, l, h * d)
+
         return self.fc(att)
 
 
