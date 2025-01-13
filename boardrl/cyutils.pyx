@@ -2,7 +2,8 @@
 # cython: language_level=3
 # cython: linetrace=False
 cimport cython
-from libc.stdlib cimport rand, RAND_MAX
+from libc.stdlib cimport rand, RAND_MAX, srand
+from libc.time cimport time
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -30,3 +31,5 @@ cpdef int fast_sample(x):
     assert False, ("Should not reach here. Called fast_sample on "
         "an invalid distribution (all zeros or negative values)")
 
+cpdef init_seed():
+    srand(time(NULL))
