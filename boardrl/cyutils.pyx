@@ -22,7 +22,7 @@ cpdef int fast_sample(x):
     for i in range(n):
         total += x_[i]
 
-    r = rand() / RAND_MAX * total
+    r = rand() * total / RAND_MAX
     for i in range(n):
         acc += x_[i]
         if acc >= r:
