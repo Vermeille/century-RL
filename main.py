@@ -204,7 +204,7 @@ class Trainer:
                 total_losses["value"] += value_loss.item()
 
                 grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=5.0
+                    self.model.parameters(), max_norm=50000.0
                 )
                 self.opt.step()
 
@@ -286,7 +286,7 @@ class Trainer:
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
         import random
 
-        trainset_limit = 100
+        trainset_limit = 1000
         full_trainset = []
         for epoch in range(3000):
             self.epoch = epoch
@@ -301,7 +301,7 @@ class Trainer:
             data = self._run_episode()
             trainset = to_trainset(data, self.config.train.discount_factor)
 
-            full_trainset += trainset
+            full_trainset = trainset
             full_trainset = full_trainset[-trainset_limit:]
             copy_trainset = full_trainset.copy()
             random.shuffle(copy_trainset)
@@ -455,7 +455,7 @@ class PreTrainer:
         return data
 
     def pretrain(self):
-        for epoch in range(100):
+        for epoch in range(1):
             print("EPOCH", epoch)
             self.epoch = epoch
 
