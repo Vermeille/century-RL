@@ -1,3 +1,6 @@
+import crayons
+
+
 class Metrics:
     def __init__(self, data):
         self.data = data
@@ -5,7 +8,9 @@ class Metrics:
     def print_short_history(self):
         for h in self.data[::2]:
             print(
-                h[-1].state,
+                h[-1]
+                .state.replace("O", str(crayons.green("O")))
+                .replace("X", str(crayons.red("X"))),
                 h[-1].my_points,
             )
             print()
