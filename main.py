@@ -467,20 +467,38 @@ class PreTrainer:
         return self.model[0]
 
 
+def fix_dict(config, key, new_value):
+    split = key.split(".", 1)
+    if len(split) == 1:
+        assert split[0] in config
+        config[split[0]] = new_value
+    else:
+        fix_dict(config[split[0]], split[1], new_value)
+
+
 def main():
-    import sys
     import yaml
     from easydict import EasyDict
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config_file", type=str)
+    parser.add_argument("--ckpt", type=str, default=None)
+    parser.add_argument("-x", nargs="+", default=[])
+    opts = parser.parse_args()
 
     init_seed()
-    with open(sys.argv[1]) as f:
+    with open(opts.config_file) as f:
         config = EasyDict(yaml.safe_load(f))
+
+    for config_fix in opts.x:
+        fix_dict(config, *config_fix.split("="))
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
         print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
         config.device = "cpu"
 
-    ckpt = sys.argv[2] if len(sys.argv) > 2 else None
+    ckpt = opts.ckpt if opts.ckpt != "None" else None
     if ckpt is None:
         model = PreTrainer(config).pretrain()
         trainer = Trainer(config, ckpt)
