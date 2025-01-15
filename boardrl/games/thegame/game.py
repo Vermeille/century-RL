@@ -72,7 +72,7 @@ class TheGame:
         )
         hand_info = " ".join(str(c) for c in self.hands[p])
         return (
-            f"Round: {self.round()}, Action: {self.round() % 2}\n"
+            f"Round: {self.round()}, Action: {self.turn % 2}\n"
             f"Piles: {pile_info}\n"
             f"Cards: {len(self.deck)}\n"
             f"Hand: {hand_info}\n"
@@ -136,6 +136,7 @@ class TheGame:
         #  3) Optionally draw a card from the deck if available after the second player's move
         if self.deck and self.turn % 2 == 1:
             self.hands[p].append(self.deck.pop())
+            self.hands[p].append(self.deck.pop())
 
         # Move to the next player (if you want multi-player rotation)
         self.turn += 1
@@ -175,7 +176,7 @@ class TheGame:
 # Example usage:
 if __name__ == "__main__":
     game = TheGame(num_players=2)
-    print(game.display())
+    print(game.display_with_moves())
 
     # Generate possible moves for the current player
     possible = game.gen_moves()
@@ -188,4 +189,4 @@ if __name__ == "__main__":
         game.play_str(move)
 
     # Display after the move
-    print(game.display())
+    print(game.display_with_moves())
