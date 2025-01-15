@@ -152,7 +152,7 @@ class TheGame:
         """
         Returns the score for the current player.
         """
-        return 100 - len(self.deck)
+        return 99 - len(self.deck)
 
     def points_for(self, player: int) -> int:
         return self.points()
