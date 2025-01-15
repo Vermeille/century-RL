@@ -469,9 +469,13 @@ class PreTrainer:
 
 def fix_dict(config, key, new_value):
     split = key.split(".", 1)
+
+    if isinstance(config, list):
+        split[0] = int(split[0])
+
     if len(split) == 1:
         assert split[0] in config
-        config[split[0]] = new_value
+        config[split[0]] = eval(new_value)
     else:
         fix_dict(config[split[0]], split[1], new_value)
 
