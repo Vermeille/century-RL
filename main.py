@@ -2,6 +2,7 @@ from collections import defaultdict
 import torch
 import time
 import copy
+import yaml
 from visdom import Visdom
 from tqdm import tqdm
 
@@ -475,13 +476,12 @@ def fix_dict(config, key, new_value):
 
     if len(split) == 1:
         assert split[0] in config
-        config[split[0]] = eval(new_value)
+        config[split[0]] = yaml.safe_load(new_value)
     else:
         fix_dict(config[split[0]], split[1], new_value)
 
 
 def main():
-    import yaml
     from easydict import EasyDict
     import argparse
 
