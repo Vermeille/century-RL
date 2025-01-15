@@ -1,29 +1,47 @@
 from collections import namedtuple
 import torch
 import torch.nn as nn
-from boardrl.rl.model.transformer import Rotary, Transformer
+from boardrl.rl.model.transformer import SelfAttnOp, Transformer
 
 
-def mask_mean_pool(x, mask):
-    # mask: BL1
-    # x * mask: BLD * BL1 = BLD => BD
-    # mask.sum(1): B1
-    mask = mask.unsqueeze(-1)
-    return (x * mask.to(x.dtype)).sum(1) / mask.to(x.dtype).sum(1)
+class MeanPool(nn.Module):
+    def forward(self, x, mask):
+        # mask: BL1
+        # x * mask: BLD * BL1 = BLD => BD
+        # mask.sum(1): B1
+        mask = mask.unsqueeze(-1)
+        return (x * mask.to(x.dtype)).sum(1) / mask.to(x.dtype).sum(1)
 
 
-def mask_energy_pool(x, mask):
-    # mask: BL1
-    # x * mask: BLD * BL1 = BLD => BD
-    # mask.sum(1): B1
-    mask = x.norm(dim=-1, keepdim=True) * mask.unsqueeze(-1)
-    mask = mask / (1e-6 + mask.to(x.dtype).sum(1, keepdim=True))
-    # print( mask.squeeze(2) .sort(descending=True, dim=1) .values.cumsum(dim=1) .le(0.95) .float() .sum(1))
-    return (x * mask.to(x.dtype)).sum(1)
+class EnergyPool(nn.Module):
+    def forward(self, x, mask):
+        # energy pooling converges pretty badly
+        # mask: BL1
+        # x * mask: BLD * BL1 = BLD => BD
+        # mask.sum(1): B1
+        mask = x.norm(dim=-1, keepdim=True) * mask.unsqueeze(-1)
+        mask = mask / (1e-6 + mask.to(x.dtype).sum(1, keepdim=True))
+        # print( mask.squeeze(2) .sort(descending=True, dim=1) .values.cumsum(dim=1) .le(0.95) .float() .sum(1))
+        return (x * mask.to(x.dtype)).sum(1)
 
 
-def pool_first(x, mask):
-    return x[:, 0]
+class FirstPool(nn.Module):
+    def forward(self, x, mask):
+        return x[:, 0]
+
+
+class AttnPool(nn.Module):
+    def __init__(self, head_size, num_heads, out_dim):
+        super().__init__()
+        self.attn = SelfAttnOp(head_size, num_heads)
+        self.q = nn.Parameter(torch.randn(1, 1, head_size * num_heads))
+        self.proj = nn.Linear(head_size * num_heads, head_size * num_heads * 2)
+        self.out = nn.Linear(head_size * num_heads, num_heads * head_size)
+
+    def forward(self, x, mask):
+        k, v = self.proj(x).chunk(2, dim=-1)
+        out = self.attn(self.q.expand(k.shape[0], -1, -1), k, v, mask)[:, 0]
+        return out
 
 
 class Squeeze(nn.Module):
@@ -112,8 +130,9 @@ class ValueHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
+        self.pool = AttnPool(head_size, dim // head_size, dim)
         self.out = nn.Sequential(
-            nn.LayerNorm(dim),
+            # nn.LayerNorm(dim), # Detrimental
             nn.Linear(dim, 2),
             # Scale(2),
             # B2
@@ -122,7 +141,8 @@ class ValueHead(nn.Module):
     def forward(self, x, attn_mask):
         x = self.tfblock(x, attn_mask)
         # x = mask_mean_pool(x, attn_mask)
-        x = x[:, 0]
+        x = self.pool(x, attn_mask)
+        # x = x[:, 0]
         out = self.out(x)
         return out
 
@@ -141,8 +161,8 @@ class PolicyHead(nn.Module):
         super().__init__()
         self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
-            # it looks Detrimental but actually smoothes the gradient norm
-            nn.LayerNorm(dim),
+            # it IS Detrimental
+            # nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             # BL
         )
@@ -187,10 +207,10 @@ class RotarySingle(torch.nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, dim, max_len=2048):
         super().__init__()
-        self.pos_enc = nn.Parameter(torch.zeros(max_len, dim), requires_grad=True)
+        self.pos_enc = nn.Parameter(torch.randn(max_len, dim))
 
     def forward(self, x):
-        return x + self.pos_enc[: x.shape[1]]
+        return x * self.pos_enc[: x.shape[1]]
 
 
 class Model(nn.Module):
@@ -201,11 +221,15 @@ class Model(nn.Module):
             nn.Embedding(128, dim, padding_idx=0),
             nn.LayerNorm(dim),
             RotarySingle(dim),
-            PositionalEncoding(dim, self.maxlen),
+            # PositionalEncoding(dim, self.maxlen),  # Doesn't seem to work???
         )
         self.in_embed[0].weight.data.normal_(0, 0.02)
         self.encode = Transformer(
-            dim, num_layers - 1, dim // head_size, head_size, num_conv_blocks=0
+            dim,
+            num_layers - 1,
+            dim // head_size,
+            head_size,
+            num_conv_blocks=0,  # conv blocks make no difference
         )
         self.to_pred = PolicyHead(dim, head_size)
         self.rewards = ValueHead(dim, head_size)
@@ -237,7 +261,8 @@ class Model(nn.Module):
         out = PolicyValue(
             pred,
             torch.distributions.Normal(
-                value[:, 0], torch.nn.functional.softplus(value[:, 1])
+                value[:, 0],
+                torch.nn.functional.softplus(value[:, 1]),
             ),
         )
         if not return_hidden:

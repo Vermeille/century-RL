@@ -67,7 +67,7 @@ class Rotary(torch.nn.Module):
 
 
 class SelfAttnOp(nn.Module):
-    def __init__(self, head_size, num_heads, rotary=True, alibi=True):
+    def __init__(self, head_size, num_heads, rotary=False, alibi=False):
         super().__init__()
         self.rotary = None
         self.num_heads = num_heads
@@ -91,15 +91,18 @@ class SelfAttnOp(nn.Module):
 
     def forward(self, q, k, v, attn_mask):
         # q, k, v: B L D
-        b, l, d, h = q.shape[0], q.shape[1], self.head_size, self.num_heads
+        b, d, h = q.shape[0], self.head_size, self.num_heads
+        lq = q.shape[1]
+        lk = k.shape[1]
         # BLD->BHLD
-        q = q.reshape(q.shape[0], q.shape[1], -1, self.num_heads).permute(0, 3, 1, 2)
-        k = k.reshape(k.shape[0], k.shape[1], -1, self.num_heads).permute(0, 3, 1, 2)
-        v = v.reshape(v.shape[0], v.shape[1], -1, self.num_heads).permute(0, 3, 1, 2)
+        q = q.reshape(b, lq, h, d).permute(0, 2, 1, 3)
+        k = k.reshape(b, lk, h, d).permute(0, 2, 1, 3)
+        v = v.reshape(b, lk, h, d).permute(0, 2, 1, 3)
 
         if self.rotary is not None:
             q, k, v = self.rotary(q, k, v)
 
+        attn_mask = attn_mask.unsqueeze(1) & attn_mask.unsqueeze(2)
         attn_mask = attn_mask.unsqueeze(1)
         if self.alibi is not None:
             mask = -torch.abs(
@@ -108,10 +111,10 @@ class SelfAttnOp(nn.Module):
             attn_mask = torch.where(attn_mask.bool(), mask, float("-inf"))
 
         att = nn.functional.scaled_dot_product_attention(
-            q, k, v, is_causal=False, attn_mask=attn_mask
+            q, k, v, is_causal=False, attn_mask=attn_mask[:, :, :lq, :]
         )
         # BHLD->BLHD
-        att = att.permute(0, 2, 1, 3).contiguous().reshape(b, l, h * d)
+        att = att.permute(0, 2, 1, 3).contiguous().reshape(b, lq, h * d)
         return att
 
 
@@ -124,16 +127,13 @@ class SelfAttention(nn.Module):
             nn.Linear(hidden_size, head_size * num_heads * 3, bias=True),
         )
         self.fc = xavier(nn.Linear(head_size * num_heads, hidden_size, bias=True))
-        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=True, alibi=False)
+        # Rotary here is detrimental, it's better to use it in the trunk
+        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=False, alibi=False)
 
     def forward(self, x, attn_mask):
-        attn_mask = attn_mask.unsqueeze(1) & attn_mask.unsqueeze(2)
-
-        b, l, h, d = x.shape[0], x.shape[1], self.num_heads, self.head_size
-
         # bld -> (q/k/v)bl(hd)
-        qkv = self.qkv(x).reshape(b, l, 3, h * d).permute(2, 0, 1, 3)
-        q, k, v = qkv[0], qkv[1], qkv[2]
+        qkv = self.qkv(x)
+        q, k, v = qkv.chunk(3, dim=2)
 
         att = self.attn_op(q, k, v, attn_mask)
         # bhld -> blhd
@@ -197,7 +197,7 @@ class ConvTrunkBlock(nn.Module):
                 )
             ),
             # nn.GELU(),
-            normal_init(nn.Conv1d(hidden_size, hidden_size, 1), 0.0),
+            normal_init(nn.Conv1d(hidden_size, hidden_size, 1), 0.02),
             Permute(0, 2, 1),  # bdl -> bld
         )
         self.feed_forward = nn.Sequential(
@@ -206,7 +206,7 @@ class ConvTrunkBlock(nn.Module):
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
             GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.0),
+            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
         )
         # self.sa[2].weight.data.fill_(1 / 7.0)
 
