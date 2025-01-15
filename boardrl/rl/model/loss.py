@@ -116,14 +116,11 @@ class PolicyGradientLoss:
         assert len(pred_policy) == len(sample.action_idx)
         loss = 0
         for logit, act, r in zip(pred_policy, sample.action_idx, sample.returns):
-            logit = logit.unsqueeze(0)
-            act = act.unsqueeze(0)
-
-            loss += (1 - self.label_smoothing) * r * F.cross_entropy(
+            # WARNING: There is an exp that makes all the returns positive.
+            # This is not standard but negative returns seems to make training unstable.
+            loss += (1 - self.label_smoothing) * r.exp() * F.cross_entropy(
                 logit, act
-            ) + self.label_smoothing * F.cross_entropy(
-                logit, act, reduction="none", label_smoothing=1
-            )
+            ) + self.label_smoothing * F.cross_entropy(logit, act, label_smoothing=1)
         return loss / len(sample.action_idx)
 
 
@@ -136,19 +133,20 @@ class PolicyGradientWithBaselineLoss:
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.returns)
-        # WARNING: NOT TODAY SATAN: Don't forget to detach the value function
         with torch.no_grad():
             advantage = sample.returns - self.prev_model(sample.state).value.mean
+            if advantage.numel() != 1:
+                advantage = (advantage - advantage.mean()) / (advantage.std())
 
+        print("advantage", advantage)
         loss = 0
         for logit, act, adv in zip(pred_policy, sample.action_idx, advantage):
-            logit = logit.unsqueeze(0)
-            act = act.unsqueeze(0)
-
-            loss += (1 - self.label_smoothing) * adv * F.cross_entropy(
+            # WARNING: There is an exp that makes all the returns positive.
+            # This is not standard but negative returns seems to make training unstable.
+            loss += (1 - self.label_smoothing) * adv.exp() * F.cross_entropy(
                 logit, act
             ) + self.label_smoothing * F.cross_entropy(logit, act, label_smoothing=1)
-        return loss / len(sample.returns) * 1
+        return loss / len(sample.returns)
 
 
 @loss_from_string.register("value_mse_loss")
