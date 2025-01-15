@@ -10,6 +10,7 @@ from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit
 from boardrl.games import games_library
+from boardrl.cyutils import init_seed
 
 
 class TrainingSample:
@@ -32,6 +33,14 @@ class TrainingSample:
             elif isinstance(v[0], torch.Tensor):
                 self.__dict__[k] = [x.to(*args, **kwargs) for x in v]
         return self
+
+    def __repr__(self):
+        out = ["TrainingSample:"]
+        for k, v in self.__dict__.items():
+            if k == "next":
+                continue
+            out.append(f"{k}: {v}")
+        return "\n".join(out)
 
 
 def collate(xs):
@@ -458,8 +467,14 @@ def main():
     import yaml
     from easydict import EasyDict
 
+    init_seed()
     with open(sys.argv[1]) as f:
         config = EasyDict(yaml.safe_load(f))
+
+    if config.device.startswith("cuda") and not torch.cuda.is_available():
+        print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
+        config.device = "cpu"
+
     ckpt = sys.argv[2] if len(sys.argv) > 2 else None
     if ckpt is None:
         model = PreTrainer(config).pretrain()
