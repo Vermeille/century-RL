@@ -57,3 +57,12 @@ class Sum(GameDesc):
 
         strats = sum_strategy_from_string.copy().update(strategy_from_string)
         super().__init__(Sum, strats, Metrics)
+
+
+@games_library.register("thegame")
+class TheGame(GameDesc):
+    def __init__(self):
+        from boardrl.games.thegame.game import TheGame
+        from boardrl.games.thegame.metrics import Metrics
+
+        super().__init__(TheGame, strategy_from_string, Metrics)
