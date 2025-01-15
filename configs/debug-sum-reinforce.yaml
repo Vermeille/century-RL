@@ -1,17 +1,18 @@
-device: cpu
+device: cuda
 tag: policy-gradient
 
 game: sum
 
 net:
-  num_layers: 6
-  dim: 256
-  head_size: 32
+  num_layers: 4
+  dim: 512
+  head_size: 64
 
 train:
   gradient_epochs: 1
+  discount_factor: 0.8
   lr: 0.0001
-  batch_size: 32
+  batch_size: 64
   show_every: 10
   save_every: 100
   loss:
@@ -19,16 +20,16 @@ train:
     policy: policy_gradient_loss,label_smoothing=0.05
 
 self_play:
-  num_games: 4
+  num_games: 50
   max_len: 500
   strategies:
     - policy_sampling,model=this
-    - policy_sampling,model=this
+    - random
 
 pit:
   num_games: 32
   max_len: 220
-  every: 100
+  every: 10
   strategies:
     - policy_sampling,model=this
     - random
