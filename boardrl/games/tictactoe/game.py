@@ -31,7 +31,8 @@ class TicTacToe:
             p = force
 
         rep = {None: " ", p: "O", 1 - p: "X"}
-        lines = []
+        rep = {None: " ", 0: "O", 1: "X"}
+        lines = [">" + rep[p]]
         for row in [self.board[i * 3 : (i + 1) * 3] for i in range(3)]:
             lines.append("|" + "".join([rep[r] for r in row]) + "|")
         return "\n".join(lines)

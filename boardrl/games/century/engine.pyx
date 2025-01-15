@@ -716,7 +716,7 @@ cdef class Century:
             p = force
         else:
             p = self.current_player()
-        lines = [f'{self.round():4}']
+        lines = [f'{self.current_player()} {self.round():4}']
 
         lines.append('_Board')
         lines.append(str(self.victory))

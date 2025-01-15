@@ -35,7 +35,8 @@ class ConnectFour:
             p = force
 
         rep = {None: " ", p: "O", 1 - p: "X"}
-        lines = []
+        rep = {None: " ", 0: "O", 1: "X"}
+        lines = [">" + rep[p]]
         for y in range(self.height - 1, -1, -1):
             line = "|"
             for x in range(self.width):
