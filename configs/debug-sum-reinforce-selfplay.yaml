@@ -1,5 +1,5 @@
 device: cuda
-tag: policy-gradient
+tag: policy-gradient-selfplay
 
 game: sum
 
@@ -16,7 +16,7 @@ train:
   show_every: 10
   save_every: 100
   loss:
-    value: value_mse_loss,strength=0.1
+    value: value_mse_loss,strength=1
     policy: policy_gradient_loss,label_smoothing=0.05
 
 self_play:
@@ -24,7 +24,7 @@ self_play:
   max_len: 500
   strategies:
     - policy_sampling,model=this
-    - random
+    - policy_sampling,model=this
 
 pit:
   num_games: 32
