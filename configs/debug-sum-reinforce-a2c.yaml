@@ -1,0 +1,35 @@
+device: cuda
+tag: a2c
+
+game: sum
+
+net:
+  num_layers: 4
+  dim: 512
+  head_size: 64
+
+train:
+  gradient_epochs: 1
+  discount_factor: 0.8
+  lr: 0.0001
+  batch_size: 64
+  show_every: 10
+  save_every: 100
+  loss:
+    value: value_mse_loss,strength=1
+    policy: policy_gradient_loss,label_smoothing=0.05,weight=advantage,discount_factor=0.8,renormalize=True
+
+self_play:
+  num_games: 50
+  max_len: 500
+  strategies:
+    - policy_sampling,model=this
+    - random
+
+pit:
+  num_games: 32
+  max_len: 220
+  every: 10
+  strategies:
+    - policy_sampling,model=this,temperature=0.001
+    - random
