@@ -107,18 +107,98 @@ class ImitationReverseKLLoss:
         return loss / len(sample.action_distribution)
 
 
+def weight_score(samples, prev_model, discount_factor):
+    return samples.score
+
+
+def weight_returns(samples, prev_model, discount_factor):
+    return samples.returns
+
+
+def weight_baseline_value(samples, prev_model, discount_factor):
+    return samples.returns - prev_model(samples.state).value.mean
+
+
+def weight_advantage(samples, prev_model, discount_factor):
+    next_value = prev_model([n.state for n in samples.next]).value.mean
+    next_value = torch.where(
+        torch.tensor([n.final for n in samples.next], device=next_value.device),
+        torch.tensor(0.0, device=next_value.device),
+        next_value,
+    )
+    current_value = prev_model(samples.state).value.mean
+    return (samples.reward + next_value * discount_factor) - current_value
+
+
+class RunningStat:
+    def __init__(self, beta):
+        self.running = None
+        self.beta = beta
+
+    def update(self, x):
+        if self.running is None:
+            self.running = x
+        else:
+            self.running = self.beta * self.running + (1 - self.beta) * x
+
+    def __call__(self):
+        return self.running
+
+
+class RunningNormalizer:
+    def __init__(self, beta):
+        self.running_mean = RunningStat(beta)
+        self.running_std = RunningStat(beta)
+
+    def update(self, x):
+        if x.numel() > 1:
+            self.running_mean.update(x.mean().item())
+            self.running_std.update(x.std().item())
+
+    def __call__(self, x):
+        if x.numel() > 1:
+            return (x - self.running_mean()) / (self.running_std() + 1e-4)
+        return x
+
+
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
-    def __init__(self, label_smoothing: float = 0.0):
+    def __init__(
+        self,
+        weight: str = "returns",
+        label_smoothing: float = 0.0,
+        renormalize: bool = False,
+        discount_factor: float = None,
+        prev_model=None,
+    ):
+        assert weight in ["returns", "score", "advantage", "baseline_value"]
         self.label_smoothing = label_smoothing
+        self.weight_fn = {
+            "returns": weight_returns,
+            "score": weight_score,
+            "baseline_value": weight_baseline_value,
+            "advantage": weight_advantage,
+        }[weight]
+        self.renormalize = renormalize
+        self.discount_factor = discount_factor
+        self.prev_model = prev_model
+        self.normalizer = RunningNormalizer(0.99)
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
         loss = 0
-        for logit, act, r in zip(pred_policy, sample.action_idx, sample.returns):
+
+        with torch.no_grad():
+            weight = self.weight_fn(sample, self.prev_model, self.discount_factor)
+
+        if self.renormalize:
+            self.normalizer.update(weight)
+            weight = self.normalizer(weight)
+
+        for logit, act, w in zip(pred_policy, sample.action_idx, weight):
             # WARNING: There is an exp that makes all the returns positive.
             # This is not standard but negative returns seems to make training unstable.
-            loss += (1 - self.label_smoothing) * r.exp() * F.cross_entropy(
+            loss += (1 - self.label_smoothing) * w.exp() * F.cross_entropy(
                 logit, act
             ) + self.label_smoothing * F.cross_entropy(logit, act, label_smoothing=1)
         return loss / len(sample.action_idx)
