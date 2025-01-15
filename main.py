@@ -181,7 +181,7 @@ class Trainer:
         grad_pct = 1 / self.config.train.gradient_epochs
         for grad_ep in range(self.config.train.gradient_epochs):
             indices = torch.randperm(len(data))
-            batch_pct = 1 / (len(indices) / self.config.train.batch_size)
+            batch_pct = 1 / (len(indices) / self.config.train.batch_size + 1)
             for b_i, batch in enumerate(
                 tqdm(
                     chunk(indices, self.config.train.batch_size),
