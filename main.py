@@ -217,6 +217,11 @@ class Trainer:
                         step,
                     )
                 self.viz.push(
+                    "MAE",
+                    torch.nn.functional.l1_loss(value.mean, samples.returns).item(),
+                    step,
+                )
+                self.viz.push(
                     "grad_mag",
                     grad_mag.item(),
                     step,
