@@ -326,7 +326,7 @@ class StatePredictor(nn.Module):
         self.norm_hidden = nn.LayerNorm(dim)
         self.emb = nn.Embedding(256, dim, padding_idx=0)
         self.norm_in = nn.Linear(dim, dim)
-        self.rotary = RotarySingle(dim)
+        self.rotary = RotarySingle(dim, 512)
         self.body = nn.ModuleList(
             [
                 nn.TransformerDecoderLayer(
@@ -494,7 +494,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config_file", type=str)
     parser.add_argument("--ckpt", type=str, default=None)
-    parser.add_argument("-x", nargs="+", default=[])
+    parser.add_argument("-x", action="append", default=[])
     opts = parser.parse_args()
 
     init_seed()
