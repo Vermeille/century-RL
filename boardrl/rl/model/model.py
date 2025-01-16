@@ -174,25 +174,33 @@ class PolicyHead(nn.Module):
 
 
 class RotarySingle(torch.nn.Module):
-    def __init__(self, dim, base=10000):
+    def __init__(self, dim, maxlen, base=10000):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq)
-        self.seq_len_cached = None
-        self.cos_cached = None
-        self.sin_cached = None
+        self.maxlen = maxlen
+        self.cos_cached, self.sin_cached = None, None
+
+    def make_sin_cos(self, seq_len):
+        print("Making sin cos", seq_len)
+        t = torch.arange(seq_len, device=self.inv_freq.device).type_as(self.inv_freq)
+        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+        emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device)
+        return emb.cos()[:, :], emb.sin()[:, :]
 
     def forward(self, q, seq_dim=-2):
+        if self.cos_cached is None:
+            self.cos_cached, self.sin_cached = self.make_sin_cos(self.maxlen)
+
         # B H L D
         seq_len = q.shape[seq_dim]
-        if seq_len != self.seq_len_cached:
-            self.seq_len_cached = seq_len
-            t = torch.arange(q.shape[seq_dim], device=q.device).type_as(self.inv_freq)
-            freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-            emb = torch.cat((freqs, freqs), dim=-1).to(q.device)
-            self.cos_cached = emb.cos()[:, :]
-            self.sin_cached = emb.sin()[:, :]
-        return self.apply_rotary_pos_emb(q, self.cos_cached, self.sin_cached)
+        if seq_len >= self.maxlen:
+            cos, sin = self.make_sin_cos(seq_len)
+            out = self.apply_rotary_pos_emb(q, cos, sin)
+            return out
+        return self.apply_rotary_pos_emb(
+            q, self.cos_cached[:seq_len], self.sin_cached[:seq_len]
+        )
 
     def rotate_half(self, x):
         x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
@@ -220,7 +228,7 @@ class Model(nn.Module):
         self.in_embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
             nn.LayerNorm(dim),
-            RotarySingle(dim),
+            RotarySingle(dim, self.maxlen),
             # PositionalEncoding(dim, self.maxlen),  # Doesn't seem to work???
         )
         self.in_embed[0].weight.data.normal_(0, 0.02)
