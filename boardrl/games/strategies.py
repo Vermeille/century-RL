@@ -33,7 +33,7 @@ class ArgmaxStrategy:
         self.nn = nn
 
     def __call__(self, g: Game):
-        policy = self.nn([g.display_with_moves()]).policy[0]
+        policy = self.nn([g.display_with_moves()]).policy[0].cpu()
         distribution = one_hot(torch.argmax(policy).item(), len(g.moves))
         return distribution.log(), {
             "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
@@ -139,5 +139,6 @@ class PolicySamplingStrategy:
         if len(g.moves) == 1:
             return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
 
-        policy = self.nn([g.display_with_moves()]).policy[0] / self.temperature
+        policy = self.nn([g.display_with_moves()]).policy[0].cpu() / self.temperature
+        # print(policy)
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}

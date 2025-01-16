@@ -151,14 +151,12 @@ class RunningNormalizer:
         self.running_std = RunningStat(beta)
 
     def update(self, x):
-        if x.numel() > 1:
+        if x.numel() > 3:
             self.running_mean.update(x.mean().item())
             self.running_std.update(x.std().item())
 
     def __call__(self, x):
-        if x.numel() > 1:
-            return (x - self.running_mean()) / (self.running_std() + 1e-4)
-        return x
+        return (x - self.running_mean()) / (self.running_std() + 1e-4)
 
 
 @loss_from_string.register("policy_gradient_loss")
