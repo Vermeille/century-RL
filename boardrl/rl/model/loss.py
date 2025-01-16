@@ -202,38 +202,13 @@ class PolicyGradientLoss:
         return loss / len(sample.action_idx)
 
 
-@loss_from_string.register("policy_gradient_with_baseline_loss")
-class PolicyGradientWithBaselineLoss:
-    def __init__(self, label_smoothing: float = 0.0, prev_model=None):
-        assert prev_model is not None
-        self.label_smoothing = label_smoothing
-        self.prev_model = prev_model
-
-    def __call__(self, pred_policy, pred_value, sample):
-        assert len(pred_policy) == len(sample.returns)
-        with torch.no_grad():
-            advantage = sample.returns - self.prev_model(sample.state).value.mean
-            if advantage.numel() != 1:
-                advantage = (advantage - advantage.mean()) / (advantage.std())
-
-        print("advantage", advantage)
-        loss = 0
-        for logit, act, adv in zip(pred_policy, sample.action_idx, advantage):
-            # WARNING: There is an exp that makes all the returns positive.
-            # This is not standard but negative returns seems to make training unstable.
-            loss += (1 - self.label_smoothing) * adv.exp() * F.cross_entropy(
-                logit, act
-            ) + self.label_smoothing * F.cross_entropy(logit, act, label_smoothing=1)
-        return loss / len(sample.returns)
-
-
 @loss_from_string.register("value_mse_loss")
 class ValueMSELoss:
     def __init__(self, strength: float = 1):
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        print("\npred", pred_value.mean, "\ntarget", sample.returns)
+        # print("\npred", pred_value.mean, "\ntarget", sample.returns)
         assert pred_value.mean.shape == sample.returns.shape
         return self.strength * F.mse_loss(pred_value.mean, sample.returns)
 
