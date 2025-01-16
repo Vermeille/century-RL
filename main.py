@@ -235,7 +235,7 @@ class Trainer:
                         )
                         / len(p)
                         for p in policy
-                    )
+                    ).item()
                     / len(policy),
                     step,
                 )
@@ -251,10 +251,11 @@ class Trainer:
         )
         print()
 
-        for prev_param, param in zip(
-            self.prev_model.state_dict().values(), self.model.state_dict().values()
-        ):
-            prev_param.data.copy_(param.data)
+        with torch.no_grad():
+            for prev_param, param in zip(
+                self.prev_model.state_dict().values(), self.model.state_dict().values()
+            ):
+                prev_param.data.copy_(param.data)
 
     def _save_model(self):
         torch.save(
@@ -303,11 +304,12 @@ class Trainer:
             trainset = to_trainset(data, self.config.train.discount_factor)
 
             full_trainset = trainset
-            full_trainset = full_trainset[-trainset_limit:]
+            # full_trainset = full_trainset[-trainset_limit:]
             copy_trainset = full_trainset.copy()
             random.shuffle(copy_trainset)
             print(len(copy_trainset), "samples")
             self._train_epoch(copy_trainset)
+            torch.cuda.empty_cache()
 
 
 import torch.nn as nn
@@ -437,7 +439,7 @@ class PreTrainer:
                 )
                 self.viz.push(
                     "value loss",
-                    value_loss,
+                    value_loss.item(),
                     self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
                 )
 
