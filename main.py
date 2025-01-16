@@ -160,6 +160,7 @@ class Trainer:
         self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
         self.epoch = 0
         self.game_desc = games_library(config.game)
+        self.game_name = config.game.split(",")[0]
 
     def _log_pit(self):
         print("PIT: ", " VS ".join(self.config.pit.strategies))
@@ -210,7 +211,7 @@ class Trainer:
                 self.opt.step()
 
                 step = self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct
-                print(total_losses)
+
                 for k, v in total_losses.items():
                     self.viz.push(
                         f"loss.{k}",
@@ -258,6 +259,9 @@ class Trainer:
                 prev_param.data.copy_(param.data)
 
     def _save_model(self):
+        import os
+
+        os.makedirs(self.game_name, exist_ok=True)
         torch.save(
             {
                 "model": self.model.state_dict(),
@@ -265,7 +269,7 @@ class Trainer:
                 "epoch": self.epoch,
                 "config": self.config.net,
             },
-            f"rl-{self.epoch}.pth",
+            f"{self.game_name}/rl-{self.epoch}.pth",
         )
 
     def _run_episode(self):
