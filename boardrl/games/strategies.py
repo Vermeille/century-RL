@@ -8,7 +8,48 @@ pyximport.install()
 from boardrl.cyutils import fast_sample
 
 
-strategy_from_string = RegisterByName(arg_readers={"model": load_model})
+def _recent_models(topk):
+    import os
+    import psutil
+
+    # Get the current process start time
+    process_start_time = psutil.Process().create_time()
+
+    # Recursively get all files in the current directory and subdirectories
+    files_in_directory = []
+    for root, _, files in os.walk("."):
+        for f in files:
+            if f.endswith(".pth"):
+                files_in_directory.append(os.path.join(root, f))
+
+    # Filter files based on their modification time
+    recent_files = [
+        f for f in files_in_directory if os.path.getmtime(f) > process_start_time
+    ]
+
+    # Convert modification times to readable format for display
+    recent_files_with_times = [(f, os.path.getmtime(f)) for f in recent_files]
+    recent_files_with_times.sort(key=lambda x: x[1], reverse=True)
+
+    return [f[0] for f in recent_files_with_times[:topk]]
+
+
+def get_model(arg_str, default, provided_arg):
+    import random
+
+    assert default is None
+    assert arg_str is not None
+    if arg_str == "this":
+        assert provided_arg is not None
+        return provided_arg
+    if arg_str.startswith("recent-"):
+        recent_paths = _recent_models(int(arg_str.split("-")[1]))
+        print("loading from", recent_paths)
+        return load_model(random.choice(recent_paths))
+    assert False
+
+
+strategy_from_string = RegisterByName(arg_readers={"model": get_model})
 
 
 def one_hot(i, n, smooth=0.0):

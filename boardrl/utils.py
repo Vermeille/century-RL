@@ -119,7 +119,9 @@ class RegisterByName:
                         param.annotation
                         if param.annotation != inspect.Parameter.empty
                         else lambda x: x,
-                        param.default,
+                        param.default
+                        if param.default != inspect.Parameter.empty
+                        else None,
                     )
                     for name, param in params.items()
                     if name != "self"
@@ -134,6 +136,7 @@ class RegisterByName:
 
     def update(self, other: "RegisterByName"):
         self.registry.update(other.registry)
+        self.arg_readers.update(other.arg_readers)
         return self
 
     def __call__(self, descr_string, **provided_args):
@@ -141,24 +144,27 @@ class RegisterByName:
         args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
 
         if name not in self.registry:
-            raise ValueError(f"Unknown strategy: {descr_string}")
+            raise ValueError(f"Unknown class: {descr_string}")
 
-        strategy_class, arg_info = self.registry[name]
+        klass, arg_info = self.registry[name]
         init_args = {}
 
+        for arg_name in args.keys():
+            assert arg_name in arg_info, f"Unknown argument {arg_name} for {name}"
+
         for arg_name, (arg_type, default) in arg_info.items():
-            if arg_name in provided_args:
-                init_args[arg_name] = provided_args[arg_name]
-            elif arg_name in self.arg_readers:
+            if arg_name in self.arg_readers:
                 init_args[arg_name] = self.arg_readers[arg_name](
-                    args.get(arg_name, default)
+                    args.get(arg_name, None), default, provided_args.get(arg_name, None)
                 )
+            elif arg_name in provided_args:
+                init_args[arg_name] = provided_args[arg_name]
             elif arg_name in args:
                 init_args[arg_name] = arg_type(args[arg_name])
             else:
                 init_args[arg_name] = default
 
-        return strategy_class(**init_args)
+        return klass(**init_args)
 
     def display(self):
         for fun, args in self.registry.items():
