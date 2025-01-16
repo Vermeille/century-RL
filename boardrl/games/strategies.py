@@ -28,16 +28,25 @@ class RandomStrategy:
 
 @strategy_from_string.register("argmax")
 class ArgmaxStrategy:
-    def __init__(self, nn):
-        nn.eval()
-        self.nn = nn
+    def __init__(self, model, epsilon: float = 0.0):
+        model.eval()
+        self.nn = model
+        self.epsilon = epsilon
 
     def __call__(self, g: Game):
-        policy = self.nn([g.display_with_moves()]).policy[0].cpu()
-        distribution = one_hot(torch.argmax(policy).item(), len(g.moves))
-        return distribution.log(), {
-            "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
-        }
+        if torch.rand(1).item() < self.epsilon:
+            distribution = one_hot(
+                torch.randint(len(g.moves), (1,)).item(), len(g.moves)
+            )
+            return distribution.log(), {
+                "moves": dict(zip(g.moves, distribution.tolist()))
+            }
+        else:
+            policy = self.nn([g.display_with_moves()]).policy[0].cpu()
+            distribution = one_hot(torch.argmax(policy).item(), len(g.moves))
+            return distribution.log(), {
+                "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
+            }
 
 
 def mean(xs):

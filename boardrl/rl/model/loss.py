@@ -240,3 +240,24 @@ class BootstrapMSELoss:
             )
         target = sample.reward + self.discount * bootstrap_value
         return self.strength * F.mse_loss(pred_value.mean, target)
+
+
+@loss_from_string.register("q_mse_loss")
+class QMSELoss:
+    def __init__(self, renormalize: bool = False):
+        self.renormalize = renormalize
+        self.normalizer = RunningNormalizer(0.99)
+
+    def __call__(self, pred_policy, pred_value, sample):
+        assert len(pred_policy) == len(sample.action_idx)
+        loss = 0
+
+        if self.renormalize:
+            self.normalizer.update(sample.returns)
+            target = self.normalizer(sample.returns)
+        else:
+            target = sample.returns
+
+        for logit, act, q in zip(pred_policy, sample.action_idx, sample.returns):
+            loss += F.mse_loss(logit[act], q)
+        return loss / len(sample.action_idx)
