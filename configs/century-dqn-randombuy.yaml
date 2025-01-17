@@ -13,10 +13,10 @@ train:
   discount_factor: 0.95
   lr: 0.0001
   batch_size: 8
-  show_every: 10
-  save_every: 50
+  show_every: 1
+  save_every: 10
   loss:
-    value: value_mse_loss,strength=0.1
+    value: value_mse_loss,strength=0
     policy: q_mse_loss
 
 self_play:
@@ -29,7 +29,7 @@ self_play:
 pit:
   num_games: 32
   max_len: 220
-  every: 10
+  every: 1
   strategies:
     - argmax,model=this
     - century_random_buy
