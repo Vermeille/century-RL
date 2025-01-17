@@ -9,8 +9,8 @@ net:
   head_size: 64
 
 train:
-  discount_factor: 1
-  gradient_epochs: 0.8
+  discount_factor: 0.8
+  gradient_epochs: 1
   lr: 0.0001
   batch_size: 64
   show_every: 10

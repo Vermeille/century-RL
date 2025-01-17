@@ -1,5 +1,5 @@
 device: cuda
-tag: policygradient
+tag: sum-supervised
 
 game: sum
 
