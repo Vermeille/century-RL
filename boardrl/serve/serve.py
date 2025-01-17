@@ -57,14 +57,15 @@ strategies = Strategies()
 
 app = FastAPI()
 
-century = games_library("century")()
+game_name = "century"
+century = games_library(game_name)
 game = century.make_game()
-current_dir = Path(__file__).parent
+game_dir = Path(__file__).parent.parent / "games" / game_name
 
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    return open(current_dir / "century.html").read()
+    return open(game_dir / "ui.html").read()
 
 
 @app.get("/strategies")
