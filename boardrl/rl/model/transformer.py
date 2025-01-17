@@ -159,6 +159,19 @@ class Permute(nn.Module):
         return x.permute(*self.transpo)
 
 
+class GatedResidual(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.gating = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, x, y):
+        return torch.sigmoid(self.gating(x)) * y + x
+
+
+def just_add(x, y):
+    return x + y
+
+
 class TransformerBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size):
         super().__init__()
@@ -172,12 +185,12 @@ class TransformerBlock(nn.Module):
             GEGLU(),  # better than GELU
             normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
         )
-        self.gating1 = nn.Linear(hidden_size, hidden_size)
-        self.gating2 = nn.Linear(hidden_size, hidden_size)
+        self.residual1 = just_add
+        self.residual2 = just_add
 
     def forward(self, x, attn_mask):
-        x = torch.sigmoid(self.gating1(x)) * self.sa(self.layer_norm1(x), attn_mask) + x
-        x = torch.sigmoid(self.gating2(x)) * self.feed_forward(x) + x
+        x = self.residual1(x, self.sa(self.layer_norm1(x), attn_mask))
+        x = self.residual2(x, self.feed_forward(x))
         return x
 
 
