@@ -6,5 +6,5 @@ class Metrics:
         pass
 
     def metrics_to_visdom(self, viz, epoch):
-        avg_points = sum(h[-1].my_points for h in self.data) / len(self.data)
+        avg_points = sum(p[0][-1].score for p in self.data) / len(self.data)
         viz.push("avg_points", avg_points, epoch)

@@ -4,16 +4,20 @@ from boardrl.utils import fast_sample
 
 class Sum:
     def __init__(self, num_players=2):
-        assert num_players == 2
         self.num_players = num_players
         self.current_player_ = 0
         self.scores = [0, 0]
         self.moves = [str(i) for i in range(10)]
+        self.turn = 0
+        self.round_ = 0
         self.make_board()
 
     def make_board(self):
         self.a = random.randint(0, 9)
         self.b = random.randint(0, 9)
+
+    def round(self):
+        return self.round_
 
     def copy(self):
         g = Sum()
@@ -44,10 +48,14 @@ class Sum:
 
     def play_str(self, mov):
         assert not self.ended()
+        self.turn += 1
         mov = int(mov)
         if mov != int((self.a + self.b) // 2):
-            self.current_player_ = 1 - self.current_player_
+            self.current_player_ = (self.current_player_ + 1) % self.num_players
+            if self.current_player_ == 0:
+                self.round_ += 1
             return
+        self.round_ += 1
         self.scores[self.current_player_] += 1
         self.make_board()
 

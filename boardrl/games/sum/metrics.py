@@ -3,9 +3,13 @@ class Metrics:
         self.data = data
 
     def print_short_history(self):
-        for h1, h2 in zip(self.data[::2], self.data[1::2]):
-            print([hh.my_points for hh in h1[:-1]], [hh.my_points for hh in h2[:-1]])
+        for game in self.data:
+            for player in game:
+                print([hh.my_points for hh in player[:-1]])
+            print("--")
 
     def metrics_to_visdom(self, viz, epoch):
-        avg_len = sum(len(h) for h in self.data) / len(self.data)
+        avg_len = sum(len(h) for p in self.data for h in p) / (
+            len(self.data) * len(self.data[0])
+        )
         viz.push("avg_len", avg_len, epoch)

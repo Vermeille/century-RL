@@ -56,34 +56,58 @@ def collate(xs):
 
 
 def discount(rews, discount_factor):
-    return sum(discount_factor**i * r for i, r in enumerate(rews))
+    return sum(discount_factor**i * r.reward for i, r in enumerate(rews))
 
 
-def to_trainset(games_data, discount_factor):
-    out = []
-    print("to trainset", len(games_data.data))
-    for hist in games_data.data:
-        end = hist[-1]
-        rewards = [0] * (len(hist) - 1)
-        for i in range(len(hist) - 1):
-            rewards[i] = hist[i + 1].current_diff_points - hist[i].current_diff_points
+def compute_returns(games, discount_factor):
+    def set_next(history):
+        for i, log in enumerate(history[:-1]):
+            log.next = history[i + 1]
 
-        for i, log in reversed(list(enumerate(hist[:-1]))):
-            out.append(
-                TrainingSample(
-                    round=float(i),
-                    state=log.state,
-                    moves=log.moves,
-                    action_idx=log.action_idx,
-                    action_distribution=log.action_distribution,
-                    score=float(end.current_diff_points),
-                    reward=float(rewards[i]),
-                    returns=discount(rewards[i:], float(discount_factor)),
-                    current_diff_points=float(log.current_diff_points),
-                    next=end if i == len(hist) - 2 else out[-1],
-                    final=False,
-                )
+    def set_rewards(history):
+        history[-1].reward = 0
+        for i in range(len(history) - 1):
+            history[i].reward = (
+                history[i + 1].current_diff_points - history[i].current_diff_points
             )
+
+    def set_returns(history):
+        for i in range(len(history) - 1):
+            history[i].returns = discount(history[i:], discount_factor)
+
+    def set_score(history):
+        for i in range(len(history)):
+            history[i].score = history[-1].current_diff_points
+
+    for game in games:
+        for history in game:
+            set_next(history)
+            set_rewards(history)
+            set_returns(history)
+            set_score(history)
+
+
+def to_trainset(games_data):
+    out = []
+    for player in games_data:
+        for hist in player:
+            end = hist[-1]
+            for i, log in reversed(list(enumerate(hist[:-1]))):
+                out.append(
+                    TrainingSample(
+                        round=float(i),
+                        state=log.state,
+                        moves=log.moves,
+                        action_idx=log.action_idx,
+                        action_distribution=log.action_distribution,
+                        score=float(log.current_diff_points),
+                        reward=float(log.reward),
+                        returns=log.returns,
+                        current_diff_points=float(log.current_diff_points),
+                        next=end if i == len(hist) - 2 else out[-1],
+                        final=False,
+                    )
+                )
     return out
 
 
@@ -124,12 +148,18 @@ class Visualizer:
         self.viz.close()
 
     def push(self, name, value, epoch):
+        optional = {}
+        if isinstance(value, list):
+            optional["legend"] = [str(i) for i in range(len(value))]
         self.viz.line(
             torch.tensor([value]),
             torch.tensor([epoch]),
             win=name,
             update="append",
-            opts=dict(title=name),
+            opts=dict(
+                title=name,
+                **optional,
+            ),
         )
 
 
@@ -283,9 +313,10 @@ class Trainer:
             self.config.self_play.num_games,
             self.config.self_play.max_len,
         )
-        data = self.game_desc.make_metrics(flatten(data))
-        data.print_short_history()
-        data.metrics_to_visdom(self.viz, self.epoch)
+        compute_returns(data, self.config.train.discount_factor)
+        metrics = self.game_desc.make_metrics(data)
+        metrics.print_short_history()
+        metrics.metrics_to_visdom(self.viz, self.epoch)
         return data
 
     def train(self):
@@ -305,7 +336,7 @@ class Trainer:
                 self._save_model()
 
             data = self._run_episode()
-            trainset = to_trainset(data, self.config.train.discount_factor)
+            trainset = to_trainset(data)
 
             full_trainset = trainset
             # full_trainset = full_trainset[-trainset_limit:]
@@ -458,7 +489,6 @@ class PreTrainer:
             self.config.self_play.num_games,
             self.config.self_play.max_len,
         )
-        data = self.game_desc.make_metrics(flatten(data))
         return data
 
     def pretrain(self):
@@ -467,7 +497,8 @@ class PreTrainer:
             self.epoch = epoch
 
             data = self._run_episode()
-            trainset = to_trainset(data, self.config.train.discount_factor)
+            compute_returns(data, self.config.train.discount_factor)
+            trainset = to_trainset(data)
 
             print(len(trainset), "samples")
             self._train_epoch(trainset)

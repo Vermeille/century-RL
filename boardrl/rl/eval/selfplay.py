@@ -16,19 +16,19 @@ class Record:
         self.action_idx = action
         self.current_diff_points = game.diff_points()
         self.my_points = game.points()
-        self.notes = []
         self.final = False
         self.player = game.current_player()
+        self.round = game.round()
 
 
 class EndState:
     def __init__(self, game: Game, player: int):
-        self.cause = "proper" if game.ended() else "toolong"
         self.state = game.display(force=player)
+        self.cause = "proper" if game.ended() else "toolong"
         self.my_points = game.points_for(player)
         self.current_diff_points = game.diff_points_for(player)
-        self.notes = []
         self.player = player
+        self.round = game.round()
         self.final = True
 
 
@@ -49,7 +49,6 @@ def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
             action = fast_sample(torch.softmax(dist, dim=0))
 
             rec = Record(g, dist, action)
-            rec.notes += [str(debug)]
             data[i_game][p].append(rec)
 
             g.play_idx(action)
@@ -61,9 +60,9 @@ def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
 
 
 class PitResults:
-    def __init__(self, games, num_players):
+    def __init__(self, games):
         self.games = games
-        self.num_players = num_players
+        self.num_players = len(games[0])
 
     def my_points(self, player_num):
         return [
@@ -80,7 +79,7 @@ class PitResults:
         return sum(my_wins) / len(my_wins)
 
     def my_games(self, player_num):
-        return self.games[player_num :: self.num_players]
+        return [game[player_num] for game in self.games]
 
     def my_avg_points(self, player_num):
         my_points = self.my_points(player_num)
@@ -93,4 +92,4 @@ flatten = itertools.chain.from_iterable
 @torch.no_grad()
 def pit(make_game, strategies, n_games, max_len):
     dat = self_play(make_game, strategies, n_games, max_len)
-    return PitResults(list(flatten(dat)), len(strategies))
+    return PitResults(dat)
