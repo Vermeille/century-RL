@@ -21,7 +21,6 @@ class EnergyPool(nn.Module):
         # mask.sum(1): B1
         mask = x.norm(dim=-1, keepdim=True) * mask.unsqueeze(-1)
         mask = mask / (1e-6 + mask.to(x.dtype).sum(1, keepdim=True))
-        # print( mask.squeeze(2) .sort(descending=True, dim=1) .values.cumsum(dim=1) .le(0.95) .float() .sum(1))
         return (x * mask.to(x.dtype)).sum(1)
 
 
@@ -182,7 +181,6 @@ class RotarySingle(torch.nn.Module):
         self.cos_cached, self.sin_cached = None, None
 
     def make_sin_cos(self, seq_len):
-        print("Making sin cos", seq_len)
         t = torch.arange(seq_len, device=self.inv_freq.device).type_as(self.inv_freq)
         freqs = torch.einsum("i,j->ij", t, self.inv_freq)
         emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device)
@@ -241,7 +239,6 @@ class Model(nn.Module):
         )
         self.to_pred = PolicyHead(dim, head_size)
         self.rewards = ValueHead(dim, head_size)
-        print(self)
 
     def text_encode(self, txts, maxlen):
         maxlen = min(maxlen, max(len(g) for g in txts))
