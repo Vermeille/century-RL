@@ -291,7 +291,7 @@ class Trainer:
     def _save_model(self):
         import os
 
-        os.makedirs(self.game_name, exist_ok=True)
+        os.makedirs(f"{self.game_name}-ckpt", exist_ok=True)
         torch.save(
             {
                 "model": self.model.state_dict(),
@@ -299,7 +299,7 @@ class Trainer:
                 "epoch": self.epoch,
                 "config": self.config.net,
             },
-            f"{self.game_name}/rl-{self.epoch}.pth",
+            f"{self.game_name}-ckpt/rl-{self.epoch}.pth",
         )
 
     def _run_episode(self):
