@@ -160,7 +160,11 @@ class RegisterByName:
             elif arg_name in provided_args:
                 init_args[arg_name] = provided_args[arg_name]
             elif arg_name in args:
-                init_args[arg_name] = arg_type(args[arg_name])
+                if arg_type is bool:
+                    assert args[arg_name] in ["True", "False"]
+                    init_args[arg_name] = args[arg_name] == "True"
+                else:
+                    init_args[arg_name] = arg_type(args[arg_name])
             else:
                 init_args[arg_name] = default
 
