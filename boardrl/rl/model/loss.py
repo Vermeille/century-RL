@@ -225,9 +225,9 @@ class ValueLogProb:
 
 @loss_from_string.register("bootstrap_mse_loss")
 class BootstrapMSELoss:
-    def __init__(self, discount: float, strength: float = 1, prev_model=None):
+    def __init__(self, discount_factor: float, strength: float = 1, prev_model=None):
         self.prev_model = prev_model
-        self.discount = discount
+        self.discount = discount_factor
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
