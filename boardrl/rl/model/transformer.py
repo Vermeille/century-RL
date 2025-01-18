@@ -185,8 +185,9 @@ class TransformerBlock(nn.Module):
             GEGLU(),  # better than GELU
             normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
         )
-        self.residual1 = just_add
-        self.residual2 = just_add
+        # GatedResidual is better than just_add. Not sure why.
+        self.residual1 = GatedResidual(hidden_size)
+        self.residual2 = GatedResidual(hidden_size)
 
     def forward(self, x, attn_mask):
         x = self.residual1(x, self.sa(self.layer_norm1(x), attn_mask))
