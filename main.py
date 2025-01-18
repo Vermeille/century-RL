@@ -95,7 +95,7 @@ def to_trainset(games_data):
             for i, log in reversed(list(enumerate(hist[:-1]))):
                 out.append(
                     TrainingSample(
-                        round=float(i),
+                        round=log.round,
                         state=log.state,
                         moves=log.moves,
                         action_idx=log.action_idx,
@@ -182,11 +182,18 @@ class Trainer:
 
         self.prev_model = copy.deepcopy(self.model)
         self.policy_loss = loss_from_string(
-            config.train.loss.policy, model=self.model, prev_model=self.prev_model
+            config.train.loss.policy,
+            model=self.model,
+            prev_model=self.prev_model,
+            discount_factor=config.train.discount_factor,
         )
         self.value_loss = loss_from_string(
-            config.train.loss.value, model=self.model, prev_model=self.prev_model
+            config.train.loss.value,
+            model=self.model,
+            prev_model=self.prev_model,
+            discount_factor=config.train.discount_factor,
         )
+        print(self.policy_loss, self.value_loss)
         self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
         self.epoch = 0
         self.game_desc = games_library(config.game)
