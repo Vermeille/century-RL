@@ -78,7 +78,7 @@ def board():
     if game.ended():
         return game.display(force=0)
     else:
-        return game.display_with_moves(force=0)
+        return game.display_with_moves()
 
 
 @app.get("/analyze")
@@ -120,5 +120,5 @@ def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True
 @app.get("/reset")
 def reset():
     global game
-    game = Century()
+    game = century.make_game()
     return True

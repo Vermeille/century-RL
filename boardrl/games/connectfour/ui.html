@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Four</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            background-color: #333;
+        }
+        .board {
+            background-color: #222;
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            font-family: monospace;
+            font-size: 24px;
+        }
+        .row {
+            display: flex;
+            justify-content: center;
+        }
+        .cell {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #444;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 2px;
+        }
+        .moves {
+            display: flex;
+            justify-content: center;
+        }
+        .move {
+            width: 40px;
+            height: 40px;
+            background-color: #444;
+            display: flex;
+            justify-content: center;
+            border: 1px solid #444;
+            align-items: center;
+            cursor: pointer;
+            margin: 2px;
+        }
+        .move:hover {
+            background-color: #666;
+        }
+        .X { color: red; }
+        .O { color: yellow; }
+        .move.disabled {
+            background-color: #333;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div id="board"></div>
+    <div>
+        <select id="strategies"></select>
+        <button onclick="analyze()">Analyze</button>
+    </div>
+    <script>
+        function parse_state(state) {
+            let lines = state.split('\n');
+            let board = [];
+            let moves = [];
+            
+            for (let line of lines) {
+                if (line.startsWith('|')) {
+                    board.push(line.substring(1, line.length - 1).split(''));
+                } else if (line.startsWith('@')) {
+                    moves.push(line.substring(1));
+                }
+            }
+            
+            return { board, moves };
+        }
+
+        function render_board(state) {
+            let { board, moves } = parse_state(state);
+            const allMoves = ['0', '1', '2', '3', '4', '5', '6'];
+            
+            return `
+            <div class="board">
+                ${board.map(row => `
+                    <div class="row">
+                        ${[...row].map(cell => `
+                            <div class="cell ${cell}">${cell}</div>
+                        `).join('')}
+                    </div>
+                `).join('')}
+                <div class="moves">
+                    ${allMoves.map(move => `
+                        <div class="move ${!moves.includes(move) ? 'disabled' : ''}" 
+                            ${moves.includes(move) ? `data-actions="${move}"` : ''}>
+                            ${move}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+        }
+
+        async function refresh() {
+            let root = document.getElementById('board');
+            const response = await fetch('/board');
+            const text = await response.text();
+            root.innerHTML = render_board(text);
+            make_clickable();
+        }
+
+        function make_clickable() {
+            document.querySelectorAll('.move').forEach(move => {
+                const action = move.getAttribute('data-actions');
+                if (action) {
+                    move.addEventListener('click', () => sendActionToServer(action));
+                }
+            });
+        }
+
+        async function sendActionToServer(action) {
+            const response = await fetch('/do', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    action: action, 
+                    strategy: document.getElementById('strategies').value
+                })
+            });
+            const state = await response.json();
+            
+            await refresh();
+            if (!state.continue) {
+                alert(state.points > 0 ? 'You won!' : state.points < 0 ? 'You lost!' : 'Draw!');
+                await fetch('/reset');
+                await refresh();
+            }
+        }
+
+        async function analyze() {
+            const response = await fetch('/analyze?' + new URLSearchParams({
+                strategy: document.getElementById('strategies').value,
+            }));
+            const data = await response.json();
+            document.querySelectorAll('.move').forEach((move, i) => {
+                move.innerHTML = `${i}<br>${Math.round(data.moves[i] * 100) / 100}`;
+            });
+        }
+
+        async function get_strategies() {
+            const response = await fetch('/strategies');
+            const data = await response.json();
+            const select = document.getElementById('strategies');
+            select.innerHTML = '';
+            for (const strategy of data) {
+                const option = document.createElement('option');
+                option.value = strategy;
+                option.textContent = strategy;
+                select.appendChild(option);
+            }
+        }
+
+        refresh();
+        get_strategies();
+    </script>
+</body>
+</html>
