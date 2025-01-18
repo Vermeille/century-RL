@@ -180,7 +180,7 @@ class PolicyGradientLoss:
         self.renormalize = renormalize
         self.discount_factor = discount_factor
         self.prev_model = prev_model
-        self.normalizer = RunningNormalizer(0.99)
+        self.normalizer = RunningNormalizer(0.9999)
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
