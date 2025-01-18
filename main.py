@@ -317,6 +317,12 @@ class Trainer:
         metrics = self.game_desc.make_metrics(data)
         metrics.print_short_history()
         metrics.metrics_to_visdom(self.viz, self.epoch)
+        avg_reward = [
+            sum(h.reward for players in data for h in players[p])
+            / sum(len(players[0]) for players in data)
+            for p in range(len(data[0]))
+        ]
+        self.viz.push("avg_reward", avg_reward, self.epoch)
         return data
 
     def train(self):
