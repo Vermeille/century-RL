@@ -163,6 +163,7 @@ class RunningNormalizer:
 class PolicyGradientLoss:
     def __init__(
         self,
+        *,
         weight: str = "returns",
         label_smoothing: float = 0.0,
         renormalize: bool = False,
