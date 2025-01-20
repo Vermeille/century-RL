@@ -17,19 +17,19 @@ train:
   save_every: 100
   loss:
     value: value_mse_loss,strength=1
-    policy: policy_gradient_loss,weight=advantage,discount_factor=0.8,label_smoothing=0.05
+    policy: policy_gradient_loss,weight=advantage,label_smoothing=0.05,renormalize=True
 
 self_play:
   num_games: 50
   max_len: 500
   strategies:
     - policy_sampling,model=this
-    - policy_sampling,model=recent-5
+    - policy_sampling,model=this
 
 pit:
   num_games: 32
   max_len: 220
   every: 10
   strategies:
-    - policy_sampling,model=this
+    - policy_sampling,model=this,temperature=0.001
     - random

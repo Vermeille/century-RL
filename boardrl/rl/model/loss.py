@@ -181,7 +181,7 @@ class PolicyGradientLoss:
         self.renormalize = renormalize
         self.discount_factor = discount_factor
         self.prev_model = prev_model
-        self.normalizer = RunningNormalizer(0.9999)
+        self.normalizer = RunningNormalizer(0.9)
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
@@ -209,7 +209,6 @@ class ValueMSELoss:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        # print("\npred", pred_value.mean, "\ntarget", sample.returns)
         assert pred_value.mean.shape == sample.returns.shape
         return self.strength * F.mse_loss(pred_value.mean, sample.returns)
 
