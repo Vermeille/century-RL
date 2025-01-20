@@ -195,6 +195,7 @@ class Trainer:
         )
         print(self.policy_loss, self.value_loss)
         self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
+        self.viz.viz.text("<pre>Config:\n" + yaml.dump(config) + "</pre>", win="config")
         self.epoch = 0
         self.game_desc = games_library(config.game)
         self.game_name = config.game.split(",")[0]
@@ -210,6 +211,7 @@ class Trainer:
             self.config.pit.num_games,
             self.config.pit.max_len,
         )
+        compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
         self.viz.push("pit.win_rate", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
