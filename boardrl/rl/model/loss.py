@@ -244,20 +244,38 @@ class BootstrapMSELoss:
 
 @loss_from_string.register("q_mse_loss")
 class QMSELoss:
-    def __init__(self, renormalize: bool = False):
-        self.renormalize = renormalize
-        self.normalizer = RunningNormalizer(0.99)
+    def __init__(
+        self, discount_factor: float, renormalize: bool = False, prev_model=None
+    ):
+        self.discount_factor = discount_factor
+        self.prev_model = prev_model
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
+
+        with torch.no_grad():
+            bootstrap_value = self.prev_model([n.state for n in sample.next]).policy
+            bootstrap_value = torch.stack(
+                [
+                    n.max()
+                    if len(n) > 0
+                    else torch.tensor(0.0, device=sample.action_idx.device)
+                    for n in bootstrap_value
+                ]
+            )
+            bootstrap_value = torch.where(
+                torch.tensor(
+                    [n.final for n in sample.next], device=bootstrap_value.device
+                ),
+                torch.tensor(0.0, device=sample.action_idx.device),
+                bootstrap_value,
+            )
+
         loss = 0
+        for logit, act, r, nxt in zip(
+            pred_policy, sample.action_idx, sample.reward, bootstrap_value
+        ):
+            assert logit.ndim == 1
+            loss += F.mse_loss(logit[act], r + self.discount_factor * nxt)
 
-        if self.renormalize:
-            self.normalizer.update(sample.returns)
-            target = self.normalizer(sample.returns)
-        else:
-            target = sample.returns
-
-        for logit, act, q in zip(pred_policy, sample.action_idx, sample.returns):
-            loss += F.mse_loss(logit[act], q)
         return loss / len(sample.action_idx)
