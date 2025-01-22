@@ -42,7 +42,7 @@ cdef class Stock:
     cdef int G
     cdef int B
 
-    cpdef str to_str(self):
+    cpdef str to_str_(self):
         cdef int total = self.Y + self.R + self.G + self.B
         cdef int pos = 0
         if total == 0:
@@ -68,6 +68,22 @@ cdef class Stock:
         finally:
             free(buff)
 
+    cpdef str to_str(self):
+        if self.Y + self.R + self.G + self.B == 0:
+            return ""
+
+        cdef list parts = []
+        if self.Y > 0:
+            parts.append(f"{self.Y if self.Y > 1 else ''}Y")
+        if self.R > 0:
+            parts.append(f"{self.R if self.R > 1 else ''}R")
+        if self.G > 0:
+            parts.append(f"{self.G if self.G > 1 else ''}G")
+        if self.B > 0:
+            parts.append(f"{self.B if self.B > 1 else ''}B")
+
+        return ''.join(parts)
+
     @cython.profile(False)
     cpdef inline Stock ccopy(self):
         o = make_stock()
@@ -75,7 +91,7 @@ cdef class Stock:
         return o
 
     @staticmethod
-    cdef inline Stock cfrom_str(s: str):
+    cdef inline Stock cfrom_str_(s: str):
         cdef Py_UCS4 c
         cdef Stock stock
         stock = make_stock()
@@ -92,6 +108,49 @@ cdef class Stock:
             elif c == 'B':
                 stock.B += 1
         return stock
+
+    @staticmethod
+    cdef inline Stock cfrom_str(s: str):
+        cdef Stock stock = make_stock()
+        cdef str num_buffer = ''
+        cdef int i, count
+        cdef int length = len(s)
+
+        i = 0
+        while i < length:
+            if s[i].isdigit():
+                num_buffer += s[i]
+                i += 1
+                continue
+
+            count = int(num_buffer) if num_buffer else 1
+            num_buffer = ''
+
+            if s[i] not in 'YRGB':
+                raise Illegal()
+
+            if s[i] == 'Y':
+                stock.Y += count
+            elif s[i] == 'R':
+                stock.R += count
+            elif s[i] == 'G':
+                stock.G += count
+            elif s[i] == 'B':
+                stock.B += count
+
+            i += 1
+
+        return stock
+
+    def __iter__(self):
+        for i in range(self.Y):
+            yield 'Y'
+        for i in range(self.R):
+            yield 'R'
+        for i in range(self.G):
+            yield 'G'
+        for i in range(self.B):
+            yield 'B'
 
     @cython.profile(False)
     cpdef inline int contains(Stock self, Stock ref) nogil:
@@ -488,11 +547,11 @@ cdef class ActionPile:
             for i, p in enumerate(self.visible())
         ])
 
-    cpdef Tuple[ActionCard, Stock] take(self, int idx, str bonus):
+    cpdef Tuple[ActionCard, Stock] take(self, int idx, Stock bonus):
         if idx >= min(6, len(self.pile)):
             raise Illegal()
 
-        if len(bonus) != idx:
+        if bonus.size() != idx:
             raise Illegal()
 
         for i, b in enumerate(bonus):
@@ -737,16 +796,15 @@ cdef class Century:
         out += '\n'.join(['@' + mov for mov in self.moves])
         return out
 
-    cpdef void buy_action(self, Player p, int idx, str give, str take):
+    cpdef void buy_action(self, Player p, int idx, Stock give, Stock take):
         cdef ActionCard  a
-        cdef Stock s, take_s
+        cdef Stock s
         a, s = self.action.take(idx, give)
-        take_s = Stock.cfrom_str(take)
-        if not s.contains(take_s):
+        if not s.contains(take):
             raise Illegal()
         p.new_card(a)
-        p.stock -= Stock.cfrom_str(give)
-        p.stock.iadd(take_s)
+        p.stock -= give
+        p.stock.iadd(take)
 
     cpdef int play_distribution(self, x) except 0:
         cdef int idx
@@ -787,7 +845,7 @@ cdef class Century:
                 idx = int(a[1:])
             except:
                 raise Illegal()
-            self.buy_action(p, idx, give, take)
+            self.buy_action(p, idx, Stock.cfrom_str(give), Stock.cfrom_str(take))
         else:
             raise Illegal()
 
@@ -840,8 +898,8 @@ cdef class Century:
             if p.stock.size() < i:
                 # Can't put cubes on previous cards
                 continue
-            give = p.stock.to_str()[:i]
-            moves.append(f'A{i} {give}->{gain.to_str()}')
+            give = Stock.cfrom_str_(p.stock.to_str_()[:i])
+            moves.append(f'A{i} {give.to_str()}->{gain.to_str()}')
 
         i = 0
         for h in p.hand:

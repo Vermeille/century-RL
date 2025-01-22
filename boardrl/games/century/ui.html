@@ -120,7 +120,44 @@ let COLOR = {
     X: 'grey',
 }
 
+function backward_compat_stock(stock) {
+    let out = '';
+    let numBuffer = '';
+    let i = 0;
+    let length = stock.length;
+
+    while (i < length) {
+        if (/\d/.test(stock[i])) {
+            numBuffer += stock[i];
+            i++;
+            continue;
+        }
+
+        let count = numBuffer ? parseInt(numBuffer) : 1;
+        numBuffer = '';
+
+        if (!'YRGB'.includes(stock[i])) {
+            throw new Illegal();
+        }
+
+        if (stock[i] === 'Y') {
+            out += 'Y'.repeat(count);
+        } else if (stock[i] === 'R') {
+            out += 'R'.repeat(count);
+        } else if (stock[i] === 'G') {
+            out += 'G'.repeat(count);
+        } else if (stock[i] === 'B') {
+            out += 'B'.repeat(count);
+        }
+
+        i++;
+    }
+
+    return stock;
+}
+
 function render_stock(description) {
+    description = backward_compat_stock(description);
     return `
     <div class="tokens">
         ${[...description].map((x) =>
