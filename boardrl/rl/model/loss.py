@@ -254,28 +254,26 @@ class QMSELoss:
         assert len(pred_policy) == len(sample.action_idx)
 
         with torch.no_grad():
-            bootstrap_value = self.prev_model([n.state for n in sample.next]).policy
-            bootstrap_value = torch.stack(
-                [
-                    n.max()
-                    if len(n) > 0
-                    else torch.tensor(0.0, device=sample.action_idx.device)
-                    for n in bootstrap_value
-                ]
-            )
-            bootstrap_value = torch.where(
+            q = self.prev_model([n.state for n in sample.next]).q_value()
+            q_next = torch.where(
                 torch.tensor(
-                    [n.final for n in sample.next], device=bootstrap_value.device
+                    [n.final for n in sample.next], device=sample.reward.device
                 ),
                 torch.tensor(0.0, device=sample.action_idx.device),
-                bootstrap_value,
+                torch.stack([q.max() for q in q]),
             )
 
         loss = 0
-        for logit, act, r, nxt in zip(
-            pred_policy, sample.action_idx, sample.reward, bootstrap_value
+        for adv, act, v, r, nxt in zip(
+            pred_policy,
+            sample.action_idx,
+            pred_value.mean,
+            sample.reward,
+            q_next,
         ):
-            assert logit.ndim == 1
-            loss += F.mse_loss(logit[act], r + self.discount_factor * nxt)
+            assert adv.ndim == 1
+            loss += F.mse_loss(
+                v + adv[act] - adv.mean(), r + self.discount_factor * nxt
+            )
 
         return loss / len(sample.action_idx)

@@ -74,6 +74,12 @@ class PolicyValue:
             for i in range(len(self))
         ]
 
+    def q_value(self) -> [torch.Tensor]:
+        return [
+            v + (a - a.mean() if len(a) != 0 else 0)
+            for a, v in zip(self.policy, self.value.mean)
+        ]
+
 
 class SinusoidalPositional(torch.nn.Module):
     r"""Inject some information about the relative or absolute position of the tokens
