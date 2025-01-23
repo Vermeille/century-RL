@@ -180,6 +180,15 @@ class RegisterByName:
             print(fun_display)
 
 
+def easydict_to_dict(d):
+    if isinstance(d, dict):
+        return {k: easydict_to_dict(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [easydict_to_dict(v) for v in d]
+    else:
+        return d
+
+
 class Game:
     moves: list[str]
     num_players: int

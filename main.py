@@ -12,6 +12,7 @@ from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
+from boardrl.utils import easydict_to_dict
 
 
 class TrainingSample:
@@ -195,7 +196,10 @@ class Trainer:
         )
         print(self.policy_loss, self.value_loss)
         self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
-        self.viz.viz.text("<pre>Config:\n" + yaml.dump(config) + "</pre>", win="config")
+        self.viz.viz.text(
+            "<pre>\n" + yaml.dump(easydict_to_dict(config)) + "</pre>",
+            win="config",
+        )
         self.epoch = 0
         self.game_desc = games_library(config.game)
         self.game_name = config.game.split(",")[0]
