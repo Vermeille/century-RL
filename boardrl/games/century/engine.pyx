@@ -657,6 +657,7 @@ cdef class Century:
     cdef public int num_players
 
     def __init__(self, empty=False, int goal_cards=-1, int num_players=2):
+        assert 0 < num_players <= 5
         if empty:
             return
 

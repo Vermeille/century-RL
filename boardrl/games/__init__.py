@@ -1,5 +1,6 @@
 from boardrl.utils import RegisterByName
 from boardrl.games.strategies import strategy_from_string
+from functools import partial
 
 
 class GameDesc:
@@ -14,7 +15,7 @@ games_library = RegisterByName()
 
 @games_library.register("century")
 class Century(GameDesc):
-    def __init__(self):
+    def __init__(self, goal_cards: int = -1):
         import pyximport
 
         pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
@@ -25,7 +26,7 @@ class Century(GameDesc):
         from boardrl.games.century.metrics import Metrics
 
         strats = century_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(Century, strats, Metrics)
+        super().__init__(partial(Century, goal_cards=goal_cards), strats, Metrics)
 
 
 @games_library.register("tictactoe")

@@ -12,6 +12,7 @@ class TheGame:
     """
 
     def __init__(self, num_players=2):
+        assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
         # Build the deck of 2..99
         self.deck = list(range(2, 100))
         random.shuffle(self.deck)
