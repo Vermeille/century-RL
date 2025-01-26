@@ -12,7 +12,7 @@ from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import easydict_to_dict
+from boardrl.utils import BatchProcessor, easydict_to_dict
 
 
 class TrainingSample:
@@ -205,11 +205,17 @@ class Trainer:
         self.game_name = config.game.split(",")[0]
 
     def _log_pit(self):
+        self.model.eval()
+        bp = BatchProcessor(
+            self.config.pit.get("batch_size", self.config.train.batch_size),
+            self.model,
+            timeout=0.01,
+        )
         print("PIT: ", " VS ".join(self.config.pit.strategies))
         pit_results = pit(
             self.game_desc.make_game,
             [
-                self.game_desc.strategy_from_string(s, model=self.model)
+                self.game_desc.strategy_from_string(s, model=bp)
                 for s in self.config.pit.strategies
             ],
             self.config.pit.num_games,
@@ -219,6 +225,7 @@ class Trainer:
         self.game_desc.make_metrics(pit_results.games).print_short_history()
         self.viz.push("pit.win_rate", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
+        self.model.train()
 
     def _train_epoch(self, data):
         self.model.train()
@@ -317,10 +324,13 @@ class Trainer:
 
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
+
+        self.model.eval()
+        bp = BatchProcessor(self.config.train.batch_size, self.model, timeout=0.01)
         data = self_play(
             self.game_desc.make_game,
             [
-                self.game_desc.strategy_from_string(s, model=self.model)
+                self.game_desc.strategy_from_string(s, model=bp)
                 for s in self.config.self_play.strategies
             ],
             self.config.self_play.num_games,
@@ -336,6 +346,7 @@ class Trainer:
             for p in range(len(data[0]))
         ]
         self.viz.push("avg_reward", avg_reward, self.epoch)
+        self.model.train()
         return data
 
     def train(self):

@@ -60,7 +60,7 @@ def one_hot(i, n, smooth=0.0):
 
 @strategy_from_string.register("random")
 class RandomStrategy:
-    def __call__(self, g: Game):
+    async def __call__(self, g: Game):
         uniform = one_hot(0, len(g.moves), smooth=1)  # uniform distribution
         return uniform.log(), {
             "moves": dict(zip(g.moves, uniform.tolist())),
@@ -70,11 +70,10 @@ class RandomStrategy:
 @strategy_from_string.register("argmax")
 class ArgmaxStrategy:
     def __init__(self, model, epsilon: float = 0.0):
-        model.eval()
         self.nn = model
         self.epsilon = epsilon
 
-    def __call__(self, g: Game):
+    async def __call__(self, g: Game):
         if torch.rand(1).item() < self.epsilon:
             distribution = one_hot(
                 torch.randint(len(g.moves), (1,)).item(), len(g.moves)
@@ -83,7 +82,7 @@ class ArgmaxStrategy:
                 "moves": dict(zip(g.moves, distribution.tolist()))
             }
         else:
-            policy = self.nn([g.display_with_moves()]).policy[0].cpu()
+            policy = (await self.nn(g.display_with_moves())).policy[0].cpu()
             distribution = one_hot(torch.argmax(policy).item(), len(g.moves))
             return distribution.log(), {
                 "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
@@ -96,7 +95,7 @@ def mean(xs):
 
 @strategy_from_string.register("longest_move")
 class LongestMoveStrategy:
-    def __call__(self, g: Game):
+    async def __call__(self, g: Game):
         distribution = one_hot(
             max(range(len(g.moves)), key=lambda i: len(g.moves[i])), len(g.moves)
         )
@@ -108,14 +107,15 @@ class LongestMoveStrategy:
 class PolicySamplingStrategy:
     def __init__(self, model, temperature: float = 1.0):
         self.nn = model
-        model.eval()
         self.temperature = temperature
 
     @torch.no_grad()
-    def __call__(self, g: Game):
+    async def __call__(self, g: Game):
         if len(g.moves) == 1:
             return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
 
-        policy = self.nn([g.display_with_moves()]).policy[0].cpu() / self.temperature
+        policy = (await self.nn(g.display_with_moves())).policy[
+            0
+        ].cpu() / self.temperature
         # print(policy)
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}

@@ -1,11 +1,12 @@
 import torch
 from tqdm import tqdm
 import itertools
+from boardrl.utils import Game
+from boardrl.utils import run_tasks
 import pyximport
 
 pyximport.install()
 from boardrl.cyutils import fast_sample
-from boardrl.utils import Game
 
 
 class Record:
@@ -32,29 +33,36 @@ class EndState:
         self.final = True
 
 
+async def play_game(game, strategies, max_len):
+    n_players = len(strategies)
+    data = [[] for _ in range(n_players)]
+    for _ in range(max_len):
+        if game.ended():
+            break
+        p = game.current_player()
+        dist, _ = await strategies[p](game)
+        action = fast_sample(torch.softmax(dist, dim=0))
+        rec = Record(game, dist, action)
+        data[p].append(rec)
+        game.play_idx(action)
+    for p in range(len(strategies)):
+        data[p].append(EndState(game, p))
+    return data
+
+
 @torch.no_grad()
 def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
     n_players = len(strategies)
-    data = [[[] for _ in range(n_players)] for _ in range(n_games)]
+    data = [None] * n_games
 
-    for i_game in tqdm(range(n_games), desc=desc):
-        g = make_game(num_players=n_players)
+    with tqdm(total=n_games, desc=desc) as pbar:
 
-        for i_mov in range(max_len):
-            if g.ended():
-                break
+        async def run_game(idx):
+            game = make_game(num_players=n_players)
+            data[idx] = await play_game(game, strategies, max_len)
+            pbar.update(1)
 
-            p = g.current_player()
-            dist, debug = strategies[p](g)
-            action = fast_sample(torch.softmax(dist, dim=0))
-
-            rec = Record(g, dist, action)
-            data[i_game][p].append(rec)
-
-            g.play_idx(action)
-
-        for p in range(n_players):
-            data[i_game][p].append(EndState(g, p))
+        run_tasks([run_game(i) for i in range(n_games)])
 
     return data
 

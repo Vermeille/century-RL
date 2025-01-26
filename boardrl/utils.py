@@ -1,5 +1,6 @@
 from collections import deque
 from typing import Any, List, Callable
+import time
 import asyncio
 import inspect
 import pyximport
@@ -19,7 +20,7 @@ class BatchProcessor:
         self.process_fn = process_fn
         self.queue = deque()
         self.timeout = timeout
-        self.last_batch_time = None
+        self.last_batch_time = 0
 
     async def process_batch(self):
         if len(self.queue) == 0:
@@ -42,12 +43,14 @@ class BatchProcessor:
             task["future"].set_result(result)
 
     async def wait_data(self):
-        if len(self.queue) >= self.batch_size or (
+        queue_full = len(self.queue) >= self.batch_size
+        has_timeout = (
             asyncio.get_event_loop().time() - self.last_batch_time >= self.timeout
-        ):
+        )
+        if queue_full or has_timeout:
             await self.process_batch()
 
-    async def send(self, data: Any):
+    async def __call__(self, data: Any):
         # Create a future to hold the result
         future = asyncio.Future()
         task = {"input": data, "future": future}
@@ -58,7 +61,7 @@ class BatchProcessor:
         await self.wait_data()
         while not future.done():
             # Sleep briefly to prevent busy-waiting
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.0001)
 
             # Check if the batch is ready to process
             await self.wait_data()
@@ -66,13 +69,13 @@ class BatchProcessor:
         # Wait for the result
         return await future
 
-    def run_tasks(self, tasks):
-        async def do():
-            self.last_batch_time = asyncio.get_event_loop().time()
-            return await asyncio.gather(*[asyncio.create_task(t) for t in tasks])
 
-        ret = asyncio.run(do())
-        return ret
+def run_tasks(tasks):
+    async def do():
+        return await asyncio.gather(*[asyncio.create_task(t) for t in tasks])
+
+    ret = asyncio.run(do())
+    return ret
 
 
 class CachedBatchProcessor(BatchProcessor):
