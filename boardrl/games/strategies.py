@@ -130,8 +130,9 @@ class MCTS:
         self.iterations = iterations
 
     async def __call__(self, g: Game):
-        searcher = mcts.MCTS(g.current_player(), self.discount_factor, self.max_unroll)
-        visits = searcher.search(g, self.iterations)
+        eval_fn = mcts.Simulate(self.max_unroll, self.discount_factor)
+        searcher = mcts.MCTS(g.current_player(), self.discount_factor, eval_fn)
+        visits = await searcher.search(g, self.iterations)
         tvisits = torch.tensor(visits, dtype=torch.float)
         tvisits /= tvisits.sum()
         return tvisits.log(), {"moves": dict(zip(g.moves, visits))}

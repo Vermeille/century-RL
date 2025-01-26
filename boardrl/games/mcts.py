@@ -13,27 +13,37 @@ def game_step(game, action, opponent_fn):
     return game.diff_points_for(player) - score
 
 
-def simulate_to_end(game, max_steps):
-    player = game.current_player()
-    step = 0
-    last_score = game.diff_points_for(player)
-    rewards = []
-    while True:
-        if game.ended():
-            break
+class Simulate:
+    def __init__(self, max_steps, discount_factor, num_unrolls=1):
+        self.max_steps = max_steps
+        self.discount_factor = discount_factor
+        self.num_unrolls = num_unrolls
 
-        if step >= max_steps:
-            break
+    def simulate(self, game):
+        player = game.current_player()
+        step = 0
+        rewards = []
+        while True:
+            if game.ended():
+                break
 
-        game.play_str(random.choice(game.moves))
+            if step >= self.max_steps:
+                break
 
-        if game.current_player() == player:
-            points = game.diff_points_for(player)
-            rewards.append(points - last_score)
-            last_score = points
+            assert game.current_player() == player
+            rewards.append(
+                game_step(
+                    game,
+                    random.choice(game.moves),
+                    lambda g: g.play_str(random.choice(g.moves)),
+                )
+            )
+            step += 1
+        return discount(rewards, self.discount_factor)
 
-        step += 1
-    return rewards
+    async def __call__(self, game):
+        rewards = sum(self.simulate(game.copy()) for _ in range(self.num_unrolls))
+        return rewards / self.num_unrolls
 
 
 def discount(rewards, gamma):
@@ -72,11 +82,11 @@ class Node:
 
 
 class MCTS:
-    def __init__(self, me, discount_factor, max_unroll):
+    def __init__(self, me, discount_factor, eval_fn):
         self.me = me
         self.discount_factor = discount_factor
         self.root_node = Node()
-        self.max_unroll = max_unroll
+        self.eval_fn = eval_fn
 
     def _select(self, game):
         """Selection phase using UCT"""
@@ -143,7 +153,7 @@ class MCTS:
             reward = self.discount_factor * reward
             node = node.parent
 
-    def search(self, game, iterations=1000):
+    async def search(self, game, iterations=1000):
         """Run MCTS and return best action"""
         assert game.current_player() == self.me, f"Current player is not {self.me}"
         for _ in range(iterations):
@@ -165,8 +175,7 @@ class MCTS:
                     reward = g.diff_points_for(self.me)
                 else:
                     assert g.current_player() == self.me
-                    rewards = simulate_to_end(g, self.max_unroll)
-                    reward = discount(rewards, self.discount_factor)
+                    reward = await self.eval_fn(g)
 
             self._backpropagate(path[-1], reward)
 
