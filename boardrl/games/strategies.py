@@ -147,7 +147,7 @@ class MCTSValue:
 
     async def __call__(self, g: Game):
         async def eval_fn(g):
-            return (await self.model(g.display_with_moves())).value
+            return (await self.model(g.display_with_moves())).value.mean
 
         searcher = mcts.MCTS(g.current_player(), self.discount_factor, eval_fn)
         visits = await searcher.search(g, self.iterations)
