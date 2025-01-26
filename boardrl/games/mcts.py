@@ -72,12 +72,11 @@ class Node:
 
 
 class MCTS:
-    def __init__(self, me, discount_factor, max_unroll, return_distribution=True):
+    def __init__(self, me, discount_factor, max_unroll):
         self.me = me
         self.discount_factor = discount_factor
         self.root_node = Node()
         self.max_unroll = max_unroll
-        self.return_distribution = return_distribution
 
     def _select(self, game):
         """Selection phase using UCT"""

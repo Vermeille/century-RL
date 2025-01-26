@@ -1,7 +1,8 @@
 import torch
 
-from boardrl.utils import CachedBatchProcessor, RegisterByName, Game
+from boardrl.utils import RegisterByName, Game
 from boardrl.rl.model import load_model
+import boardrl.games.mcts as mcts
 import pyximport
 
 pyximport.install()
@@ -119,3 +120,18 @@ class PolicySamplingStrategy:
         ].cpu() / self.temperature
         # print(policy)
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
+
+
+@strategy_from_string.register("mcts")
+class MCTS:
+    def __init__(self, discount_factor: float, max_unroll: int, iterations: int):
+        self.discount_factor = discount_factor
+        self.max_unroll = max_unroll
+        self.iterations = iterations
+
+    async def __call__(self, g: Game):
+        searcher = mcts.MCTS(g.current_player(), self.discount_factor, self.max_unroll)
+        visits = searcher.search(g, self.iterations)
+        tvisits = torch.tensor(visits, dtype=torch.float)
+        tvisits /= tvisits.sum()
+        return tvisits.log(), {"moves": dict(zip(g.moves, visits))}

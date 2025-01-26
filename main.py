@@ -215,7 +215,9 @@ class Trainer:
         pit_results = pit(
             self.game_desc.make_game,
             [
-                self.game_desc.strategy_from_string(s, model=bp)
+                self.game_desc.strategy_from_string(
+                    s, model=bp, discount_factor=self.config.train.discount_factor
+                )
                 for s in self.config.pit.strategies
             ],
             self.config.pit.num_games,
@@ -334,7 +336,9 @@ class Trainer:
         data = self_play(
             self.game_desc.make_game,
             [
-                self.game_desc.strategy_from_string(s, model=bp)
+                self.game_desc.strategy_from_string(
+                    s, model=bp, discount_factor=self.config.train.discount_factor
+                )
                 for s in self.config.self_play.strategies
             ],
             self.config.self_play.num_games,
