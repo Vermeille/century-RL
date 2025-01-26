@@ -550,7 +550,10 @@ def fix_dict(config, key, new_value):
         split[0] = int(split[0])
 
     if len(split) == 1:
-        assert split[0] in config
+        if isinstance(config, dict):
+            assert split[0] in config
+        elif isinstance(config, list):
+            assert split[0] < len(config)
         config[split[0]] = yaml.safe_load(new_value)
     else:
         fix_dict(config[split[0]], split[1], new_value)
@@ -571,7 +574,7 @@ def main():
         config = EasyDict(yaml.safe_load(f))
 
     for config_fix in opts.x:
-        fix_dict(config, *config_fix.split("="))
+        fix_dict(config, *config_fix.split("=", 1))
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
         print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
