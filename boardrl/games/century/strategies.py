@@ -9,7 +9,7 @@ strategy_from_string = RegisterByName(arg_readers={"model": load_model})
 
 @strategy_from_string.register("century_random_buy")
 class CenturyRandomBuyStrategy:
-    def __call__(self, g: Game):
+    async def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
             if mov[0] == "V":
@@ -23,7 +23,7 @@ class CenturyRandomBuyStrategy:
 
 @strategy_from_string.register("century_all_actions_then_random_buy")
 class CenturyAllActionsThenRandomBuyStrategy:
-    def __call__(self, g: Game):
+    async def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
             if mov.startswith("A0"):
@@ -43,7 +43,7 @@ class CenturyAllActionsThenRandomBuyStrategy:
 
 @strategy_from_string.register("century_no_actions_random_buy")
 class CenturyNoActionsRandomBuyStrategy:
-    def __call__(self, g: Game):
+    async def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
             if mov[0] == "V":

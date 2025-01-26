@@ -6,7 +6,7 @@ strategy_from_string = RegisterByName()
 
 @strategy_from_string.register("lowest_cost")
 class LowestCostStrategy:
-    def __call__(self, g):
+    async def __call__(self, g):
         costs = []
         for m in g.moves:
             card, pile = int(m.split("->")[0]), int(m.split("->")[1])
