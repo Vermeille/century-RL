@@ -22,6 +22,7 @@ train:
 self_play:
   num_games: 50
   max_len: 500
+  batch_size: 50
   strategies:
     - policy_sampling,model=this
     - century_random_buy
@@ -30,6 +31,7 @@ pit:
   num_games: 32
   max_len: 220
   every: 10
+  batch_size: 32
   strategies:
     - policy_sampling,model=this,temperature=0.001
     - century_random_buy

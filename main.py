@@ -326,7 +326,11 @@ class Trainer:
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
 
         self.model.eval()
-        bp = BatchProcessor(self.config.train.batch_size, self.model, timeout=0.01)
+        bp = BatchProcessor(
+            self.config.self_play.get("batch_size", self.config.train.batch_size),
+            self.model,
+            timeout=0.01,
+        )
         data = self_play(
             self.game_desc.make_game,
             [
