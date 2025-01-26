@@ -38,9 +38,9 @@ class Strategies:
             "random_buy",
             "all_actions_then_random_buy",
             "no_actions_random_buy",
-            "pick_best_mc_value,budget=5",
-            "pick_best_mc_value,budget=10",
-            "pick_best_mc_value,budget=100",
+            "mcts,iterations=50,max_unroll=30,discount_factor=0.9",
+            "mcts,iterations=100,max_unroll=30,discount_factor=0.9",
+            "mcts,iterations=1000,max_unroll=30,discount_factor=0.9",
         ]
         return strategies
 
@@ -82,12 +82,15 @@ def board():
 
 
 @app.get("/analyze")
-def analyze(strategy: str):
-    return strategies.get_strategy(strategy)(game)[1]
+async def analyze(strategy: str):
+    pred = await strategies.get_strategy(strategy)(game)
+    return pred[1]
 
 
 @app.post("/do")
-def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True)):
+async def do(
+    action: str = Body(..., embed=True), strategy: str = Body(..., embed=True)
+):
     if game.ended():
         return {
             "continue": False,
@@ -103,7 +106,7 @@ def do(action: str = Body(..., embed=True), strategy: str = Body(..., embed=True
             "num_turns": game.round(),
         }
 
-    dist, _ = strategies.get_strategy(strategy)(game)
+    dist, _ = await strategies.get_strategy(strategy)(game)
     dist = torch.softmax(dist, dim=0)
     game.play_distribution(dist)
 
