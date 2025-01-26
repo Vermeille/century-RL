@@ -136,3 +136,21 @@ class MCTS:
         tvisits = torch.tensor(visits, dtype=torch.float)
         tvisits /= tvisits.sum()
         return tvisits.log(), {"moves": dict(zip(g.moves, visits))}
+
+
+@strategy_from_string.register("mcts_value")
+class MCTSValue:
+    def __init__(self, model, discount_factor: float, iterations: int):
+        self.discount_factor = discount_factor
+        self.iterations = iterations
+        self.model = model
+
+    async def __call__(self, g: Game):
+        async def eval_fn(g):
+            return (await self.model(g.display_with_moves())).value
+
+        searcher = mcts.MCTS(g.current_player(), self.discount_factor, eval_fn)
+        visits = await searcher.search(g, self.iterations)
+        tvisits = torch.tensor(visits, dtype=torch.float)
+        tvisits /= tvisits.sum()
+        return tvisits.log(), {"moves": dict(zip(g.moves, visits))}
