@@ -65,9 +65,9 @@ class Node:
         return out
 
     def _draw(self):
-        out = f'"{self}" [label="{self.total_reward / self.visits}"];\n'
+        out = f'"{id(self)}" [label="{self.total_reward / self.visits:.3f} {self.visits}"];\n'
         for child in self.children:
-            out += f'"{self}" -> "{child}" [label="{child.action}"];\n'
+            out += f'"{id(self)}" -> "{id(child)}" [label="{child.action}"];\n'
             out += child._draw()
         return out
 
@@ -163,6 +163,9 @@ class MCTS:
             if g.ended():
                 reward = g.diff_points_for(self.me)
             else:
+                assert (
+                    game.current_player() == self.me
+                ), f"Current player is not {self.me}"
                 new_node = self._expand(path, g)
                 if new_node:
                     path.append(new_node)
