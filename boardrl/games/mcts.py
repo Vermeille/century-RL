@@ -106,6 +106,7 @@ class MCTS:
     def _select(self, game):
         """Selection phase using UCT"""
         path = []
+        rewards = [0]
         current = self.root_node
 
         while True:
@@ -113,7 +114,7 @@ class MCTS:
 
             # Check terminal state
             if game.ended():
-                return path
+                return path, rewards
 
             # Check expandable
             unexplored = [
@@ -122,34 +123,39 @@ class MCTS:
                 if not any(c.action == a for c in current.children) and a in game.moves
             ]
             if unexplored:
-                return path
+                return path, rewards
 
             # Select best child using UCT
             current = self._select_child(current, game.moves)
             reward = game_step(
                 game, current.action, lambda g: g.play_str(random.choice(g.moves))
             )
-            self._backpropagate(current, reward)
+            rewards.append(reward)
 
     def _select_child(self, node, moves):
         """UCT selection with exploration/exploitation tradeoff"""
         log_n = np.log(node.visits + 1e-10)
 
+        def ucb(child):
+            if child.visits == 0:
+                return float("inf")
+            return (child.total_reward / child.visits) + 0.01 * np.sqrt(
+                log_n / child.visits
+            )
+
         def uct(child):
             if child.visits == 0:
                 return float("inf")
-            return (child.total_reward / child.visits) + np.sqrt(
-                2 * log_n / child.visits
+            return (child.total_reward / child.visits) + 0.01 * np.sqrt(node.visits) / (
+                1 + child.visits
             )
 
         return max([c for c in node.children if c.action in moves], key=uct)
 
-    def _expand(self, path, game):
+    def _expand(self, path, moves):
         """Expansion phase - add one child node"""
         node = path[-1]
-        unexplored = [
-            a for a in game.moves if not any(c.action == a for c in node.children)
-        ]
+        unexplored = [a for a in moves if not any(c.action == a for c in node.children)]
 
         if not unexplored:
             return None
@@ -162,39 +168,42 @@ class MCTS:
 
     def _backpropagate(self, node, reward):
         """Update statistics along the path"""
-        while node:
+        assert len(node) == len(reward)
+        total_reward = 0
+        for node, reward in zip(reversed(node), reversed(reward)):
+            total_reward = self.discount_factor * total_reward + reward
             node.visits += 1
-            node.total_reward += reward
-            reward = self.discount_factor * reward
-            node = node.parent
+            node.total_reward += total_reward
 
     async def search(self, game, iterations=1000):
         """Run MCTS and return best action"""
+        import time
+        from subprocess import Popen
+
         assert game.current_player() == self.me, f"Current player is not {self.me}"
         for _ in range(iterations):
             g = game.copy()
-            path = self._select(g)
+            path, rewards = self._select(g)
 
-            if g.ended():
-                reward = g.diff_points_for(self.me)
-            else:
+            if not g.ended():
                 assert (
                     game.current_player() == self.me
                 ), f"Current player is not {self.me}"
-                new_node = self._expand(path, g)
+                new_node = self._expand(path, g.moves)
                 if new_node:
                     path.append(new_node)
-                    game_step(
+                    r = game_step(
                         g,
                         new_node.action,
                         lambda g: g.play_str(random.choice(g.moves)),
                     )
-                if g.ended():
-                    reward = g.diff_points_for(self.me)
-                else:
-                    assert g.current_player() == self.me
-                    reward = await self.eval_fn(g)
+                    rewards.append(r)
 
-            self._backpropagate(path[-1], reward)
+                if not g.ended():
+                    assert g.current_player() == self.me
+                    value = await self.eval_fn(g)
+                    rewards[-1] += value
+
+            self._backpropagate(path, rewards)
 
         return [c.visits for c in self.root_node.children]
