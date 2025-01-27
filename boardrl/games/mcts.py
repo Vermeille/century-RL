@@ -65,7 +65,22 @@ class Node:
         return out
 
     def _draw(self):
-        out = f'"{id(self)}" [label="{self.total_reward / self.visits:.3f} {self.visits}"];\n'
+        if self.parent:
+            ratio = self.visits / self.parent.visits
+        else:
+            ratio = 1  # Root node
+
+        # Interpolate color based on ratio
+        blue = (128, 128, 255)
+        red = (255, 128, 128)
+        color = (
+            int(blue[0] + (red[0] - blue[0]) * ratio),
+            int(blue[1] + (red[1] - blue[1]) * ratio),
+            int(blue[2] + (red[2] - blue[2]) * ratio),
+        )
+        color_hex = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+
+        out = f'"{id(self)}" [label="{self.total_reward / self.visits:.3f} {self.visits}", style=filled, fillcolor="{color_hex}"];\n'
         for child in self.children:
             out += f'"{id(self)}" -> "{id(child)}" [label="{child.action}"];\n'
             out += child._draw()
