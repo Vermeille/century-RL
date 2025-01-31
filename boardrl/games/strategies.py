@@ -124,14 +124,22 @@ class PolicySamplingStrategy:
 
 @strategy_from_string.register("mcts")
 class MCTS:
-    def __init__(self, discount_factor: float, max_unroll: int, iterations: int):
+    def __init__(
+        self, discount_factor: float, max_unroll: int, iterations: int, c: float = 0.0
+    ):
         self.discount_factor = discount_factor
         self.max_unroll = max_unroll
         self.iterations = iterations
+        self.c = c
 
     async def __call__(self, g: Game):
         eval_fn = mcts.Simulate(self.max_unroll, self.discount_factor)
-        searcher = mcts.MCTS(g.current_player(), self.discount_factor, eval_fn)
+        searcher = mcts.MCTS(
+            g.current_player(),
+            self.discount_factor,
+            eval_fn,
+            mcts.StochasticUCT(self.c),
+        )
         visits = await searcher.search(g, self.iterations)
         tvisits = torch.tensor(visits, dtype=torch.float)
         tvisits /= tvisits.sum()
@@ -140,16 +148,22 @@ class MCTS:
 
 @strategy_from_string.register("mcts_value")
 class MCTSValue:
-    def __init__(self, model, discount_factor: float, iterations: int):
+    def __init__(self, model, discount_factor: float, iterations: int, c: float = 0.0):
         self.discount_factor = discount_factor
         self.iterations = iterations
         self.model = model
+        self.c = c
 
     async def __call__(self, g: Game):
         async def eval_fn(g):
             return (await self.model(g.display_with_moves())).value.mean.item()
 
-        searcher = mcts.MCTS(g.current_player(), self.discount_factor, eval_fn)
+        searcher = mcts.MCTS(
+            g.current_player(),
+            self.discount_factor,
+            eval_fn,
+            mcts.StochasticUCT(self.c),
+        )
         visits = await searcher.search(g, self.iterations)
         tvisits = torch.tensor(visits, dtype=torch.float)
         tvisits /= tvisits.sum()

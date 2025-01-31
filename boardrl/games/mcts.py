@@ -99,12 +99,61 @@ class Node:
         )
 
 
+class UCB1:
+    def __init__(self, c):
+        self.c = c
+
+    def __call__(self, node, moves):
+        log_n = np.log(node.visits + 1e-10)
+
+        def ucb(child):
+            if child.visits == 0:
+                return float("inf")
+            q = child.total_reward / child.visits
+            return q + self.c * np.sqrt(log_n / child.visits)
+
+        return max([c for c in node.children if c.action in moves], key=ucb)
+
+
+class UCT:
+    def __init__(self, c):
+        self.c = c
+
+    def __call__(self, node, moves):
+        def uct(child):
+            if child.visits == 0:
+                return float("inf")
+            q = child.total_reward / child.visits
+            return q + self.c * np.sqrt(node.visits) / (1 + child.visits)
+
+        return max([c for c in node.children if c.action in moves], key=uct)
+
+
+class StochasticUCT:
+    def __init__(self, c):
+        self.c = c
+
+    def __call__(self, node, moves):
+        def suct(child):
+            prob_action = child.availability / node.visits
+            if child.visits == 0:
+                if random.random() < prob_action:
+                    return float("inf")
+                else:
+                    return float("-inf")
+            q = child.total_reward / child.visits
+            return q + self.c * prob_action * np.sqrt(node.visits) / (1 + child.visits)
+
+        return max([c for c in node.children if c.action in moves], key=suct)
+
+
 class MCTS:
-    def __init__(self, me, discount_factor, eval_fn):
+    def __init__(self, me, discount_factor, eval_fn, select_fn):
         self.me = me
         self.discount_factor = discount_factor
         self.root_node = Node()
         self.eval_fn = eval_fn
+        self.select_fn = select_fn
 
     def _select(self, game):
         """Selection phase using UCT"""
@@ -123,35 +172,11 @@ class MCTS:
                 return path, rewards
 
             # Select best child using UCT
-            current = self._select_child(current, game.moves)
+            current = self.select_fn(current, game.moves)
             reward = game_step(
                 game, current.action, lambda g: g.play_str(random.choice(g.moves))
             )
             rewards.append(reward)
-
-    def _select_child(self, node, moves):
-        """UCT selection with exploration/exploitation tradeoff"""
-        log_n = np.log(node.visits + 1e-10)
-
-        def ucb(child):
-            if child.visits == 0:
-                return float("inf")
-            return (child.total_reward / child.visits) + 0.01 * np.sqrt(
-                log_n / child.visits
-            )
-
-        def uct(child):
-            prob_action = child.availability / node.visits
-            if child.visits == 0:
-                if random.random() < prob_action:
-                    return float("inf")
-                else:
-                    return float("-inf")
-            return (child.total_reward / child.visits) + 0.1 * prob_action * np.sqrt(
-                node.visits
-            ) / (1 + child.visits)
-
-        return max([c for c in node.children if c.action in moves], key=uct)
 
     def _expand(self, parent, moves):
         """Expansion phase - add one child node"""
