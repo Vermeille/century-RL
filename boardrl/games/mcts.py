@@ -120,7 +120,7 @@ class MCTS:
             unexplored = [
                 a
                 for a in game.moves
-                if not any(c.action == a for c in current.children) and a in game.moves
+                if not any(c.action == a for c in current.children)
             ]
             if unexplored:
                 return path, rewards
