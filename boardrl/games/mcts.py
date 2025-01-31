@@ -57,6 +57,7 @@ class Node:
         self.children = []
         self.visits = 0
         self.total_reward = 0.0
+        self.availability = 1
 
     def draw(self):
         out = "digraph G {\n"
@@ -80,8 +81,10 @@ class Node:
         )
         color_hex = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
 
-        out = f'"{id(self)}" [label="{self.total_reward / self.visits:.3f} {self.visits}", style=filled, fillcolor="{color_hex}"];\n'
+        out = f'"{id(self)}" [label="{self.total_reward / self.visits if self.visits else float("nan"):.3f} {self.visits}", style=filled, fillcolor="{color_hex}"];\n'
         for child in self.children:
+            if child.visits == 0:
+                continue
             out += f'"{id(self)}" -> "{id(child)}" [label="{child.action}"];\n'
             out += child._draw()
         return out
@@ -90,7 +93,7 @@ class Node:
         from textwrap import indent
 
         return (
-            f"{self.action} ({self.total_reward / self.visits if self.visits else None}, {self.visits})"
+            f"{self.action} ({self.total_reward / self.visits if self.visits else "NaN"}, {self.visits})"
             + ("\n" if len(self.children) else "")
             + indent("\n".join(str(c) for c in self.children), "  ")
         )
@@ -112,17 +115,11 @@ class MCTS:
         while True:
             path.append(current)
 
-            # Check terminal state
-            if game.ended():
-                return path, rewards
-
             # Check expandable
-            unexplored = [
-                a
-                for a in game.moves
-                if not any(c.action == a for c in current.children)
-            ]
-            if unexplored:
+            self._expand(current, game.moves)
+
+            # Check terminal state
+            if game.ended() or current.visits == 0:
                 return path, rewards
 
             # Select best child using UCT
@@ -144,27 +141,29 @@ class MCTS:
             )
 
         def uct(child):
+            prob_action = child.availability / node.visits
             if child.visits == 0:
-                return float("inf")
-            return (child.total_reward / child.visits) + 0.01 * np.sqrt(node.visits) / (
-                1 + child.visits
-            )
+                if random.random() < prob_action:
+                    return float("inf")
+                else:
+                    return float("-inf")
+            return (child.total_reward / child.visits) + 0.1 * prob_action * np.sqrt(
+                node.visits
+            ) / (1 + child.visits)
 
         return max([c for c in node.children if c.action in moves], key=uct)
 
-    def _expand(self, path, moves):
+    def _expand(self, parent, moves):
         """Expansion phase - add one child node"""
-        node = path[-1]
-        unexplored = [a for a in moves if not any(c.action == a for c in node.children)]
-
-        if not unexplored:
-            return None
-
         # Choose first unexplored action
-        action = unexplored[0]
-        new_node = Node(parent=node, action=action)
-        node.children.append(new_node)
-        return new_node
+        for action in moves:
+            node = [c for c in parent.children if c.action == action]
+            if node:
+                assert len(node) == 1
+                node[0].availability += 1
+            else:
+                child = Node(parent=parent, action=action)
+                parent.children.append(child)
 
     def _backpropagate(self, node, reward):
         """Update statistics along the path"""
@@ -180,6 +179,9 @@ class MCTS:
         import time
         from subprocess import Popen
 
+        self.root_node.visits = 1
+        self.root_node.total_reward = await self.eval_fn(game)
+
         assert game.current_player() == self.me, f"Current player is not {self.me}"
         for _ in range(iterations):
             g = game.copy()
@@ -189,15 +191,6 @@ class MCTS:
                 assert (
                     game.current_player() == self.me
                 ), f"Current player is not {self.me}"
-                new_node = self._expand(path, g.moves)
-                if new_node:
-                    path.append(new_node)
-                    r = game_step(
-                        g,
-                        new_node.action,
-                        lambda g: g.play_str(random.choice(g.moves)),
-                    )
-                    rewards.append(r)
 
                 if not g.ended():
                     assert g.current_player() == self.me
