@@ -240,6 +240,7 @@ class Trainer:
                 tqdm(
                     chunk(indices, self.config.train.batch_size),
                     desc=f"epoch {self.epoch}",
+                    total=len(indices) // self.config.train.batch_size,
                 )
             ):
                 with torch.no_grad():
