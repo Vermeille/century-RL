@@ -21,7 +21,7 @@ class BatchProcessor:
         self.timeout = timeout
         self.last_batch_time = 0
 
-    async def process_batch(self):
+    def process_batch(self):
         if len(self.queue) == 0:
             return
 
@@ -41,13 +41,13 @@ class BatchProcessor:
         for task, result in zip(batch, results.unbatched()):
             task["future"].set_result(result)
 
-    async def wait_data(self):
+    def wait_data(self):
         queue_full = len(self.queue) >= self.batch_size
         has_timeout = (
             asyncio.get_event_loop().time() - self.last_batch_time >= self.timeout
         )
         if queue_full or has_timeout:
-            await self.process_batch()
+            self.process_batch()
 
     async def __call__(self, data: Any):
         # Create a future to hold the result
@@ -57,13 +57,13 @@ class BatchProcessor:
         # Add the task to the queue
         self.queue.append(task)
 
-        await self.wait_data()
+        self.wait_data()
         while not future.done():
             # Sleep briefly to prevent busy-waiting
             await asyncio.sleep(0.0001)
 
             # Check if the batch is ready to process
-            await self.wait_data()
+            self.wait_data()
 
         # Wait for the result
         return await future
