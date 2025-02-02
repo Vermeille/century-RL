@@ -34,8 +34,6 @@ class EndState:
 
 
 async def play_game(game, strategies, max_len):
-    n_players = len(strategies)
-    data = [[] for _ in range(n_players)]
     for _ in range(max_len):
         if game.ended():
             break
@@ -43,23 +41,23 @@ async def play_game(game, strategies, max_len):
         dist, _ = await strategies[p](game)
         action = fast_sample(torch.softmax(dist, dim=0))
         rec = Record(game, dist, action)
-        data[p].append(rec)
+        yield rec
         game.play_idx(action)
     for p in range(len(strategies)):
-        data[p].append(EndState(game, p))
-    return data
+        yield EndState(game, p)
 
 
 @torch.no_grad()
 def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
     n_players = len(strategies)
-    data = [None] * n_games
+    data = [[[] for _ in range(n_players)] for _ in range(n_games)]
 
     with tqdm(total=n_games, desc=desc) as pbar:
 
         async def run_game(idx):
             game = make_game(num_players=n_players)
-            data[idx] = await play_game(game, strategies, max_len)
+            async for record in play_game(game, strategies, max_len):
+                data[idx][record.player].append(record)
             pbar.update(1)
 
         run_tasks([run_game(i) for i in range(n_games)])
