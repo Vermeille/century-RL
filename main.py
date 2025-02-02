@@ -88,10 +88,13 @@ def compute_returns(games, discount_factor):
             set_score(history)
 
 
-def to_trainset(games_data):
+def to_trainset(games_data, only_players: list[int] | None = None):
     out = []
-    for player in games_data:
-        for hist in player:
+    for game in games_data:
+        for player_id, hist in enumerate(game):
+            if only_players is not None and player_id not in only_players:
+                continue
+
             end = hist[-1]
             for i, log in reversed(list(enumerate(hist[:-1]))):
                 out.append(
@@ -360,10 +363,7 @@ class Trainer:
 
     def train(self):
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
-        import random
 
-        trainset_limit = 1000
-        full_trainset = []
         for epoch in range(3000):
             self.epoch = epoch
 
@@ -375,14 +375,12 @@ class Trainer:
                 self._save_model()
 
             data = self._run_episode()
-            trainset = to_trainset(data)
+            trainset = to_trainset(
+                data, only_players=self.config.train.get("only_players")
+            )
 
-            full_trainset = trainset
-            # full_trainset = full_trainset[-trainset_limit:]
-            copy_trainset = full_trainset.copy()
-            random.shuffle(copy_trainset)
-            print(len(copy_trainset), "samples")
-            self._train_epoch(copy_trainset)
+            print(len(trainset), "samples")
+            self._train_epoch(trainset)
             torch.cuda.empty_cache()
 
 
