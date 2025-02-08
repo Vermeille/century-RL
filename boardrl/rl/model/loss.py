@@ -156,7 +156,7 @@ class RunningNormalizer:
             self.running_std.update(x.std().item())
 
     def __call__(self, x):
-        return (x - self.running_mean()) / (self.running_std() + 1e-4)
+        return (x - self.running_mean()) / (self.running_std() + 0.1)
 
 
 @loss_from_string.register("policy_gradient_loss")

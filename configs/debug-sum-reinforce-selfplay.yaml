@@ -1,5 +1,5 @@
 device: cuda
-tag: policy-gradient-selfplay
+tag: reinforce-selfplay
 
 game: sum
 

@@ -320,12 +320,10 @@ class Trainer:
         total_losses = defaultdict(float)
         self.opt.zero_grad()
         num_batches = 1 + len(data) // self.config.train.batch_size
-        for b_i, batch in enumerate(
-            tqdm(
-                chunk(data, self.config.train.batch_size),
-                desc=f"epoch {self.epoch}",
-                total=num_batches,
-            )
+        for batch in tqdm(
+            chunk(data, self.config.train.batch_size),
+            desc=f"epoch {self.epoch}",
+            total=num_batches,
         ):
             with torch.no_grad():
                 samples = TrainingSample.collate(batch).to(self.config.device)
