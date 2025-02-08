@@ -9,7 +9,7 @@ from tqdm import tqdm
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr
-from boardrl.rl.eval.selfplay import self_play, pit
+from boardrl.rl.eval.selfplay import async_self_play, self_play, pit
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
 from boardrl.utils import BatchProcessor, easydict_to_dict
@@ -175,7 +175,7 @@ class Trainer:
         self.opt = torch.optim.AdamW(
             self.model.parameters(),
             lr=config.train.lr,
-            betas=(0.9, 0.95),
+            betas=(0.9, 0.99),
             weight_decay=0.01,
         )
 
@@ -232,7 +232,7 @@ class Trainer:
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
         self.model.train()
 
-    def _train_epoch(self, data):
+    def _train_epoch_off_policy(self, data):
         self.model.train()
         now = time.time()
         grad_pct = 1 / self.config.train.gradient_epochs
@@ -314,6 +314,64 @@ class Trainer:
             ):
                 prev_param.data.copy_(param.data)
 
+    def _train_epoch_on_policy(self, data):
+        self.model.train()
+        now = time.time()
+        total_losses = defaultdict(float)
+        self.opt.zero_grad()
+        num_batches = 1 + len(data) // self.config.train.batch_size
+        for b_i, batch in enumerate(
+            tqdm(
+                chunk(data, self.config.train.batch_size),
+                desc=f"epoch {self.epoch}",
+                total=num_batches,
+            )
+        ):
+            with torch.no_grad():
+                samples = TrainingSample.collate(batch).to(self.config.device)
+            policy, value = self.model(samples.state)
+            policy_loss = self.policy_loss(policy, value, samples)
+            value_loss = self.value_loss(policy, value, samples)
+            loss = policy_loss + value_loss
+            loss = loss * len(samples.state) / self.config.train.batch_size
+            loss.backward()
+            total_losses["loss_policy"] += policy_loss.item()
+            total_losses["loss_value"] += value_loss.item()
+
+            grad_mag = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=50000.0
+            )
+            total_losses["grad_mag"] += grad_mag.item()
+            total_losses["normalized_perplexity"] += sum(
+                torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
+                / len(p)
+                for p in policy
+            ).item() / len(policy)
+            pearson = pearson_corr(value.mean, samples.returns)
+            total_losses["pearson"] += pearson.item()
+            total_losses["MAE"] += torch.nn.functional.l1_loss(
+                value.mean, samples.returns
+            ).item()
+        self.opt.step()
+
+        for k, v in total_losses.items():
+            self.viz.push(
+                k,
+                v / num_batches,
+                self.epoch,
+            )
+        print(
+            "throughput",
+            len(data) * self.config.train.gradient_epochs / (time.time() - now),
+        )
+        print()
+
+        with torch.no_grad():
+            for prev_param, param in zip(
+                self.prev_model.state_dict().values(), self.model.state_dict().values()
+            ):
+                prev_param.data.copy_(param.data)
+
     def _save_model(self):
         import os
 
@@ -380,7 +438,7 @@ class Trainer:
             )
 
             print(len(trainset), "samples")
-            self._train_epoch(trainset)
+            self._train_epoch_on_policy(trainset)
             torch.cuda.empty_cache()
 
 
