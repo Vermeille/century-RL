@@ -1,0 +1,34 @@
+tag: epita-demo
+device: cpu
+game: tictactoe
+
+net:
+  dim: 64
+  head_size: 16
+  num_layers: 4
+
+pit:
+  every: 10
+  max_len: 220
+  num_games: 32
+  strategies:
+  - policy_sampling,model=this,temperature=0.001
+  - random
+
+self_play:
+  max_len: 500
+  num_games: 30
+  strategies:
+  - policy_sampling,model=this
+  - policy_sampling,model=this
+
+train:
+  batch_size: 64
+  discount_factor: 0.8
+  gradient_epochs: 1
+  loss:
+    policy: policy_gradient_loss,weight=advantage,label_smoothing=0.05,renormalize=True
+    value: bootstrap_mse_loss,strength=1
+  lr: 0.0001
+  save_every: 1000
+  show_every: 10
