@@ -331,7 +331,7 @@ class Trainer:
             policy_loss = self.policy_loss(policy, value, samples)
             value_loss = self.value_loss(policy, value, samples)
             loss = policy_loss + value_loss
-            loss = loss * len(samples.state) / self.config.train.batch_size
+            loss = loss * len(samples.state)
             loss.backward()
             total_losses["loss_policy"] += policy_loss.item()
             total_losses["loss_value"] += value_loss.item()
@@ -350,6 +350,12 @@ class Trainer:
             total_losses["MAE"] += torch.nn.functional.l1_loss(
                 value.mean, samples.returns
             ).item()
+
+        with torch.no_grad():
+            for p in self.model.parameters():
+                if p.grad is not None:
+                    p.grad /= len(data)
+
         self.opt.step()
 
         for k, v in total_losses.items():
