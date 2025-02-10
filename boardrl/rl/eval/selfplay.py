@@ -55,9 +55,12 @@ def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
     with tqdm(total=n_games, desc=desc) as pbar:
 
         async def run_game(idx):
+            mixed_strategies = [
+                strategies[(i + idx) % n_players] for i in range(n_players)
+            ]
             game = make_game(num_players=n_players)
-            async for record in play_game(game, strategies, max_len):
-                data[idx][record.player].append(record)
+            async for record in play_game(game, mixed_strategies, max_len):
+                data[idx][(record.player - idx) % n_players].append(record)
             pbar.update(1)
 
         run_tasks([run_game(i) for i in range(n_games)])
