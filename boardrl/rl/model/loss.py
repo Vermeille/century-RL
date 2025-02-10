@@ -234,8 +234,10 @@ class BootstrapMSELoss:
         with torch.no_grad():
             bootstrap_value = self.prev_model([n.state for n in sample.next]).value.mean
             bootstrap_value = torch.where(
-                torch.tensor([n.final for n in sample.next]),
-                torch.tensor(0.0),
+                torch.tensor(
+                    [n.final for n in sample.next], device=bootstrap_value.device
+                ),
+                torch.tensor(0.0, device=bootstrap_value.device),
                 bootstrap_value,
             )
         target = sample.reward + self.discount * bootstrap_value
