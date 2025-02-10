@@ -37,6 +37,7 @@ def _recent_models(topk):
 
 def get_model(arg_str, default, provided_arg):
     import random
+    from boardrl.utils import BatchProcessor
 
     assert default is None
     assert arg_str is not None
@@ -46,7 +47,11 @@ def get_model(arg_str, default, provided_arg):
     if arg_str.startswith("recent-"):
         recent_paths = _recent_models(int(arg_str.split("-")[1]))
         print("loading from", recent_paths)
-        return load_model(random.choice(recent_paths))
+        m = load_model(random.choice(recent_paths))
+        m.eval()
+        # FIXME: this is disgusting
+        bp = BatchProcessor(provided_arg.batch_size, m, provided_arg.timeout)
+        return bp
     assert False
 
 
