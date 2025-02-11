@@ -9,7 +9,7 @@ from tqdm import tqdm
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr
-from boardrl.rl.eval.selfplay import async_self_play, self_play, pit
+from boardrl.rl.eval.selfplay import self_play, pit
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
 from boardrl.utils import BatchProcessor, easydict_to_dict
