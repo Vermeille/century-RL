@@ -134,15 +134,17 @@ class RunningStat:
     def __init__(self, beta):
         self.running = None
         self.beta = beta
+        self.iter = 1
 
     def update(self, x):
         if self.running is None:
-            self.running = x
+            self.running = 0.0
         else:
             self.running = self.beta * self.running + (1 - self.beta) * x
+            self.iter += 1
 
     def __call__(self):
-        return self.running
+        return self.running / (1 - self.beta**self.iter)
 
 
 class RunningNormalizer:
@@ -181,7 +183,7 @@ class PolicyGradientLoss:
         self.renormalize = renormalize
         self.discount_factor = discount_factor
         self.prev_model = prev_model
-        self.normalizer = RunningNormalizer(0.9)
+        self.normalizer = RunningNormalizer(0.999)
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
