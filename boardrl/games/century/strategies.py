@@ -56,3 +56,13 @@ class CenturyNoActionsRandomBuyStrategy:
             [(1 / num_no_action) if move[0] != "A" else 0 for move in g.moves]
         )
         return dist.log(), {"moves": dict(zip(g.moves, dist.tolist()))}
+
+
+@strategy_from_string.register("century_never_buy")
+class CenturyNeverBuyStrategy:
+    async def __call__(self, g: Game):
+        num_no_action = sum(1 for mov in g.moves if mov[0] != "V")
+        dist = torch.tensor(
+            [(1 / num_no_action) if move[0] != "V" else 0 for move in g.moves]
+        )
+        return dist.log(), {"moves": dict(zip(g.moves, dist.tolist()))}
