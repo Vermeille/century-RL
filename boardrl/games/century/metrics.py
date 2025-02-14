@@ -72,11 +72,9 @@ class Metrics:
                 for h in players[player][:-1]:
                     if h.moves[h.action_idx][0] == "V":
                         victory_cards = [
-                            l for l in h.state.split("\n") if "->" in l and l[0] == "V"
+                            l for l in h.state.split("\n") if ">" in l and l[0] == "V"
                         ]
-                        victories_points = [
-                            int(v.split("->")[1]) for v in victory_cards
-                        ]
+                        victories_points = [int(v.split(">")[1]) for v in victory_cards]
                         buy_idx = int(h.moves[h.action_idx].split(" ")[0][1:])
                         this_points = victories_points[buy_idx]
                         victories_points.sort(key=lambda x: -x)

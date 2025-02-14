@@ -221,7 +221,7 @@ function parse_state(state) {
     let line = lines.shift();
     let victory = []
     while (line[0] == 'V') {
-        let desc = line.split(" ")[1].split("->");
+        let desc = line.split(" ")[1].split(">");
         victory.push(desc);
         line = lines.shift();
     }
@@ -229,8 +229,8 @@ function parse_state(state) {
     let action = [];
     while (line[0] == 'A') {
         let [a_, transfo, token] = line.split(" ");
-        transfo = transfo.split("->");
-        token = token.split("->");
+        transfo = transfo.split(">");
+        token = token.split(">");
         action.push([transfo, token]);
         line = lines.shift();
     }
@@ -256,7 +256,7 @@ function parse_state(state) {
     let hand = [];
     line = lines.shift();
     while (line[0] == 'H') {
-        let h = line.split(" ")[1].split("->");
+        let h = line.split(" ")[1].split(">");
         hand.push(h);
         line = lines.shift();
     }

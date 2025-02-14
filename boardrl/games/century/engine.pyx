@@ -248,12 +248,12 @@ cdef class ActionCard:
         self.from_ = (from_
                       if isinstance(from_, Stock) else Stock.cfrom_str(from_))
         self.to_ = (to_ if isinstance(to_, Stock) else Stock.cfrom_str(to_))
-        self.str_cache = [self.from_.to_str() + '->' + self.to_.to_str()]
+        self.str_cache = [self.from_.to_str() + '>' + self.to_.to_str()]
         if self.from_.size() > 0:
             needed = self.from_.ccopy()
             gen = self.to_.ccopy()
             while needed.size() <= 10:
-                self.str_cache.append(f'{needed.to_str()}->{gen.to_str()}')
+                self.str_cache.append(f'{needed.to_str()}>{gen.to_str()}')
                 Stock.iadd(needed, self.from_)
                 Stock.iadd(gen, self.to_)
 
@@ -270,7 +270,7 @@ cdef class ActionCard:
 
     @staticmethod
     cdef from_str(s):
-        f, t = s.split('->')
+        f, t = s.split('>')
         return ActionCard(f, t)
 
     def gen_move(self, stock: Stock):
@@ -308,68 +308,68 @@ cdef class VictoryCard:
         self.cost = (cost if isinstance(cost, Stock) else Stock.cfrom_str(cost))
 
     def __str__(self):
-        return self.cost.to_str() + '->' + str(self.points)
+        return self.cost.to_str() + '>' + str(self.points)
 
     __repr__ = __str__
 
     @staticmethod
     cdef from_str(s):
-        c, p = s.split('->')
+        c, p = s.split('>')
         return VictoryCard(c, int(p))
 
 
 joker2_moves = [
-    'Y->R',
-    'R->G',
-    'G->B',
+    'Y>R',
+    'R>G',
+    'G>B',
 
-    'YY->RR',
-    'YR->RG',
-    'YG->RB',
+    'YY>RR',
+    'YR>RG',
+    'YG>RB',
 
-    # 'RY->GR', Already covered by YR->RG
-    'RR->GG',
-    'RG->GB',
+    # 'RY>GR', Already covered by YR>RG
+    'RR>GG',
+    'RG>GB',
 
-    # 'GY->BR', Already covered by YG->RB
-    # 'GR->BG', Already covered by RG->GB
-    'GG->BB',
+    # 'GY>BR', Already covered by YG>RB
+    # 'GR>BG', Already covered by RG>GB
+    'GG>BB',
 
-    'Y->G',
-    'R->B',
+    'Y>G',
+    'R>B',
 ]
 
 joker3_moves = joker2_moves + [
-    # Y->R
-    'YYY->RRR',
-    'YYR->RRG',
-    'YYG->RRB',
+    # Y>R
+    'YYY>RRR',
+    'YYR>RRG',
+    'YYG>RRB',
 
-    'YRR->RGG',
-    'YRG->RGB',
+    'YRR>RGG',
+    'YRG>RGB',
 
-    'YGG->RBB',
+    'YGG>RBB',
 
-    'YY->RG',
-    'YR->RB',
+    'YY>RG',
+    'YR>RB',
 
-    # R->G
-    'RRR->GGG',
-    'RRG->GGB',
+    # R>G
+    'RRR>GGG',
+    'RRG>GGB',
 
-    'RGG->GBB',
+    'RGG>GBB',
 
-    'YR->GG',
-    'RR->GB',
+    'YR>GG',
+    'RR>GB',
 
-    # G->B
-    'GGG->BBB',
+    # G>B
+    'GGG>BBB',
 
-    'YG->GB',
-    'RG->BB',
+    'YG>GB',
+    'RG>BB',
 
     #
-    'Y->B',
+    'Y>B',
 ]
 
 cdef class Joker(ActionCard):
@@ -409,42 +409,42 @@ cdef class VictoryPile:
         if empty:
             return
         self.pile = [
-            VictoryCard.from_str('YRGB->12'),
-            VictoryCard.from_str('YRGGGB->18'),
-            VictoryCard.from_str('YGGB->12'),
-            VictoryCard.from_str('GGBBB->18'),
-            VictoryCard.from_str('GGGGG->15'),
-            VictoryCard.from_str('YYBBB->14'),
-            VictoryCard.from_str('YYRB->9'),
-            VictoryCard.from_str('YYGGG->11'),
-            VictoryCard.from_str('RRGGBB->19'),
-            VictoryCard.from_str('RRRGG->12'),
-            VictoryCard.from_str('RRGG->10'),
-            VictoryCard.from_str('BBBB->16'),
-            VictoryCard.from_str('RRRR->8'),
-            VictoryCard.from_str('RRRRR->10'),
-            VictoryCard.from_str('YYRR->6'),
-            VictoryCard.from_str('YYGGBB->17'),
-            VictoryCard.from_str('YYBB->10'),
-            VictoryCard.from_str('RRRBB->14'),
-            VictoryCard.from_str('YRRRGB->16'),
-            VictoryCard.from_str('YYGG->8'),
-            VictoryCard.from_str('RRGB->12'),
-            VictoryCard.from_str('GGBB->14'),
-            VictoryCard.from_str('GGGBB->17'),
-            VictoryCard.from_str('RRGGG->13'),
-            VictoryCard.from_str('GGGG->12'),
-            VictoryCard.from_str('YRGBBB->20'),
-            VictoryCard.from_str('RRBBB->16'),
-            VictoryCard.from_str('YYYRR->7'),
-            VictoryCard.from_str('YYYGG->9'),
-            VictoryCard.from_str('YYRRGG->13'),
-            VictoryCard.from_str('YYRRR->8'),
-            VictoryCard.from_str('YYYRGB->14'),
-            VictoryCard.from_str('RRBB->12'),
-            VictoryCard.from_str('YYRRBB->15'),
-            VictoryCard.from_str('YYYBB->11'),
-            VictoryCard.from_str('BBBBB->20'),
+            VictoryCard.from_str('YRGB>12'),
+            VictoryCard.from_str('YRGGGB>18'),
+            VictoryCard.from_str('YGGB>12'),
+            VictoryCard.from_str('GGBBB>18'),
+            VictoryCard.from_str('GGGGG>15'),
+            VictoryCard.from_str('YYBBB>14'),
+            VictoryCard.from_str('YYRB>9'),
+            VictoryCard.from_str('YYGGG>11'),
+            VictoryCard.from_str('RRGGBB>19'),
+            VictoryCard.from_str('RRRGG>12'),
+            VictoryCard.from_str('RRGG>10'),
+            VictoryCard.from_str('BBBB>16'),
+            VictoryCard.from_str('RRRR>8'),
+            VictoryCard.from_str('RRRRR>10'),
+            VictoryCard.from_str('YYRR>6'),
+            VictoryCard.from_str('YYGGBB>17'),
+            VictoryCard.from_str('YYBB>10'),
+            VictoryCard.from_str('RRRBB>14'),
+            VictoryCard.from_str('YRRRGB>16'),
+            VictoryCard.from_str('YYGG>8'),
+            VictoryCard.from_str('RRGB>12'),
+            VictoryCard.from_str('GGBB>14'),
+            VictoryCard.from_str('GGGBB>17'),
+            VictoryCard.from_str('RRGGG>13'),
+            VictoryCard.from_str('GGGG>12'),
+            VictoryCard.from_str('YRGBBB>20'),
+            VictoryCard.from_str('RRBBB>16'),
+            VictoryCard.from_str('YYYRR>7'),
+            VictoryCard.from_str('YYYGG>9'),
+            VictoryCard.from_str('YYRRGG>13'),
+            VictoryCard.from_str('YYRRR>8'),
+            VictoryCard.from_str('YYYRGB>14'),
+            VictoryCard.from_str('RRBB>12'),
+            VictoryCard.from_str('YYRRBB>15'),
+            VictoryCard.from_str('YYYBB>11'),
+            VictoryCard.from_str('BBBBB>20'),
         ]
         random.shuffle(self.pile)
         # FIXME add coins
@@ -479,50 +479,50 @@ cdef class ActionPile:
         if empty:
             return
         self.pile = [
-            ActionCard.from_str('RRR->GGYY'),
-            ActionCard.from_str('RR->BYY'),
-            ActionCard.from_str('RRR->GGG'),
-            ActionCard.from_str('RRR->GGG'),
-            ActionCard.from_str('RR->GG'),
-            ActionCard.from_str('YR->B'),
-            ActionCard.from_str('->YYY'),
-            ActionCard.from_str('YYG->BB'),
-            ActionCard.from_str('G->RR'),
-            ActionCard.from_str('YYY->RRR'),
-            ActionCard.from_str('B->RRR'),
-            ActionCard.from_str('RRR->BGY'),
-            ActionCard.from_str('BB->YRGGG'),
-            ActionCard.from_str('YYYYY->BB'),
-            ActionCard.from_str('GG->YYRRR'),
-            ActionCard.from_str('->YR'),
-            ActionCard.from_str('B->YYYG'),
-            ActionCard.from_str('G->YRR'),
-            ActionCard.from_str('R->YYY'),
-            ActionCard.from_str('->B'),
-            ActionCard.from_str('G->YYYYR'),
-            ActionCard.from_str('YYYY->GB'),
-            ActionCard.from_str('B->YRG'),
-            ActionCard.from_str('->G'),
-            ActionCard.from_str('->GY'),
-            ActionCard.from_str('RR->YYYG'),
-            ActionCard.from_str('YYYY->GG'),
-            ActionCard.from_str('YYYYY->GGG'),
-            ActionCard.from_str('B->RRYY'),
-            ActionCard.from_str('YYY->RG'),
-            ActionCard.from_str('YYY->B'),
-            ActionCard.from_str('GG->BB'),
-            ActionCard.from_str('->YYYY'),
-            ActionCard.from_str('YY->G'),
-            ActionCard.from_str('GG->RRB'),
-            ActionCard.from_str('GG->YYRB'),
-            ActionCard.from_str('->RYY'),
+            ActionCard.from_str('RRR>GGYY'),
+            ActionCard.from_str('RR>BYY'),
+            ActionCard.from_str('RRR>GGG'),
+            ActionCard.from_str('RRR>GGG'),
+            ActionCard.from_str('RR>GG'),
+            ActionCard.from_str('YR>B'),
+            ActionCard.from_str('>YYY'),
+            ActionCard.from_str('YYG>BB'),
+            ActionCard.from_str('G>RR'),
+            ActionCard.from_str('YYY>RRR'),
+            ActionCard.from_str('B>RRR'),
+            ActionCard.from_str('RRR>BGY'),
+            ActionCard.from_str('BB>YRGGG'),
+            ActionCard.from_str('YYYYY>BB'),
+            ActionCard.from_str('GG>YYRRR'),
+            ActionCard.from_str('>YR'),
+            ActionCard.from_str('B>YYYG'),
+            ActionCard.from_str('G>YRR'),
+            ActionCard.from_str('R>YYY'),
+            ActionCard.from_str('>B'),
+            ActionCard.from_str('G>YYYYR'),
+            ActionCard.from_str('YYYY>GB'),
+            ActionCard.from_str('B>YRG'),
+            ActionCard.from_str('>G'),
+            ActionCard.from_str('>GY'),
+            ActionCard.from_str('RR>YYYG'),
+            ActionCard.from_str('YYYY>GG'),
+            ActionCard.from_str('YYYYY>GGG'),
+            ActionCard.from_str('B>RRYY'),
+            ActionCard.from_str('YYY>RG'),
+            ActionCard.from_str('YYY>B'),
+            ActionCard.from_str('GG>BB'),
+            ActionCard.from_str('>YYYY'),
+            ActionCard.from_str('YY>G'),
+            ActionCard.from_str('GG>RRB'),
+            ActionCard.from_str('GG>YYRB'),
+            ActionCard.from_str('>RYY'),
             Joker(3),
-            ActionCard.from_str('->RR'),
-            ActionCard.from_str('GGG->BBB'),
-            ActionCard.from_str('BB->RRRGG'),
-            ActionCard.from_str('RRR->BB'),
-            ActionCard.from_str('YY->RR'),
-            ActionCard.from_str('B->GG'),
+            ActionCard.from_str('>RR'),
+            ActionCard.from_str('GGG>BBB'),
+            ActionCard.from_str('BB>RRRGG'),
+            ActionCard.from_str('RRR>BB'),
+            ActionCard.from_str('YY>RR'),
+            ActionCard.from_str('B>GG'),
         ]
         random.shuffle(self.pile)
         self.on_cards = [make_stock() for _ in range(6)]
@@ -543,7 +543,7 @@ cdef class ActionPile:
 
     def __str__(self):
         return '\n'.join([
-            f'A{i} {p[0]} {"X" * i}->{p[1].to_str()}'
+            f'A{i} {p[0]} {"X" * i}>{p[1].to_str()}'
             for i, p in enumerate(self.visible())
         ])
 
@@ -577,7 +577,7 @@ cdef class Player:
         self.victory = []
         self.hand = []
         self.hand = [
-            ActionCard.from_str('->YY'),
+            ActionCard.from_str('>YY'),
             Joker(2),
         ]
         self.discard = []
@@ -827,7 +827,7 @@ cdef class Century:
         elif s[0] == 'H':
             try:
                 hx, action = s.split(' ')
-                from_, to_ = action.split('->')
+                from_, to_ = action.split('>')
                 idx = int(hx[1:])
             except:
                 raise Illegal()
@@ -842,7 +842,7 @@ cdef class Century:
         elif s[0] == 'A':
             try:
                 a, bonus = s.split(' ')
-                give, take = bonus.split('->')
+                give, take = bonus.split('>')
                 idx = int(a[1:])
             except:
                 raise Illegal()
@@ -900,7 +900,7 @@ cdef class Century:
                 # Can't put cubes on previous cards
                 continue
             give = Stock.cfrom_str_(p.stock.to_str_()[:i])
-            moves.append(f'A{i} {give.to_str()}->{gain.to_str()}')
+            moves.append(f'A{i} {give.to_str()}>{gain.to_str()}')
 
         i = 0
         for h in p.hand:
