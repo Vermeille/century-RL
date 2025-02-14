@@ -1,3 +1,4 @@
+import torch
 from collections import deque
 from typing import Any, List, Callable
 import asyncio
@@ -189,6 +190,11 @@ def easydict_to_dict(d):
         return [easydict_to_dict(v) for v in d]
     else:
         return d
+
+
+def entropy(logits, dim):
+    log_probs = torch.log_softmax(logits, dim=dim)
+    return -torch.sum(torch.exp(log_probs) * log_probs, dim=dim).mean()
 
 
 class Game:

@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from boardrl.rl.model.utils import js_div, jeffreys_div
-from boardrl.utils import RegisterByName
+from boardrl.utils import RegisterByName, entropy
 
 loss_from_string = RegisterByName()
 
@@ -201,7 +201,7 @@ class PolicyGradientLoss:
             # This is not standard but negative returns seems to make training unstable.
             loss += (1 - self.label_smoothing) * w * F.cross_entropy(
                 logit, act
-            ) + self.label_smoothing * F.cross_entropy(logit, act, label_smoothing=1)
+            ) - self.label_smoothing * entropy(logit, dim=-1)
         return loss / len(sample.action_idx)
 
 
