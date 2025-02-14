@@ -537,21 +537,20 @@ class PreTrainer:
                         self.config.device
                     )
                 self.opt.zero_grad()
-                target = self.model[0].text_encode(
-                    [chr(1) + n.state for n in samples.next],
+                board_moves = self.model[0].text_encode(
+                    [
+                        f"{chr(1)}{samples.moves[i][samples.action_idx[i]]}\n{samples.next[i].state}"
+                        for i in range(len(samples.state))
+                    ],
                     2048,
                 )
-                board_moves = [
-                    f"{samples.state[i]}\n{samples.moves[i][samples.action_idx[i]]}"
-                    for i in range(len(samples.state))
-                ]
                 (policy, value), hidden = self.model[0](
-                    board_moves,
+                    samples.state,
                     return_hidden=True,
                 )
-                pred = self.model[1](hidden, target[:, :-1])
+                pred = self.model[1](hidden, board_moves[:, :-1])
                 pretrain_loss = nn.functional.cross_entropy(
-                    pred.transpose(1, 2), target[:, 1:], ignore_index=0
+                    pred.transpose(1, 2), board_moves[:, 1:], ignore_index=0
                 )
                 value_loss = nn.functional.mse_loss(value.mean, samples.returns)
                 loss = pretrain_loss + value_loss
@@ -564,10 +563,18 @@ class PreTrainer:
                     + "".join(
                         f'<span style="color:{"green" if correct else "red"}">{chr(int(c)).replace(" ", "_")}</span>'
                         for c, correct in zip(
-                            target[0, 1:], pred[0].argmax(-1) == target[0, 1:]
+                            board_moves[0, 1:], pred[0].argmax(-1) == board_moves[0, 1:]
                         )
                     ).replace("\n", "<br>"),
                     win="display",
+                )
+                grad_mag = torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), max_norm=50000.0
+                )
+                self.viz.push(
+                    "grad_mag",
+                    grad_mag.item(),
+                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
                 )
                 self.viz.push(
                     "pretrain loss",
@@ -576,11 +583,14 @@ class PreTrainer:
                 )
                 self.viz.push(
                     "pretrain acc",
-                    ((pred.argmax(-1) == target[:, 1:]) & (target[:, 1:] != 0))
+                    (
+                        (pred.argmax(-1) == board_moves[:, 1:])
+                        & (board_moves[:, 1:] != 0)
+                    )
                     .float()
                     .sum()
                     .item()
-                    / (target[:, 1:] != 0).sum().item(),
+                    / (board_moves[:, 1:] != 0).sum().item(),
                     self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
                 )
                 self.viz.push(
