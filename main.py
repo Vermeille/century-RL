@@ -12,7 +12,7 @@ from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, easydict_to_dict
+from boardrl.utils import BatchProcessor, easydict_to_dict, entropy
 
 
 class TrainingSample:
@@ -61,6 +61,10 @@ def discount(rews, discount_factor):
 
 
 def compute_returns(games, discount_factor):
+    def rescale(history, scale):
+        for log in history:
+            log.current_diff_points *= scale
+
     def set_next(history):
         for i, log in enumerate(history[:-1]):
             log.next = history[i + 1]
@@ -70,6 +74,12 @@ def compute_returns(games, discount_factor):
         for i in range(len(history) - 1):
             history[i].reward = (
                 history[i + 1].current_diff_points - history[i].current_diff_points
+            )
+
+    def entropy_reward(history):
+        for log in history[:-1]:
+            log.reward += (
+                0.1 * -torch.log_softmax(log.action_distribution, dim=0)[log.action_idx]
             )
 
     def set_returns(history):
@@ -82,8 +92,10 @@ def compute_returns(games, discount_factor):
 
     for game in games:
         for history in game:
+            rescale(history, 0.1)
             set_next(history)
             set_rewards(history)
+            entropy_reward(history)
             set_returns(history)
             set_score(history)
 
