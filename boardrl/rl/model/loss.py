@@ -8,6 +8,9 @@ loss_from_string = RegisterByName()
 
 @loss_from_string.register("imitation_ce_loss")
 class ImitationCELoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -21,6 +24,8 @@ class ImitationCELoss:
 
 @loss_from_string.register("ce_loss")
 class CELoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
     def __init__(self, label_smoothing: float = 0.0):
         self.label_smoothing = label_smoothing
 
@@ -34,6 +39,8 @@ class CELoss:
 
 @loss_from_string.register("imitation_jeffreys_loss")
 class ImitationJeffreysLoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -47,6 +54,8 @@ class ImitationJeffreysLoss:
 
 @loss_from_string.register("imitation_js_loss")
 class ImitationJSLoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -60,6 +69,8 @@ class ImitationJSLoss:
 
 @loss_from_string.register("imitation_mse_loss")
 class ImitationMSELoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -73,6 +84,8 @@ class ImitationMSELoss:
 
 @loss_from_string.register("imitation_kl_loss")
 class ImitationKLLoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -91,6 +104,8 @@ class ImitationKLLoss:
 
 @loss_from_string.register("imitation_reverse_kl_loss")
 class ImitationReverseKLLoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -163,6 +178,15 @@ class RunningNormalizer:
 
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
+
+    @property
+    def supports_off_policy(self):
+        return self.weight in ["advantage"]
+
+    @property
+    def supports_partial_trajectories(self):
+        return self.weight in ["advantage"]
+
     def __init__(
         self,
         *,
@@ -180,6 +204,7 @@ class PolicyGradientLoss:
             "baseline_value": weight_baseline_value,
             "advantage": weight_advantage,
         }[weight]
+        self.weight = weight
         self.renormalize = renormalize
         self.discount_factor = discount_factor
         self.prev_model = prev_model
@@ -207,6 +232,8 @@ class PolicyGradientLoss:
 
 @loss_from_string.register("value_mse_loss")
 class ValueMSELoss:
+    supports_off_policy = True
+    supports_partial_trajectories = False
     def __init__(self, strength: float = 1):
         self.strength = strength
 
@@ -217,6 +244,9 @@ class ValueMSELoss:
 
 @loss_from_string.register("value_log_prob")
 class ValueLogProb:
+    supports_off_policy = True
+    supports_partial_trajectories = False
+
     def __init__(self, strength: float = 1.0):
         self.strength = strength
 
@@ -227,6 +257,9 @@ class ValueLogProb:
 
 @loss_from_string.register("bootstrap_mse_loss")
 class BootstrapMSELoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
     def __init__(self, discount_factor: float, strength: float = 1, prev_model=None):
         self.prev_model = prev_model
         self.discount = discount_factor
@@ -248,6 +281,9 @@ class BootstrapMSELoss:
 
 @loss_from_string.register("q_mse_loss")
 class QMSELoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
     def __init__(
         self, discount_factor: float, renormalize: bool = False, prev_model=None
     ):

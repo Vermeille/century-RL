@@ -454,7 +454,13 @@ class Trainer:
             )
 
             print(len(trainset), "samples")
-            self._train_epoch_on_policy(trainset)
+            if (
+                self.policy_loss.supports_off_policy
+                and self.value_loss.supports_off_policy
+            ):
+                self._train_epoch_off_policy(trainset)
+            else:
+                self._train_epoch_on_policy(trainset)
             torch.cuda.empty_cache()
 
 
