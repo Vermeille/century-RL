@@ -468,7 +468,8 @@ class Trainer:
     def train(self):
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
 
-        for epoch in range(3000):
+        epoch = 0
+        while True:
             self.epoch = epoch
 
             print("EPOCH", epoch)
@@ -492,6 +493,7 @@ class Trainer:
             else:
                 self._train_epoch_on_policy(trainset)
             torch.cuda.empty_cache()
+            epoch += 1
 
 
 import torch.nn as nn
