@@ -12,7 +12,7 @@ from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, easydict_to_dict, entropy
+from boardrl.utils import BatchProcessor, easydict_to_dict
 
 
 class TrainingSample:
@@ -60,7 +60,13 @@ def discount(rews, discount_factor):
     return sum(discount_factor**i * r.reward for i, r in enumerate(rews))
 
 
-def compute_returns(games, discount_factor):
+def compute_returns(
+    games,
+    discount_factor,
+    *,
+    entropy_reward_scale: float | None = None,
+    reward_rescale: float | None = None,
+):
     def rescale(history, scale):
         for log in history:
             log.current_diff_points *= scale
@@ -76,26 +82,39 @@ def compute_returns(games, discount_factor):
                 history[i + 1].current_diff_points - history[i].current_diff_points
             )
 
-    def entropy_reward(history):
+    def entropy_reward(history, strength):
         for log in history[:-1]:
             log.reward += (
-                0.1 * -torch.log_softmax(log.action_distribution, dim=0)[log.action_idx]
+                strength
+                * -torch.log_softmax(log.action_distribution, dim=0)[log.action_idx]
             )
 
     def set_returns(history):
-        for i in range(len(history) - 1):
-            history[i].returns = discount(history[i:], discount_factor)
+        if history[-1].final:
+            for i in range(len(history) - 1):
+                history[i].returns = discount(history[i:], discount_factor)
+        else:
+            for i in range(len(history) - 1):
+                history[i].returns = float("nan")
 
     def set_score(history):
-        for i in range(len(history)):
-            history[i].score = history[-1].current_diff_points
+        if history[-1].final:
+            for i in range(len(history)):
+                history[i].score = history[-1].current_diff_points
+        else:
+            for i in range(len(history)):
+                history[i].score = float("nan")
 
     for game in games:
         for history in game:
-            rescale(history, 0.1)
+            if len(history) == 0:
+                continue
+            if reward_rescale is not None:
+                rescale(history, reward_rescale)
             set_next(history)
             set_rewards(history)
-            entropy_reward(history)
+            if entropy_reward_scale is not None:
+                entropy_reward(history, entropy_reward_scale)
             set_returns(history)
             set_score(history)
 
@@ -107,8 +126,11 @@ def to_trainset(games_data, only_players: list[int] | None = None):
             if only_players is not None and player_id not in only_players:
                 continue
 
+            if len(hist) == 0:
+                continue
             end = hist[-1]
-            for i, log in reversed(list(enumerate(hist[:-1]))):
+            hist = hist[:-1]
+            for i, log in list(enumerate(hist)):
                 out.append(
                     TrainingSample(
                         round=log.round,
@@ -120,10 +142,13 @@ def to_trainset(games_data, only_players: list[int] | None = None):
                         reward=float(log.reward),
                         returns=log.returns,
                         current_diff_points=float(log.current_diff_points),
-                        next=end if i == len(hist) - 2 else out[-1],
+                        next=None,
                         final=False,
                     )
                 )
+                if i != 0:
+                    out[-2].next = out[-1]
+            out[-1].next = end
     return out
 
 
@@ -422,7 +447,12 @@ class Trainer:
             self.config.self_play.num_games,
             self.config.self_play.max_len,
         )
-        compute_returns(data, self.config.train.discount_factor)
+        compute_returns(
+            data,
+            self.config.train.discount_factor,
+            entropy_reward_scale=self.config.train.get("entropy_reward_scale"),
+            reward_rescale=self.config.train.get("reward_rescale"),
+        )
         metrics = self.game_desc.make_metrics(data)
         metrics.print_short_history()
         metrics.metrics_to_visdom(self.viz, self.epoch)
