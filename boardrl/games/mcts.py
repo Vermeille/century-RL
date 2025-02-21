@@ -43,7 +43,7 @@ class Simulate:
 
     async def __call__(self, game):
         rewards = sum(self.simulate(game.copy()) for _ in range(self.num_unrolls))
-        return rewards / self.num_unrolls
+        return rewards / self.num_unrolls, [0 for _ in range(len(game.moves))]
 
 
 def discount(rewards, gamma):

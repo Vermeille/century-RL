@@ -170,6 +170,7 @@ class PolicyHead(nn.Module):
             # nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             # BL
+            nn.LogSoftmax(dim=-1),
         )
 
     def forward(self, x, attn_mask):
