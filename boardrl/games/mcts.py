@@ -224,4 +224,4 @@ class MCTS:
 
             self._backpropagate(path, rewards)
 
-        return [c.visits for c in self.root_node.children]
+        return self.root_node

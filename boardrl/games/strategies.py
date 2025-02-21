@@ -145,7 +145,8 @@ class MCTS:
             eval_fn,
             mcts.StochasticUCT(self.c),
         )
-        visits = await searcher.search(g, self.iterations)
+        root_node = await searcher.search(g, self.iterations)
+        visits = [c.visits for c in root_node.children]
         tvisits = torch.tensor(visits, dtype=torch.float)
         tvisits /= tvisits.sum()
         return tvisits.log(), {"moves": dict(zip(g.moves, visits))}
@@ -169,7 +170,8 @@ class MCTSValue:
             eval_fn,
             mcts.StochasticUCT(self.c),
         )
-        visits = await searcher.search(g, self.iterations)
+        root_node = await searcher.search(g, self.iterations)
+        visits = [c.visits for c in root_node.children]
         tvisits = torch.tensor(visits, dtype=torch.float)
         tvisits /= tvisits.sum()
         return tvisits.log(), {"moves": dict(zip(g.moves, visits))}
