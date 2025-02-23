@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tic Tac Toe</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      background-color: #333;
+    }
+    .board {
+      background-color: #222;
+      padding: 20px;
+      border-radius: 10px;
+      color: white;
+      font-family: monospace;
+      font-size: 24px;
+    }
+    .row {
+      display: flex;
+      justify-content: center;
+    }
+    .cell {
+      width: 60px;
+      height: 60px;
+      border: 1px solid #444;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 2px;
+    }
+    /* Highlight cells that are available to click */
+    .cell.clickable:hover {
+      background-color: #555;
+      cursor: pointer;
+    }
+    .X { color: red; }
+    .O { color: yellow; }
+  </style>
+</head>
+<body>
+  <div id="board"></div>
+  <div>
+    <select id="strategies"></select>
+    <button onclick="analyze()">Analyze</button>
+  </div>
+  <script>
+    // Parse the API state. Board rows start with "|" and allowed moves with "@".
+    function parse_state(state) {
+      const lines = state.split('\n');
+      const board = [];
+      const moves = [];
+      for (const line of lines) {
+        if (line.startsWith('|')) {
+          board.push(line.substring(1, line.length - 1).split(''));
+        } else if (line.startsWith('@')) {
+          moves.push(line.substring(1));
+        }
+      }
+      return { board, moves };
+    }
+
+    // Render the board as a grid. Each cell is given its overall index (0-8).
+    // If the cell's index is in the moves array, it is marked as clickable.
+    function render_board(state) {
+      const { board, moves } = parse_state(state);
+      let html = '';
+      for (let row = 0; row < board.length; row++) {
+        html += '<div class="row">';
+        for (let col = 0; col < board[row].length; col++) {
+          const idx = row * board[row].length + col;
+          const cellValue = board[row][col];
+          const isClickable = moves.includes(idx.toString());
+          html += `<div class="cell ${cellValue} ${isClickable ? 'clickable' : ''}" 
+                     data-index="${idx}" ${isClickable ? 'data-action="' + idx + '"' : ''}>
+                     ${cellValue}
+                   </div>`;
+        }
+        html += '</div>';
+      }
+      return `<div class="board">${html}</div>`;
+    }
+
+    async function refresh() {
+      const root = document.getElementById('board');
+      const response = await fetch('/board');
+      const text = await response.text();
+      root.innerHTML = render_board(text);
+      make_clickable();
+    }
+
+    // Add click listeners to cells that have an allowed move (data-action attribute).
+    function make_clickable() {
+      document.querySelectorAll('.cell[data-action]').forEach(cell => {
+        const action = cell.getAttribute('data-action');
+        if (action) {
+          cell.addEventListener('click', () => sendActionToServer(action));
+        }
+      });
+    }
+
+    // Send the chosen action to the server.
+    async function sendActionToServer(action) {
+      const response = await fetch('/do', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: action, 
+          strategy: document.getElementById('strategies').value 
+        })
+      });
+      const state = await response.json();
+      await refresh();
+      if (!state.continue) {
+        alert(state.points > 0 ? 'You won!' : state.points < 0 ? 'You lost!' : 'Draw!');
+        await fetch('/reset');
+        await refresh();
+      }
+    }
+
+    // Analyze function updates allowed (clickable) cells with an evaluation score.
+    async function analyze() {
+      const response = await fetch('/analyze?' + new URLSearchParams({
+        strategy: document.getElementById('strategies').value,
+      }));
+      const data = await response.json();
+      document.querySelectorAll('.cell[data-action]').forEach(cell => {
+        const idx = cell.getAttribute('data-action');
+        cell.innerHTML = `${idx}<br>${Math.round(data.moves[idx] * 100) / 100}`;
+      });
+    }
+
+    async function get_strategies() {
+      const response = await fetch('/strategies');
+      const data = await response.json();
+      const select = document.getElementById('strategies');
+      select.innerHTML = '';
+      for (const strategy of data) {
+        const option = document.createElement('option');
+        option.value = strategy;
+        option.textContent = strategy;
+        select.appendChild(option);
+      }
+    }
+
+    refresh();
+    get_strategies();
+  </script>
+</body>
+</html>
+
