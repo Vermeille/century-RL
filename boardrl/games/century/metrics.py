@@ -112,9 +112,9 @@ class Metrics:
             win="avg_move_summary",
         )
 
-        lenghts = metrics.pop("prompt_size")
+        lengths = metrics.pop("prompt_size")
         viz.viz.line(
-            Y=torch.tensor([[lenghts[k] for k in ["avg", "min", "max"]]]),
+            Y=torch.tensor([[lengths[k] for k in ["avg", "min", "max"]]]),
             X=torch.tensor([[epoch] * 3]),
             opts=dict(
                 title="prompt_size",
