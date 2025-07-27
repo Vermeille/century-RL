@@ -51,9 +51,15 @@ class TheGame:
         return g
 
     def round(self):
+        # The `turn` counter increments after every action. Because each player
+        # performs exactly two actions before the next player's turn, a full
+        # rotation of all players requires ``2 * num_players`` actions.
+        # ``round()`` therefore counts how many such rotations have completed.
         return int(self.turn // (2 * self.num_players))
 
     def current_player(self) -> int:
+        # Use the completed-round count so that a single player gets two
+        # consecutive actions before play passes to the next one.
         return self.round() % self.num_players
 
     def display(self, force=-1) -> str:
