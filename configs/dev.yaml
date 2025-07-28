@@ -1,11 +1,7 @@
 device: cpu
 tag: century-policygradient
 
-net:
-  num_layers: 2
-  dim: 64
-  head_size: 16
-
+model: extra-small
 train:
   gradient_epochs: 1
   lr: 0.0001

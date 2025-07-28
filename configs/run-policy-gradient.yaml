@@ -3,11 +3,7 @@ tag: policygradient-baseline
 
 game: sum
 
-net:
-  num_layers: 4
-  dim: 512
-  head_size: 64
-
+model: medium
 train:
   discount_factor: 0.8
   gradient_epochs: 1

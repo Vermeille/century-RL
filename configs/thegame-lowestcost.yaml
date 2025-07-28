@@ -3,11 +3,7 @@ tag: lowestcost-supervised
 
 game: thegame
 
-net:
-  num_layers: 1
-  dim: 256
-  head_size: 32
-
+model: tiny
 train:
   gradient_epochs: 1
   discount_factor: 0.8

@@ -1,11 +1,7 @@
 device: cuda
 tag: century-imitatemc10
 
-net:
-  num_layers: 8
-  dim: 256
-  head_size: 64
-
+model: large
 train:
   gradient_epochs: 1
   lr: 0.0001

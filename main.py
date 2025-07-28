@@ -2,6 +2,7 @@ from collections import defaultdict
 import torch
 import time
 import copy
+import os
 import yaml
 from visdom import Visdom
 from tqdm import tqdm
@@ -696,6 +697,16 @@ def main():
 
     for config_fix in opts.x:
         fix_dict(config, *config_fix.split("=", 1))
+
+    if "model" in config:
+        with open(
+            os.path.join(
+                os.path.dirname(__file__), "model-configs", f"{config.model}.yaml"
+            )
+        ) as f:
+            config.net = EasyDict(yaml.safe_load(f))
+    else:
+        raise ValueError("config must specify 'model'")
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
         print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
