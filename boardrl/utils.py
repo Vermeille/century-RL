@@ -20,7 +20,7 @@ class BatchProcessor:
         self.process_fn = process_fn
         self.queue = deque()
         self.timeout = timeout
-        self.last_batch_time = 0
+        self.last_batch_time = asyncio.get_event_loop().time()
 
     def process_batch(self):
         if len(self.queue) == 0:

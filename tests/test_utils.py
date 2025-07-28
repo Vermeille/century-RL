@@ -5,16 +5,18 @@ import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-if 'pyximport' not in sys.modules:
+if "pyximport" not in sys.modules:
     import types
-    pyx = types.ModuleType('pyximport')
+
+    pyx = types.ModuleType("pyximport")
     pyx.install = lambda *a, **k: None
-    sys.modules['pyximport'] = pyx
-if 'boardrl.cyutils' not in sys.modules:
+    sys.modules["pyximport"] = pyx
+if "boardrl.cyutils" not in sys.modules:
     import types
-    cyutils = types.ModuleType('boardrl.cyutils')
+
+    cyutils = types.ModuleType("boardrl.cyutils")
     cyutils.fast_sample = lambda x: 0
-    sys.modules['boardrl.cyutils'] = cyutils
+    sys.modules["boardrl.cyutils"] = cyutils
 
 from boardrl.utils import BatchProcessor, RegisterByName
 import torch
@@ -35,7 +37,21 @@ def test_batch_processor_collects_batch():
         def process_fn(batch):
             return DummyOut([b * 2 for b in batch])
 
-        bp = BatchProcessor(batch_size=3, process_fn=process_fn, timeout=1000)
+        bp = BatchProcessor(batch_size=3, process_fn=process_fn, timeout=100000)
+        tasks = [bp(i) for i in range(3)]
+        results = await asyncio.gather(*tasks)
+        return results
+
+    results = asyncio.run(run_bp())
+    assert results == [0, 2, 4]
+
+
+def test_batch_processor_timeouts():
+    async def run_bp():
+        def process_fn(batch):
+            return DummyOut([b * 2 for b in batch])
+
+        bp = BatchProcessor(batch_size=5, process_fn=process_fn, timeout=1)
         tasks = [bp(i) for i in range(3)]
         results = await asyncio.gather(*tasks)
         return results
