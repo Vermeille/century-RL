@@ -3,11 +3,7 @@ tag: reinforce-selfplay
 
 game: sum
 
-net:
-  num_layers: 4
-  dim: 512
-  head_size: 64
-
+model: medium
 train:
   gradient_epochs: 1
   discount_factor: 0.8

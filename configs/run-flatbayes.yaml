@@ -3,11 +3,7 @@ tag: flatbayes
 
 game: connectfour
 
-net:
-  num_layers: 6
-  dim: 256
-  head_size: 32
-
+model: medium-deep
 train:
   gradient_epochs: 4
   lr: 0.00001

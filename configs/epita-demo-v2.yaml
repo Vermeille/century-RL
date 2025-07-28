@@ -2,26 +2,7 @@ tag: epita-demo-recent
 device: cpu
 game: tictactoe
 
-net:
-  dim: 64
-  head_size: 16
-  num_layers: 4
-
-pit:
-  every: 10
-  max_len: 220
-  num_games: 32
-  strategies:
-  - policy_sampling,model=this,temperature=0.001
-  - random
-
-self_play:
-  max_len: 500
-  num_games: 30
-  strategies:
-  - policy_sampling,model=this
-  - policy_sampling,model=recent-5
-
+model: extra-small-deep
 train:
   batch_size: 64
   discount_factor: 0.95
