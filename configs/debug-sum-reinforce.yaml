@@ -5,6 +5,7 @@ game: sum
 
 model: medium
 train:
+  optimizer: AdamW
   gradient_epochs: 1
   discount_factor: 0.8
   lr: 0.0001

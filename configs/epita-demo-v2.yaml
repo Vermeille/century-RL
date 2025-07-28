@@ -3,7 +3,24 @@ device: cpu
 game: tictactoe
 
 model: extra-small-deep
+
+pit:
+  every: 10
+  max_len: 220
+  num_games: 32
+  strategies:
+  - policy_sampling,model=this,temperature=0.001
+  - random
+
+self_play:
+  max_len: 500
+  num_games: 3
+  strategies:
+  - policy_sampling,model=this
+  - policy_sampling,model=recent-5
+
 train:
+  optimizer: AdamW
   batch_size: 64
   discount_factor: 0.95
   gradient_epochs: 1
@@ -11,6 +28,6 @@ train:
   loss:
     policy: policy_gradient_loss,weight=baseline_value,label_smoothing=0.05,renormalize=True
     value: bootstrap_mse_loss,strength=1
-  lr: 0.0001
+  lr: 0.001
   save_every: 50
   show_every: 10

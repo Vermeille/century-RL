@@ -6,6 +6,7 @@ import os
 import yaml
 from visdom import Visdom
 from tqdm import tqdm
+from heavyball import ForeachMuon
 
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
@@ -210,12 +211,22 @@ class Trainer:
         self.config = config
         self.model = Model(**self.config.net)
         self.model.to(config.device)
-        self.opt = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=config.train.lr,
-            betas=(0.9, 0.99),
-            weight_decay=0.01,
-        )
+        if self.config.train.optimizer == "AdamW":
+            self.opt = torch.optim.AdamW(
+                self.model.parameters(),
+                lr=config.train.lr,
+                betas=(0.9, 0.99),
+                weight_decay=0.01,
+            )
+        elif self.config.train.optimizer == "Muon":
+            self.opt = ForeachMuon(
+                self.model.parameters(),
+                lr=config.train.lr,
+                betas=(0.9, 0.99),
+                weight_decay=0.01,
+            )
+        else:
+            raise ValueError(f"Unknown optimizer: {self.config.train.optimizer}")
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
@@ -381,6 +392,7 @@ class Trainer:
                 self.model.parameters(), max_norm=50000.0
             )
             total_losses["grad_mag"] += grad_mag.item()
+            print(policy[0].shape)
             total_losses["normalized_perplexity"] += sum(
                 torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
                 / len(p)
@@ -551,12 +563,22 @@ class PreTrainer:
             ]
         )
         self.model.to(config.device)
-        self.opt = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=config.train.lr,
-            betas=(0.9, 0.95),
-            weight_decay=0.01,
-        )
+        if self.config.train.optimizer == "AdamW":
+            self.opt = torch.optim.AdamW(
+                self.model.parameters(),
+                lr=config.train.lr,
+                betas=(0.9, 0.95),
+                weight_decay=0.01,
+            )
+        elif self.config.train.optimizer == "Muon":
+            self.opt = ForeachMuon(
+                self.model.parameters(),
+                lr=config.train.lr,
+                betas=(0.9, 0.95),
+                weight_decay=0.01,
+            )
+        else:
+            raise ValueError(f"Unknown optimizer: {self.config.train.optimizer}")
 
         self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
         self.epoch = 0

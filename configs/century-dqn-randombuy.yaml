@@ -5,6 +5,7 @@ game: century
 
 model: medium
 train:
+  optimizer: AdamW
   gradient_epochs: 1
   discount_factor: 0.95
   lr: 0.0001

@@ -3,6 +3,7 @@ tag: century-policygradientbaseline
 
 model: large
 train:
+  optimizer: AdamW
   gradient_epochs: 1
   lr: 0.0001
   batch_size: 12

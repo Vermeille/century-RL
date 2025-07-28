@@ -8,3 +8,4 @@ pyyaml
 natsort
 crayons
 psutil
+heavyball

@@ -5,6 +5,7 @@ game: connectfour
 
 model: medium-deep
 train:
+  optimizer: AdamW
   gradient_epochs: 4
   lr: 0.00001
   batch_size: 12
