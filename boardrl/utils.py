@@ -31,6 +31,7 @@ class BatchProcessor:
             self.queue.popleft() for _ in range(min(self.batch_size, len(self.queue)))
         ]
         inputs = [task["input"] for task in batch]
+        print(f"Processing batch of size {len(inputs)}, timeouts: {self.timeout}")
 
         # Process the batch
         results = self.process_fn(inputs)

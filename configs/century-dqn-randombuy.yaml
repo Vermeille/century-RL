@@ -19,8 +19,7 @@ self_play:
   num_games: 50
   max_len: 500
   strategies:
-    - argmax,model=this,epsilon=0.05
-    - century_random_buy
+    - argmax,model=this,epsilon=0.1
 
 pit:
   num_games: 32

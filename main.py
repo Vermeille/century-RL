@@ -306,40 +306,43 @@ class Trainer:
 
                 step = self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct
 
-                for k, v in total_losses.items():
+                if False:
+                    for k, v in total_losses.items():
+                        self.viz.push(
+                            f"loss.{k}",
+                            v,
+                            step,
+                        )
                     self.viz.push(
-                        f"loss.{k}",
-                        v,
+                        "MAE",
+                        torch.nn.functional.l1_loss(value.mean, samples.returns).item(),
                         step,
                     )
-                self.viz.push(
-                    "MAE",
-                    torch.nn.functional.l1_loss(value.mean, samples.returns).item(),
-                    step,
-                )
-                self.viz.push(
-                    "grad_mag",
-                    grad_mag.item(),
-                    step,
-                )
-                self.viz.push(
-                    "perplexity",
-                    sum(
-                        torch.exp(
-                            torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0))
-                        )
-                        / len(p)
-                        for p in policy
-                    ).item()
-                    / len(policy),
-                    step,
-                )
-                pearson = pearson_corr(value.mean, samples.returns)
-                self.viz.push(
-                    "pearson",
-                    pearson.item(),
-                    step,
-                )
+                    self.viz.push(
+                        "grad_mag",
+                        grad_mag.item(),
+                        step,
+                    )
+                    self.viz.push(
+                        "perplexity",
+                        sum(
+                            torch.exp(
+                                torch.sum(
+                                    -torch.softmax(p, 0) * torch.log_softmax(p, 0)
+                                )
+                            )
+                            / len(p)
+                            for p in policy
+                        ).item()
+                        / len(policy),
+                        step,
+                    )
+                    pearson = pearson_corr(value.mean, samples.returns)
+                    self.viz.push(
+                        "pearson",
+                        pearson.item(),
+                        step,
+                    )
         print(
             "throughput",
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
@@ -393,7 +396,6 @@ class Trainer:
             for p in self.model.parameters():
                 if p.grad is not None:
                     p.grad /= len(data)
-
         self.opt.step()
 
         for k, v in total_losses.items():
@@ -435,7 +437,7 @@ class Trainer:
         bp = BatchProcessor(
             self.config.self_play.get("batch_size", self.config.train.batch_size),
             self.model,
-            timeout=0.01,
+            timeout=0.02,
         )
         data = self_play(
             self.game_desc.make_game,
@@ -451,6 +453,7 @@ class Trainer:
         compute_returns(
             data,
             self.config.train.discount_factor,
+            #1 - 1 / (1 + self.epoch * 0.1),
             entropy_reward_scale=self.config.train.get("entropy_reward_scale"),
             reward_rescale=self.config.train.get("reward_rescale"),
         )
@@ -652,7 +655,7 @@ class PreTrainer:
         return data
 
     def pretrain(self):
-        for epoch in range(1):
+        for epoch in range(5):
             print("EPOCH", epoch)
             self.epoch = epoch
 
@@ -726,4 +729,5 @@ def main():
 
 
 if __name__ == "__main__":
+    torch.set_float32_matmul_precision("medium")
     main()

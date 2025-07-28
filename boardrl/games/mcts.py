@@ -224,4 +224,12 @@ class MCTS:
 
             self._backpropagate(path, rewards)
 
-        return self.root_node
+        if False:
+            graphviz_txt = self.root_node.draw()
+            with open("mcts.dot", "w") as f:
+                f.write(graphviz_txt)
+            Popen(["dot", "-Tpng", "mcts.dot", "-o", "mcts.png"]).wait()
+
+            time.sleep(1)
+
+        return [c.visits for c in self.root_node.children]

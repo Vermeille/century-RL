@@ -120,10 +120,10 @@ class PolicySamplingStrategy:
         if len(g.moves) == 1:
             return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
 
-        policy = (await self.nn(g.display_with_moves())).policy[
-            0
-        ].cpu() / self.temperature
-        # print(policy)
+        policy = (
+            (await self.nn(g.display_with_moves())).policy[0].cpu()
+        )  # / self.temperature
+        print(policy)
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
 
 

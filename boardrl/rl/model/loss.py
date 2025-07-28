@@ -142,7 +142,12 @@ def weight_advantage(samples, prev_model, discount_factor):
         next_value,
     )
     current_value = prev_model(samples.state).value.mean
-    return (samples.reward + next_value * discount_factor) - current_value
+    after = samples.reward + next_value * discount_factor
+    for b, i, af in zip(current_value, range(len(samples.state)), after):
+        print(
+            f"{b.item():.2f} {samples.moves[i][samples.action_idx[i]]} {af.item():.2f} (r={samples.reward[i]:.2f})"
+        )
+    return after - current_value
 
 
 class RunningStat:

@@ -1,5 +1,5 @@
-device: cpu
-tag: flatbayes
+device: cuda
+tag: flatbayes-reinforce
 
 game: connectfour
 
