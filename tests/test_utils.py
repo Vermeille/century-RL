@@ -29,6 +29,7 @@ class DummyOut:
         return self._outs
 
 
+@pytest.mark.timeout(10)
 def test_batch_processor_collects_batch():
     async def run_bp():
         def process_fn(batch):
@@ -64,5 +65,3 @@ def test_pearson_corr_identity():
     x = torch.randn(10)
     corr = pearson_corr(x, x)
     assert torch.isclose(corr, torch.tensor(1.0), atol=1e-5)
-
-

@@ -9,3 +9,5 @@ natsort
 crayons
 psutil
 heavyball
+pytest
+pytest-timeout
