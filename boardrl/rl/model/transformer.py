@@ -119,7 +119,7 @@ class SelfAttnOp(nn.Module):
 
 
 class SelfAttention(nn.Module):
-    def __init__(self, hidden_size, num_heads, head_size):
+    def __init__(self, hidden_size, num_heads, head_size, rotary=False):
         super().__init__()
         self.num_heads = num_heads
         self.head_size = head_size
@@ -128,7 +128,7 @@ class SelfAttention(nn.Module):
         )
         self.fc = xavier(nn.Linear(head_size * num_heads, hidden_size, bias=True))
         # Rotary here is detrimental, it's better to use it in the trunk
-        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=False, alibi=False)
+        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary, alibi=False)
 
     def forward(self, x, attn_mask):
         # bld -> (q/k/v)bl(hd)
@@ -173,10 +173,10 @@ def just_add(x, y):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, hidden_size, num_heads, head_size):
+    def __init__(self, hidden_size, num_heads, head_size, rotary=False):
         super().__init__()
         self.layer_norm1 = nn.LayerNorm(hidden_size)
-        self.sa = SelfAttention(hidden_size, num_heads, head_size)
+        self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.feed_forward = nn.Sequential(
             nn.LayerNorm(hidden_size),
             kaiming(
@@ -232,7 +232,13 @@ class ConvTrunkBlock(nn.Module):
 
 class Transformer(nn.Module):
     def __init__(
-        self, hidden_size, num_layers, num_heads, head_size, num_conv_blocks=0
+        self,
+        hidden_size,
+        num_layers,
+        num_heads,
+        head_size,
+        num_conv_blocks=0,
+        rotary=False,
     ):
         super().__init__()
         self.transformer_blocks = nn.ModuleList(
@@ -240,7 +246,9 @@ class Transformer(nn.Module):
                 (
                     ConvTrunkBlock(hidden_size, num_heads, head_size)
                     if i < num_conv_blocks
-                    else TransformerBlock(hidden_size, num_heads, head_size)
+                    else TransformerBlock(
+                        hidden_size, num_heads, head_size, rotary=rotary
+                    )
                 )
                 for i in range(num_layers)
             ]
