@@ -15,10 +15,11 @@ class ToyMLM(nn.Module):
         self.out = nn.Linear(dim, 27)
 
     def forward(self, x):
+        # x: BL
         pos_ids = torch.arange(x.size(1), device=x.device).unsqueeze(0)
         y = self.embed(x) + self.pos(pos_ids)
         y = self.tr(y, torch.ones_like(x, dtype=torch.bool))
-        return self.out(y)
+        return self.out(y)  # BLD
 
 
 def test_transformer_learns_alphabet_mlm():
@@ -40,11 +41,10 @@ def test_transformer_learns_alphabet_mlm():
         mask_idx = torch.randint(0, 26, (3,))
         target = x[torch.arange(3), mask_idx].clone()
         x[torch.arange(3), mask_idx] = 0
-        logits = model(x)
-        loss = F.cross_entropy(logits[0, mask_idx], target)
+        logits = model(x)[torch.arange(x.shape[0]), mask_idx]
+        loss = F.cross_entropy(logits, target)
         opt.zero_grad()
         loss.backward()
-        print(loss.item())
         opt.step()
 
     with torch.no_grad():
@@ -78,7 +78,6 @@ def test_transformer_needs_context_mlm():
         loss = F.cross_entropy(masked_logits, target)
         opt.zero_grad()
         loss.backward()
-        print((masked_logits.argmax(dim=-1) == target).float().mean().item())
         opt.step()
 
     with torch.no_grad():
@@ -89,3 +88,27 @@ def test_transformer_needs_context_mlm():
             assert torch.all(
                 pred == sequences[:, i]
             ), f"Failed at position {i}: {pred} != {sequences[0, i].item()}"
+
+
+def test_transformer_positional():
+    """Set a fixed input and classify the nth position as the nth class.
+    This won't work if positional encoding fails.
+    """
+    torch.manual_seed(0)
+    seq = torch.ones((1, 25), dtype=torch.int)
+    target = torch.arange(25).unsqueeze(0)
+    model = ToyMLM()
+    opt = torch.optim.Adam(model.parameters(), lr=0.015)
+
+    for _ in range(1000):
+        x = seq.expand(3, -1).clone()  # Repeat for batch size of 3
+        logits = model(x)
+        loss = F.cross_entropy(logits.transpose(1, 2), target.expand_as(x))
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+
+    with torch.no_grad():
+        x = seq.clone()
+        pred = model(x).argmax(2)
+        assert torch.all(pred == target)
