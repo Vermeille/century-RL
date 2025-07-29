@@ -62,7 +62,7 @@ def test_transformer_learns_alphabet_mlm_lpe():
 
 
 def test_transformer_learns_alphabet_mlm_rotary():
-    transformer_learns_alphabet_mlm(ToyMLM(dim=512, rotary=True))
+    transformer_learns_alphabet_mlm(ToyMLM(dim=16, rotary=True))
 
 
 def test_transformer_needs_context_mlm():
@@ -106,6 +106,7 @@ def transformer_positional(model):
     """
     torch.manual_seed(0)
     seq = torch.ones((1, 25), dtype=torch.int)
+    seq[0, 0] = 0  # RoPE is relative, so we need an absolute position marker
     target = torch.arange(25).unsqueeze(0)
     opt = torch.optim.Adam(model.parameters(), lr=0.015)
 
