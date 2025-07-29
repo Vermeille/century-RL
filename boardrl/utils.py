@@ -20,7 +20,7 @@ class BatchProcessor:
         self.process_fn = process_fn
         self.queue = deque()
         self.timeout = timeout
-        self.last_batch_time = asyncio.get_event_loop().time()
+        self.last_batch_time = None
 
     def process_batch(self):
         if len(self.queue) == 0:
@@ -45,6 +45,8 @@ class BatchProcessor:
 
     def wait_data(self):
         queue_full = len(self.queue) >= self.batch_size
+        if self.last_batch_time is None:
+            self.last_batch_time = asyncio.get_event_loop().time()
         has_timeout = (
             asyncio.get_event_loop().time() - self.last_batch_time >= self.timeout
         )
