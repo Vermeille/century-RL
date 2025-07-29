@@ -126,6 +126,10 @@ class SelfAttention(nn.Module):
         self.qkv = xavier(
             nn.Linear(hidden_size, head_size * num_heads * 3, bias=True),
         )
+        with torch.no_grad():
+            self.qkv.weight[: head_size * num_heads, :].copy_(
+                self.qkv.weight[head_size * num_heads : head_size * num_heads * 2, :]
+            )
         self.fc = xavier(nn.Linear(head_size * num_heads, hidden_size, bias=True))
         # Rotary here is detrimental, it's better to use it in the trunk
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary, alibi=False)
