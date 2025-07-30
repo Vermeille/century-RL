@@ -388,10 +388,6 @@ class Trainer:
             total_losses["loss_policy"] += policy_loss.item()
             total_losses["loss_value"] += value_loss.item()
 
-            grad_mag = torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), max_norm=50000.0
-            )
-            total_losses["grad_mag"] += grad_mag.item()
             print(policy[0].shape)
             total_losses["normalized_perplexity"] += sum(
                 torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
@@ -408,6 +404,8 @@ class Trainer:
             for p in self.model.parameters():
                 if p.grad is not None:
                     p.grad /= len(data)
+        grad_mag = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
+        total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
         for k, v in total_losses.items():
