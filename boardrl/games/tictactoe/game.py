@@ -30,7 +30,6 @@ class TicTacToe:
             assert force in [0, 1]
             p = force
 
-        rep = {None: " ", p: "O", 1 - p: "X"}
         rep = {None: " ", 0: "O", 1: "X"}
         lines = [">" + rep[p]]
         for row in [self.board[i * 3 : (i + 1) * 3] for i in range(3)]:
@@ -54,19 +53,18 @@ class TicTacToe:
 
     def winner(self):
         for i in range(3):
-            if self.board[i] == self.board[i + 3] == self.board[i + 6] is not None:
-                return self.board[i]
-            if (
-                self.board[i * 3]
-                == self.board[i * 3 + 1]
-                == self.board[i * 3 + 2]
-                is not None
-            ):
-                return self.board[i * 3]
-        if self.board[0] == self.board[4] == self.board[8] is not None:
-            return self.board[0]
-        if self.board[2] == self.board[4] == self.board[6] is not None:
-            return self.board[2]
+            if self.board[i] == self.board[i + 3] == self.board[i + 6]:
+                if self.board[i] is not None:
+                    return self.board[i]
+            if self.board[i * 3] == self.board[i * 3 + 1] == self.board[i * 3 + 2]:
+                if self.board[i * 3] is not None:
+                    return self.board[i * 3]
+        if self.board[0] == self.board[4] == self.board[8]:
+            if self.board[0] is not None:
+                return self.board[0]
+        if self.board[2] == self.board[4] == self.board[6]:
+            if self.board[2] is not None:
+                return self.board[2]
         return None
 
     def points_for(self, me):
