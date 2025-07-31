@@ -1,10 +1,11 @@
 # cython: profile=False
 # cython: language_level=3
+# cython: binding=True
 # cython: linetrace=False
 # cython: boundscheck=False
 # cython: wraparound=False
 # cython: cdivision=True
-# Bench: gen_move loop ~0.0027s/1000 -> ~0.0020s/1000
+# Bench: gen_move loop ~0.0036s/1000 -> ~0.0030s/1000
 import torch
 cimport cython
 import copy
@@ -12,6 +13,7 @@ import random
 from typing import Tuple, List
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset
+from libc.stdio cimport sprintf
 from cpython.unicode cimport PyUnicode_DecodeLatin1
 
 
@@ -71,21 +73,36 @@ cdef class Stock:
         finally:
             free(buff)
 
+    # Bench: to_str 1e6 calls ~0.52s -> ~0.33s
     cpdef str to_str(self):
         if self.Y + self.R + self.G + self.B == 0:
             return ""
 
-        cdef list parts = []
-        if self.Y > 0:
-            parts.append(f"{self.Y if self.Y > 1 else ''}Y")
-        if self.R > 0:
-            parts.append(f"{self.R if self.R > 1 else ''}R")
-        if self.G > 0:
-            parts.append(f"{self.G if self.G > 1 else ''}G")
-        if self.B > 0:
-            parts.append(f"{self.B if self.B > 1 else ''}B")
+        cdef char buff[32]
+        cdef int pos = 0
 
-        return ''.join(parts)
+        if self.Y > 0:
+            if self.Y > 1:
+                pos += sprintf(buff + pos, "%d", self.Y)
+            buff[pos] = 'Y'
+            pos += 1
+        if self.R > 0:
+            if self.R > 1:
+                pos += sprintf(buff + pos, "%d", self.R)
+            buff[pos] = 'R'
+            pos += 1
+        if self.G > 0:
+            if self.G > 1:
+                pos += sprintf(buff + pos, "%d", self.G)
+            buff[pos] = 'G'
+            pos += 1
+        if self.B > 0:
+            if self.B > 1:
+                pos += sprintf(buff + pos, "%d", self.B)
+            buff[pos] = 'B'
+            pos += 1
+
+        return PyUnicode_DecodeLatin1(buff, pos, NULL)
 
     @cython.profile(False)
     cpdef inline Stock ccopy(self):
@@ -274,6 +291,38 @@ cdef class Stock:
 
     cpdef Stock prefix(self, int n):
         return self._prefix(n)
+
+@cython.profile(False)
+cdef inline void prefix_into_stock(Stock self, int n, Stock out):
+    out.Y = 0
+    out.R = 0
+    out.G = 0
+    out.B = 0
+
+    if n <= 0:
+        return
+
+    cdef int take
+    take = self.Y if self.Y < n else n
+    out.Y = take
+    n -= take
+    if n == 0:
+        return
+
+    take = self.R if self.R < n else n
+    out.R = take
+    n -= take
+    if n == 0:
+        return
+
+    take = self.G if self.G < n else n
+    out.G = take
+    n -= take
+    if n == 0:
+        return
+
+    take = self.B if self.B < n else n
+    out.B = take
 
 
 cdef class ActionCard:
@@ -924,6 +973,7 @@ cdef class Century:
             if p.stock.contains(v.cost):
                 moves.append(f'V{i}')
 
+        cdef Stock give_tmp = make_stock()
         for i in range(6):
             if i >= len(self.action.pile):
                 continue
@@ -933,8 +983,8 @@ cdef class Century:
             if p.stock.size() < i:
                 # Can't put cubes on previous cards
                 continue
-            give = p.stock.prefix(i)
-            moves.append(f'A{i} {give.to_str()}>{gain.to_str()}')
+            prefix_into_stock(p.stock, i, give_tmp)
+            moves.append(f'A{i} {give_tmp.to_str()}>{gain.to_str()}')
 
         i = 0
         for h in p.hand:
