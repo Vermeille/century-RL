@@ -89,10 +89,10 @@ class CachedBatchProcessor(BatchProcessor):
         self.cache = {}
         self.cache_size = cache_size
 
-    async def send(self, data: Any):
+    async def __call__(self, data: Any):
         if data in self.cache:
             return self.cache[data]
-        result = await super().send(data)
+        result = await super().__call__(data)
         if len(self.cache) >= self.cache_size:
             self.cache.popitem()
         self.cache[data] = result
