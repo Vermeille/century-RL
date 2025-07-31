@@ -182,11 +182,11 @@ def autobatch(model, input, bs=None):
 
 
 class Visualizer:
-    def __init__(self, tag):
+    def __init__(self, tag, url: str, port: int):
         self.viz = Visdom(
             env=tag,
-            server="https://visdom.vermeille.fr",
-            port=443,
+            server=url,
+            port=port,
         )
         self.viz.close()
 
@@ -247,7 +247,11 @@ class Trainer:
             discount_factor=config.train.discount_factor,
         )
         print(self.policy_loss, self.value_loss)
-        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
+        self.viz = Visualizer(
+            f"{config.game}_{config.tag}-lr={config.train.lr}",
+            url=config.visdom_url,
+            port=config.visdom_port,
+        )
         self.viz.viz.text(
             "<pre>\n" + yaml.dump(easydict_to_dict(config)) + "</pre>",
             win="config",
@@ -463,7 +467,7 @@ class Trainer:
         compute_returns(
             data,
             self.config.train.discount_factor,
-            #1 - 1 / (1 + self.epoch * 0.1),
+            # 1 - 1 / (1 + self.epoch * 0.1),
             entropy_reward_scale=self.config.train.get("entropy_reward_scale"),
             reward_rescale=self.config.train.get("reward_rescale"),
         )
@@ -578,7 +582,11 @@ class PreTrainer:
         else:
             raise ValueError(f"Unknown optimizer: {self.config.train.optimizer}")
 
-        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
+        self.viz = Visualizer(
+            f"{config.game}_{config.tag}-lr={config.train.lr}",
+            url=config.visdom_url,
+            port=config.visdom_port,
+        )
         self.epoch = 0
         self.game_desc = games_library(config.game)
 
@@ -712,6 +720,8 @@ def main():
     parser.add_argument("config_file", type=str)
     parser.add_argument("--ckpt", type=str, default=None)
     parser.add_argument("-x", action="append", default=[])
+    parser.add_argument("--visdom-url", default="http://localhost")
+    parser.add_argument("--visdom-port", default=8097)
     opts = parser.parse_args()
 
     init_seed()
@@ -720,6 +730,8 @@ def main():
 
     for config_fix in opts.x:
         fix_dict(config, *config_fix.split("=", 1))
+    config.visdom_url = config.get("visdom_url", opts.visdom_url)
+    config.visdom_port = config.get("visdom_port", opts.visdom_port)
 
     if "model" in config:
         with open(
