@@ -3,6 +3,7 @@ from collections import deque
 from typing import Any, List, Callable
 import asyncio
 import inspect
+from visdom import Visdom
 
 
 class BatchProcessor:

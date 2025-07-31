@@ -4,7 +4,6 @@ import time
 import copy
 import os
 import yaml
-from visdom import Visdom
 from tqdm import tqdm
 from heavyball import ForeachMuon
 
