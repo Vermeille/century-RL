@@ -29,6 +29,45 @@ cpdef random_buy_fast(Century g):
 class Illegal(BaseException):
     pass
 
+# Cache parsed moves to avoid expensive string operations on every call
+move_cache = {}
+
+@cython.profile(False)
+cdef object parse_move(str s):
+    cdef object parsed = move_cache.get(s)
+    if parsed is not None:
+        return parsed
+
+    if s == 'R':
+        parsed = ('R',)
+    elif s[0] == 'H':
+        try:
+            hx, action = s.split(' ')
+            from_, to_ = action.split('>')
+            idx = int(hx[1:])
+        except Exception:
+            raise Illegal()
+        parsed = ('H', idx, Stock.cfrom_str(from_), Stock.cfrom_str(to_))
+    elif s[0] == 'V':
+        try:
+            idx = int(s[1:])
+        except Exception:
+            raise Illegal()
+        parsed = ('V', idx)
+    elif s[0] == 'A':
+        try:
+            a, bonus = s.split(' ')
+            give, take = bonus.split('>')
+            idx = int(a[1:])
+        except Exception:
+            raise Illegal()
+        parsed = ('A', idx, Stock.cfrom_str(give), Stock.cfrom_str(take))
+    else:
+        raise Illegal()
+
+    move_cache[s] = parsed
+    return parsed
+
 
 @cython.profile(False)
 cdef Stock make_stock():
@@ -905,31 +944,18 @@ cdef class Century:
         if s == '':
             raise Illegal()
 
-        if s == 'R':
+        parsed = parse_move(s)
+        cdef object kind = parsed[0]
+
+        if kind == 'R':
             p.reload()
-        elif s[0] == 'H':
-            try:
-                hx, action = s.split(' ')
-                from_, to_ = action.split('>')
-                idx = int(hx[1:])
-            except:
-                raise Illegal()
-            p.play(idx, Stock.cfrom_str(from_), Stock.cfrom_str(to_))
-        elif s[0] == 'V':
-            try:
-                idx = int(s[1:])
-            except:
-                raise Illegal()
-            v = self.victory.take(idx)
+        elif kind == 'H':
+            p.play(<int>parsed[1], <Stock>parsed[2], <Stock>parsed[3])
+        elif kind == 'V':
+            v = self.victory.take(<int>parsed[1])
             p.buy_victory(v)
-        elif s[0] == 'A':
-            try:
-                a, bonus = s.split(' ')
-                give, take = bonus.split('>')
-                idx = int(a[1:])
-            except:
-                raise Illegal()
-            self.buy_action(p, idx, Stock.cfrom_str(give), Stock.cfrom_str(take))
+        elif kind == 'A':
+            self.buy_action(p, <int>parsed[1], <Stock>parsed[2], <Stock>parsed[3])
         else:
             raise Illegal()
 
