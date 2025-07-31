@@ -237,6 +237,40 @@ cdef class Stock:
             elif max_color == b'B':
                 self.B -= 1
 
+    @cython.profile(False)
+    cdef inline Stock _prefix(self, int n):
+        """Return a Stock with the first ``n`` cubes in Y->R->G->B order."""
+        cdef Stock out = make_stock()
+        cdef int take
+
+        if n <= 0:
+            return out
+
+        take = self.Y if self.Y < n else n
+        out.Y = take
+        n -= take
+        if n == 0:
+            return out
+
+        take = self.R if self.R < n else n
+        out.R = take
+        n -= take
+        if n == 0:
+            return out
+
+        take = self.G if self.G < n else n
+        out.G = take
+        n -= take
+        if n == 0:
+            return out
+
+        take = self.B if self.B < n else n
+        out.B = take
+        return out
+
+    cpdef Stock prefix(self, int n):
+        return self._prefix(n)
+
 
 cdef class ActionCard:
     cdef Stock from_
@@ -892,7 +926,7 @@ cdef class Century:
             if p.stock.size() < i:
                 # Can't put cubes on previous cards
                 continue
-            give = Stock.cfrom_str_(p.stock.to_str_()[:i])
+            give = p.stock.prefix(i)
             moves.append(f'A{i} {give.to_str()}>{gain.to_str()}')
 
         i = 0
