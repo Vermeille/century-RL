@@ -208,6 +208,10 @@ class Visualizer:
     def html(self, name, value):
         self.viz.text(name, value)
 
+    def visdom(self, fn, *args, **kwargs):
+        getattr(self.viz, "fn")(*args, **kwargs)
+
+
 
 class Trainer:
     def __init__(self, config, checkpoint_path=None):
