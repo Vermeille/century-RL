@@ -181,7 +181,7 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-class Visualizer:
+class VisdomVisualizer:
     def __init__(self, tag, url: str, port: int):
         self.viz = Visdom(
             env=tag,
@@ -210,6 +210,19 @@ class Visualizer:
 
     def visdom(self, fn, *args, **kwargs):
         getattr(self.viz, "fn")(*args, **kwargs)
+
+
+class OfflineVisualizer:
+    def __init__(self): ...
+    def push(self, name, value, epoch): ...
+    def html(self, name, value): ...
+    def visdom(self, fn, *args, **kwargs): ...
+
+
+def Visualizer(tag, url, port):
+    if url == "offline":
+        return OfflineVisualizer()
+    return VisdomVisualizer(tag, url, port)
 
 
 
