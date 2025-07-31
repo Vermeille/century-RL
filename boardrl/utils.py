@@ -245,7 +245,7 @@ class VisdomVisualizer:
         )
 
     def html(self, name, value):
-        self.viz.text(name, value)
+        self.viz.text(value, win=name)
 
     def visdom(self, fn, *args, **kwargs):
         getattr(self.viz, "fn")(*args, **kwargs)
