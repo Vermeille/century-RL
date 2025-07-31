@@ -4,7 +4,7 @@ tag: benchmark
 device: cpu
 game: tictactoe
 
-model: tiny
+model: toy
 
 pit:
   every: 10
