@@ -1,5 +1,4 @@
 import random
-from boardrl.utils import fast_sample
 
 
 class ConnectFour:
@@ -118,11 +117,6 @@ class ConnectFour:
 
     def play_idx(self, idx):
         return self.play_str(self.moves[idx])
-
-    def play_distribution(self, x):
-        idx = fast_sample(x)
-        move = self.moves[idx]
-        return self.play_str(move)
 
 
 if __name__ == "__main__":

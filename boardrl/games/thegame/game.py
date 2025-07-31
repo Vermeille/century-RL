@@ -1,5 +1,4 @@
 import random
-from boardrl.utils import fast_sample
 
 
 class TheGame:
@@ -172,11 +171,6 @@ class TheGame:
         Plays the move at the given index.
         """
         return self.play_str(self.moves[idx])
-
-    def play_distribution(self, x):
-        idx = fast_sample(x)
-        move = self.moves[idx]
-        return self.play_str(move)
 
 
 # ------------------------

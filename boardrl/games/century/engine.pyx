@@ -9,7 +9,6 @@ from typing import Tuple, List
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset
 from cpython.unicode cimport PyUnicode_DecodeLatin1
-from boardrl.cyutils import fast_sample
 
 
 cpdef random_buy_fast(Century g):
@@ -806,12 +805,6 @@ cdef class Century:
         p.new_card(a)
         p.stock -= give
         p.stock.iadd(take)
-
-    cpdef int play_distribution(self, x) except 0:
-        cdef int idx
-        idx = fast_sample(x)
-        move = self.moves[idx]
-        return self.play_str(move)
 
     cpdef int play_idx(self, idx: int) except 0:
         return self.play_str(self.moves[idx])

@@ -9,6 +9,7 @@ import pyximport
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 from boardrl.games import games_library
+from boardrl.cyutils import fast_sample
 
 
 class Strategies:
@@ -108,7 +109,8 @@ async def do(
 
     dist, _ = await strategies.get_strategy(strategy)(game)
     dist = torch.softmax(dist, dim=0)
-    game.play_distribution(dist)
+    action = fast_sample(torch.softmax(dist, dim=0))
+    game.play_idx(action)
 
     if game.ended():
         return {
