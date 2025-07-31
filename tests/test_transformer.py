@@ -78,7 +78,7 @@ def test_transformer_needs_context_mlm():
     model = ToyMLM(dim=64)
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    for _ in range(1000):
+    for _ in range(1500):
         x = sequences.clone()  # 26 x 26
         mask_idx = torch.randint(0, 26, (26,))
         target = x[torch.arange(26), mask_idx].clone()
