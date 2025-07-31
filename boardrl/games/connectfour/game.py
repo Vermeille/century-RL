@@ -11,6 +11,7 @@ class ConnectFour:
         self.heights = [0 for _ in range(self.width)]
         self.turn = 0
         self.moves = [str(i) for i in range(self.width)]
+        self._winner = None
 
     def copy(self):
         g = ConnectFour()
@@ -18,6 +19,7 @@ class ConnectFour:
         g.heights = self.heights[:]
         g.turn = self.turn
         g.moves = self.moves[:]
+        g._winner = self._winner
         return g
 
     def round(self):
@@ -62,6 +64,7 @@ class ConnectFour:
             str(i) for i in range(self.width) if self.heights[i] < self.height
         ]
         self.turn += 1
+        self._winner = self._check_winner()
 
     def _check_winner_at(self, x, y):
         if self.board[x][y] is None:
@@ -89,12 +92,15 @@ class ConnectFour:
 
         return None
 
-    def winner(self):
+    def _check_winner(self):
         for x in range(self.width):
             for y in range(self.height):
                 if (w := self._check_winner_at(x, y)) is not None:
                     return w
         return None
+
+    def winner(self):
+        return self._winner
 
     def ended(self):
         return self.winner() is not None or self.turn == self.width * self.height
