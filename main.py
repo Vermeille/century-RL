@@ -205,6 +205,9 @@ class Visualizer:
             ),
         )
 
+    def html(self, name, value):
+        self.viz.text(name, value)
+
 
 class Trainer:
     def __init__(self, config, checkpoint_path=None):
@@ -252,9 +255,9 @@ class Trainer:
             url=config.visdom_url,
             port=config.visdom_port,
         )
-        self.viz.viz.text(
+        self.viz.html(
+            "config",
             "<pre>\n" + yaml.dump(easydict_to_dict(config)) + "</pre>",
-            win="config",
         )
         self.epoch = 0
         self.game_desc = games_library(config.game)
@@ -627,7 +630,8 @@ class PreTrainer:
                 loss.backward()
                 self.opt.step()
 
-                self.viz.viz.text(
+                self.viz.html(
+                    "display",
                     samples.state[0].replace("\n", "<br>")
                     + "<hr>"
                     + "".join(
