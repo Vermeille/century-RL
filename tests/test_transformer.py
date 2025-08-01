@@ -38,7 +38,7 @@ def transformer_learns_alphabet_mlm(model):
     seq = letters.unsqueeze(0)
     opt = torch.optim.Adam(model.parameters(), lr=0.015)
 
-    for _ in range(2000):
+    for _ in range(1000):
         x = seq.expand(3, -1).clone()  # Repeat for batch size of 3
         mask_idx = torch.randint(0, 26, (3,))
         target = x[torch.arange(3), mask_idx].clone()
@@ -110,7 +110,7 @@ def transformer_positional(model):
     target = torch.arange(25).unsqueeze(0)
     opt = torch.optim.Adam(model.parameters(), lr=0.015)
 
-    for _ in range(1000):
+    for _ in range(500):
         x = seq.expand(3, -1).clone()  # Repeat for batch size of 3
         logits = model(x)
         loss = F.cross_entropy(logits.transpose(1, 2), target.expand_as(x))

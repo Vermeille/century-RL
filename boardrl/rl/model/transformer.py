@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .utils import DynamicTanh
+
 
 def normal_init(m, std):
     assert isinstance(m.weight, torch.Tensor)
@@ -179,10 +181,10 @@ def just_add(x, y):
 class TransformerBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size, rotary=False):
         super().__init__()
-        self.layer_norm1 = nn.LayerNorm(hidden_size)
+        self.layer_norm1 = DynamicTanh(hidden_size)
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.feed_forward = nn.Sequential(
-            nn.LayerNorm(hidden_size),
+            DynamicTanh(hidden_size),
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
@@ -203,7 +205,7 @@ class ConvTrunkBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size):
         super().__init__()
         self.sa = nn.Sequential(
-            nn.LayerNorm(hidden_size),
+            DynamicTanh(hidden_size),
             Permute(0, 2, 1),  # bld -> bdl
             xavier(
                 nn.Conv1d(
@@ -219,7 +221,7 @@ class ConvTrunkBlock(nn.Module):
             Permute(0, 2, 1),  # bdl -> bld
         )
         self.feed_forward = nn.Sequential(
-            nn.LayerNorm(hidden_size),
+            DynamicTanh(hidden_size),
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
@@ -259,9 +261,10 @@ class Transformer(nn.Module):
         )
 
         for m in self.modules():
-            if isinstance(m, nn.LayerNorm):
+            if isinstance(m, DynamicTanh):
                 m.bias.data.zero_()
                 m.weight.data.fill_(1.0)
+                m.alpha.data.fill_(1.0)
 
     def forward(self, x, attn_mask):
         for i, transformer_block in enumerate(self.transformer_blocks):

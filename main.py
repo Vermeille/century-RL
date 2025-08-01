@@ -494,12 +494,13 @@ class Trainer:
 
 import torch.nn as nn
 from boardrl.rl.model import RotarySingle
+from boardrl.rl.model.utils import DynamicTanh
 
 
 class StatePredictor(nn.Module):
     def __init__(self, dim, head_size) -> None:
         super().__init__()
-        self.norm_hidden = nn.LayerNorm(dim)
+        self.norm_hidden = DynamicTanh(dim)
         self.emb = nn.Embedding(256, dim, padding_idx=0)
         self.norm_in = nn.Linear(dim, dim)
         self.rotary = RotarySingle(dim, 512)
