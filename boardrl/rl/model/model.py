@@ -2,6 +2,7 @@ from collections import namedtuple
 import torch
 import torch.nn as nn
 from boardrl.rl.model.transformer import SelfAttnOp, Transformer
+from boardrl.rl.model.utils import DynamicTanh
 
 
 class MeanPool(nn.Module):
@@ -232,7 +233,7 @@ class Model(nn.Module):
         self.maxlen = 2048
         self.in_embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
-            nn.LayerNorm(dim),
+            DynamicTanh(dim),
             RotarySingle(dim, self.maxlen),
             # PositionalEncoding(dim, self.maxlen),  # Doesn't seem to work???
         )
