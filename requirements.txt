@@ -11,3 +11,4 @@ psutil
 heavyball
 pytest
 pytest-timeout
+matplotlib
