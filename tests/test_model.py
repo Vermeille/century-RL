@@ -3,6 +3,7 @@
 import torch
 import torch.nn.functional as F
 import torch.distributions as dist
+import matplotlib.pyplot as plt
 
 from boardrl.rl.model.model import Model
 
@@ -24,9 +25,10 @@ def test_model_learns_policy_and_value():
     values = torch.tensor([1.0, -1.0, 0.5, -0.5])
 
     model = Model(dim=32, num_layers=2, head_size=8)
-    opt = torch.optim.Adam(model.parameters(), lr=0.01)
+    opt = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    for _ in range(300):
+    history = []
+    for i in range(300):
         out = model(games)
         logits = torch.stack(out.policy)
         loss_policy = F.nll_loss(logits, targets)
@@ -34,7 +36,12 @@ def test_model_learns_policy_and_value():
         (loss_policy + loss_value).backward()
         opt.step()
         opt.zero_grad()
+        if i % 10 == 0:
+            history.append((loss_policy + loss_value).item())
 
+    plt.figure()
+    plt.plot(history)
+    plt.savefig("dummy.png")
     with torch.no_grad():
         out = model(games)
         preds = torch.stack(out.policy).argmax(dim=1)
@@ -78,7 +85,8 @@ def test_model_learns_from_context():
     model = Model(dim=64, num_layers=3, head_size=8)
     opt = torch.optim.Adam(model.parameters(), lr=0.005)
 
-    for _ in range(500):
+    history = []
+    for i in range(500):
         out = model(games)
         logits = torch.stack(out.policy)
         loss_policy = F.nll_loss(logits, targets)
@@ -86,6 +94,12 @@ def test_model_learns_from_context():
         (loss_policy + loss_value).backward()
         opt.step()
         opt.zero_grad()
+        if i % 10 == 0:
+            history.append((loss_policy + loss_value).item())
+
+    plt.figure()
+    plt.plot(history)
+    plt.savefig("vowel.png")
 
     with torch.no_grad():
         out = model(games)
