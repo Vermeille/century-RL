@@ -6,6 +6,7 @@ import torch.distributions as dist
 import matplotlib.pyplot as plt
 
 from boardrl.rl.model.model import Model
+from .dyck import generate_dyck_example
 
 
 def test_model_learns_policy_and_value():
@@ -106,3 +107,39 @@ def test_model_learns_from_context():
         preds = torch.stack(out.policy).argmax(dim=1)
         assert torch.equal(preds, targets)
         assert torch.allclose(out.value.mean, values, atol=0.1)
+
+
+def generate_dyck_examples(bs):
+    xy = [generate_dyck_example(32, max_depth=10, pad_to_len=False) for _ in range(bs)]
+    x = [x + "\n" + "".join(f"@{i}\n" for i in range(11)) for x, _, _ in xy]
+    y = [y for _, _, y in xy]
+    return x, torch.tensor(y)
+
+
+def test_model_dyck():
+    """Run dyck query test"""
+    torch.manual_seed(0)
+    model = Model(64, 4, 32)
+    opt = torch.optim.AdamW(model.parameters(), lr=0.0001)
+
+    history = []
+    for i in range(10000):
+        x, y = generate_dyck_examples(64)
+        out = model(x)
+        logits = torch.stack(out.policy)
+        loss = F.cross_entropy(logits, y)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        if i % 10 == 0:
+            # history.append(loss.item())
+            history.append(logits.argmax(1).eq(y).float().mean())
+
+    plt.figure()
+    plt.plot(history)
+    plt.savefig("test_dyck.png")
+    with torch.no_grad():
+        x, y = generate_dyck_examples(4)
+        out = model(x)
+        pred = torch.stack(out.policy).argmax(1)
+        assert torch.equal(pred, y)
