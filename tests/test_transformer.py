@@ -42,7 +42,7 @@ def transformer_learns_alphabet_mlm(model):
     torch.manual_seed(0)
     letters = torch.arange(1, 27)
     seq = letters.unsqueeze(0)
-    opt = torch.optim.Adam(model.parameters(), lr=0.015)
+    opt = torch.optim.Adam(model.parameters(), lr=0.001)
     history = []
 
     for i in range(1000):
@@ -70,14 +70,14 @@ def transformer_learns_alphabet_mlm(model):
 
 
 def test_transformer_learns_alphabet_mlm_lpe():
-    transformer_learns_alphabet_mlm(ToyMLM())
+    transformer_learns_alphabet_mlm(ToyMLM(dim=64))
 
 
 def test_transformer_learns_alphabet_mlm_rotary():
-    transformer_learns_alphabet_mlm(ToyMLM(dim=16, rotary=True))
+    transformer_learns_alphabet_mlm(ToyMLM(dim=64, rotary=True))
 
 
-def test_transformer_needs_context_mlm():
+def transformer_needs_context_mlm(model):
     """Verify that predictions depend on neighboring context, not only position.
 
     The model trains on many shifted alphabet sequences. We mask a random
@@ -87,7 +87,6 @@ def test_transformer_needs_context_mlm():
     """
     torch.manual_seed(0)
     sequences = torch.stack([(torch.arange(1, 27) + s) % 26 + 1 for s in range(26)])
-    model = ToyMLM(dim=64)
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
 
     history = []
@@ -116,6 +115,14 @@ def test_transformer_needs_context_mlm():
             assert torch.all(
                 pred == sequences[:, i]
             ), f"Failed at position {i}: {pred} != {sequences[0, i].item()}"
+
+
+def test_transformer_needs_context_mlm_lpe():
+    transformer_needs_context_mlm(ToyMLM(dim=64))
+
+
+def test_transformer_needs_context_mlm_rotary():
+    transformer_needs_context_mlm(ToyMLM(dim=64, rotary=True))
 
 
 def transformer_positional(model):
