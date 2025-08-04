@@ -47,7 +47,7 @@ cdef class Stock:
     cdef int G
     cdef int B
 
-    cpdef str to_str_(self):
+    cpdef str to_str_(self) noexcept:
         cdef int total = self.Y + self.R + self.G + self.B
         cdef int pos = 0
         if total == 0:
@@ -55,8 +55,6 @@ cdef class Stock:
 
         # Allocate memory for the result
         cdef char* buff = <char*>malloc(total * sizeof(char))
-        if not buff:
-            raise MemoryError()
 
         try:
             # Fill the buffer with characters
