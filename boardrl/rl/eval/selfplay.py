@@ -75,7 +75,9 @@ class SelfPlayResults(list):
     def only_player(self, players: list[int]):
         return SelfPlayResults(
             [
-                GameTrace(sorted([g.by_seat[p] for p in players], key=lambda t: t.seat_id))
+                GameTrace(
+                    sorted([g.by_seat[p] for p in players], key=lambda t: t.seat_id)
+                )
                 for g in self
             ]
         )
@@ -110,7 +112,9 @@ class SelfPlayResults(list):
         return [hist[-1].current_diff_points for hist in self.my_games(num, by=by)]
 
     def my_wins(self, num: int, *, by: str = "strategy"):
-        return [1 if p > 0 else 0.5 if p == 0 else 0 for p in self.my_points(num, by=by)]
+        return [
+            1 if p > 0 else 0.5 if p == 0 else 0 for p in self.my_points(num, by=by)
+        ]
 
     def win_rate(self, num: int, *, by: str = "strategy"):
         wins = self.my_wins(num, by=by)
@@ -164,4 +168,3 @@ def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
 @torch.no_grad()
 def pit(make_game, strategies, n_games, max_len):
     return self_play(make_game, strategies, n_games, max_len)
-
