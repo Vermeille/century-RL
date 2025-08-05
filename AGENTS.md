@@ -4,7 +4,11 @@ This repository contains a small reinforcement learning framework that supports 
 
 ## Repository Structure
 - `boardrl/`: main Python package containing utilities, game logic, RL models and the web server.
+- `boardrl/rl/model/`: transformer-based policy/value network implementation.
+- `boardrl/training/`: sampling helpers and return calculations.
+- `boardrl/experiments/`: toy tasks used by tests to sanity-check models and transformers.
 - `configs/`: YAML files specifying game choice, network size and training parameters.
+- `tests/`: unit tests for core functionality.
 - `main.py`: entry point for training agents.
 - `run_pit.py`: pits two strategies against each other for evaluation.
 - `requirements.txt`: Python dependencies.
@@ -23,6 +27,15 @@ Games are registered under `boardrl/games/__init__.py` using a `GameDesc` object
 
 ### Web Server
 The FastAPI server in `boardrl/serve/serve.py` exposes a simple interface for playing a game with a chosen strategy. Strategies are discovered automatically from saved model files.
+
+## Testing
+Use `pytest` for the test suite:
+
+```bash
+pytest tests -k "not transformer and not model"
+```
+
+The `tests/test_transformer.py` and `tests/test_model.py` suites run lengthy training loops and should only be executed when modifying the corresponding modules. `tests/test_fast_sample.py` builds the Cython extension `boardrl/cyutils.pyx`, so a C compiler is required if that file changes.
 
 ## Getting Started
 1. **Install dependencies**:
