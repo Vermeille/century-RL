@@ -10,7 +10,7 @@ from heavyball import ForeachMuon
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr
-from boardrl.rl.eval.selfplay import self_play, pit
+from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
 from boardrl.utils import BatchProcessor, easydict_to_dict, Visualizer
@@ -57,8 +57,9 @@ def collate(xs):
             return xs
     return xs
 
+
 def to_trainset(
-    games_data,
+    games_data: SelfPlayResults,
     only_players: list[int] | None = None,
     only_strategies: list[int] | None = None,
 ):
@@ -395,9 +396,9 @@ class Trainer:
         metrics.print_short_history()
         metrics.metrics_to_visdom(self.viz, self.epoch)
         avg_reward = [
-            sum(h.reward for players in data for h in players[p])
-            / sum(len(players[0]) for players in data)
-            for p in range(len(data[0]))
+            sum(h.reward for players in data for h in players.by_strategy[p])
+            / sum(len(players.by_strategy[p]) for players in data)
+            for p in range(data.num_players())
         ]
         self.viz.push("avg_reward", avg_reward, self.epoch)
         self.model.train()
@@ -429,6 +430,7 @@ class Trainer:
                 self.policy_loss.supports_off_policy
                 and self.value_loss.supports_off_policy
             ):
+                assert False
                 self._train_epoch_off_policy(trainset)
             else:
                 self._train_epoch_on_policy(trainset)

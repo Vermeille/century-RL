@@ -51,6 +51,9 @@ class GameTrace(list):
         self.by_strategy = sorted(seat_traces, key=lambda t: t.strategy_id)
         super().__init__(self.by_seat)
 
+    def num_players(self):
+        return len(self)
+
 
 class SelfPlayResults(list):
     """Container for a batch of self-play games.
@@ -89,6 +92,9 @@ class SelfPlayResults(list):
                 for g in self
             ]
         )
+
+    def num_players(self):
+        return self[0].num_players()
 
     # ------------------------------------------------------------------
     # Metrics previously provided by ``PitResults``
@@ -140,11 +146,11 @@ def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
             mixed_strategies = [
                 strategies[(i + idx) % n_players] for i in range(n_players)
             ]
-            game = make_game(num_players=n_players)
             traces = [
                 PlayerTrace(seat_id=i, strategy_id=(i + idx) % n_players)
                 for i in range(n_players)
             ]
+            game = make_game(num_players=n_players)
             async for record in play_game(game, mixed_strategies, max_len):
                 traces[record.player].append(record)
             data[idx] = GameTrace(traces)
