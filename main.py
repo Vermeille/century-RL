@@ -15,47 +15,7 @@ from boardrl.games import games_library
 from boardrl.cyutils import init_seed
 from boardrl.utils import BatchProcessor, easydict_to_dict, Visualizer
 from boardrl.training.returns import compute_returns
-
-
-class TrainingSample:
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-    @staticmethod
-    def collate(samples):
-        return TrainingSample(
-            **{
-                k: collate([getattr(s, k) for s in samples])
-                for k in samples[0].__dict__
-            }
-        )
-
-    def to(self, *args, **kwargs):
-        for k, v in self.__dict__.items():
-            if isinstance(v, torch.Tensor):
-                self.__dict__[k] = v.to(*args, **kwargs)
-            elif isinstance(v[0], torch.Tensor):
-                self.__dict__[k] = [x.to(*args, **kwargs) for x in v]
-        return self
-
-    def __repr__(self):
-        out = ["TrainingSample:"]
-        for k, v in self.__dict__.items():
-            if k == "next":
-                continue
-            out.append(f"{k}: {v}")
-        return "\n".join(out)
-
-
-def collate(xs):
-    if isinstance(xs[0], (int, float)):
-        return torch.tensor(xs)
-    if isinstance(xs[0], torch.Tensor):
-        try:
-            return torch.stack(xs, dim=0)
-        except RuntimeError:
-            return xs
-    return xs
+from boardrl.training import TrainingSample
 
 
 def to_trainset(
