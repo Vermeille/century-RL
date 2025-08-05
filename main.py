@@ -57,13 +57,19 @@ def collate(xs):
             return xs
     return xs
 
-def to_trainset(games_data, only_players: list[int] | None = None):
+def to_trainset(
+    games_data,
+    only_players: list[int] | None = None,
+    only_strategies: list[int] | None = None,
+):
+    if only_players is not None:
+        games_data = games_data.only_player(only_players)
+    if only_strategies is not None:
+        games_data = games_data.only_strategy(only_strategies)
+
     out = []
     for game in games_data:
-        for player_id, hist in enumerate(game):
-            if only_players is not None and player_id not in only_players:
-                continue
-
+        for hist in game:
             if len(hist) == 0:
                 continue
             end = hist[-1]
@@ -413,7 +419,9 @@ class Trainer:
 
             data = self._run_episode()
             trainset = to_trainset(
-                data, only_players=self.config.train.get("only_players")
+                data,
+                only_players=self.config.train.get("only_players"),
+                only_strategies=self.config.train.get("only_strategies"),
             )
 
             print(len(trainset), "samples")
