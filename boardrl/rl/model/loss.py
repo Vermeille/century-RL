@@ -227,11 +227,9 @@ class PolicyGradientLoss:
             weight = self.normalizer(weight)
 
         for logit, act, w in zip(pred_policy, sample.action_idx, weight):
-            # WARNING: There is an exp that makes all the returns positive.
-            # This is not standard but negative returns seems to make training unstable.
-            loss += (1 - self.label_smoothing) * w * F.cross_entropy(
-                logit, act
-            ) - self.label_smoothing * entropy(logit, dim=-1)
+            loss += w * F.cross_entropy(logit, act) - self.label_smoothing * entropy(
+                logit, dim=0
+            )
         return loss / len(sample.action_idx)
 
 
