@@ -196,7 +196,7 @@ class Trainer:
                 total_losses["value"] += value_loss.item()
 
                 grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=50000.0
+                    self.model.parameters(), max_norm=5.0
                 )
                 self.opt.step()
 
@@ -522,10 +522,9 @@ class PreTrainer:
                             board_moves[0, 1:], pred[0].argmax(-1) == board_moves[0, 1:]
                         )
                     ).replace("\n", "<br>"),
-                    win="display",
                 )
                 grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=50000.0
+                    self.model.parameters(), max_norm=5.0
                 )
                 self.viz.push(
                     "grad_mag",
