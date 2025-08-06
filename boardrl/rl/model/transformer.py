@@ -181,22 +181,27 @@ def just_add(x, y):
 class TransformerBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size, rotary=False):
         super().__init__()
-        self.layer_norm1 = DynamicTanh(hidden_size)
+        self.layer_norm1 = nn.LayerNorm(hidden_size)
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.feed_forward = nn.Sequential(
-            DynamicTanh(hidden_size),
+            nn.LayerNorm(hidden_size),
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
-            GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
+            nn.GELU(),  # GEGLU(),  # better than GELU
+            xavier(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
+            nn.LayerNorm(hidden_size),
         )
+        if False:
+            with torch.no_grad():
+                self.feed_forward[1].weight[hidden_size * 2 :].fill_(0.0)
+                self.feed_forward[1].bias[hidden_size * 2 :].fill_(1.0)
         # GatedResidual is better than just_add. Not sure why.
-        self.residual1 = GatedResidual(hidden_size)
-        self.residual2 = GatedResidual(hidden_size)
+        self.residual1 = just_add  # GatedResidual(hidden_size)
+        self.residual2 = just_add  # GatedResidual(hidden_size)
 
     def forward(self, x, attn_mask):
-        x = self.residual1(x, self.sa(self.layer_norm1(x), attn_mask))
+        x = self.residual1(x, self.layer_norm1(self.sa(self.layer_norm1(x), attn_mask)))
         x = self.residual2(x, self.feed_forward(x))
         return x
 
@@ -205,7 +210,7 @@ class ConvTrunkBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size):
         super().__init__()
         self.sa = nn.Sequential(
-            DynamicTanh(hidden_size),
+            nn.LayerNorm(hidden_size),
             Permute(0, 2, 1),  # bld -> bdl
             xavier(
                 nn.Conv1d(
@@ -221,7 +226,7 @@ class ConvTrunkBlock(nn.Module):
             Permute(0, 2, 1),  # bdl -> bld
         )
         self.feed_forward = nn.Sequential(
-            DynamicTanh(hidden_size),
+            nn.LayerNorm(hidden_size),
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
@@ -261,10 +266,9 @@ class Transformer(nn.Module):
         )
 
         for m in self.modules():
-            if isinstance(m, DynamicTanh):
+            if isinstance(m, nn.LayerNorm):
                 m.bias.data.zero_()
                 m.weight.data.fill_(1.0)
-                m.alpha.data.fill_(1.0)
 
     def forward(self, x, attn_mask):
         for i, transformer_block in enumerate(self.transformer_blocks):

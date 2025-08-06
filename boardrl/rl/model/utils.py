@@ -66,7 +66,7 @@ class DynamicTanh(nn.Module):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(hidden_size))
         self.bias = nn.Parameter(torch.zeros(hidden_size))
-        self.alpha = nn.Parameter(torch.ones(1))
+        self.alpha = nn.Parameter(torch.ones(1) * 0.5)
 
     def forward(self, x):
         return self.weight * torch.tanh(self.alpha * x) + self.bias
