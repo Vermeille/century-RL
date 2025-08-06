@@ -2,7 +2,7 @@
 
 Each experiment function returns a list of metrics recorded during training.
 This script executes the chosen experiments for a set of model architectures
-and saves a combined plot for each experiment.
+and saves a single image containing a subplot for each experiment.
 """
 
 import argparse
@@ -65,26 +65,15 @@ EXPERIMENTS = {
 }
 
 
-def run_experiment(name: str) -> None:
+def run_experiment(name: str):
+    """Run a single experiment and return its history."""
     func, model_fns = EXPERIMENTS[name]
     histories = []
     for label, fn in model_fns:
         print("running", name, label)
         history = func(fn())
         histories.append((label, history))
-
-    out_dir = pathlib.Path(__file__).resolve().parent
-    plt.figure()
-    for label, hist in histories:
-        plt.plot(hist, label=label)
-    plt.legend()
-    plt.title(name)
-    plt.xlabel("iteration (×10)")
-    plt.ylabel("metric")
-    path = out_dir / f"{name}.png"
-    plt.savefig(path)
-    plt.close()
-    print(f"Saved {path}")
+    return name, histories
 
 
 def main() -> None:
@@ -96,9 +85,28 @@ def main() -> None:
         help="Which experiments to run (default: all)",
     )
     args = parser.parse_args()
-    args.experiment = args.experiment or list(EXPERIMENTS.keys())
-    for name in args.experiment:
-        run_experiment(name)
+    names = args.experiment or list(EXPERIMENTS.keys())
+
+    results = [run_experiment(name) for name in names]
+
+    out_dir = pathlib.Path(__file__).resolve().parent
+    fig, axes = plt.subplots(len(results), 1, figsize=(6, 4 * len(results)))
+    if len(results) == 1:
+        axes = [axes]
+
+    for ax, (name, histories) in zip(axes, results):
+        for label, hist in histories:
+            ax.plot(hist, label=label)
+        ax.set_title(name)
+        ax.set_xlabel("iteration (×10)")
+        ax.set_ylabel("metric")
+        ax.legend()
+
+    fig.tight_layout()
+    path = out_dir / "experiments.png"
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"Saved {path}")
 
 
 if __name__ == "__main__":
