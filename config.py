@@ -26,6 +26,7 @@ class TrainConfig:
     batch_size: int = 12
     show_every: int = 10
     save_every: int = 100
+    iterations: float = float("inf")
     discount_factor: float = 0.99
     loss: LossConfig = field(default_factory=LossConfig)
     entropy_reward_scale: Optional[float] = None
