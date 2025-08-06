@@ -32,10 +32,10 @@ The FastAPI server in `boardrl/serve/serve.py` exposes a simple interface for pl
 Use `pytest` for the test suite:
 
 ```bash
-pytest tests -k "not transformer and not model"
+pytest tests -k "not transformer and not model and not config"
 ```
 
-The `tests/test_transformer.py` and `tests/test_model.py` suites run lengthy training loops and should only be executed when modifying the corresponding modules. `tests/test_fast_sample.py` builds the Cython extension `boardrl/cyutils.pyx`, so a C compiler is required if that file changes.
+The `tests/test_transformer.py` and `tests/test_model.py` suites run lengthy training loops and should only be executed when modifying the corresponding modules. `tests/test_fast_sample.py` builds the Cython extension `boardrl/cyutils.pyx`, so a C compiler is required if that file changes. `tests/test_configs.py` runs the training entry point for every configuration and is slow; only run this file when modifying configs or `main.py`.
 
 ## Getting Started
 1. **Install dependencies**:

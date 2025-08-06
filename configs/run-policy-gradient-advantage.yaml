@@ -11,7 +11,7 @@ train:
   save_every: 10
   loss:
     value: value_mse_loss
-    policy: policy_gradient_with_baseline_loss
+    policy: policy_gradient_loss,weight=baseline_value
 
 self_play:
   num_games: 4
