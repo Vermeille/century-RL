@@ -122,8 +122,7 @@ class PolicySamplingStrategy:
 
         policy = (
             (await self.nn(g.display_with_moves())).policy[0].cpu()
-        )  # / self.temperature
-        print(policy)
+        ) / self.temperature
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
 
 
