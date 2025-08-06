@@ -181,17 +181,6 @@ class RegisterByName:
                     default = "?"
                 fun_display += f",{arg}={default}"
             print(fun_display)
-
-
-def easydict_to_dict(d):
-    if isinstance(d, dict):
-        return {k: easydict_to_dict(v) for k, v in d.items()}
-    elif isinstance(d, list):
-        return [easydict_to_dict(v) for v in d]
-    else:
-        return d
-
-
 def entropy(logits, dim):
     log_probs = torch.log_softmax(logits, dim=dim)
     return -torch.sum(torch.exp(log_probs) * log_probs, dim=dim).mean()

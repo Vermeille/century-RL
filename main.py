@@ -4,16 +4,18 @@ import time
 import copy
 import os
 import yaml
+from dataclasses import asdict
 from tqdm import tqdm
 from heavyball import ForeachMuon
 
+from config import Config
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, easydict_to_dict, Visualizer
+from boardrl.utils import BatchProcessor, Visualizer
 from boardrl.training.returns import compute_returns
 from boardrl.training import TrainingSample
 
@@ -135,7 +137,7 @@ class Trainer:
         )
         self.viz.html(
             "config",
-            "<pre>\n" + yaml.dump(easydict_to_dict(config)) + "</pre>",
+            "<pre>\n" + yaml.dump(asdict(config)) + "</pre>",
         )
         self.epoch = 0
         self.game_desc = games_library(config.game)
@@ -144,7 +146,7 @@ class Trainer:
     def _log_pit(self):
         self.model.eval()
         bp = BatchProcessor(
-            self.config.pit.get("batch_size", self.config.train.batch_size),
+            self.config.pit.batch_size or self.config.train.batch_size,
             self.model,
             timeout=0.01,
         )
@@ -330,7 +332,7 @@ class Trainer:
 
         self.model.eval()
         bp = BatchProcessor(
-            self.config.self_play.get("batch_size", self.config.train.batch_size),
+            self.config.self_play.batch_size or self.config.train.batch_size,
             self.model,
             timeout=0.02,
         )
@@ -349,8 +351,8 @@ class Trainer:
             data,
             self.config.train.discount_factor,
             # 1 - 1 / (1 + self.epoch * 0.1),
-            entropy_reward_scale=self.config.train.get("entropy_reward_scale"),
-            reward_rescale=self.config.train.get("reward_rescale"),
+            entropy_reward_scale=self.config.train.entropy_reward_scale,
+            reward_rescale=self.config.train.reward_rescale,
         )
         metrics = self.game_desc.make_metrics(data)
         metrics.print_short_history()
@@ -381,8 +383,8 @@ class Trainer:
             data = self._run_episode()
             trainset = to_trainset(
                 data,
-                only_players=self.config.train.get("only_players"),
-                only_strategies=self.config.train.get("only_strategies"),
+                only_players=self.config.train.only_players,
+                only_strategies=self.config.train.only_strategies,
             )
 
             print(len(trainset), "samples")
@@ -598,7 +600,6 @@ def fix_dict(config, key, new_value):
 
 
 def main():
-    from easydict import EasyDict
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -611,22 +612,24 @@ def main():
 
     init_seed()
     with open(opts.config_file) as f:
-        config = EasyDict(yaml.safe_load(f))
+        raw_config = yaml.safe_load(f)
 
     for config_fix in opts.x:
-        fix_dict(config, *config_fix.split("=", 1))
-    config.visdom_url = config.get("visdom_url", opts.visdom_url)
-    config.visdom_port = config.get("visdom_port", opts.visdom_port)
+        fix_dict(raw_config, *config_fix.split("=", 1))
+    raw_config.setdefault("visdom_url", opts.visdom_url)
+    raw_config.setdefault("visdom_port", opts.visdom_port)
 
-    if "model" in config:
+    if "model" in raw_config:
         with open(
             os.path.join(
-                os.path.dirname(__file__), "model-configs", f"{config.model}.yaml"
+                os.path.dirname(__file__), "model-configs", f"{raw_config['model']}.yaml"
             )
         ) as f:
-            config.net = EasyDict(yaml.safe_load(f))
+            raw_config["net"] = yaml.safe_load(f)
     else:
         raise ValueError("config must specify 'model'")
+
+    config = Config.from_dict(raw_config)
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
         print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
