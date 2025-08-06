@@ -8,7 +8,7 @@ from dataclasses import asdict
 from tqdm import tqdm
 from heavyball import ForeachMuon
 
-from config import Config
+from boardrl.config import Config
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr

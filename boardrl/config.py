@@ -69,7 +69,7 @@ class Config:
     train: TrainConfig = field(default_factory=TrainConfig)
     self_play: SelfPlayConfig = field(default_factory=SelfPlayConfig)
     pit: PitConfig = field(default_factory=PitConfig)
-    visdom_url: str = ""
+    visdom_url: str = "offline"
     visdom_port: int = 8097
 
     @staticmethod
