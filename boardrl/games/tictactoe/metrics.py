@@ -7,7 +7,7 @@ class Metrics:
 
     def print_short_history(self):
         for players in self.data:
-            h = players[0]
+            h = players.by_strategy[0]
             print(
                 h[-1]
                 .state.replace("O", str(crayons.green("O")))
