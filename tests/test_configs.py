@@ -10,7 +10,9 @@ CONFIG_FILES = sorted(CONFIG_DIR.glob("*.yaml"))
 pytestmark = pytest.mark.config
 
 
-@pytest.mark.parametrize("config_path", CONFIG_FILES)
+@pytest.mark.parametrize(
+    "config_path", CONFIG_FILES, ids=[str(p) for p in CONFIG_FILES]
+)
 def test_config_runs(config_path):
     subprocess.run(
         [

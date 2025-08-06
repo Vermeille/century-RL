@@ -4,7 +4,7 @@ import math
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from config import Config, LossConfig
+from boardrl.config import Config, LossConfig
 
 
 def test_config_defaults():
