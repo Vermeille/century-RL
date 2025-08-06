@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -19,6 +20,7 @@ def test_config_defaults():
     assert cfg.pit.every == 4
     assert cfg.pit.num_games == 32
     assert cfg.pit.max_len == 220
+    assert math.isinf(cfg.train.iterations)
 
 
 def test_config_overrides():
@@ -26,6 +28,7 @@ def test_config_overrides():
         "device": "cuda",
         "train": {
             "lr": 0.5,
+            "iterations": 5,
             "loss": {"value": "custom_value", "policy": "custom_policy"},
         },
         "self_play": {"num_games": 7, "strategies": ["random", "best"]},
@@ -34,6 +37,7 @@ def test_config_overrides():
     cfg = Config.from_dict(raw)
     assert cfg.device == "cuda"
     assert cfg.train.lr == 0.5
+    assert cfg.train.iterations == 5
     assert cfg.train.loss.value == "custom_value"
     assert cfg.train.loss.policy == "custom_policy"
     assert cfg.self_play.num_games == 7
