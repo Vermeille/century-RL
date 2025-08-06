@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import partial
 from typing import Iterable
+from boardrl.rl.eval.selfplay import SelfPlayResults
 
 import torch
 
@@ -78,7 +79,7 @@ def set_score(history: list) -> None:
 
 
 def compute_returns(
-    games,
+    games: SelfPlayResults,
     discount_factor: float,
     *,
     entropy_reward_scale: float | None = None,

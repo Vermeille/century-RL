@@ -69,6 +69,7 @@ def run_experiment(name: str) -> None:
     func, model_fns = EXPERIMENTS[name]
     histories = []
     for label, fn in model_fns:
+        print("running", name, label)
         history = func(fn())
         histories.append((label, history))
 
@@ -90,12 +91,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "experiment",
-        choices=EXPERIMENTS.keys(),
+        choices=list(EXPERIMENTS.keys()),
         nargs="*",
-        default=list(EXPERIMENTS.keys()),
         help="Which experiments to run (default: all)",
     )
     args = parser.parse_args()
+    args.experiment = args.experiment or list(EXPERIMENTS.keys())
     for name in args.experiment:
         run_experiment(name)
 

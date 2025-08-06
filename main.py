@@ -280,7 +280,6 @@ class Trainer:
             total_losses["loss_policy"] += policy_loss.item()
             total_losses["loss_value"] += value_loss.item()
 
-            print(policy[0].shape)
             total_losses["normalized_perplexity"] += sum(
                 torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
                 / len(p)
