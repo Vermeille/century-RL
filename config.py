@@ -53,12 +53,19 @@ class PitConfig(SelfPlayConfig):
 
 
 @dataclass
+class NetConfig:
+    dim: int = 64
+    num_layers: int = 2
+    head_size: int = 33
+
+
+@dataclass
 class Config:
     device: str = "cpu"
     tag: str = ""
     game: str = "century"
     model: Optional[str] = None
-    net: Dict[str, Any] = field(default_factory=dict)
+    net: NetConfig = field(default_factory=NetConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     self_play: SelfPlayConfig = field(default_factory=SelfPlayConfig)
     pit: PitConfig = field(default_factory=PitConfig)
@@ -79,17 +86,17 @@ class Config:
 
         self_play = SelfPlayConfig(**d.get("self_play", {}))
         pit = PitConfig(**d.get("pit", {}))
+        net = NetConfig(**d.get("net", {}))
 
         return Config(
             device=d.get("device", "cpu"),
             tag=d.get("tag", ""),
             game=d.get("game", "century"),
             model=d.get("model"),
-            net=d.get("net", {}),
             train=train,
             self_play=self_play,
             pit=pit,
+            net=net,
             visdom_url=d.get("visdom_url", ""),
             visdom_port=d.get("visdom_port", 8097),
         )
-

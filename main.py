@@ -106,13 +106,10 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-
-
-
 class Trainer:
     def __init__(self, config, checkpoint_path=None):
         self.config = config
-        self.model = Model(**self.config.net)
+        self.model = Model(**self.config.net.__dict__)
         self.model.to(config.device)
         self.opt = make_optimizer(self.model.parameters(), config.train)
 
@@ -451,7 +448,7 @@ class PreTrainer:
         self.config = config
         self.model = torch.nn.ModuleList(
             [
-                Model(**self.config.net),
+                Model(**self.config.net.__dict__),
                 StatePredictor(self.config.net.dim, self.config.net.head_size),
             ]
         )
