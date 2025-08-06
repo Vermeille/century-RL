@@ -46,7 +46,8 @@ def entropy_reward(history: list, strength: float) -> None:
 
     for log in history[:-1]:
         log.reward += (
-            strength * -torch.log_softmax(log.action_distribution, dim=0)[log.action_idx]
+            strength
+            * -torch.log_softmax(log.action_distribution, dim=0)[log.action_idx]
         )
 
 
@@ -105,4 +106,3 @@ def compute_returns(
 
             for fn in fns:
                 fn(history)
-

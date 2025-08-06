@@ -26,6 +26,7 @@ class ImitationCELoss:
 class CELoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+
     def __init__(self, label_smoothing: float = 0.0):
         self.label_smoothing = label_smoothing
 
@@ -41,6 +42,7 @@ class CELoss:
 class ImitationJeffreysLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -56,6 +58,7 @@ class ImitationJeffreysLoss:
 class ImitationJSLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -71,6 +74,7 @@ class ImitationJSLoss:
 class ImitationMSELoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -86,6 +90,7 @@ class ImitationMSELoss:
 class ImitationKLLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -106,6 +111,7 @@ class ImitationKLLoss:
 class ImitationReverseKLLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
@@ -183,7 +189,6 @@ class RunningNormalizer:
 
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
-
     @property
     def supports_off_policy(self):
         return self.weight in ["advantage"]
@@ -237,6 +242,7 @@ class PolicyGradientLoss:
 class ValueMSELoss:
     supports_off_policy = True
     supports_partial_trajectories = False
+
     def __init__(self, strength: float = 1):
         self.strength = strength
 
