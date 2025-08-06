@@ -370,7 +370,7 @@ class Trainer:
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
 
         epoch = 0
-        while True:
+        while epoch < self.config.train.iterations:
             self.epoch = epoch
 
             print("EPOCH", epoch)
