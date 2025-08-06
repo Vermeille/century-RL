@@ -577,12 +577,17 @@ def fix_dict(config, key, new_value):
 
     if len(split) == 1:
         if isinstance(config, dict):
-            assert split[0] in config
+            config[split[0]] = yaml.safe_load(new_value)
         elif isinstance(config, list):
             assert split[0] < len(config)
-        config[split[0]] = yaml.safe_load(new_value)
+            config[split[0]] = yaml.safe_load(new_value)
     else:
-        fix_dict(config[split[0]], split[1], new_value)
+        if isinstance(config, dict):
+            config = config.setdefault(split[0], {})
+        elif isinstance(config, list):
+            assert split[0] < len(config)
+            config = config[split[0]]
+        fix_dict(config, split[1], new_value)
 
 
 def main():
@@ -622,6 +627,11 @@ def main():
         config.device = "cpu"
 
     ckpt = opts.ckpt if opts.ckpt != "None" else None
+
+    if config.visdom_url == "offline":
+        Trainer(config, ckpt)
+        return
+
     if ckpt is None:
         model = PreTrainer(config).pretrain()
         trainer = Trainer(config, ckpt)
