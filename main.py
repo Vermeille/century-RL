@@ -20,6 +20,26 @@ from boardrl.training.returns import compute_returns
 from boardrl.training import TrainingSample
 
 
+def make_optimizer(params, train_cfg):
+    betas = tuple(train_cfg.betas)
+    if train_cfg.optimizer == "AdamW":
+        return torch.optim.AdamW(
+            params,
+            lr=train_cfg.lr,
+            betas=betas,
+            weight_decay=train_cfg.weight_decay,
+        )
+    elif train_cfg.optimizer == "Muon":
+        return ForeachMuon(
+            params,
+            lr=train_cfg.lr,
+            betas=betas,
+            weight_decay=train_cfg.weight_decay,
+        )
+    else:
+        raise ValueError(f"Unknown optimizer: {train_cfg.optimizer}")
+
+
 def to_trainset(
     games_data: SelfPlayResults,
     only_players: list[int] | None = None,
@@ -94,22 +114,7 @@ class Trainer:
         self.config = config
         self.model = Model(**self.config.net)
         self.model.to(config.device)
-        if self.config.train.optimizer == "AdamW":
-            self.opt = torch.optim.AdamW(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.99),
-                weight_decay=0.01,
-            )
-        elif self.config.train.optimizer == "Muon":
-            self.opt = ForeachMuon(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.99),
-                weight_decay=0.01,
-            )
-        else:
-            raise ValueError(f"Unknown optimizer: {self.config.train.optimizer}")
+        self.opt = make_optimizer(self.model.parameters(), config.train)
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
@@ -452,22 +457,7 @@ class PreTrainer:
             ]
         )
         self.model.to(config.device)
-        if self.config.train.optimizer == "AdamW":
-            self.opt = torch.optim.AdamW(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.95),
-                weight_decay=0.01,
-            )
-        elif self.config.train.optimizer == "Muon":
-            self.opt = ForeachMuon(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.95),
-                weight_decay=0.01,
-            )
-        else:
-            raise ValueError(f"Unknown optimizer: {self.config.train.optimizer}")
+        self.opt = make_optimizer(self.model.parameters(), config.train)
 
         self.viz = Visualizer(
             f"{config.game}_{config.tag}-lr={config.train.lr}",

@@ -9,7 +9,7 @@ from a raw ``dict`` loaded from YAML.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -23,6 +23,8 @@ class TrainConfig:
     optimizer: str = "AdamW"
     gradient_epochs: int = 1
     lr: float = 1e-4
+    betas: Tuple[float, float] = (0.9, 0.99)
+    weight_decay: float = 0.01
     batch_size: int = 12
     show_every: int = 10
     save_every: int = 100
@@ -69,7 +71,10 @@ class Config:
 
         train_dict = d.get("train", {})
         loss_dict = train_dict.get("loss", {})
-        train = TrainConfig(**{k: v for k, v in train_dict.items() if k != "loss"})
+        train_kwargs = {k: v for k, v in train_dict.items() if k != "loss"}
+        if "betas" in train_kwargs:
+            train_kwargs["betas"] = tuple(train_kwargs["betas"])
+        train = TrainConfig(**train_kwargs)
         train.loss = LossConfig(**loss_dict)
 
         self_play = SelfPlayConfig(**d.get("self_play", {}))
