@@ -1,3 +1,4 @@
+# Params: 0.40M
 num_layers: 4
 dim: 64
 head_size: 16
