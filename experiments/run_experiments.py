@@ -25,6 +25,7 @@ from boardrl.experiments.model import (
     model_learns_policy_and_value,
     model_learns_from_context,
     model_dyck,
+    model_arith_mod20,
 )
 from boardrl.rl.model.model import Model
 
@@ -60,6 +61,10 @@ EXPERIMENTS = {
     ),
     "model_dyck": (
         model_dyck,
+        [("default", lambda: Model(64, 4, 32))],
+    ),
+    "model_arith_mod20": (
+        model_arith_mod20,
         [("default", lambda: Model(64, 4, 32))],
     ),
 }
