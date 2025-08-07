@@ -163,6 +163,7 @@ class Trainer:
             ],
             self.config.pit.num_games,
             self.config.pit.max_len,
+            rotate=self.config.pit.rotate,
         )
         compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
@@ -347,6 +348,7 @@ class Trainer:
             ],
             self.config.self_play.num_games,
             self.config.self_play.max_len,
+            rotate=self.config.self_play.rotate,
         )
         compute_returns(
             data,
@@ -554,6 +556,7 @@ class PreTrainer:
             ],
             self.config.self_play.num_games,
             self.config.self_play.max_len,
+            rotate=self.config.self_play.rotate,
         )
         return data
 

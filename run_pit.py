@@ -2,7 +2,7 @@ import json
 import os
 import random
 
-from boardrl.games import strategy_from_string
+from boardrl.games import games_library, strategy_from_string
 from boardrl.rl.eval.selfplay import pit
 
 
@@ -44,10 +44,12 @@ def main():
 
     strategies = populate_strategies()
     print(strategies)
+    game_desc = games_library("century")
     for _ in range(opts.games):
         player1 = opts.player1 or random.choice(strategies)
         player2 = opts.player2 or random.choice(strategies)
         pit_results = pit(
+            game_desc.make_game,
             [strategy_from_string(player1), strategy_from_string(player2)],
             opts.num_games,
             opts.max_len,
