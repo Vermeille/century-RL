@@ -81,3 +81,19 @@ def test_pearson_corr_identity():
     x = torch.randn(10)
     corr = pearson_corr(x, x)
     assert torch.isclose(corr, torch.tensor(1.0), atol=1e-5)
+
+
+@pytest.mark.timeout(10)
+def test_batch_processor_does_not_mix_inputs():
+    async def run_bp():
+        def process_fn(batch):
+            return DummyOut(batch.copy())
+
+        bp = BatchProcessor(batch_size=2, process_fn=process_fn, timeout=0.1)
+        results = []
+        for i in range(5):
+            results.append(await bp(i))
+        return results
+
+    results = asyncio.run(run_bp())
+    assert results == list(range(5))
