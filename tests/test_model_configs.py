@@ -14,7 +14,9 @@ def test_model_configs_have_param_comments():
     for cfg_path in CONFIG_DIR.glob("*.yaml"):
         with open(cfg_path) as f:
             first = f.readline().strip()
-            assert first.startswith("# Params:"), f"{cfg_path.name} missing param comment"
+            assert first.startswith(
+                "# Params:"
+            ), f"{cfg_path.name} missing param comment"
             expected = float(first.split(":", 1)[1].strip().rstrip("M"))
             cfg = yaml.safe_load(f)
         with contextlib.redirect_stdout(io.StringIO()):
@@ -22,6 +24,5 @@ def test_model_configs_have_param_comments():
         params = sum(p.numel() for p in model.parameters()) / 1e6
         assert abs(params - expected) < 0.01, (
             f"{cfg_path.name} param count mismatch: "
-            f"expected {expected:.2f}M got {params:.2f}M"
+            f"file says {expected:.2f}M but model is {params:.2f}M"
         )
-
