@@ -166,7 +166,7 @@ class Trainer:
         )
         compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
-        self.viz.push("pit.win_rate", pit_results.win_rate(0), self.epoch)
+        self.viz.push("pit.win_rate (strategy)", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
         self.model.train()
 
@@ -358,12 +358,14 @@ class Trainer:
         metrics = self.game_desc.make_metrics(data)
         metrics.print_short_history()
         metrics.metrics_to_visdom(self.viz, self.epoch)
-        avg_reward = [
-            sum(h.reward for players in data for h in players.by_strategy[p])
-            / sum(len(players.by_strategy[p]) for players in data)
-            for p in range(data.num_players())
+        avg_reward_strat = [
+            data.my_avg_reward(p, by="strategy") for p in range(data.num_players())
         ]
-        self.viz.push("avg_reward", avg_reward, self.epoch)
+        self.viz.push("avg_reward (strategy)", avg_reward_strat, self.epoch)
+        avg_reward_seat = [
+            data.my_avg_reward(p, by="seat") for p in range(data.num_players())
+        ]
+        self.viz.push("avg_reward (seat)", avg_reward_seat, self.epoch)
         self.model.train()
         return data
 

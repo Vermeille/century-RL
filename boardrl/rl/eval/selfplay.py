@@ -124,6 +124,12 @@ class SelfPlayResults(list):
         pts = self.my_points(num, by=by)
         return sum(pts) / len(pts)
 
+    def my_avg_reward(self, num: int, *, by: str = "strategy"):
+        my_games = self.my_games(num, by=by)
+        return sum(g.reward for game in my_games for g in game) / sum(
+            len(game) for game in my_games
+        )
+
 
 async def play_game(game, strategies, max_len):
     for _ in range(max_len):
