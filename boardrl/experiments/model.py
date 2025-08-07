@@ -166,3 +166,60 @@ def model_dyck(model: Model) -> List[float]:
         assert torch.equal(pred, y)
 
     return history
+
+
+# Arithmetic expression utilities -------------------------------------------
+
+def _random_arith_expr(max_depth: int) -> Tuple[str, int]:
+    if max_depth <= 0 or random.random() < 0.5:
+        n = random.randint(0, 19)
+        return str(n), n % 20
+    left_s, left_v = _random_arith_expr(max_depth - 1)
+    right_s, right_v = _random_arith_expr(max_depth - 1)
+    op = random.choice(["+", "*"])
+    if op == "+":
+        val = (left_v + right_v) % 20
+    else:
+        val = (left_v * right_v) % 20
+    return f"({left_s}{op}{right_s})", val
+
+
+def generate_arith_example(max_depth: int = 3) -> Tuple[str, int]:
+    expr, val = _random_arith_expr(max_depth)
+    return expr, val
+
+
+def _generate_arith_examples(bs: int, max_depth: int) -> Tuple[List[str], torch.Tensor]:
+    xy = [generate_arith_example(max_depth) for _ in range(bs)]
+    x = [expr + "\n" + "".join(f"@{i}\n" for i in range(20)) for expr, _ in xy]
+    y = torch.tensor([val for _, val in xy])
+    return x, y
+
+
+def model_arith_mod20(
+    model: Model, max_depth: int = 3, num_iters: int = 10000, bs: int = 64
+) -> List[float]:
+    """Run modular arithmetic evaluation experiment."""
+
+    torch.manual_seed(0)
+    opt = torch.optim.AdamW(model.parameters(), lr=0.0001)
+
+    history: List[float] = []
+    for i in range(num_iters):
+        x, y = _generate_arith_examples(bs, max_depth)
+        out = model(x)
+        logits = torch.stack(out.policy)
+        loss = F.cross_entropy(logits, y)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        if i % 10 == 0:
+            history.append(logits.argmax(1).eq(y).float().mean().item())
+
+    with torch.no_grad():
+        x, y = _generate_arith_examples(4, max_depth)
+        out = model(x)
+        pred = torch.stack(out.policy).argmax(1)
+        assert torch.equal(pred, y)
+
+    return history
