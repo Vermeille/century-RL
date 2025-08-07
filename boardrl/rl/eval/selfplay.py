@@ -146,18 +146,21 @@ async def play_game(game, strategies, max_len):
 
 
 @torch.no_grad()
-def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
+def self_play(
+    make_game, strategies, n_games, max_len, rotate: bool = True, desc="playing games"
+):
     n_players = len(strategies)
     data: list[GameTrace | None] = [None] * n_games
 
     with tqdm(total=n_games, desc=desc) as pbar:
 
         async def run_game(idx):
+            offset = idx if rotate else 0
             mixed_strategies = [
-                strategies[(i + idx) % n_players] for i in range(n_players)
+                strategies[(i + offset) % n_players] for i in range(n_players)
             ]
             traces = [
-                PlayerTrace(seat_id=i, strategy_id=(i + idx) % n_players)
+                PlayerTrace(seat_id=i, strategy_id=(i + offset) % n_players)
                 for i in range(n_players)
             ]
             game = make_game(num_players=n_players)
@@ -172,5 +175,5 @@ def self_play(make_game, strategies, n_games, max_len, desc="playing games"):
 
 
 @torch.no_grad()
-def pit(make_game, strategies, n_games, max_len):
-    return self_play(make_game, strategies, n_games, max_len)
+def pit(make_game, strategies, n_games, max_len, *, rotate: bool = True):
+    return self_play(make_game, strategies, n_games, max_len, rotate=rotate)
