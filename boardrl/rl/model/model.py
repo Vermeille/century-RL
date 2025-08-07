@@ -135,10 +135,10 @@ class ScaledSinosoidal(SinusoidalPositional):
 class ValueHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
-        self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
-        self.pool = AttnPool(head_size, dim // head_size, dim)
+        # self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
+        # self.pool = AttnPool(head_size, dim // head_size, dim)
         self.out = nn.Sequential(
-            # nn.LayerNorm(dim), # Detrimental
+            # nn.LayerNorm(dim),  # Detrimental
             nn.Linear(dim, 2),
             # Scale(2),
             # B2
@@ -147,8 +147,8 @@ class ValueHead(nn.Module):
     def forward(self, x, attn_mask):
         # x = self.tfblock(x, attn_mask)
         # x = mask_mean_pool(x, attn_mask)
-        x = self.pool(x, attn_mask)
-        # x = x[:, 0]
+        # x = self.pool(x, attn_mask)
+        x = x[:, 0]
         out = self.out(x)
         return out
 
@@ -168,7 +168,7 @@ class PolicyHead(nn.Module):
         # self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # it IS Detrimental
-            nn.LayerNorm(dim),
+            # nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             # BL
             # nn.LogSoftmax(dim=1), # THIS IS WRONG BECAUSE WE SELECT AFTER
