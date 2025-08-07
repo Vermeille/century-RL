@@ -96,7 +96,8 @@ class Metrics:
     def metrics_to_visdom(self, viz, epoch):
         metrics = self.metrics()
         avg_move_summary = metrics.pop("avg_move_summary")
-        viz.viz.line(
+        viz.visdom(
+            "line",
             Y=torch.tensor(
                 [[sum(avg_move_summary[k] for k in "AHRV"[: i + 1]) for i in range(4)]]
             ),
@@ -113,7 +114,8 @@ class Metrics:
         )
 
         lengths = metrics.pop("prompt_size")
-        viz.viz.line(
+        viz.visdom(
+            "line",
             Y=torch.tensor([[lengths[k] for k in ["avg", "min", "max"]]]),
             X=torch.tensor([[epoch] * 3]),
             opts=dict(

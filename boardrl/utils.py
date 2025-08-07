@@ -3,10 +3,7 @@ from collections import deque
 from typing import Any, List, Callable
 import asyncio
 import inspect
-import pyximport
-
-pyximport.install()
-from boardrl.cyutils import fast_sample
+from visdom import Visdom
 
 
 class BatchProcessor:
@@ -93,10 +90,10 @@ class CachedBatchProcessor(BatchProcessor):
         self.cache = {}
         self.cache_size = cache_size
 
-    async def send(self, data: Any):
+    async def __call__(self, data: Any):
         if data in self.cache:
             return self.cache[data]
-        result = await super().send(data)
+        result = await super().__call__(data)
         if len(self.cache) >= self.cache_size:
             self.cache.popitem()
         self.cache[data] = result
@@ -184,17 +181,6 @@ class RegisterByName:
                     default = "?"
                 fun_display += f",{arg}={default}"
             print(fun_display)
-
-
-def easydict_to_dict(d):
-    if isinstance(d, dict):
-        return {k: easydict_to_dict(v) for k, v in d.items()}
-    elif isinstance(d, list):
-        return [easydict_to_dict(v) for v in d]
-    else:
-        return d
-
-
 def entropy(logits, dim):
     log_probs = torch.log_softmax(logits, dim=dim)
     return -torch.sum(torch.exp(log_probs) * log_probs, dim=dim).mean()
@@ -221,3 +207,47 @@ class Game:
     def ended(self) -> bool: ...
 
     ...
+
+
+class VisdomVisualizer:
+    def __init__(self, tag, url: str, port: int):
+        self.viz = Visdom(
+            env=tag,
+            server=url,
+            port=port,
+        )
+        self.viz.close()
+
+    def push(self, name, value, epoch):
+        optional = {}
+        if isinstance(value, list):
+            optional["legend"] = [str(i) for i in range(len(value))]
+        self.viz.line(
+            torch.tensor([value]),
+            torch.tensor([epoch]),
+            win=name,
+            update="append",
+            opts=dict(
+                title=name,
+                **optional,
+            ),
+        )
+
+    def html(self, name, value):
+        self.viz.text(value, win=name)
+
+    def visdom(self, fn, *args, **kwargs):
+        getattr(self.viz, "fn")(*args, **kwargs)
+
+
+class OfflineVisualizer:
+    def __init__(self): ...
+    def push(self, name, value, epoch): ...
+    def html(self, name, value): ...
+    def visdom(self, fn, *args, **kwargs): ...
+
+
+def Visualizer(tag, url, port):
+    if url == "offline":
+        return OfflineVisualizer()
+    return VisdomVisualizer(tag, url, port)

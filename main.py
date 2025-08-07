@@ -4,130 +4,55 @@ import time
 import copy
 import os
 import yaml
-from visdom import Visdom
+from dataclasses import asdict
 from tqdm import tqdm
 from heavyball import ForeachMuon
 
+from boardrl.config import Config
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr
-from boardrl.rl.eval.selfplay import self_play, pit
+from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, easydict_to_dict
+from boardrl.utils import BatchProcessor, Visualizer
+from boardrl.training.returns import compute_returns
+from boardrl.training import TrainingSample
 
 
-class TrainingSample:
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-    @staticmethod
-    def collate(samples):
-        return TrainingSample(
-            **{
-                k: collate([getattr(s, k) for s in samples])
-                for k in samples[0].__dict__
-            }
+def make_optimizer(params, train_cfg):
+    betas = tuple(train_cfg.betas)
+    if train_cfg.optimizer == "AdamW":
+        return torch.optim.AdamW(
+            params,
+            lr=train_cfg.lr,
+            betas=betas,
+            weight_decay=train_cfg.weight_decay,
         )
-
-    def to(self, *args, **kwargs):
-        for k, v in self.__dict__.items():
-            if isinstance(v, torch.Tensor):
-                self.__dict__[k] = v.to(*args, **kwargs)
-            elif isinstance(v[0], torch.Tensor):
-                self.__dict__[k] = [x.to(*args, **kwargs) for x in v]
-        return self
-
-    def __repr__(self):
-        out = ["TrainingSample:"]
-        for k, v in self.__dict__.items():
-            if k == "next":
-                continue
-            out.append(f"{k}: {v}")
-        return "\n".join(out)
+    elif train_cfg.optimizer == "Muon":
+        return ForeachMuon(
+            params,
+            lr=train_cfg.lr,
+            betas=betas,
+            weight_decay=train_cfg.weight_decay,
+        )
+    else:
+        raise ValueError(f"Unknown optimizer: {train_cfg.optimizer}")
 
 
-def collate(xs):
-    if isinstance(xs[0], (int, float)):
-        return torch.tensor(xs)
-    if isinstance(xs[0], torch.Tensor):
-        try:
-            return torch.stack(xs, dim=0)
-        except RuntimeError:
-            return xs
-    return xs
-
-
-def discount(rews, discount_factor):
-    return sum(discount_factor**i * r.reward for i, r in enumerate(rews))
-
-
-def compute_returns(
-    games,
-    discount_factor,
-    *,
-    entropy_reward_scale: float | None = None,
-    reward_rescale: float | None = None,
+def to_trainset(
+    games_data: SelfPlayResults,
+    only_players: list[int] | None = None,
+    only_strategies: list[int] | None = None,
 ):
-    def rescale(history, scale):
-        for log in history:
-            log.current_diff_points *= scale
+    if only_players is not None:
+        games_data = games_data.only_player(only_players)
+    if only_strategies is not None:
+        games_data = games_data.only_strategy(only_strategies)
 
-    def set_next(history):
-        for i, log in enumerate(history[:-1]):
-            log.next = history[i + 1]
-
-    def set_rewards(history):
-        history[-1].reward = 0
-        for i in range(len(history) - 1):
-            history[i].reward = (
-                history[i + 1].current_diff_points - history[i].current_diff_points
-            )
-
-    def entropy_reward(history, strength):
-        for log in history[:-1]:
-            log.reward += (
-                strength
-                * -torch.log_softmax(log.action_distribution, dim=0)[log.action_idx]
-            )
-
-    def set_returns(history):
-        if history[-1].final:
-            for i in range(len(history) - 1):
-                history[i].returns = discount(history[i:], discount_factor)
-        else:
-            for i in range(len(history) - 1):
-                history[i].returns = float("nan")
-
-    def set_score(history):
-        if history[-1].final:
-            for i in range(len(history)):
-                history[i].score = history[-1].current_diff_points
-        else:
-            for i in range(len(history)):
-                history[i].score = float("nan")
-
-    for game in games:
-        for history in game:
-            if len(history) == 0:
-                continue
-            if reward_rescale is not None:
-                rescale(history, reward_rescale)
-            set_next(history)
-            set_rewards(history)
-            if entropy_reward_scale is not None:
-                entropy_reward(history, entropy_reward_scale)
-            set_returns(history)
-            set_score(history)
-
-
-def to_trainset(games_data, only_players: list[int] | None = None):
     out = []
     for game in games_data:
-        for player_id, hist in enumerate(game):
-            if only_players is not None and player_id not in only_players:
-                continue
-
+        for hist in game:
             if len(hist) == 0:
                 continue
             end = hist[-1]
@@ -181,52 +106,12 @@ def autobatch(model, input, bs=None):
         return autobatch(model, input, bs // 2)
 
 
-class Visualizer:
-    def __init__(self, tag):
-        self.viz = Visdom(
-            env=tag,
-            server="https://visdom.vermeille.fr",
-            port=443,
-        )
-        self.viz.close()
-
-    def push(self, name, value, epoch):
-        optional = {}
-        if isinstance(value, list):
-            optional["legend"] = [str(i) for i in range(len(value))]
-        self.viz.line(
-            torch.tensor([value]),
-            torch.tensor([epoch]),
-            win=name,
-            update="append",
-            opts=dict(
-                title=name,
-                **optional,
-            ),
-        )
-
-
 class Trainer:
     def __init__(self, config, checkpoint_path=None):
         self.config = config
-        self.model = Model(**self.config.net)
+        self.model = Model(**self.config.net.__dict__)
         self.model.to(config.device)
-        if self.config.train.optimizer == "AdamW":
-            self.opt = torch.optim.AdamW(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.99),
-                weight_decay=0.01,
-            )
-        elif self.config.train.optimizer == "Muon":
-            self.opt = ForeachMuon(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.99),
-                weight_decay=0.01,
-            )
-        else:
-            raise ValueError(f"Unknown optimizer: {self.config.train.optimizer}")
+        self.opt = make_optimizer(self.model.parameters(), config.train)
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
@@ -247,10 +132,14 @@ class Trainer:
             discount_factor=config.train.discount_factor,
         )
         print(self.policy_loss, self.value_loss)
-        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
-        self.viz.viz.text(
-            "<pre>\n" + yaml.dump(easydict_to_dict(config)) + "</pre>",
-            win="config",
+        self.viz = Visualizer(
+            f"{config.game}_{config.tag}-lr={config.train.lr}",
+            url=config.visdom_url,
+            port=config.visdom_port,
+        )
+        self.viz.html(
+            "config",
+            "<pre>\n" + yaml.dump(asdict(config)) + "</pre>",
         )
         self.epoch = 0
         self.game_desc = games_library(config.game)
@@ -259,7 +148,7 @@ class Trainer:
     def _log_pit(self):
         self.model.eval()
         bp = BatchProcessor(
-            self.config.pit.get("batch_size", self.config.train.batch_size),
+            self.config.pit.batch_size or self.config.train.batch_size,
             self.model,
             timeout=0.01,
         )
@@ -274,10 +163,11 @@ class Trainer:
             ],
             self.config.pit.num_games,
             self.config.pit.max_len,
+            rotate=self.config.pit.rotate,
         )
         compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
-        self.viz.push("pit.win_rate", pit_results.win_rate(0), self.epoch)
+        self.viz.push("pit.win_rate (strategy)", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
         self.model.train()
 
@@ -311,7 +201,7 @@ class Trainer:
                 total_losses["value"] += value_loss.item()
 
                 grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=50000.0
+                    self.model.parameters(), max_norm=5.0
                 )
                 self.opt.step()
 
@@ -388,11 +278,6 @@ class Trainer:
             total_losses["loss_policy"] += policy_loss.item()
             total_losses["loss_value"] += value_loss.item()
 
-            grad_mag = torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), max_norm=50000.0
-            )
-            total_losses["grad_mag"] += grad_mag.item()
-            print(policy[0].shape)
             total_losses["normalized_perplexity"] += sum(
                 torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
                 / len(p)
@@ -408,6 +293,8 @@ class Trainer:
             for p in self.model.parameters():
                 if p.grad is not None:
                     p.grad /= len(data)
+        grad_mag = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
+        total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
         for k, v in total_losses.items():
@@ -447,7 +334,7 @@ class Trainer:
 
         self.model.eval()
         bp = BatchProcessor(
-            self.config.self_play.get("batch_size", self.config.train.batch_size),
+            self.config.self_play.batch_size or self.config.train.batch_size,
             self.model,
             timeout=0.02,
         )
@@ -461,23 +348,26 @@ class Trainer:
             ],
             self.config.self_play.num_games,
             self.config.self_play.max_len,
+            rotate=self.config.self_play.rotate,
         )
         compute_returns(
             data,
             self.config.train.discount_factor,
-            #1 - 1 / (1 + self.epoch * 0.1),
-            entropy_reward_scale=self.config.train.get("entropy_reward_scale"),
-            reward_rescale=self.config.train.get("reward_rescale"),
+            # 1 - 1 / (1 + self.epoch * 0.1),
+            entropy_reward_scale=self.config.train.entropy_reward_scale,
+            reward_rescale=self.config.train.reward_rescale,
         )
         metrics = self.game_desc.make_metrics(data)
         metrics.print_short_history()
         metrics.metrics_to_visdom(self.viz, self.epoch)
-        avg_reward = [
-            sum(h.reward for players in data for h in players[p])
-            / sum(len(players[0]) for players in data)
-            for p in range(len(data[0]))
+        avg_reward_strat = [
+            data.my_avg_reward(p, by="strategy") for p in range(data.num_players())
         ]
-        self.viz.push("avg_reward", avg_reward, self.epoch)
+        self.viz.push("avg_reward (strategy)", avg_reward_strat, self.epoch)
+        avg_reward_seat = [
+            data.my_avg_reward(p, by="seat") for p in range(data.num_players())
+        ]
+        self.viz.push("avg_reward (seat)", avg_reward_seat, self.epoch)
         self.model.train()
         return data
 
@@ -485,7 +375,7 @@ class Trainer:
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
 
         epoch = 0
-        while True:
+        while epoch < self.config.train.iterations:
             self.epoch = epoch
 
             print("EPOCH", epoch)
@@ -497,7 +387,9 @@ class Trainer:
 
             data = self._run_episode()
             trainset = to_trainset(
-                data, only_players=self.config.train.get("only_players")
+                data,
+                only_players=self.config.train.only_players,
+                only_strategies=self.config.train.only_strategies,
             )
 
             print(len(trainset), "samples")
@@ -505,6 +397,7 @@ class Trainer:
                 self.policy_loss.supports_off_policy
                 and self.value_loss.supports_off_policy
             ):
+                assert False
                 self._train_epoch_off_policy(trainset)
             else:
                 self._train_epoch_on_policy(trainset)
@@ -514,12 +407,13 @@ class Trainer:
 
 import torch.nn as nn
 from boardrl.rl.model import RotarySingle
+from boardrl.rl.model.utils import DynamicTanh
 
 
 class StatePredictor(nn.Module):
     def __init__(self, dim, head_size) -> None:
         super().__init__()
-        self.norm_hidden = nn.LayerNorm(dim)
+        self.norm_hidden = DynamicTanh(dim)
         self.emb = nn.Embedding(256, dim, padding_idx=0)
         self.norm_in = nn.Linear(dim, dim)
         self.rotary = RotarySingle(dim, 512)
@@ -558,29 +452,18 @@ class PreTrainer:
         self.config = config
         self.model = torch.nn.ModuleList(
             [
-                Model(**self.config.net),
+                Model(**self.config.net.__dict__),
                 StatePredictor(self.config.net.dim, self.config.net.head_size),
             ]
         )
         self.model.to(config.device)
-        if self.config.train.optimizer == "AdamW":
-            self.opt = torch.optim.AdamW(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.95),
-                weight_decay=0.01,
-            )
-        elif self.config.train.optimizer == "Muon":
-            self.opt = ForeachMuon(
-                self.model.parameters(),
-                lr=config.train.lr,
-                betas=(0.9, 0.95),
-                weight_decay=0.01,
-            )
-        else:
-            raise ValueError(f"Unknown optimizer: {self.config.train.optimizer}")
+        self.opt = make_optimizer(self.model.parameters(), config.train)
 
-        self.viz = Visualizer(f"{config.game}_{config.tag}-lr={config.train.lr}")
+        self.viz = Visualizer(
+            f"{config.game}_{config.tag}-lr={config.train.lr}",
+            url=config.visdom_url,
+            port=config.visdom_port,
+        )
         self.epoch = 0
         self.game_desc = games_library(config.game)
 
@@ -621,7 +504,8 @@ class PreTrainer:
                 loss.backward()
                 self.opt.step()
 
-                self.viz.viz.text(
+                self.viz.html(
+                    "display",
                     samples.state[0].replace("\n", "<br>")
                     + "<hr>"
                     + "".join(
@@ -630,10 +514,9 @@ class PreTrainer:
                             board_moves[0, 1:], pred[0].argmax(-1) == board_moves[0, 1:]
                         )
                     ).replace("\n", "<br>"),
-                    win="display",
                 )
                 grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=50000.0
+                    self.model.parameters(), max_norm=5.0
                 )
                 self.viz.push(
                     "grad_mag",
@@ -673,6 +556,7 @@ class PreTrainer:
             ],
             self.config.self_play.num_games,
             self.config.self_play.max_len,
+            rotate=self.config.self_play.rotate,
         )
         return data
 
@@ -698,46 +582,61 @@ def fix_dict(config, key, new_value):
 
     if len(split) == 1:
         if isinstance(config, dict):
-            assert split[0] in config
+            config[split[0]] = yaml.safe_load(new_value)
         elif isinstance(config, list):
             assert split[0] < len(config)
-        config[split[0]] = yaml.safe_load(new_value)
+            config[split[0]] = yaml.safe_load(new_value)
     else:
-        fix_dict(config[split[0]], split[1], new_value)
+        if isinstance(config, dict):
+            config = config.setdefault(split[0], {})
+        elif isinstance(config, list):
+            assert split[0] < len(config)
+            config = config[split[0]]
+        fix_dict(config, split[1], new_value)
 
 
 def main():
-    from easydict import EasyDict
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("config_file", type=str)
     parser.add_argument("--ckpt", type=str, default=None)
     parser.add_argument("-x", action="append", default=[])
+    parser.add_argument("--visdom-url", default="http://localhost")
+    parser.add_argument("--visdom-port", default=8097)
     opts = parser.parse_args()
 
     init_seed()
     with open(opts.config_file) as f:
-        config = EasyDict(yaml.safe_load(f))
+        raw_config = yaml.safe_load(f)
 
     for config_fix in opts.x:
-        fix_dict(config, *config_fix.split("=", 1))
+        fix_dict(raw_config, *config_fix.split("=", 1))
+    raw_config.setdefault("visdom_url", opts.visdom_url)
+    raw_config.setdefault("visdom_port", opts.visdom_port)
 
-    if "model" in config:
+    if "model" in raw_config:
         with open(
             os.path.join(
-                os.path.dirname(__file__), "model-configs", f"{config.model}.yaml"
+                os.path.dirname(__file__), "model-configs", f"{raw_config['model']}.yaml"
             )
         ) as f:
-            config.net = EasyDict(yaml.safe_load(f))
+            raw_config["net"] = yaml.safe_load(f)
     else:
         raise ValueError("config must specify 'model'")
+
+    config = Config.from_dict(raw_config)
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
         print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
         config.device = "cpu"
 
     ckpt = opts.ckpt if opts.ckpt != "None" else None
+
+    if config.visdom_url == "offline":
+        Trainer(config, ckpt)
+        return
+
     if ckpt is None:
         model = PreTrainer(config).pretrain()
         trainer = Trainer(config, ckpt)

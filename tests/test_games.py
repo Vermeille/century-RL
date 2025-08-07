@@ -59,26 +59,26 @@ def test_connectfour_winner_detection():
     g = ConnectFour()
     for i in range(4):
         g.board[i][0] = 0
-    assert g.winner() == 0
+    assert g._check_winner() == 0
 
     g = ConnectFour()
     for i in range(4):
         g.board[0][i] = 1
-    assert g.winner() == 1
+    assert g._check_winner() == 1
 
     g = ConnectFour()
     g.board[0][0] = 0
     g.board[1][1] = 0
     g.board[2][2] = 0
     g.board[3][3] = 0
-    assert g.winner() == 0
+    assert g._check_winner() == 0
 
     g = ConnectFour()
     g.board[3][0] = 1
     g.board[2][1] = 1
     g.board[1][2] = 1
     g.board[0][3] = 1
-    assert g.winner() == 1
+    assert g._check_winner() == 1
 
 
 def test_sum_correct_guess_increases_score():

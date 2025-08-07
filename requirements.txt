@@ -3,7 +3,6 @@ tqdm
 cython
 visdom
 fastapi[standard]
-easydict
 pyyaml
 natsort
 crayons
@@ -11,3 +10,4 @@ psutil
 heavyball
 pytest
 pytest-timeout
+matplotlib

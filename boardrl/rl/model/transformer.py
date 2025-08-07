@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .utils import DynamicTanh
+
 
 def normal_init(m, std):
     assert isinstance(m.weight, torch.Tensor)
@@ -186,15 +188,20 @@ class TransformerBlock(nn.Module):
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
-            GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
+            nn.GELU(),  # GEGLU(),  # better than GELU
+            xavier(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
+            nn.LayerNorm(hidden_size),
         )
+        if False:
+            with torch.no_grad():
+                self.feed_forward[1].weight[hidden_size * 2 :].fill_(0.0)
+                self.feed_forward[1].bias[hidden_size * 2 :].fill_(1.0)
         # GatedResidual is better than just_add. Not sure why.
-        self.residual1 = GatedResidual(hidden_size)
-        self.residual2 = GatedResidual(hidden_size)
+        self.residual1 = just_add  # GatedResidual(hidden_size)
+        self.residual2 = just_add  # GatedResidual(hidden_size)
 
     def forward(self, x, attn_mask):
-        x = self.residual1(x, self.sa(self.layer_norm1(x), attn_mask))
+        x = self.residual1(x, self.layer_norm1(self.sa(self.layer_norm1(x), attn_mask)))
         x = self.residual2(x, self.feed_forward(x))
         return x
 

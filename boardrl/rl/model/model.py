@@ -2,6 +2,7 @@ from collections import namedtuple
 import torch
 import torch.nn as nn
 from boardrl.rl.model.transformer import SelfAttnOp, Transformer
+from boardrl.rl.model.utils import DynamicTanh
 
 
 class MeanPool(nn.Module):
@@ -134,20 +135,20 @@ class ScaledSinosoidal(SinusoidalPositional):
 class ValueHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
-        self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
-        self.pool = AttnPool(head_size, dim // head_size, dim)
+        # self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
+        # self.pool = AttnPool(head_size, dim // head_size, dim)
         self.out = nn.Sequential(
-            # nn.LayerNorm(dim), # Detrimental
+            # nn.LayerNorm(dim),  # Detrimental
             nn.Linear(dim, 2),
             # Scale(2),
             # B2
         )
 
     def forward(self, x, attn_mask):
-        x = self.tfblock(x, attn_mask)
+        # x = self.tfblock(x, attn_mask)
         # x = mask_mean_pool(x, attn_mask)
-        x = self.pool(x, attn_mask)
-        # x = x[:, 0]
+        # x = self.pool(x, attn_mask)
+        x = x[:, 0]
         out = self.out(x)
         return out
 
@@ -164,18 +165,18 @@ class Scale(nn.Module):
 class PolicyHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
-        self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
+        # self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # it IS Detrimental
             # nn.LayerNorm(dim),
             nn.Linear(dim, 1),
             # BL
-            nn.LogSoftmax(dim=1),
+            # nn.LogSoftmax(dim=1), # THIS IS WRONG BECAUSE WE SELECT AFTER
         )
 
     def forward(self, x, attn_mask):
-        x = self.tfblock(x, attn_mask)
-        x = self.out(x)
+        # x = self.tfblock(x, attn_mask)
+        x = self.out(x)  # BLD
         return x.squeeze(-1)
 
 
@@ -220,10 +221,10 @@ class RotarySingle(torch.nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, dim, max_len=2048):
         super().__init__()
-        self.pos_enc = nn.Parameter(torch.randn(max_len, dim))
+        self.pos_enc = nn.Parameter(torch.randn(max_len, dim) * 0.02)
 
     def forward(self, x):
-        return x * self.pos_enc[: x.shape[1]]
+        return x + self.pos_enc[: x.shape[1]]
 
 
 class Model(nn.Module):
@@ -232,20 +233,22 @@ class Model(nn.Module):
         self.maxlen = 2048
         self.in_embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
-            nn.LayerNorm(dim),
+            PositionalEncoding(dim, self.maxlen),  # Doesn't seem to work???
+            # nn.LayerNorm(dim),
             RotarySingle(dim, self.maxlen),
-            # PositionalEncoding(dim, self.maxlen),  # Doesn't seem to work???
         )
-        self.in_embed[0].weight.data.normal_(0, 0.02)
+        # self.in_embed[0].weight.data.normal_(0, 0.02)
         self.encode = Transformer(
             dim,
-            num_layers - 1,
+            num_layers,
             dim // head_size,
             head_size,
             num_conv_blocks=0,  # conv blocks make no difference
+            # rotary=True,
         )
         self.to_pred = PolicyHead(dim, head_size)
         self.rewards = ValueHead(dim, head_size)
+        print(self)
 
     def text_encode(self, txts, maxlen):
         maxlen = min(maxlen, max(len(g) for g in txts))
