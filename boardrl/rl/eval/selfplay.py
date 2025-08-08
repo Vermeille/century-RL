@@ -98,6 +98,15 @@ class SelfPlayResults(list):
     def num_players(self):
         return self[0].num_players()
 
+    def all_traces(self):
+        for game in self:
+            for player in game:
+                yield player
+
+    def num_traces(self):
+        return len(self) * self.num_players()
+
+    #
     # ------------------------------------------------------------------
     # Metrics previously provided by ``PitResults``
     # ------------------------------------------------------------------
