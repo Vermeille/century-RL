@@ -1,5 +1,6 @@
 """Sanity checks for the Transformer module using tiny MLM tasks."""
 
+import pytest
 from boardrl.experiments.transformer import (
     ToyMLM,
     transformer_learns_alphabet_mlm,
@@ -7,6 +8,8 @@ from boardrl.experiments.transformer import (
     transformer_positional,
 )
 
+
+pytestmark = pytest.mark.slow
 
 def test_transformer_learns_alphabet_mlm_lpe():
     transformer_learns_alphabet_mlm(ToyMLM(dim=64))

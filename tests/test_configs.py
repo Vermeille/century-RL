@@ -7,7 +7,7 @@ import pytest
 CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
 CONFIG_FILES = sorted(CONFIG_DIR.glob("*.yaml"))
 
-pytestmark = pytest.mark.config
+pytestmark = [pytest.mark.config, pytest.mark.slow]
 
 
 @pytest.mark.parametrize(
