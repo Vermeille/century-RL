@@ -28,4 +28,4 @@ pit:
   every: 1
   strategies:
     - argmax,model=this
-    - century_random_buy
+    - random_buy

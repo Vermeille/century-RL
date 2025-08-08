@@ -1,4 +1,4 @@
-# Params: 6.29M
+# Params: 5.30M
 num_layers: 6
 dim: 256
 head_size: 32

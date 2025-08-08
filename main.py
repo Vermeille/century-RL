@@ -163,6 +163,7 @@ class Trainer:
             ],
             self.config.pit.num_games,
             self.config.pit.max_len,
+            rotate=self.config.pit.rotate,
         )
         compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
@@ -274,19 +275,20 @@ class Trainer:
             loss = policy_loss + value_loss
             loss = loss * len(samples.state)
             loss.backward()
-            total_losses["loss_policy"] += policy_loss.item()
-            total_losses["loss_value"] += value_loss.item()
+            with torch.no_grad():
+                total_losses["loss_policy"] += policy_loss.item()
+                total_losses["loss_value"] += value_loss.item()
 
-            total_losses["normalized_perplexity"] += sum(
-                torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
-                / len(p)
-                for p in policy
-            ).item() / len(policy)
-            pearson = pearson_corr(value.mean, samples.returns)
-            total_losses["pearson"] += pearson.item()
-            total_losses["MAE"] += torch.nn.functional.l1_loss(
-                value.mean, samples.returns
-            ).item()
+                total_losses["normalized_perplexity"] += sum(
+                    torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
+                    / len(p)
+                    for p in policy
+                ).item() / len(policy)
+                pearson = pearson_corr(value.mean, samples.returns)
+                total_losses["pearson"] += pearson.item()
+                total_losses["MAE"] += torch.nn.functional.l1_loss(
+                    value.mean, samples.returns
+                ).item()
 
         with torch.no_grad():
             for p in self.model.parameters():
@@ -323,7 +325,7 @@ class Trainer:
                 "model": self.model.state_dict(),
                 "opt": self.opt.state_dict(),
                 "epoch": self.epoch,
-                "config": self.config.net,
+                "config": self.config.net.asdict(),
             },
             f"{self.game_name}-ckpt/rl-{self.epoch}.pth",
         )
@@ -347,6 +349,7 @@ class Trainer:
             ],
             self.config.self_play.num_games,
             self.config.self_play.max_len,
+            rotate=self.config.self_play.rotate,
         )
         compute_returns(
             data,
@@ -392,10 +395,10 @@ class Trainer:
 
             print(len(trainset), "samples")
             if (
-                self.policy_loss.supports_off_policy
+                False
+                and self.policy_loss.supports_off_policy
                 and self.value_loss.supports_off_policy
             ):
-                assert False
                 self._train_epoch_off_policy(trainset)
             else:
                 self._train_epoch_on_policy(trainset)
@@ -554,6 +557,7 @@ class PreTrainer:
             ],
             self.config.self_play.num_games,
             self.config.self_play.max_len,
+            rotate=self.config.self_play.rotate,
         )
         return data
 
@@ -615,7 +619,9 @@ def main():
     if "model" in raw_config:
         with open(
             os.path.join(
-                os.path.dirname(__file__), "model-configs", f"{raw_config['model']}.yaml"
+                os.path.dirname(__file__),
+                "model-configs",
+                f"{raw_config['model']}.yaml",
             )
         ) as f:
             raw_config["net"] = yaml.safe_load(f)
@@ -625,14 +631,10 @@ def main():
     config = Config.from_dict(raw_config)
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
-        print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
+        print(r"* - . /!\ /!\ CUDA not available, using CPU /!\ /!\ . - *")
         config.device = "cpu"
 
     ckpt = opts.ckpt if opts.ckpt != "None" else None
-
-    if config.visdom_url == "offline":
-        Trainer(config, ckpt)
-        return
 
     if ckpt is None:
         model = PreTrainer(config).pretrain()

@@ -7,8 +7,8 @@ from boardrl.rl.model import load_model
 strategy_from_string = RegisterByName(arg_readers={"model": load_model})
 
 
-@strategy_from_string.register("century_random_buy")
-class CenturyRandomBuyStrategy:
+@strategy_from_string.register("random_buy")
+class RandomBuyStrategy:
     async def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -21,8 +21,8 @@ class CenturyRandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
-@strategy_from_string.register("century_all_actions_then_random_buy")
-class CenturyAllActionsThenRandomBuyStrategy:
+@strategy_from_string.register("all_actions_then_random_buy")
+class AllActionsThenRandomBuyStrategy:
     async def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -41,8 +41,8 @@ class CenturyAllActionsThenRandomBuyStrategy:
         return uniform.log(), {"moves": dict(zip(g.moves, uniform.tolist()))}
 
 
-@strategy_from_string.register("century_no_actions_random_buy")
-class CenturyNoActionsRandomBuyStrategy:
+@strategy_from_string.register("no_actions_random_buy")
+class NoActionsRandomBuyStrategy:
     async def __call__(self, g: Game):
         moves = g.moves
         for mov in moves:
@@ -58,8 +58,8 @@ class CenturyNoActionsRandomBuyStrategy:
         return dist.log(), {"moves": dict(zip(g.moves, dist.tolist()))}
 
 
-@strategy_from_string.register("century_never_buy")
-class CenturyNeverBuyStrategy:
+@strategy_from_string.register("never_buy")
+class NeverBuyStrategy:
     async def __call__(self, g: Game):
         num_no_action = sum(1 for mov in g.moves if mov[0] != "V")
         dist = torch.tensor(

@@ -43,6 +43,7 @@ class SelfPlayConfig:
     max_len: int = 500
     strategies: List[str] = field(default_factory=list)
     batch_size: Optional[int] = None
+    rotate: bool = True
 
 
 @dataclass
