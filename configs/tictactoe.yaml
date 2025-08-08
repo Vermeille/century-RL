@@ -8,7 +8,7 @@ pit:
   every: 25
   max_len: 220
   num_games: 32
-  rotate: False
+  rotate: false
   strategies:
   - policy_sampling,model=this
   - random
@@ -23,7 +23,7 @@ self_play:
 train:
   optimizer: AdamW
   batch_size: 64
-  discount_factor: 0.9
+  discount_factor: 1.0
   gradient_epochs: 1
   loss:
     policy: policy_gradient_loss,weight=baseline_value,label_smoothing=0.03,renormalize=True

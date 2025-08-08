@@ -275,19 +275,20 @@ class Trainer:
             loss = policy_loss + value_loss
             loss = loss * len(samples.state)
             loss.backward()
-            total_losses["loss_policy"] += policy_loss.item()
-            total_losses["loss_value"] += value_loss.item()
+            with torch.no_grad():
+                total_losses["loss_policy"] += policy_loss.item()
+                total_losses["loss_value"] += value_loss.item()
 
-            total_losses["normalized_perplexity"] += sum(
-                torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
-                / len(p)
-                for p in policy
-            ).item() / len(policy)
-            pearson = pearson_corr(value.mean, samples.returns)
-            total_losses["pearson"] += pearson.item()
-            total_losses["MAE"] += torch.nn.functional.l1_loss(
-                value.mean, samples.returns
-            ).item()
+                total_losses["normalized_perplexity"] += sum(
+                    torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
+                    / len(p)
+                    for p in policy
+                ).item() / len(policy)
+                pearson = pearson_corr(value.mean, samples.returns)
+                total_losses["pearson"] += pearson.item()
+                total_losses["MAE"] += torch.nn.functional.l1_loss(
+                    value.mean, samples.returns
+                ).item()
 
         with torch.no_grad():
             for p in self.model.parameters():
@@ -618,7 +619,9 @@ def main():
     if "model" in raw_config:
         with open(
             os.path.join(
-                os.path.dirname(__file__), "model-configs", f"{raw_config['model']}.yaml"
+                os.path.dirname(__file__),
+                "model-configs",
+                f"{raw_config['model']}.yaml",
             )
         ) as f:
             raw_config["net"] = yaml.safe_load(f)
