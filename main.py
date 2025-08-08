@@ -631,7 +631,7 @@ def main():
     config = Config.from_dict(raw_config)
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
-        print("* - . /!\\ /!\\ CUDA not available, using CPU /!\\ /!\\ . - *")
+        print(r"* - . /!\ /!\ CUDA not available, using CPU /!\ /!\ . - *")
         config.device = "cpu"
 
     ckpt = opts.ckpt if opts.ckpt != "None" else None
