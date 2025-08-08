@@ -11,7 +11,8 @@ This repository contains a small reinforcement learning framework that supports 
 - `tests/`: unit tests for core functionality.
 - `main.py`: entry point for training agents.
 - `run_pit.py`: pits two strategies against each other for evaluation.
-- `requirements.txt`: Python dependencies.
+- `pyproject.toml`: Project metadata and dependencies managed by `uv`.
+- `uv.lock`: Locked dependency versions.
 
 ### Utilities
 `boardrl/utils.py` provides a batching helper used for async inference and a registry for creating objects by name. The batching helper collects requests and processes them in groups, while `RegisterByName` lets you instantiate classes using a string key. This mechanism is used throughout the project to register strategies, games and other components.
@@ -32,7 +33,7 @@ The FastAPI server in `boardrl/serve/serve.py` exposes a simple interface for pl
 Use `pytest` for the test suite:
 
 ```bash
-pytest tests -k "not transformer and not model and not config"
+uv run pytest tests -k "not transformer and not model and not config"
 ```
 
 The `tests/test_transformer.py` and `tests/test_model.py` suites run lengthy training loops and should only be executed when modifying the corresponding modules. `tests/test_fast_sample.py` builds the Cython extension `boardrl/cyutils.pyx`, so a C compiler is required if that file changes. `tests/test_configs.py` runs the training entry point for every configuration and is slow; only run this file when modifying configs or `main.py`.
@@ -40,7 +41,7 @@ The `tests/test_transformer.py` and `tests/test_model.py` suites run lengthy tra
 ## Getting Started
 1. **Install dependencies**:
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 2. **Train an agent**:
    ```bash
