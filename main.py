@@ -395,10 +395,10 @@ class Trainer:
 
             print(len(trainset), "samples")
             if (
-                self.policy_loss.supports_off_policy
+                False
+                and self.policy_loss.supports_off_policy
                 and self.value_loss.supports_off_policy
             ):
-                assert False
                 self._train_epoch_off_policy(trainset)
             else:
                 self._train_epoch_on_policy(trainset)
@@ -635,10 +635,6 @@ def main():
         config.device = "cpu"
 
     ckpt = opts.ckpt if opts.ckpt != "None" else None
-
-    if config.visdom_url == "offline":
-        Trainer(config, ckpt)
-        return
 
     if ckpt is None:
         model = PreTrainer(config).pretrain()

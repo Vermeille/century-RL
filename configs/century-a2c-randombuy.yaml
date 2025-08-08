@@ -33,4 +33,4 @@ pit:
   batch_size: 32
   strategies:
     - policy_sampling,model=this,temperature=0.001
-    - century_random_buy
+    - random_buy
