@@ -1,3 +1,5 @@
+[![Tests](../../actions/workflows/tests.yml/badge.svg)](../../actions/workflows/tests.yml)
+
 # Century RL
 
 A small reinforcement learning framework for board games.
@@ -17,4 +19,3 @@ uv run pytest tests -k "not transformer and not model and not config"
 ```
 
 Also see AGENTS.md
-
