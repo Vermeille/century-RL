@@ -65,7 +65,7 @@ class TheGame(GameDesc):
     def __init__(self):
         from boardrl.games.thegame.game import TheGame
         from boardrl.games.thegame.metrics import Metrics
-        from boardrl.games.thegame.strategy import (
+        from boardrl.games.thegame.strategies import (
             strategy_from_string as thegame_strategy_from_string,
         )
 
