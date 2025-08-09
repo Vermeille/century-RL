@@ -108,9 +108,31 @@ async def do(
         }
 
     dist, _ = await strategies.get_strategy(strategy)(game)
-    dist = torch.softmax(dist, dim=0)
-    action = fast_sample(torch.softmax(dist, dim=0))
-    game.play_idx(action)
+    action_idx = fast_sample(torch.softmax(dist, dim=0))
+    game.play_idx(action_idx)
+
+    if game.ended():
+        return {
+            "continue": False,
+            "points": game.diff_points_for(0),
+            "num_turns": game.round(),
+        }
+
+    return {"continue": True}
+
+
+@app.post("/play-one")
+async def play_one(strategy: str = Body(..., embed=True)):
+    if game.ended():
+        return {
+            "continue": False,
+            "points": game.diff_points_for(0),
+            "num_turns": game.round(),
+        }
+
+    dist, _ = await strategies.get_strategy(strategy)(game)
+    action_idx = fast_sample(torch.softmax(dist, dim=0))
+    game.play_idx(action_idx)
 
     if game.ended():
         return {
@@ -123,7 +145,7 @@ async def do(
 
 
 @app.get("/reset")
-def reset():
+async def reset():
     global game
     game = century.make_game()
     return True

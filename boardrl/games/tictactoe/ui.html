@@ -48,6 +48,7 @@
   <div>
     <select id="strategies"></select>
     <button onclick="analyze()">Analyze</button>
+    <button onclick="play_one()">Play</button>
   </div>
   <script>
     // Parse the API state. Board rows start with "|" and allowed moves with "@".
@@ -133,6 +134,23 @@
         const idx = cell.getAttribute('data-action');
         cell.innerHTML = `${idx}<br>${Math.round(data.moves[idx] * 100) / 100}`;
       });
+    }
+
+    async function play_one() {
+      const response = await fetch('/play-one?', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          strategy: document.getElementById('strategies').value 
+        })
+      });
+      const data = await response.json();
+      await refresh();
+      if (!state.continue) {
+        alert(state.points > 0 ? 'You won!' : state.points < 0 ? 'You lost!' : 'Draw!');
+        await fetch('/reset');
+        await refresh();
+      }
     }
 
     async function get_strategies() {
