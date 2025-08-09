@@ -16,6 +16,7 @@ from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
 from boardrl.utils import BatchProcessor, Visualizer
+from boardrl.games.strategies import ModelPool
 from boardrl.training.returns import compute_returns
 from boardrl.training import TrainingSample
 
@@ -147,17 +148,16 @@ class Trainer:
 
     def _log_pit(self):
         self.model.eval()
-        bp = BatchProcessor(
-            self.config.pit.batch_size or self.config.train.batch_size,
-            self.model,
-            timeout=0.01,
-        )
+        batch_size = self.config.pit.batch_size or self.config.train.batch_size
+        timeout = 0.01
+        bp = BatchProcessor(batch_size, self.model, timeout=timeout)
+        pool = ModelPool(bp, batch_size, timeout)
         print("PIT: ", " VS ".join(self.config.pit.strategies))
         pit_results = pit(
             self.game_desc.make_game,
             [
                 self.game_desc.strategy_from_string(
-                    s, model=bp, discount_factor=self.config.train.discount_factor
+                    s, model=pool, discount_factor=self.config.train.discount_factor
                 )
                 for s in self.config.pit.strategies
             ],
@@ -334,16 +334,15 @@ class Trainer:
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
 
         self.model.eval()
-        bp = BatchProcessor(
-            self.config.self_play.batch_size or self.config.train.batch_size,
-            self.model,
-            timeout=0.02,
-        )
+        batch_size = self.config.self_play.batch_size or self.config.train.batch_size
+        timeout = 0.02
+        bp = BatchProcessor(batch_size, self.model, timeout=timeout)
+        pool = ModelPool(bp, batch_size, timeout)
         data = self_play(
             self.game_desc.make_game,
             [
                 self.game_desc.strategy_from_string(
-                    s, model=bp, discount_factor=self.config.train.discount_factor
+                    s, model=pool, discount_factor=self.config.train.discount_factor
                 )
                 for s in self.config.self_play.strategies
             ],
