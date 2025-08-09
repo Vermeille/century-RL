@@ -1,8 +1,11 @@
 import os
 import sys
 import math
+import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from pydantic import ValidationError
 
 from boardrl.config import Config, LossConfig
 
@@ -52,3 +55,13 @@ def test_config_overrides():
     # Ensure unspecified pit fields keep defaults
     assert cfg.pit.num_games == 32
     assert cfg.pit.max_len == 220
+
+
+def test_config_invalid_top_level_key():
+    with pytest.raises(ValidationError):
+        Config.from_dict({"bogus": 1})
+
+
+def test_config_invalid_nested_key():
+    with pytest.raises(ValidationError):
+        Config.from_dict({"train": {"unknown": 1}})
