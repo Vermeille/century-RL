@@ -2,7 +2,7 @@ import os
 import torch
 from natsort import natsorted
 from pathlib import Path
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 import pyximport
@@ -46,6 +46,8 @@ class Strategies:
         return strategies
 
     def get_strategy(self, name):
+        if name not in self.strategies:
+            raise HTTPException(status_code=400, detail="Unknown strategy")
         for cache_name, strategy in self.cache:
             if cache_name == name:
                 return strategy
