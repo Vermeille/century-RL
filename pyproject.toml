@@ -18,6 +18,7 @@ dependencies = [
     "pytest",
     "pytest-timeout",
     "matplotlib",
+    "pydantic>=2.11.7",
 ]
 
 [build-system]

@@ -4,7 +4,6 @@ import time
 import copy
 import os
 import yaml
-from dataclasses import asdict
 from tqdm import tqdm
 from heavyball import ForeachMuon
 
@@ -140,7 +139,7 @@ class Trainer:
         )
         self.viz.html(
             "config",
-            "<pre>\n" + yaml.dump(asdict(config)) + "</pre>",
+            "<pre>\n" + yaml.dump(config.model_dump()) + "</pre>",
         )
         self.epoch = 0
         self.game_desc = games_library(config.game)
@@ -325,7 +324,7 @@ class Trainer:
                 "model": self.model.state_dict(),
                 "opt": self.opt.state_dict(),
                 "epoch": self.epoch,
-                "config": self.config.net.asdict(),
+                "config": self.config.net.model_dump(),
             },
             f"{self.game_name}-ckpt/rl-{self.epoch}.pth",
         )
