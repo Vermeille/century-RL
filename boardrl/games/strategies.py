@@ -1,6 +1,10 @@
+import inspect
+import os
+import random
+
 import torch
 
-from boardrl.utils import RegisterByName, Game
+from boardrl.utils import BatchProcessor, Game, RegisterByName
 from boardrl.rl.model import load_model
 import boardrl.games.mcts as mcts
 import pyximport
@@ -35,24 +39,88 @@ def _recent_models(topk):
     return [f[0] for f in recent_files_with_times[:topk]]
 
 
-def get_model(arg_str, default, provided_arg):
-    import random
-    from boardrl.utils import BatchProcessor
+async def _maybe_await(result):
+    """Await ``result`` if it is awaitable and return its value."""
+    if inspect.isawaitable(result):
+        return await result
+    return result
 
-    assert default is None
-    assert arg_str is not None
-    if arg_str == "this":
-        assert provided_arg is not None
+
+class ModelPool:
+    """Utility to resolve model specifications to ``BatchProcessor`` instances."""
+
+    def __init__(self, base_model: BatchProcessor, batch_size: int, timeout: float):
+        self.base_model = base_model
+        self.batch_size = batch_size
+        self.timeout = timeout
+        self.cache: dict[str, BatchProcessor] = {}
+
+    def _load(self, path: str) -> BatchProcessor:
+        model = load_model(path)
+        model.eval()
+        return BatchProcessor(self.batch_size, model, timeout=self.timeout)
+
+    def _resolve_path(self, spec: str) -> str:
+        if spec.startswith("recent-"):
+            try:
+                topk = int(spec.split("-", 1)[1])
+            except ValueError as exc:  # pragma: no cover - defensive programming
+                raise ValueError(f"invalid recent model spec: {spec}") from exc
+            candidates = _recent_models(topk)
+            if not candidates:
+                raise ValueError("no recent model files found")
+            return random.choice(candidates)
+        return spec
+
+    def __call__(self, spec: str | None):
+        if spec in (None, "this"):
+            if self.base_model is None:
+                raise ValueError("model='this' requires a provided model")
+            return self.base_model
+        path = self._resolve_path(spec)
+        if not os.path.exists(path):
+            raise ValueError(f"model file '{path}' does not exist")
+        if path not in self.cache:
+            self.cache[path] = self._load(path)
+        return self.cache[path]
+
+def get_model(arg_str, default, provided_arg):
+    """Resolve the model argument for strategy creation.
+
+    ``arg_str`` is the model specification from the strategy string.  If a
+    :class:`ModelPool` is supplied as ``provided_arg`` the resolution is
+    delegated to it, allowing ``model=this``, paths, or ``recent-N`` specs to
+    share caching and batching behaviour.  When no pool is supplied, fall back
+    to loading a model directly from ``arg_str``.
+    """
+
+    if isinstance(provided_arg, ModelPool):
+        return provided_arg(arg_str)
+
+    # Fallback behaviour without a pool: either reuse the provided model or
+    # load the requested checkpoint without batching.
+    if arg_str in (None, "this"):
+        if provided_arg is None:
+            raise ValueError("model='this' requires a provided model")
         return provided_arg
+
     if arg_str.startswith("recent-"):
-        recent_paths = _recent_models(int(arg_str.split("-")[1]))
-        print("loading from", recent_paths)
-        m = load_model(random.choice(recent_paths))
-        m.eval()
-        # FIXME: this is disgusting
-        bp = BatchProcessor(provided_arg.batch_size, m, provided_arg.timeout)
-        return bp
-    assert False
+        try:
+            topk = int(arg_str.split("-", 1)[1])
+        except ValueError as exc:  # pragma: no cover - defensive programming
+            raise ValueError(f"invalid recent model spec: {arg_str}") from exc
+        candidates = _recent_models(topk)
+        if not candidates:
+            raise ValueError("no recent model files found")
+        model_path = random.choice(candidates)
+    else:
+        model_path = arg_str
+        if not os.path.exists(model_path):
+            raise ValueError(f"model file '{model_path}' does not exist")
+
+    model = load_model(model_path)
+    model.eval()
+    return model
 
 
 strategy_from_string = RegisterByName(arg_readers={"model": get_model})
@@ -88,7 +156,9 @@ class ArgmaxStrategy:
                 "moves": dict(zip(g.moves, distribution.tolist()))
             }
         else:
-            policy = (await self.nn(g.display_with_moves())).policy[0].cpu()
+            policy = (
+                await _maybe_await(self.nn(g.display_with_moves()))
+            ).policy[0].cpu()
             distribution = one_hot(torch.argmax(policy).item(), len(g.moves))
             return distribution.log(), {
                 "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
@@ -121,8 +191,9 @@ class PolicySamplingStrategy:
             return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
 
         policy = (
-            (await self.nn(g.display_with_moves())).policy[0].cpu()
-        ) / self.temperature
+            await _maybe_await(self.nn(g.display_with_moves()))
+        ).policy[0].cpu()
+        policy = policy / self.temperature
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
 
 
@@ -161,7 +232,8 @@ class MCTSValue:
 
     async def __call__(self, g: Game):
         async def eval_fn(g):
-            return (await self.model(g.display_with_moves())).value.mean.item()
+            out = await _maybe_await(self.model(g.display_with_moves()))
+            return out.value.mean.item()
 
         searcher = mcts.MCTS(
             g.current_player(),
