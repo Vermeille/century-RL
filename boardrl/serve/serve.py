@@ -66,7 +66,7 @@ game_dir = Path(__file__).parent.parent / "games" / game_name
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    return open(game_dir / "ui.html").read()
+    return (game_dir / "ui.html").read_text()
 
 
 @app.get("/strategies")
