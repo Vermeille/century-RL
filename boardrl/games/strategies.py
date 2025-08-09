@@ -7,10 +7,6 @@ import torch
 from boardrl.utils import BatchProcessor, Game, RegisterByName
 from boardrl.rl.model import load_model
 import boardrl.games.mcts as mcts
-import pyximport
-
-pyximport.install()
-from boardrl.cyutils import fast_sample
 
 
 def _recent_models(topk):
@@ -37,13 +33,6 @@ def _recent_models(topk):
     recent_files_with_times.sort(key=lambda x: x[1], reverse=True)
 
     return [f[0] for f in recent_files_with_times[:topk]]
-
-
-async def _maybe_await(result):
-    """Await ``result`` if it is awaitable and return its value."""
-    if inspect.isawaitable(result):
-        return await result
-    return result
 
 
 class ModelPool:
@@ -84,6 +73,7 @@ class ModelPool:
             self.cache[path] = self._load(path)
         return self.cache[path]
 
+
 def get_model(arg_str, default, provided_arg):
     """Resolve the model argument for strategy creation.
 
@@ -94,33 +84,8 @@ def get_model(arg_str, default, provided_arg):
     to loading a model directly from ``arg_str``.
     """
 
-    if isinstance(provided_arg, ModelPool):
-        return provided_arg(arg_str)
-
-    # Fallback behaviour without a pool: either reuse the provided model or
-    # load the requested checkpoint without batching.
-    if arg_str in (None, "this"):
-        if provided_arg is None:
-            raise ValueError("model='this' requires a provided model")
-        return provided_arg
-
-    if arg_str.startswith("recent-"):
-        try:
-            topk = int(arg_str.split("-", 1)[1])
-        except ValueError as exc:  # pragma: no cover - defensive programming
-            raise ValueError(f"invalid recent model spec: {arg_str}") from exc
-        candidates = _recent_models(topk)
-        if not candidates:
-            raise ValueError("no recent model files found")
-        model_path = random.choice(candidates)
-    else:
-        model_path = arg_str
-        if not os.path.exists(model_path):
-            raise ValueError(f"model file '{model_path}' does not exist")
-
-    model = load_model(model_path)
-    model.eval()
-    return model
+    assert isinstance(provided_arg, ModelPool)
+    return provided_arg(arg_str)
 
 
 strategy_from_string = RegisterByName(arg_readers={"model": get_model})
@@ -156,9 +121,7 @@ class ArgmaxStrategy:
                 "moves": dict(zip(g.moves, distribution.tolist()))
             }
         else:
-            policy = (
-                await _maybe_await(self.nn(g.display_with_moves()))
-            ).policy[0].cpu()
+            policy = (await self.nn(g.display_with_moves())).policy[0].cpu()
             distribution = one_hot(torch.argmax(policy).item(), len(g.moves))
             return distribution.log(), {
                 "moves": dict(zip(g.moves, torch.softmax(policy, dim=0).tolist()))
@@ -190,9 +153,7 @@ class PolicySamplingStrategy:
         if len(g.moves) == 1:
             return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
 
-        policy = (
-            await _maybe_await(self.nn(g.display_with_moves()))
-        ).policy[0].cpu()
+        policy = (await self.nn(g.display_with_moves())).policy[0].cpu()
         policy = policy / self.temperature
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
 
@@ -232,7 +193,7 @@ class MCTSValue:
 
     async def __call__(self, g: Game):
         async def eval_fn(g):
-            out = await _maybe_await(self.model(g.display_with_moves()))
+            out = await self.model(g.display_with_moves())
             return out.value.mean.item()
 
         searcher = mcts.MCTS(
