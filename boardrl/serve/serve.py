@@ -10,13 +10,17 @@ import pyximport
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 from boardrl.games import games_library
 from boardrl.cyutils import fast_sample
+from boardrl.games.strategies import ModelPool
 
 
 class Strategies:
-    def __init__(self, cache_len=5):
+    def __init__(self, cache_len: int = 5, batch_size: int = 32, timeout: float = 0.01):
         self.strategies = self.populate_strategies()
         self.cache = []
         self.cache_len = cache_len
+        # ModelPool handles loading models and batching inference similar to
+        # the training setup in ``main.py``.
+        self.pool = ModelPool(None, batch_size, timeout)
 
     @staticmethod
     def populate_strategies():
@@ -50,7 +54,9 @@ class Strategies:
             if cache_name == name:
                 return strategy
         self.cache = self.cache[-self.cache_len :]
-        self.cache.append((name, century.strategy_from_string(name)))
+        # Use the shared ModelPool when instantiating strategies so model
+        # arguments are resolved correctly.
+        self.cache.append((name, century.strategy_from_string(name, model=self.pool)))
         return self.cache[-1][1]
 
 
