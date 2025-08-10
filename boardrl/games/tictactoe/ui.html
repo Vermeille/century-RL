@@ -110,9 +110,9 @@
       const response = await fetch('/do', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: action, 
-          strategy: document.getElementById('strategies').value 
+        body: JSON.stringify({
+          action: action,
+          strategy: document.getElementById('strategies').value
         })
       });
       const state = await response.json();
@@ -124,15 +124,41 @@
       }
     }
 
-    // Analyze function updates allowed (clickable) cells with an evaluation score.
+    // Convert an array of logits to probabilities.
+    function softmax(arr) {
+      const max = Math.max(...arr);
+      const exps = arr.map(v => Math.exp(v - max));
+      const sum = exps.reduce((a, b) => a + b, 0);
+      return exps.map(e => e / sum);
+    }
+
+    // Map probability to a color from red (0) to green (1).
+    function colorForProb(p) {
+      const hue = p * 120; // 0 -> red, 1 -> green
+      return `hsl(${hue}, 100%, 50%)`;
+    }
+
+    // Analyze function updates cells with a softmax evaluation and heat map color.
     async function analyze() {
       const response = await fetch('/analyze?' + new URLSearchParams({
         strategy: document.getElementById('strategies').value,
       }));
       const data = await response.json();
-      document.querySelectorAll('.cell[data-action]').forEach(cell => {
-        const idx = cell.getAttribute('data-action');
-        cell.innerHTML = `${idx}<br>${Math.round(data.moves[idx] * 100) / 100}`;
+
+      const entries = Object.entries(data.moves).sort((a, b) => a[0] - b[0]);
+      const probs = softmax(entries.map(([, v]) => v));
+      const probByIdx = {};
+      entries.forEach(([k], i) => {
+        probByIdx[k] = probs[i];
+      });
+
+      document.querySelectorAll('.cell').forEach(cell => {
+        const idx = cell.getAttribute('data-index');
+        const prob = probByIdx[idx] ?? 0;
+        cell.style.backgroundColor = colorForProb(prob);
+        if (cell.hasAttribute('data-action')) {
+          cell.innerHTML = `${idx}<br>${Math.round(prob * 100) / 100}`;
+        }
       });
     }
 
