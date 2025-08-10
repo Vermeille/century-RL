@@ -221,7 +221,7 @@ class RotarySingle(torch.nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, dim, max_len=2048):
         super().__init__()
-        self.pos_enc = nn.Parameter(torch.randn(max_len, dim) * 0.02)
+        self.pos_enc = nn.Parameter(torch.randn(max_len, dim) / dim)
 
     def forward(self, x):
         return x + self.pos_enc[: x.shape[1]]

@@ -190,7 +190,7 @@ class TransformerBlock(nn.Module):
             ),  # bias is better
             nn.GELU(),  # GEGLU(),  # better than GELU
             xavier(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
-            nn.LayerNorm(hidden_size),
+            # nn.LayerNorm(hidden_size),
         )
         if False:
             with torch.no_grad():
@@ -201,7 +201,7 @@ class TransformerBlock(nn.Module):
         self.residual2 = just_add  # GatedResidual(hidden_size)
 
     def forward(self, x, attn_mask):
-        x = self.residual1(x, self.layer_norm1(self.sa(self.layer_norm1(x), attn_mask)))
+        x = self.residual1(x, self.sa(self.layer_norm1(x), attn_mask))
         x = self.residual2(x, self.feed_forward(x))
         return x
 
