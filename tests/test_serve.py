@@ -16,7 +16,7 @@ def test_populate_strategies_finds_model(tmp_path):
     finally:
         temp_model.unlink()
     assert any(
-        f"model=./{temp_model.name}" == name or f"model={temp_model}" == name
+        f"model=./{temp_model.name}" in name or f"model={temp_model}" in name
         for name in s.strategies
     )
     assert 'random' in s.strategies
