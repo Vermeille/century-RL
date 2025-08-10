@@ -29,7 +29,7 @@ class TrainConfig(StrictModel):
     optimizer: str = "AdamW"
     gradient_epochs: int = 1
     lr: float = 1e-4
-    betas: Tuple[float, float] = (0.9, 0.99)
+    betas: Tuple[float, float] = (0.9, 0.999)
     weight_decay: float = 0.01
     batch_size: int = 12
     show_every: int = 10
