@@ -88,7 +88,7 @@ class PolicySamplingStrategy:
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
 
 
-@strategy_from_string.register("mcts")
+# @strategy_from_string.register("mcts")
 class MCTS:
     def __init__(
         self, discount_factor: float, max_unroll: int, iterations: int, c: float = 0.0
@@ -113,7 +113,7 @@ class MCTS:
         return tvisits.log(), {"moves": dict(zip(g.moves, visits))}
 
 
-@strategy_from_string.register("mcts_value")
+# @strategy_from_string.register("mcts_value")
 class MCTSValue:
     def __init__(self, model, discount_factor: float, iterations: int, c: float = 0.0):
         self.discount_factor = discount_factor

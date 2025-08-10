@@ -34,7 +34,6 @@ class TicTacToe(GameDesc):
     def __init__(self):
         from boardrl.games.tictactoe.game import TicTacToe
         from boardrl.games.tictactoe.metrics import Metrics
-
         super().__init__(TicTacToe, strategy_from_string, Metrics)
 
 
