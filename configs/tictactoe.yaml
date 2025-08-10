@@ -5,9 +5,9 @@ game: tictactoe
 model: tiny
 
 pit:
-  every: 25
+  every: 50
   max_len: 220
-  num_games: 32
+  num_games: 1000
   rotate: false
   strategies:
   - policy_sampling,model=this
@@ -25,9 +25,10 @@ train:
   batch_size: 64
   discount_factor: 1.0
   gradient_epochs: 1
+  only_strategies: [0]
   loss:
-    policy: policy_gradient_loss,weight=baseline_value,label_smoothing=0.03,renormalize=True
-    value: value_mse_loss,strength=1
-  lr: 0.001
-  save_every: 1000
-  show_every: 10
+    policy: policy_gradient_loss,weight=returns,label_smoothing=0.1,renormalize=False
+    value: value_log_prob,strength=0
+  lr: 0.0001
+  save_every: 200
+  show_every: 25
