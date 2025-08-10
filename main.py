@@ -15,8 +15,7 @@ from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, Visualizer
-from boardrl.games.strategies import ModelPool
+from boardrl.utils import BatchProcessor, Visualizer, ModelPool
 from boardrl.training.returns import compute_returns
 from boardrl.training import TrainingSample
 

@@ -12,7 +12,7 @@ import pyximport
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 from boardrl.games import games_library
 from boardrl.cyutils import fast_sample
-from boardrl.games.strategies import ModelPool
+from boardrl.utils import ModelPool
 
 
 parser = argparse.ArgumentParser()
