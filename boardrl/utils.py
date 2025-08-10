@@ -1,11 +1,12 @@
-import os
-import random
 import torch
 from collections import deque
 from typing import Any, List, Callable
 import asyncio
 import inspect
+import os
+import random
 from visdom import Visdom
+
 from boardrl.rl.model import load_model
 
 
@@ -106,22 +107,18 @@ class CachedBatchProcessor(BatchProcessor):
 def _recent_models(topk):
     import psutil
 
-    # Get the current process start time
     process_start_time = psutil.Process().create_time()
 
-    # Recursively get all files in the current directory and subdirectories
     files_in_directory = []
     for root, _, files in os.walk("."):
         for f in files:
             if f.endswith(".pth"):
                 files_in_directory.append(os.path.join(root, f))
 
-    # Filter files based on their modification time
     recent_files = [
         f for f in files_in_directory if os.path.getmtime(f) > process_start_time
     ]
 
-    # Convert modification times to readable format for display
     recent_files_with_times = [(f, os.path.getmtime(f)) for f in recent_files]
     recent_files_with_times.sort(key=lambda x: x[1], reverse=True)
 

@@ -1,4 +1,6 @@
+import argparse
 import os
+
 import torch
 from natsort import natsorted
 from pathlib import Path
@@ -13,8 +15,25 @@ from boardrl.cyutils import fast_sample
 from boardrl.utils import ModelPool
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--game", default="century")
+args, _ = parser.parse_known_args()
+
+game_name = args.game
+game_desc = games_library(game_name)
+game = game_desc.make_game()
+game_dir = Path(__file__).parent.parent / "games" / game_name
+
+
 class Strategies:
-    def __init__(self, cache_len: int = 5, batch_size: int = 32, timeout: float = 0.01):
+    def __init__(
+        self,
+        game_desc=game_desc,
+        cache_len: int = 5,
+        batch_size: int = 32,
+        timeout: float = 0.01,
+    ):
+        self.game_desc = game_desc
         self.strategies = self.populate_strategies()
         self.cache = []
         self.cache_len = cache_len
@@ -56,23 +75,28 @@ class Strategies:
         self.cache = self.cache[-self.cache_len :]
         # Use the shared ModelPool when instantiating strategies so model
         # arguments are resolved correctly.
-        self.cache.append((name, century.strategy_from_string(name, model=self.pool)))
+        self.cache.append(
+            (name, self.game_desc.strategy_from_string(name, model=self.pool))
+        )
         return self.cache[-1][1]
 
 
-strategies = Strategies()
+strategies = Strategies(game_desc)
 
 app = FastAPI()
-
-game_name = "century"
-century = games_library(game_name)
-game = century.make_game()
-game_dir = Path(__file__).parent.parent / "games" / game_name
 
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     return (game_dir / "ui.html").read_text()
+
+
+def end_response():
+    return {
+        "continue": False,
+        "points": game.diff_points_for(0),
+        "num_turns": game.round(),
+    }
 
 
 @app.get("/strategies")
@@ -99,30 +123,21 @@ async def do(
     action: str = Body(..., embed=True), strategy: str = Body(..., embed=True)
 ):
     if game.ended():
-        return {
-            "continue": False,
-            "points": game.diff_points_for(0),
-            "num_turns": game.round(),
-        }
+        return end_response()
 
+    player = game.current_player()
     game.play_str(action)
     if game.ended():
-        return {
-            "continue": False,
-            "points": game.diff_points_for(0),
-            "num_turns": game.round(),
-        }
+        return end_response()
 
-    dist, _ = await strategies.get_strategy(strategy)(game)
-    action_idx = fast_sample(torch.softmax(dist, dim=0))
-    game.play_idx(action_idx)
+    strategy_fn = strategies.get_strategy(strategy)
+    while not game.ended() and game.current_player() != player:
+        dist, _ = await strategy_fn(game)
+        action_idx = fast_sample(torch.softmax(dist, dim=0))
+        game.play_idx(action_idx)
 
     if game.ended():
-        return {
-            "continue": False,
-            "points": game.diff_points_for(0),
-            "num_turns": game.round(),
-        }
+        return end_response()
 
     return {"continue": True}
 
@@ -130,22 +145,14 @@ async def do(
 @app.post("/play-one")
 async def play_one(strategy: str = Body(..., embed=True)):
     if game.ended():
-        return {
-            "continue": False,
-            "points": game.diff_points_for(0),
-            "num_turns": game.round(),
-        }
+        return end_response()
 
     dist, _ = await strategies.get_strategy(strategy)(game)
     action_idx = fast_sample(torch.softmax(dist, dim=0))
     game.play_idx(action_idx)
 
     if game.ended():
-        return {
-            "continue": False,
-            "points": game.diff_points_for(0),
-            "num_turns": game.round(),
-        }
+        return end_response()
 
     return {"continue": True}
 
@@ -153,5 +160,11 @@ async def play_one(strategy: str = Body(..., embed=True)):
 @app.get("/reset")
 async def reset():
     global game
-    game = century.make_game()
+    game = game_desc.make_game()
     return True
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("boardrl.serve.serve:app")
