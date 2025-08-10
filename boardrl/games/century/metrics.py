@@ -72,7 +72,9 @@ class Metrics:
                 for h in players[player][:-1]:
                     if h.moves[h.action_idx][0] == "V":
                         victory_cards = [
-                            l for l in h.state.split("\n") if ">" in l and l[0] == "V"
+                            line
+                            for line in h.state.split("\n")
+                            if ">" in line and line[0] == "V"
                         ]
                         victories_points = [int(v.split(">")[1]) for v in victory_cards]
                         buy_idx = int(h.moves[h.action_idx].split(" ")[0][1:])
@@ -94,6 +96,7 @@ class Metrics:
         }
 
     def metrics_to_visdom(self, viz, epoch):
+        viz.push("collapse", self.data.collapse(), epoch)
         metrics = self.metrics()
         avg_move_summary = metrics.pop("avg_move_summary")
         viz.visdom(

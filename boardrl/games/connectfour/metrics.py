@@ -28,6 +28,7 @@ class Metrics:
         viz.push("ratio_complete", ratio_complete, epoch)
         avg_len = sum(len(h) for h in self.data.all_traces()) / (self.data.num_traces())
         viz.push("avg_len", avg_len, epoch)
+        viz.push("collapse", self.data.collapse(), epoch)
         winning_games = [
             p for players in self.data for p in players if p[-1].current_diff_points > 0
         ]

@@ -5,7 +5,7 @@ from boardrl.utils import Game, run_tasks
 import pyximport
 
 pyximport.install()
-from boardrl.cyutils import fast_sample
+from boardrl.cyutils import fast_sample  # noqa: E402
 
 
 class Record:
@@ -105,6 +105,42 @@ class SelfPlayResults(list):
 
     def num_traces(self):
         return len(self) * self.num_players()
+
+    def collapse(self) -> list[float]:
+        """Return per-player similarity of action sequences.
+
+        For each seat, compare that player's move sequences across games
+        using the string representation of each action. Sequences are
+        padded to the longest trace before computing the fraction of
+        matching actions, and scores are averaged over all pairs. Values
+        lie in ``[0, 1]`` with ``1.0`` for identical play traces and
+        ``0.0`` when no pair shared an action at the same step.
+        """
+
+        def score(sequences: list[list[str]]) -> float:
+            n = len(sequences)
+            if n <= 1:
+                return 1.0
+
+            max_len = max(len(s) for s in sequences)
+            if max_len == 0:
+                return 1.0
+
+            total = 0.0
+            count = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    a, b = sequences[i], sequences[j]
+                    matches = sum(int(x == y) for x, y in zip(a, b))
+                    matches += max_len - max(len(a), len(b))
+                    total += matches / max_len
+                    count += 1
+            return total / count
+
+        return [
+            score([[r.moves[r.action_idx] for r in game[seat][:-1]] for game in self])
+            for seat in range(self.num_players())
+        ]
 
     #
     # ------------------------------------------------------------------

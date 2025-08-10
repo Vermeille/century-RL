@@ -21,3 +21,4 @@ class Metrics:
             " " not in players[0][-1].state for players in self.data
         ) / len(self.data)
         viz.push("ratio_complete", ratio_complete, epoch)
+        viz.push("collapse", self.data.collapse(), epoch)
