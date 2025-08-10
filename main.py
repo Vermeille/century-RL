@@ -4,6 +4,7 @@ import time
 import copy
 import os
 import yaml
+import random
 from tqdm import tqdm
 from heavyball import ForeachMuon
 
@@ -391,6 +392,7 @@ class Trainer:
                 only_strategies=self.config.train.only_strategies,
             )
 
+            random.shuffle(trainset)
             print(len(trainset), "samples")
             if (
                 False
@@ -560,7 +562,7 @@ class PreTrainer:
         return data
 
     def pretrain(self):
-        for epoch in range(5):
+        for epoch in range(0):
             print("EPOCH", epoch)
             self.epoch = epoch
 
