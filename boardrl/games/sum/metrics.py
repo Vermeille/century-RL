@@ -13,3 +13,4 @@ class Metrics:
             len(self.data) * len(self.data[0])
         )
         viz.push("avg_len", avg_len, epoch)
+        viz.push("collapse", self.data.collapse(), epoch)

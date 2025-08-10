@@ -8,3 +8,4 @@ class Metrics:
     def metrics_to_visdom(self, viz, epoch):
         avg_points = sum(p[0][-1].score for p in self.data) / len(self.data)
         viz.push("avg_points", avg_points, epoch)
+        viz.push("collapse", self.data.collapse(), epoch)
