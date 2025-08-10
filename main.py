@@ -297,12 +297,13 @@ class Trainer:
         total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
-        for k, v in total_losses.items():
-            self.viz.push(
-                k,
-                v / num_batches,
-                self.epoch,
-            )
+        if self.epoch % self.config.train.show_every == 0:
+            for k, v in total_losses.items():
+                self.viz.push(
+                    k,
+                    v / num_batches,
+                    self.epoch,
+                )
         print(
             "throughput",
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
@@ -358,15 +359,16 @@ class Trainer:
         )
         metrics = self.game_desc.make_metrics(data)
         metrics.print_short_history()
-        metrics.metrics_to_visdom(self.viz, self.epoch)
-        avg_reward_strat = [
-            data.my_avg_reward(p, by="strategy") for p in range(data.num_players())
-        ]
-        self.viz.push("avg_reward (strategy)", avg_reward_strat, self.epoch)
-        avg_reward_seat = [
-            data.my_avg_reward(p, by="seat") for p in range(data.num_players())
-        ]
-        self.viz.push("avg_reward (seat)", avg_reward_seat, self.epoch)
+        if self.epoch % self.config.train.show_every == 0:
+            metrics.metrics_to_visdom(self.viz, self.epoch)
+            avg_reward_strat = [
+                data.my_avg_reward(p, by="strategy") for p in range(data.num_players())
+            ]
+            self.viz.push("avg_reward (strategy)", avg_reward_strat, self.epoch)
+            avg_reward_seat = [
+                data.my_avg_reward(p, by="seat") for p in range(data.num_players())
+            ]
+            self.viz.push("avg_reward (seat)", avg_reward_seat, self.epoch)
         self.model.train()
         return data
 
