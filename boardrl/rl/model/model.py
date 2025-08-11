@@ -1,9 +1,7 @@
-from collections import namedtuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from boardrl.rl.model.transformer import SelfAttnOp, Transformer
-from boardrl.rl.model.utils import DynamicTanh
 
 
 class MeanPool(nn.Module):
@@ -228,28 +226,70 @@ class PositionalEncoding(nn.Module):
         return x + self.pos_enc[: x.shape[1]]
 
 
-class Model(nn.Module):
-    def __init__(self, dim: int, num_layers: int, head_size: int = 64):
+class Backbone(nn.Module):
+    """Common interface for model backbones."""
+
+    def forward(self, tokens, attn_mask):  # pragma: no cover - interface only
+        raise NotImplementedError
+
+
+class TransformerBackbone(Backbone):
+    def __init__(self, dim, num_layers, head_size, max_len):
         super().__init__()
-        self.maxlen = 2048
-        self.in_embed = nn.Sequential(
+        self.embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
-            PositionalEncoding(dim, self.maxlen),  # Doesn't seem to work???
-            # nn.LayerNorm(dim),
-            RotarySingle(dim, self.maxlen),
+            PositionalEncoding(dim, max_len),
+            RotarySingle(dim, max_len),
         )
-        # self.in_embed[0].weight.data.normal_(0, 0.02)
         self.encode = Transformer(
             dim,
             num_layers,
             dim // head_size,
             head_size,
-            num_conv_blocks=0,  # conv blocks make no difference
-            # rotary=True,
+            num_conv_blocks=0,
         )
+
+    def forward(self, tokens, attn_mask):
+        emb = self.embed(tokens)
+        return self.encode(emb, attn_mask)
+
+
+class LSTMBackbone(Backbone):
+    def __init__(self, dim, num_layers, head_size, max_len):
+        super().__init__()
+        self.embed = nn.Embedding(128, dim, padding_idx=0)
+        self.encode = nn.LSTM(dim, dim, num_layers, batch_first=True)
+
+    def forward(self, tokens, attn_mask):
+        emb = self.embed(tokens)
+        enc, _ = self.encode(emb)
+        return enc * attn_mask.unsqueeze(-1)
+
+
+BACKBONES = {
+    "transformer": TransformerBackbone,
+    "lstm": LSTMBackbone,
+}
+
+
+class Model(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_layers: int,
+        head_size: int = 64,
+        backbone: str = "transformer",
+    ):
+        super().__init__()
+        self.maxlen = 2048
+        self.backbone_name = backbone
+        backbone_cls = BACKBONES.get(backbone)
+        if backbone_cls is None:
+            raise ValueError(f"Unknown backbone {backbone}")
+        self.backbone = backbone_cls(dim, num_layers, head_size, self.maxlen)
+
         self.to_pred = PolicyHead(dim, head_size)
         self.rewards = ValueHead(dim, head_size)
-        print(self)
 
     def text_encode(self, txts, maxlen):
         maxlen = min(maxlen, max(len(g) for g in txts))
@@ -258,21 +298,25 @@ class Model(nn.Module):
             return l + [1] + [0] * (maxlen + 1 - len(l))
 
         txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
-        return torch.stack(txts, dim=0).to(self.in_embed[0].weight.device)
+        device = next(self.backbone.parameters()).device
+        return torch.stack(txts, dim=0).to(device)
 
     def forward(self, games: list[str], return_hidden=False):
         txt = self.text_encode(games, self.maxlen)
         attn_mask = txt != 0
-        enc = self.encode(self.in_embed(txt), attn_mask)
-        pred = self.to_pred(enc, attn_mask)
+        enc = self.backbone(txt, attn_mask)
+        policy_logits = self.to_pred(enc, attn_mask)
         value = self.rewards(enc, attn_mask)
 
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
 
-        pred = [
-            (pred[i, torch.tensor(moves_pos[i])] if len(moves_pos[i]) else [])
-            for i in range(len(games))
-        ]
+        pred = []
+        for i in range(len(games)):
+            if len(moves_pos[i]):
+                logits = policy_logits[i, torch.tensor(moves_pos[i])]
+                pred.append(F.log_softmax(logits, dim=0))
+            else:
+                pred.append(policy_logits[i, torch.tensor([], dtype=torch.long)])
 
         out = PolicyValue(
             pred,
@@ -293,7 +337,13 @@ def load_model(model_path):
     if "config" not in ckpt:
         ckpt["config"] = {"dim": 256, "num_layers": 8}
 
-    model = Model(ckpt["config"]["dim"], ckpt["config"]["num_layers"])
+    config = ckpt["config"]
+    model = Model(
+        config.get("dim", 256),
+        config.get("num_layers", 8),
+        head_size=config.get("head_size", 64),
+        backbone=config.get("backbone", "transformer"),
+    )
     print(model.load_state_dict(ckpt["model"]))
     if torch.cuda.is_available():
         model.cuda()
