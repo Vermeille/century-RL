@@ -33,8 +33,6 @@ class PolicyValue:
         ]
 
 
-
-
 class ValueHead(nn.Module):
     def __init__(self, dim, head_size):
         super().__init__()
