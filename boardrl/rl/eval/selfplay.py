@@ -182,6 +182,7 @@ async def play_game(game, strategies, max_len):
             break
         p = game.current_player()
         dist, _ = await strategies[p](game)
+        assert dist.ndim == 1, "Distribution must be a 1D tensor"
         action = fast_sample(torch.softmax(dist, dim=0))
         rec = Record(game, dist, action)
         yield rec
