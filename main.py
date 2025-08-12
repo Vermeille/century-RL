@@ -297,12 +297,13 @@ class Trainer:
         total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
-        for k, v in total_losses.items():
-            self.viz.push(
-                k,
-                v / num_batches,
-                self.epoch,
-            )
+        if self.epoch % self.config.train.show_every == 0:
+            for k, v in total_losses.items():
+                self.viz.push(
+                    k,
+                    v / num_batches,
+                    self.epoch,
+                )
         print(
             "throughput",
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
@@ -358,15 +359,16 @@ class Trainer:
         )
         metrics = self.game_desc.make_metrics(data)
         metrics.print_short_history()
-        metrics.metrics_to_visdom(self.viz, self.epoch)
-        avg_reward_strat = [
-            data.my_avg_reward(p, by="strategy") for p in range(data.num_players())
-        ]
-        self.viz.push("avg_reward (strategy)", avg_reward_strat, self.epoch)
-        avg_reward_seat = [
-            data.my_avg_reward(p, by="seat") for p in range(data.num_players())
-        ]
-        self.viz.push("avg_reward (seat)", avg_reward_seat, self.epoch)
+        if self.epoch % self.config.train.show_every == 0:
+            metrics.metrics_to_visdom(self.viz, self.epoch)
+            avg_reward_strat = [
+                data.my_avg_reward(p, by="strategy") for p in range(data.num_players())
+            ]
+            self.viz.push("avg_reward (strategy)", avg_reward_strat, self.epoch)
+            avg_reward_seat = [
+                data.my_avg_reward(p, by="seat") for p in range(data.num_players())
+            ]
+            self.viz.push("avg_reward (seat)", avg_reward_seat, self.epoch)
         self.model.train()
         return data
 
@@ -403,175 +405,6 @@ class Trainer:
                 self._train_epoch_on_policy(trainset)
             torch.cuda.empty_cache()
             epoch += 1
-
-
-import torch.nn as nn
-from boardrl.rl.model import RotarySingle
-from boardrl.rl.model.utils import DynamicTanh
-
-
-class StatePredictor(nn.Module):
-    def __init__(self, dim, head_size) -> None:
-        super().__init__()
-        self.norm_hidden = DynamicTanh(dim)
-        self.emb = nn.Embedding(256, dim, padding_idx=0)
-        self.norm_in = nn.Linear(dim, dim)
-        self.rotary = RotarySingle(dim, 512)
-        self.body = nn.ModuleList(
-            [
-                nn.TransformerDecoderLayer(
-                    dim,
-                    dim // head_size,
-                    batch_first=True,
-                    norm_first=True,
-                )
-                for _ in range(1)
-            ]
-        )
-        self.proj = nn.Linear(dim, 256)
-
-    def forward(self, hidden, target):
-        hidden = self.norm_hidden(hidden)
-        target = self.emb(target)
-        target = self.norm_in(target)
-        target = self.rotary(target)
-        for layer in self.body:
-            target = layer(
-                target,
-                hidden,
-                tgt_is_causal=True,
-                tgt_mask=nn.Transformer.generate_square_subsequent_mask(
-                    target.size(1), device=target.device
-                ),
-            )
-        return self.proj(target)
-
-
-class PreTrainer:
-    def __init__(self, config):
-        self.config = config
-        self.model = torch.nn.ModuleList(
-            [
-                Model(**self.config.net.__dict__),
-                StatePredictor(self.config.net.dim, self.config.net.head_size),
-            ]
-        )
-        self.model.to(config.device)
-        self.opt = make_optimizer(self.model.parameters(), config.train)
-
-        self.viz = Visualizer(
-            f"{config.game}_{config.tag}-lr={config.train.lr}",
-            url=config.visdom_url,
-            port=config.visdom_port,
-        )
-        self.epoch = 0
-        self.game_desc = games_library(config.game)
-
-    def _train_epoch(self, data):
-        self.model.train()
-        grad_pct = 1 / self.config.train.gradient_epochs
-        for grad_ep in range(self.config.train.gradient_epochs):
-            indices = torch.randperm(len(data))
-            batch_pct = 1 / (len(indices) / self.config.train.batch_size)
-            for b_i, batch in enumerate(
-                tqdm(
-                    chunk(indices, self.config.train.batch_size),
-                    desc=f"epoch {self.epoch}",
-                )
-            ):
-                with torch.no_grad():
-                    samples = TrainingSample.collate([data[bi] for bi in batch]).to(
-                        self.config.device
-                    )
-                self.opt.zero_grad()
-                board_moves = self.model[0].text_encode(
-                    [
-                        f"{chr(1)}{samples.moves[i][samples.action_idx[i]]}\n{samples.next[i].state}"
-                        for i in range(len(samples.state))
-                    ],
-                    2048,
-                )
-                (policy, value), hidden = self.model[0](
-                    samples.state,
-                    return_hidden=True,
-                )
-                pred = self.model[1](hidden, board_moves[:, :-1])
-                pretrain_loss = nn.functional.cross_entropy(
-                    pred.transpose(1, 2), board_moves[:, 1:], ignore_index=0
-                )
-                value_loss = nn.functional.mse_loss(value.mean, samples.returns)
-                loss = pretrain_loss + value_loss
-                loss.backward()
-                self.opt.step()
-
-                self.viz.html(
-                    "display",
-                    samples.state[0].replace("\n", "<br>")
-                    + "<hr>"
-                    + "".join(
-                        f'<span style="color:{"green" if correct else "red"}">{chr(int(c)).replace(" ", "_")}</span>'
-                        for c, correct in zip(
-                            board_moves[0, 1:], pred[0].argmax(-1) == board_moves[0, 1:]
-                        )
-                    ).replace("\n", "<br>"),
-                )
-                grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=5.0
-                )
-                self.viz.push(
-                    "grad_mag",
-                    grad_mag.item(),
-                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
-                )
-                self.viz.push(
-                    "pretrain loss",
-                    pretrain_loss.item(),
-                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
-                )
-                self.viz.push(
-                    "pretrain acc",
-                    (
-                        (pred.argmax(-1) == board_moves[:, 1:])
-                        & (board_moves[:, 1:] != 0)
-                    )
-                    .float()
-                    .sum()
-                    .item()
-                    / (board_moves[:, 1:] != 0).sum().item(),
-                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
-                )
-                self.viz.push(
-                    "value loss",
-                    value_loss.item(),
-                    self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct,
-                )
-
-    def _run_episode(self):
-        print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
-        data = self_play(
-            self.game_desc.make_game,
-            [
-                self.game_desc.strategy_from_string("random")
-                for s in self.config.self_play.strategies
-            ],
-            self.config.self_play.num_games,
-            self.config.self_play.max_len,
-            rotate=self.config.self_play.rotate,
-        )
-        return data
-
-    def pretrain(self):
-        for epoch in range(0):
-            print("EPOCH", epoch)
-            self.epoch = epoch
-
-            data = self._run_episode()
-            compute_returns(data, self.config.train.discount_factor)
-            trainset = to_trainset(data)
-
-            print(len(trainset), "samples")
-            self._train_epoch(trainset)
-        return self.model[0]
 
 
 def fix_dict(config, key, new_value):
@@ -635,16 +468,7 @@ def main():
 
     ckpt = opts.ckpt if opts.ckpt != "None" else None
 
-    if ckpt is None:
-        model = PreTrainer(config).pretrain()
-        trainer = Trainer(config, ckpt)
-        for trainer_model, pretrain_model in zip(
-            trainer.model.parameters(), model.parameters()
-        ):
-            trainer_model.data.copy_(pretrain_model.data)
-        trainer.train()
-    else:
-        Trainer(config, ckpt).train()
+    Trainer(config, ckpt).train()
 
 
 if __name__ == "__main__":
