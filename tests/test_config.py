@@ -26,11 +26,13 @@ def test_config_defaults():
     assert cfg.pit.num_games == 32
     assert cfg.pit.max_len == 220
     assert math.isinf(cfg.train.iterations)
+    assert cfg.net.backbone == "transformer"
 
 
 def test_config_overrides():
     raw = {
         "device": "cuda",
+        "net": {"backbone": "lstm"},
         "train": {
             "lr": 0.5,
             "betas": [0.8, 0.9],
@@ -55,6 +57,7 @@ def test_config_overrides():
     # Ensure unspecified pit fields keep defaults
     assert cfg.pit.num_games == 32
     assert cfg.pit.max_len == 220
+    assert cfg.net.backbone == "lstm"
 
 
 def test_config_invalid_top_level_key():

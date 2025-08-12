@@ -61,6 +61,7 @@ class NetConfig(StrictModel):
     dim: int = 64
     num_layers: int = 2
     head_size: int = 33
+    backbone: str = "transformer"
 
 
 class Config(StrictModel):

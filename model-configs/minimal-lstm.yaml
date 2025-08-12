@@ -1,0 +1,5 @@
+# Params: 0.01M
+num_layers: 1
+dim: 32
+head_size: 8
+backbone: lstm
