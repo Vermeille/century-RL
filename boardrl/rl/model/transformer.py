@@ -3,8 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import DynamicTanh
-
 
 def normal_init(m, std):
     assert isinstance(m.weight, torch.Tensor)
@@ -147,37 +145,6 @@ class SelfAttention(nn.Module):
         return self.fc(att)
 
 
-class GEGLU(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        x, gate = x.chunk(2, dim=-1)
-        return x * F.gelu(gate)
-
-
-class Permute(nn.Module):
-    def __init__(self, *transpo):
-        super().__init__()
-        self.transpo = transpo
-
-    def forward(self, x):
-        return x.permute(*self.transpo)
-
-
-class GatedResidual(nn.Module):
-    def __init__(self, hidden_size):
-        super().__init__()
-        self.gating = nn.Linear(hidden_size, hidden_size)
-
-    def forward(self, x, y):
-        return torch.sigmoid(self.gating(x)) * y + x
-
-
-def just_add(x, y):
-    return x + y
-
-
 class TransformerBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size, rotary=False):
         super().__init__()
@@ -188,56 +155,13 @@ class TransformerBlock(nn.Module):
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
-            nn.GELU(),  # GEGLU(),  # better than GELU
+            nn.GELU(),
             xavier(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
-            # nn.LayerNorm(hidden_size),
         )
-        if False:
-            with torch.no_grad():
-                self.feed_forward[1].weight[hidden_size * 2 :].fill_(0.0)
-                self.feed_forward[1].bias[hidden_size * 2 :].fill_(1.0)
-        # GatedResidual is better than just_add. Not sure why.
-        self.residual1 = just_add  # GatedResidual(hidden_size)
-        self.residual2 = just_add  # GatedResidual(hidden_size)
 
     def forward(self, x, attn_mask):
-        x = self.residual1(x, self.sa(self.layer_norm1(x), attn_mask))
-        x = self.residual2(x, self.feed_forward(x))
-        return x
-
-
-class ConvTrunkBlock(nn.Module):
-    def __init__(self, hidden_size, num_heads, head_size):
-        super().__init__()
-        self.sa = nn.Sequential(
-            nn.LayerNorm(hidden_size),
-            Permute(0, 2, 1),  # bld -> bdl
-            xavier(
-                nn.Conv1d(
-                    hidden_size,
-                    num_heads * head_size,
-                    7,
-                    padding=3,
-                    groups=hidden_size,
-                )
-            ),
-            # nn.GELU(),
-            normal_init(nn.Conv1d(hidden_size, hidden_size, 1), 0.02),
-            Permute(0, 2, 1),  # bdl -> bld
-        )
-        self.feed_forward = nn.Sequential(
-            nn.LayerNorm(hidden_size),
-            kaiming(
-                nn.Linear(hidden_size, 4 * hidden_size, bias=True)
-            ),  # bias is better
-            GEGLU(),  # better than GELU
-            normal_init(nn.Linear(2 * hidden_size, hidden_size, bias=True), 0.02),
-        )
-        # self.sa[2].weight.data.fill_(1 / 7.0)
-
-    def forward(self, x, attn_mask):
-        x = self.sa(x).masked_fill_(~attn_mask.unsqueeze(-1), 0.0) + x
-        x = self.feed_forward(x) + x
+        x = x + self.sa(self.layer_norm1(x), attn_mask)
+        x = x + self.feed_forward(x)
         return x
 
 
@@ -248,20 +172,13 @@ class Transformer(nn.Module):
         num_layers,
         num_heads,
         head_size,
-        num_conv_blocks=0,
         rotary=False,
     ):
         super().__init__()
         self.transformer_blocks = nn.ModuleList(
             [
-                (
-                    ConvTrunkBlock(hidden_size, num_heads, head_size)
-                    if i < num_conv_blocks
-                    else TransformerBlock(
-                        hidden_size, num_heads, head_size, rotary=rotary
-                    )
-                )
-                for i in range(num_layers)
+                TransformerBlock(hidden_size, num_heads, head_size, rotary=rotary)
+                for _ in range(num_layers)
             ]
         )
 

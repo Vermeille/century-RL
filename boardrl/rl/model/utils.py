@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 
@@ -54,19 +53,3 @@ def jeffreys_div(log_p, log_q):
     # Jeffreys Divergence is the mean of the KL divergences
     jeffreys_div = 0.5 * (kl_p_q + kl_q_p)
     return jeffreys_div
-
-
-class DynamicTanh(nn.Module):
-    """Normalization layer replacing LayerNorm.
-
-    Applies ``gamma * tanh(alpha * x) + beta`` with learnable parameters.
-    """
-
-    def __init__(self, hidden_size):
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.bias = nn.Parameter(torch.zeros(hidden_size))
-        self.alpha = nn.Parameter(torch.ones(1) * 0.5)
-
-    def forward(self, x):
-        return self.weight * torch.tanh(self.alpha * x) + self.bias
