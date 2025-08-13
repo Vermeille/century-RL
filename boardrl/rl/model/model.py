@@ -82,44 +82,6 @@ class PolicyHead(nn.Module):
         return x.squeeze(-1)
 
 
-class RotarySingle(torch.nn.Module):
-    def __init__(self, dim, maxlen, base=10000):
-        super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer("inv_freq", inv_freq)
-        self.maxlen = maxlen
-        self.cos_cached, self.sin_cached = None, None
-
-    def make_sin_cos(self, seq_len):
-        t = torch.arange(seq_len, device=self.inv_freq.device).type_as(self.inv_freq)
-        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-        emb = torch.cat((freqs, freqs), dim=-1).to(self.inv_freq.device)
-        return emb.cos()[:, :], emb.sin()[:, :]
-
-    def forward(self, q, seq_dim=-2):
-        if self.cos_cached is None:
-            self.cos_cached, self.sin_cached = self.make_sin_cos(self.maxlen)
-
-        # B H L D
-        seq_len = q.shape[seq_dim]
-        if seq_len >= self.maxlen:
-            cos, sin = self.make_sin_cos(seq_len)
-            out = self.apply_rotary_pos_emb(q, cos, sin)
-            return out
-        return self.apply_rotary_pos_emb(
-            q, self.cos_cached[:seq_len], self.sin_cached[:seq_len]
-        )
-
-    def rotate_half(self, x):
-        x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
-        return torch.cat(
-            (-x2, x1), dim=x1.ndim - 1
-        )  # dim=-1 triggers a bug in torch < 1.8.0
-
-    def apply_rotary_pos_emb(self, q, cos, sin):
-        return (q * cos) + (self.rotate_half(q) * sin)
-
-
 class PositionalEncoding(nn.Module):
     def __init__(self, dim, max_len=2048):
         super().__init__()
@@ -137,18 +99,27 @@ class Backbone(nn.Module):
 
 
 class TransformerBackbone(Backbone):
-    def __init__(self, dim, num_layers, head_size, max_len):
+    def __init__(
+        self,
+        dim,
+        num_layers,
+        head_size,
+        max_len,
+        rotary: bool = False,
+        rotary_single: bool = True,
+    ):
         super().__init__()
         self.embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
             PositionalEncoding(dim, max_len),
-            RotarySingle(dim, max_len),
         )
         self.encode = Transformer(
             dim,
             num_layers,
             dim // head_size,
             head_size,
+            rotary=rotary,
+            rotary_single=rotary_single,
         )
 
     def forward(self, tokens, attn_mask):

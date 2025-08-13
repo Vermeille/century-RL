@@ -1,6 +1,6 @@
 import torch
 import math
-from boardrl.rl.model.transformer import Rotary
+from boardrl.rl.model.transformer import Rotary, RotarySingle
 
 
 def test_rotate_half_involution():
@@ -34,3 +34,24 @@ def test_rotary_forward_matches_manual():
     assert torch.allclose(q_out, manual(q))
     assert torch.allclose(k_out, manual(k))
     assert torch.allclose(v_out, v)
+
+
+def test_rotary_single_matches_manual():
+    dim = 8
+    rot = RotarySingle(dim)
+    B, L = 2, 5
+    q = torch.randn(B, L, dim)
+    out = rot(q)
+
+    t = torch.arange(L, device=q.device).type_as(rot.inv_freq)
+    freqs = torch.einsum("i,j->ij", t, rot.inv_freq)
+    emb = torch.cat((freqs, freqs), dim=-1)
+    cos = emb.cos()
+    sin = emb.sin()
+
+    def manual(x):
+        x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
+        rotated = torch.cat((-x2, x1), dim=x1.ndim - 1)
+        return x * cos + rotated * sin
+
+    assert torch.allclose(out, manual(q))

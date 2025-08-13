@@ -97,7 +97,7 @@ class StatePredictor(nn.Module):
         self.norm_hidden = DynamicTanh(dim)
         self.emb = nn.Embedding(256, dim, padding_idx=0)
         self.norm_in = nn.Linear(dim, dim)
-        self.rotary = RotarySingle(dim, 512)
+        self.rotary = RotarySingle(dim)
         self.body = nn.ModuleList(
             [
                 nn.TransformerDecoderLayer(
