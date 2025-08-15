@@ -128,8 +128,15 @@ def _recent_models(topk):
 class ModelPool:
     """Utility to resolve model specifications to ``BatchProcessor`` instances."""
 
-    def __init__(self, base_model: BatchProcessor, batch_size: int, timeout: float):
+    def __init__(
+        self,
+        base_model: BatchProcessor,
+        batch_size: int,
+        timeout: float,
+        prev_model: BatchProcessor | None = None,
+    ):
         self.base_model = base_model
+        self.prev_model = prev_model
         self.batch_size = batch_size
         self.timeout = timeout
         self.cache: dict[str, BatchProcessor] = {}
@@ -156,6 +163,10 @@ class ModelPool:
             if self.base_model is None:
                 raise ValueError("model='this' requires a provided model")
             return self.base_model
+        if spec == "prev":
+            if self.prev_model is None:
+                raise ValueError("model='prev' requires a provided model")
+            return self.prev_model
         path = self._resolve_path(spec)
         if not os.path.exists(path):
             raise ValueError(f"model file '{path}' does not exist")

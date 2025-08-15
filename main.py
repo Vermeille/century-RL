@@ -119,6 +119,7 @@ class Trainer:
             self.opt.load_state_dict(ckpt["opt"])
 
         self.prev_model = copy.deepcopy(self.model)
+        self.prev_model.eval()
         self.policy_loss = loss_from_string(
             config.train.loss.policy,
             model=self.model,
@@ -144,13 +145,16 @@ class Trainer:
         self.epoch = 0
         self.game_desc = games_library(config.game)
         self.game_name = config.game.split(",")[0]
+        self.pit_results = None
 
     def _log_pit(self):
         self.model.eval()
+        self.prev_model.eval()
         batch_size = self.config.pit.batch_size or self.config.train.batch_size
         timeout = 0.01
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
-        pool = ModelPool(bp, batch_size, timeout)
+        prev_bp = BatchProcessor(batch_size, self.prev_model, timeout=timeout)
+        pool = ModelPool(bp, batch_size, timeout, prev_bp)
         print("PIT: ", " VS ".join(self.config.pit.strategies))
         pit_results = pit(
             self.game_desc.make_game,
@@ -164,11 +168,38 @@ class Trainer:
             self.config.pit.max_len,
             rotate=self.config.pit.rotate,
         )
+        self.pit_results = pit_results
         compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
         self.viz.push("pit.win_rate (strategy)", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
         self.model.train()
+
+    def _maybe_update_prev_model(self):
+        expr = self.config.train.prev_model_update
+        if not expr:
+            return
+        env = {
+            "epoch": self.epoch,
+            "pit": self.pit_results,
+            "True": True,
+            "False": False,
+        }
+
+        try:
+            update = bool(eval(expr, {"__builtins__": {}}, env))
+        except Exception as e:
+            print(f"error evaluating prev_model_update expression '{expr}': {e}")
+            update = False
+
+        if update:
+            with torch.no_grad():
+                for prev_param, param in zip(
+                    self.prev_model.state_dict().values(),
+                    self.model.state_dict().values(),
+                ):
+                    prev_param.data.copy_(param.data)
+            self.prev_model.eval()
 
     def _train_epoch_off_policy(self, data):
         self.model.train()
@@ -248,12 +279,7 @@ class Trainer:
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
         )
         print()
-
-        with torch.no_grad():
-            for prev_param, param in zip(
-                self.prev_model.state_dict().values(), self.model.state_dict().values()
-            ):
-                prev_param.data.copy_(param.data)
+        self._maybe_update_prev_model()
 
     def _train_epoch_on_policy(self, data):
         self.model.train()
@@ -309,12 +335,7 @@ class Trainer:
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
         )
         print()
-
-        with torch.no_grad():
-            for prev_param, param in zip(
-                self.prev_model.state_dict().values(), self.model.state_dict().values()
-            ):
-                prev_param.data.copy_(param.data)
+        self._maybe_update_prev_model()
 
     def _save_model(self):
         import os
@@ -334,10 +355,12 @@ class Trainer:
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
 
         self.model.eval()
+        self.prev_model.eval()
         batch_size = self.config.self_play.batch_size or self.config.train.batch_size
         timeout = 0.02
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
-        pool = ModelPool(bp, batch_size, timeout)
+        prev_bp = BatchProcessor(batch_size, self.prev_model, timeout=timeout)
+        pool = ModelPool(bp, batch_size, timeout, prev_bp)
         data = self_play(
             self.game_desc.make_game,
             [
