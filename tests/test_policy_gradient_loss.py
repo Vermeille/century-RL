@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from types import SimpleNamespace
 from boardrl.rl.model.loss import PolicyGradientLoss
 
@@ -25,3 +26,34 @@ def test_entropy_regularizer_drives_uniform_policy():
         opt.step()
     probs = logits.softmax(dim=0)
     assert torch.allclose(probs, torch.full_like(probs, 1 / probs.numel()), atol=1e-3)
+
+
+def test_kl_regularizer_matches_manual():
+    logits = torch.tensor([0.5, -0.5], requires_grad=True)
+    prev_logits = torch.tensor([1.0, 0.0])
+    sample = SimpleNamespace(
+        action_idx=[torch.tensor(0)],
+        returns=torch.tensor([1.0]),
+        state=[None],
+    )
+
+    class PrevModel:
+        def __call__(self, state):
+            return SimpleNamespace(
+                policy=[prev_logits],
+                value=SimpleNamespace(mean=torch.tensor([0.0])),
+            )
+
+    loss_fn = PolicyGradientLoss(
+        weight="returns", prev_model=PrevModel(), kl_strength=0.5
+    )
+    loss = loss_fn([logits], None, sample)
+    ce = F.cross_entropy(logits, sample.action_idx[0])
+    kl = F.kl_div(
+        F.log_softmax(logits, dim=0),
+        F.log_softmax(prev_logits, dim=0),
+        reduction="batchmean",
+        log_target=True,
+    )
+    expected = ce + 0.5 * kl
+    assert torch.allclose(loss, expected)
