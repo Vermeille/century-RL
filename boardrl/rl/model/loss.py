@@ -205,6 +205,7 @@ class PolicyGradientLoss:
         renormalize: bool = False,
         discount_factor: float = None,
         prev_model=None,
+        kl_strength: float | None = None,
     ):
         assert weight in ["returns", "score", "advantage", "baseline_value"]
         self.label_smoothing = label_smoothing
@@ -218,6 +219,7 @@ class PolicyGradientLoss:
         self.renormalize = renormalize
         self.discount_factor = discount_factor
         self.prev_model = prev_model
+        self.kl_strength = kl_strength
         self.normalizer = RunningNormalizer(0.999)
 
     def __call__(self, pred_policy, pred_value, sample):
@@ -226,15 +228,32 @@ class PolicyGradientLoss:
 
         with torch.no_grad():
             weight = self.weight_fn(sample, self.prev_model, self.discount_factor)
+            prev_policy = (
+                self.prev_model(sample.state).policy
+                if self.kl_strength is not None and self.prev_model is not None
+                else None
+            )
 
         if self.renormalize:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
-
-        for logit, act, w in zip(pred_policy, sample.action_idx, weight):
-            loss += w * F.cross_entropy(logit, act) - self.label_smoothing * entropy(
-                logit, dim=0
-            )
+        prev_policy_iter = (
+            prev_policy if prev_policy is not None else [None] * len(pred_policy)
+        )
+        for logit, act, w, prev_logit in zip(
+            pred_policy, sample.action_idx, weight, prev_policy_iter
+        ):
+            loss_step = w * F.cross_entropy(logit, act)
+            if self.label_smoothing:
+                loss_step -= self.label_smoothing * entropy(logit, dim=0)
+            if self.kl_strength is not None and prev_logit is not None:
+                loss_step += self.kl_strength * F.kl_div(
+                    F.log_softmax(logit, dim=0),
+                    F.log_softmax(prev_logit, dim=0),
+                    reduction="batchmean",
+                    log_target=True,
+                )
+            loss += loss_step
         return loss / len(sample.action_idx)
 
 
