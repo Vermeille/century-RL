@@ -119,6 +119,7 @@ class Trainer:
             self.opt.load_state_dict(ckpt["opt"])
 
         self.prev_model = copy.deepcopy(self.model)
+        self.prev_model.version = 0
         self.prev_model.eval()
         self.policy_loss = loss_from_string(
             config.train.loss.policy,
@@ -146,6 +147,7 @@ class Trainer:
         self.game_desc = games_library(config.game)
         self.game_name = config.game.split(",")[0]
         self.pit_results = None
+        self.episode_results = None
 
     def _log_pit(self):
         self.model.eval()
@@ -182,15 +184,13 @@ class Trainer:
         env = {
             "epoch": self.epoch,
             "pit": self.pit_results,
+            "episode": self.episode_results,
             "True": True,
             "False": False,
         }
 
-        try:
-            update = bool(eval(expr, {"__builtins__": {}}, env))
-        except Exception as e:
-            print(f"error evaluating prev_model_update expression '{expr}': {e}")
-            update = False
+        print("WIN RATE", self.episode_results.win_rate(0))
+        update = bool(eval(expr, {"__builtins__": {}}, env))
 
         if update:
             with torch.no_grad():
@@ -200,6 +200,7 @@ class Trainer:
                 ):
                     prev_param.data.copy_(param.data)
             self.prev_model.eval()
+            self.prev_model.version = self.epoch
 
     def _train_epoch_off_policy(self, data):
         self.model.train()
@@ -319,10 +320,13 @@ class Trainer:
             for p in self.model.parameters():
                 if p.grad is not None:
                     p.grad /= len(data)
-        grad_mag = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
+        grad_mag = torch.nn.utils.clip_grad_norm_(
+            self.model.parameters(), max_norm=50.0
+        )
         total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
+        self.viz.push("prev_model.version", self.prev_model.version, self.epoch)
         if self.epoch % self.config.train.show_every == 0:
             for k, v in total_losses.items():
                 self.viz.push(
@@ -373,6 +377,7 @@ class Trainer:
             self.config.self_play.max_len,
             rotate=self.config.self_play.rotate,
         )
+        self.episode_results = data
         compute_returns(
             data,
             self.config.train.discount_factor,
