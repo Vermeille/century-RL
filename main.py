@@ -281,7 +281,6 @@ class Trainer:
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
         )
         print()
-        self._maybe_update_prev_model()
 
     def _train_epoch_on_policy(self, data):
         self.model.train()
@@ -340,7 +339,6 @@ class Trainer:
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
         )
         print()
-        self._maybe_update_prev_model()
 
     def _save_model(self):
         import os
@@ -420,6 +418,7 @@ class Trainer:
                 self._save_model()
 
             data = self._run_episode()
+            self._maybe_update_prev_model()
             trainset = to_trainset(
                 data,
                 only_players=self.config.train.only_players,
