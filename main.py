@@ -76,6 +76,7 @@ def to_trainset(
                 if i != 0:
                     out[-2].next = out[-1]
             out[-1].next = end
+    out = [o for o in out if len(o.moves) > 1]
     return out
 
 
