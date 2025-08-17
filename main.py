@@ -398,6 +398,10 @@ class Trainer:
                 data.my_avg_reward(p, by="seat") for p in range(data.num_players())
             ]
             self.viz.push("avg_reward (seat)", avg_reward_seat, self.epoch)
+            avg_winrate_strat = [
+                data.win_rate(p, by="strategy") for p in range(data.num_players())
+            ]
+            self.viz.push("avg_winrate (strat)", avg_winrate_strat, self.epoch)
         self.model.train()
         return data
 
