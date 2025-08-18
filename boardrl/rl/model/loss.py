@@ -205,7 +205,7 @@ class PolicyGradientLoss:
         renormalize: bool = False,
         discount_factor: float = None,
         prev_model=None,
-        kl_strength: float | None = None,
+        kl_strength: float = 0,
     ):
         assert weight in ["returns", "score", "advantage", "baseline_value"]
         self.label_smoothing = label_smoothing
@@ -224,7 +224,6 @@ class PolicyGradientLoss:
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
-        loss = 0
 
         with torch.no_grad():
             weight = self.weight_fn(sample, self.prev_model, self.discount_factor)
@@ -240,17 +239,21 @@ class PolicyGradientLoss:
         prev_policy_iter = (
             prev_policy if prev_policy is not None else [None] * len(pred_policy)
         )
+
+        loss = 0.0
         for logit, act, w, prev_logit in zip(
             pred_policy, sample.action_idx, weight, prev_policy_iter
         ):
             loss_step = w * F.cross_entropy(logit, act)
+
             if self.label_smoothing:
                 loss_step -= self.label_smoothing * entropy(logit, dim=0)
-            if self.kl_strength is not None and prev_logit is not None:
+
+            if self.kl_strength is not None and self.kl_strength != 0:
                 loss_step += self.kl_strength * F.kl_div(
-                    F.log_softmax(logit, dim=0),
                     F.log_softmax(prev_logit, dim=0),
-                    reduction="batchmean",
+                    F.log_softmax(logit, dim=0),
+                    reduction="sum",
                     log_target=True,
                 )
             loss += loss_step
