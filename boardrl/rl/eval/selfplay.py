@@ -158,7 +158,7 @@ class SelfPlayResults(list):
 
     def my_wins(self, num: int, *, by: str = "strategy"):
         return [
-            1 if p > 0 else 0.5 if p == 0 else 0 for p in self.my_points(num, by=by)
+            1 if p > 0 else (0.5 if p == 0 else 0) for p in self.my_points(num, by=by)
         ]
 
     def win_rate(self, num: int, *, by: str = "strategy"):
