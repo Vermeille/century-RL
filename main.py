@@ -188,9 +188,9 @@ class Trainer:
             "episode": self.episode_results,
             "True": True,
             "False": False,
+            "version": self.prev_model.version,
         }
 
-        print("WIN RATE", self.episode_results.win_rate(0))
         update = bool(eval(expr, {"__builtins__": {}}, env))
 
         if update:
