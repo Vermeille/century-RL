@@ -3,6 +3,7 @@ from boardrl.utils.batchprocessor import BatchProcessor, run_tasks, CachedBatchP
 from boardrl.utils.modelpool import ModelPool
 from boardrl.utils.registerbyname import RegisterByName
 from boardrl.utils.visualizer import Visualizer
+from boardrl.utils.pythonexec import PythonExec
 
 
 __all__ = [
@@ -13,6 +14,8 @@ __all__ = [
     "RegisterByName",
     "entropy",
     "Game",
+    "PythonExec",
+    "Visualizer",
 ]
 
 

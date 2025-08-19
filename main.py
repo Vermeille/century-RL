@@ -15,7 +15,7 @@ from boardrl.rl.utils import pearson_corr
 from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, Visualizer, ModelPool
+from boardrl.utils import BatchProcessor, Visualizer, ModelPool, PythonExec
 from boardrl.training.returns import compute_returns
 from boardrl.training import TrainingSample
 
@@ -149,6 +149,7 @@ class Trainer:
         self.game_name = config.game.split(",")[0]
         self.pit_results = None
         self.episode_results = None
+        self.prev_update_exec = PythonExec(self.config.train.prev_model_update)
 
     def _log_pit(self):
         self.model.eval()
@@ -179,9 +180,6 @@ class Trainer:
         self.model.train()
 
     def _maybe_update_prev_model(self):
-        expr = self.config.train.prev_model_update
-        if not expr:
-            return
         env = {
             "epoch": self.epoch,
             "pit": self.pit_results,
@@ -189,10 +187,13 @@ class Trainer:
             "True": True,
             "False": False,
             "version": self.prev_model.version,
+            "__builtins__": {
+                "print": print,
+            },
         }
+        env["__builtins__"]["exists"] = lambda s: s in self.prev_update_exec.ctx
 
-        update = bool(eval(expr, {"__builtins__": {}}, env))
-
+        update = self.prev_update_exec(env)
         if update:
             with torch.no_grad():
                 for prev_param, param in zip(
