@@ -75,6 +75,7 @@ class PolicyHead(nn.Module):
             # BL
             # nn.LogSoftmax(dim=1), # THIS IS WRONG BECAUSE WE SELECT AFTER
         )
+        nn.init.xavier_normal_(self.out[0].weight)
 
     def forward(self, x, attn_mask):
         # x = self.tfblock(x, attn_mask)
@@ -105,8 +106,8 @@ class TransformerBackbone(Backbone):
         num_layers,
         head_size,
         max_len,
-        rotary: bool = False,
-        rotary_single: bool = True,
+        rotary: bool = True,
+        rotary_single: bool = False,
     ):
         super().__init__()
         self.embed = nn.Sequential(
@@ -121,6 +122,7 @@ class TransformerBackbone(Backbone):
             rotary=rotary,
             rotary_single=rotary_single,
         )
+        nn.init.xavier_normal_(self.embed[0].weight)
 
     def forward(self, tokens, attn_mask):
         emb = self.embed(tokens)
@@ -187,7 +189,7 @@ class Model(nn.Module):
         for i in range(len(games)):
             if len(moves_pos[i]):
                 logits = policy_logits[i, torch.tensor(moves_pos[i])]
-                pred.append(F.log_softmax(logits, dim=0))
+                pred.append(logits)
             else:
                 pred.append(policy_logits[i, torch.tensor([], dtype=torch.long)])
 

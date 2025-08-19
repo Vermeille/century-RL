@@ -159,7 +159,8 @@ class SelfAttention(nn.Module):
             self.qkv.weight[: head_size * num_heads, :].copy_(
                 self.qkv.weight[head_size * num_heads : head_size * num_heads * 2, :]
             )
-        self.fc = xavier(nn.Linear(head_size * num_heads, hidden_size, bias=True))
+        self.fc = nn.Linear(head_size * num_heads, hidden_size, bias=True)
+        self.fc.weight.data.zero_()
         # Rotary here is detrimental, it's better to use it in the trunk
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary, alibi=False)
 
@@ -187,6 +188,7 @@ class TransformerBlock(nn.Module):
             nn.GELU(),
             xavier(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
         )
+        self.feed_forward[-1].weight.data.zero_()
 
     def forward(self, x, attn_mask):
         x = x + self.sa(self.layer_norm1(x), attn_mask)
