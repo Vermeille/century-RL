@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn.functional as F
 from boardrl.rl.model.utils import js_div, jeffreys_div
@@ -176,15 +177,15 @@ class RunningStat:
 class RunningNormalizer:
     def __init__(self, beta):
         self.running_mean = RunningStat(beta)
-        self.running_std = RunningStat(beta)
+        self.running_var = RunningStat(beta)
 
     def update(self, x):
         if x.numel() > 3:
             self.running_mean.update(x.mean().item())
-            self.running_std.update(x.std().item())
+            self.running_var.update(x.var().item())
 
     def __call__(self, x):
-        return (x - self.running_mean()) / (self.running_std() + 0.1)
+        return (x - self.running_mean()) / (math.sqrt(self.running_var()) + 0.1)
 
 
 @loss_from_string.register("policy_gradient_loss")
