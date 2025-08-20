@@ -70,3 +70,12 @@ class TheGame(GameDesc):
 
         strats = thegame_strategy_from_string.copy().update(strategy_from_string)
         super().__init__(TheGame, strats, Metrics)
+
+
+@games_library.register("rps")
+class RPS(GameDesc):
+    def __init__(self):
+        from boardrl.games.rps.game import RockPaperScissors
+        from boardrl.games.rps.metrics import Metrics
+
+        super().__init__(RockPaperScissors, strategy_from_string, Metrics)
