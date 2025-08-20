@@ -18,7 +18,7 @@ This repository contains a small reinforcement learning framework that supports 
 `boardrl/utils.py` provides a batching helper used for async inference and a registry for creating objects by name. The batching helper collects requests and processes them in groups, while `RegisterByName` lets you instantiate classes using a string key. This mechanism is used throughout the project to register strategies, games and other components.
 
 ### Game Library
-Games are registered under `boardrl/games/__init__.py` using a `GameDesc` object that describes how to create a game instance, the available strategies and metrics. Games such as `century`, `tictactoe` and `connectfour` are available.
+Games are registered under `boardrl/games/__init__.py` using a `GameDesc` object that describes how to create a game instance, the available strategies and metrics. Games such as `century`, `tictactoe` and `connectfour` are available. See `boardrl/games/AGENTS.md` for guidance on implementing new games.
 
 ### RL Models
 `boardrl/rl/model/model.py` implements the transformer-based policy/value network. It defines building blocks like pooling layers and a `PolicyValue` container used throughout the training loop.
