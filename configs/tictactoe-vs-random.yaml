@@ -1,0 +1,34 @@
+tag: a2c
+device: cpu
+game: tictactoe
+
+model: small
+
+pit:
+  every: 50
+  max_len: 220
+  num_games: 1000
+  rotate: false
+  strategies:
+  - policy_sampling,model=this
+  - random
+
+self_play:
+  max_len: 500
+  num_games: 32
+  strategies:
+  - policy_sampling,model=this
+  - random
+
+train:
+  optimizer: AdamW
+  batch_size: 64
+  discount_factor: 1.0
+  gradient_epochs: 1
+  only_strategies: [0]
+  loss:
+    policy: policy_gradient_loss,weight=returns,label_smoothing=0.04,renormalize=True
+    value: value_mse_loss,strength=0.0001
+  lr: 0.00001
+  save_every: 200
+  show_every: 5
