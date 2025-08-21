@@ -206,7 +206,7 @@ class PolicyGradientLoss:
         renormalize: bool = False,
         discount_factor: float = None,
         prev_model=None,
-        kl_strength: float = 0,
+        kl_strength: float = 0.0,
     ):
         assert weight in ["returns", "score", "advantage", "baseline_value"]
         self.label_smoothing = label_smoothing
@@ -230,7 +230,7 @@ class PolicyGradientLoss:
             weight = self.weight_fn(sample, self.prev_model, self.discount_factor)
             prev_policy = (
                 self.prev_model(sample.state).policy
-                if self.kl_strength is not None and self.prev_model is not None
+                if self.kl_strength is not None and self.kl_strength != 0
                 else None
             )
 
@@ -245,9 +245,13 @@ class PolicyGradientLoss:
         for logit, act, w, prev_logit in zip(
             pred_policy, sample.action_idx, weight, prev_policy_iter
         ):
-            loss_step = w * F.cross_entropy(logit, act)
+            print(logit, act.item(), w)
+            loss_step = (
+                w * F.cross_entropy(logit, act, label_smoothing=0.002)
+                + 1e-6 * logit.pow(2).sum()
+            )
 
-            if self.label_smoothing:
+            if self.label_smoothing != 0:
                 loss_step -= self.label_smoothing * entropy(logit, dim=0)
 
             if self.kl_strength is not None and self.kl_strength != 0:
