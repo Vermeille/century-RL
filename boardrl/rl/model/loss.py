@@ -246,7 +246,6 @@ class PolicyGradientLoss:
         for logit, act, w, prev_logit in zip(
             pred_policy, sample.action_idx, weight, prev_policy_iter
         ):
-            print(logit, act.item(), w)
             loss_step = (
                 w * F.cross_entropy(logit, act, label_smoothing=0.002)
                 + 1e-6 * logit.pow(2).sum()

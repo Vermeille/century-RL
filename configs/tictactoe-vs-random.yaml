@@ -27,7 +27,7 @@ train:
   gradient_epochs: 1
   only_strategies: [0]
   loss:
-    policy: policy_gradient_loss,weight=returns,label_smoothing=0.04,renormalize=True
+    policy: policy_gradient_loss,weight=returns,label_smoothing=0.04,normalizer_alpha=0.99
     value: value_mse_loss,strength=0.0001
   lr: 0.00001
   save_every: 200
