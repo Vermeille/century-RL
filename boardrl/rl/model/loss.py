@@ -203,10 +203,10 @@ class PolicyGradientLoss:
         *,
         weight: str = "returns",
         label_smoothing: float = 0.0,
-        renormalize: bool = False,
         discount_factor: float = None,
         prev_model=None,
         kl_strength: float = 0.0,
+        normalizer_alpha: float = None,
     ):
         assert weight in ["returns", "score", "advantage", "baseline_value"]
         self.label_smoothing = label_smoothing
@@ -217,11 +217,12 @@ class PolicyGradientLoss:
             "advantage": weight_advantage,
         }[weight]
         self.weight = weight
-        self.renormalize = renormalize
         self.discount_factor = discount_factor
         self.prev_model = prev_model
         self.kl_strength = kl_strength
-        self.normalizer = RunningNormalizer(0.999)
+        self.normalizer = None
+        if normalizer_alpha is not None:
+            self.normalizer = RunningNormalizer(normalizer_alpha)
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
@@ -234,7 +235,7 @@ class PolicyGradientLoss:
                 else None
             )
 
-        if self.renormalize:
+        if self.normalizer:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
         prev_policy_iter = (
