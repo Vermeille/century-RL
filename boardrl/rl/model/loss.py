@@ -206,6 +206,7 @@ class PolicyGradientLoss:
         prev_model=None,
         kl_strength: float = 0.0,
         normalizer_alpha: float = None,
+        aux_logits_coef: float = 1e-6,
     ):
         assert weight in ["returns", "score", "advantage", "baseline_value"]
         self.label_smoothing = label_smoothing
@@ -220,6 +221,7 @@ class PolicyGradientLoss:
         self.prev_model = prev_model
         self.kl_strength = kl_strength
         self.normalizer = None
+        self.aux_logits_coef = aux_logits_coef
         if normalizer_alpha is not None:
             self.normalizer = RunningNormalizer(normalizer_alpha)
 
@@ -247,7 +249,7 @@ class PolicyGradientLoss:
         ):
             loss_step = (
                 w * F.cross_entropy(logit, act, label_smoothing=0.002)
-                + 1e-6 * logit.pow(2).sum()
+                + self.aux_logits_coef * logit.pow(2).sum()
             )
 
             if self.label_smoothing != 0:
