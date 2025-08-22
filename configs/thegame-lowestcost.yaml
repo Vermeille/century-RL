@@ -20,8 +20,8 @@ self_play:
   num_games: 4
   max_len: 500
   strategies:
-    - lowest_cost
-    - lowest_cost
+    - lowest_cost,use_10_rule=True
+    - lowest_cost,use_10_rule=True
 
 pit:
   num_games: 32
