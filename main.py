@@ -153,6 +153,7 @@ class Trainer:
 
     def _annotate_reference_model(self, trainset):
         with torch.no_grad():
+
             def eval_states(states):
                 out = []
                 for batch in chunk(states, self.config.train.batch_size):
@@ -162,17 +163,17 @@ class Trainer:
             preds = eval_states([s.state for s in trainset])
             for sample, pv in zip(trainset, preds):
                 sample.reference_policy = pv.policy
-                sample.reference_value = pv.value.mean
+                sample.reference_value = pv.value.mean.item()
+                sample.reference_max_q = pv.q_value()[0].max().item()
 
-            next_preds = eval_states([s.next.state for s in trainset])
-            for sample, pv in zip(trainset, next_preds):
                 if getattr(sample.next, "final", False):
-                    device = pv.value.mean.device
-                    sample.next.reference_value = torch.tensor(0.0, device=device)
-                    sample.next.reference_q = torch.tensor(0.0, device=device)
-                else:
-                    sample.next.reference_value = pv.value.mean
-                    sample.next.reference_q = pv.q_value()[0].max()
+                    sample.next.reference_value = 0
+                    sample.next.reference_max_q = 0
+
+            for sample in trainset:
+                if sample.next:
+                    sample.next_reference_value = sample.next.reference_value
+                    sample.next_reference_max_q = sample.next.reference_max_q
 
     def _log_pit(self):
         self.model.eval()

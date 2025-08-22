@@ -143,14 +143,14 @@ def weight_score(samples, discount_factor):
 def weight_returns(samples, discount_factor):
     return samples.returns
 
+
 def weight_baseline_value(samples, discount_factor):
     return samples.returns - samples.reference_value
 
 
 def weight_advantage(samples, discount_factor):
-    next_value = samples.next.reference_value
     current_value = samples.reference_value
-    after = samples.reward + next_value * discount_factor
+    after = samples.reward + samples.next_reference_value * discount_factor
     return after - current_value
 
 
@@ -324,7 +324,7 @@ class QMSELoss:
             sample.action_idx,
             pred_value.mean,
             sample.reward,
-            sample.next.reference_q,
+            sample.next_reference_max_q,
         ):
             assert adv.ndim == 1
             loss += F.mse_loss(
