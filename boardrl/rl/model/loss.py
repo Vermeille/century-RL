@@ -187,6 +187,7 @@ class RunningNormalizer:
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
     needs_reference_policy_value = False
+
     @property
     def supports_off_policy(self):
         return self.weight in ["advantage"]
@@ -220,10 +221,10 @@ class PolicyGradientLoss:
         self.aux_logits_coef = aux_logits_coef
         if normalizer_alpha is not None:
             self.normalizer = RunningNormalizer(normalizer_alpha)
-        self.needs_reference_policy_value = (
-            weight in ["advantage", "baseline_value"]
-            or (kl_strength is not None and kl_strength != 0)
-        )
+        self.needs_reference_policy_value = weight in [
+            "advantage",
+            "baseline_value",
+        ] or (kl_strength is not None and kl_strength != 0)
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
