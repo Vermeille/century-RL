@@ -7,7 +7,9 @@ from boardrl.rl.model.loss import PolicyGradientLoss
 def test_entropy_regularizer_zero_grad_at_uniform():
     logits = torch.zeros(4, requires_grad=True)
     sample = SimpleNamespace(action_idx=[torch.tensor(0)], returns=torch.tensor([0.0]))
-    loss_fn = PolicyGradientLoss(weight="returns", label_smoothing=1.0)
+    loss_fn = PolicyGradientLoss(
+        weight="returns", label_smoothing=1.0, aux_logits_coef=0.0
+    )
     loss = loss_fn([logits], None, sample)
     loss.backward()
     assert torch.allclose(logits.grad, torch.zeros_like(logits), atol=1e-6)
@@ -17,7 +19,9 @@ def test_entropy_regularizer_drives_uniform_policy():
     torch.manual_seed(0)
     logits = torch.randn(5, requires_grad=True)
     sample = SimpleNamespace(action_idx=[torch.tensor(0)], returns=torch.tensor([0.0]))
-    loss_fn = PolicyGradientLoss(weight="returns", label_smoothing=1.0)
+    loss_fn = PolicyGradientLoss(
+        weight="returns", label_smoothing=1.0, aux_logits_coef=0.0
+    )
     opt = torch.optim.SGD([logits], lr=0.2)
     for _ in range(400):
         opt.zero_grad()
@@ -45,10 +49,13 @@ def test_kl_regularizer_matches_manual():
             )
 
     loss_fn = PolicyGradientLoss(
-        weight="returns", prev_model=PrevModel(), kl_strength=0.5
+        weight="returns",
+        prev_model=PrevModel(),
+        kl_strength=0.5,
+        aux_logits_coef=0.0,
     )
     loss = loss_fn([logits], None, sample)
-    ce = F.cross_entropy(logits, sample.action_idx[0])
+    ce = F.cross_entropy(logits, sample.action_idx[0], label_smoothing=0.002)
     kl = F.kl_div(
         F.log_softmax(logits, dim=0),
         F.log_softmax(prev_logits, dim=0),
