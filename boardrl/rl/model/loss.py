@@ -161,14 +161,13 @@ class RunningStat:
     def __init__(self, beta):
         self.running = None
         self.beta = beta
-        self.iter = 1
+        self.iter = 0
 
     def update(self, x):
         if self.running is None:
             self.running = 0.0
-        else:
-            self.running = self.beta * self.running + (1 - self.beta) * x
-            self.iter += 1
+        self.running = self.beta * self.running + (1 - self.beta) * x
+        self.iter += 1
 
     def __call__(self):
         return self.running / (1 - self.beta**self.iter)
