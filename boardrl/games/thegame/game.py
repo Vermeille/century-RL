@@ -59,7 +59,7 @@ class TheGame:
     def current_player(self) -> int:
         # Use the completed-round count so that a single player gets two
         # consecutive actions before play passes to the next one.
-        return self.round() % self.num_players
+        return (self.turn // 2) % self.num_players
 
     def display(self, force=-1) -> str:
         """
@@ -158,6 +158,8 @@ class TheGame:
         """
         Returns the score for the current player.
         """
+        if not self.ended():
+            return 0
         return 99 - (len(self.deck) + sum(len(h) for h in self.hands))
 
     def points_for(self, player: int) -> int:
