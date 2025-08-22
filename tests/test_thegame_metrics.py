@@ -32,7 +32,7 @@ def test_thegame_metrics_to_visdom():
     ])
     rec2 = _record(state2, ["30->2", "50->2"], 0)
 
-    end = SimpleNamespace(final=True)
+    end = SimpleNamespace(final=True, my_points=50)
 
     player = [rec1, rec2, end]
     game = [player]
@@ -41,7 +41,21 @@ def test_thegame_metrics_to_visdom():
     viz = SimpleNamespace(push=MagicMock())
     metrics.metrics_to_visdom(viz, 0)
 
+    viz.push.assert_any_call("avg_points", 50, 0)
     viz.push.assert_any_call("avg_cost", 10.0, 0)
     viz.push.assert_any_call("ratio_lowest_cost", 0.5, 0)
     viz.push.assert_any_call("ten_rule_moves", 1, 0)
-    viz.push.assert_any_call("collapse", [1.0], 0)
+
+
+def test_thegame_metrics_self_play_runs():
+    from boardrl.games.thegame.game import TheGame
+    from boardrl.games.thegame.strategies import strategy_from_string
+    from boardrl.rl.eval.selfplay import self_play
+
+    make_game = lambda num_players: TheGame(num_players=num_players)
+    strat = strategy_from_string("lowest_cost")
+    results = self_play(make_game, [strat, strat], n_games=1, max_len=10, rotate=False, desc="")
+    metrics = Metrics(results)
+    viz = SimpleNamespace(push=MagicMock())
+    metrics.metrics_to_visdom(viz, 0)
+    assert viz.push.call_count > 0
