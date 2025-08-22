@@ -76,7 +76,9 @@ def to_trainset(
                 if i != 0:
                     out[-2].next = out[-1]
             out[-1].next = end
-    out = [o for o in out if len(o.moves) > 1]
+    # While this looks like a good idea, this prevents
+    # learning the value of those non terminal states
+    # out = [o for o in out if len(o.moves) > 1]
     return out
 
 
