@@ -29,4 +29,4 @@ pit:
   every: 100
   strategies:
     - policy_sampling,model=this
-    - random
+    - policy_sampling,model=this

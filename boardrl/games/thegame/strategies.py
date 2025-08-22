@@ -16,6 +16,8 @@ class LowestCostStrategy:
             else:
                 cost = g.piles[pile] - card
             costs.append(cost)
-        print(g.piles, list(zip(g.moves, costs)))
         best_idx = min(range(len(costs)), key=lambda i: costs[i])
-        return one_hot(best_idx, len(g.moves)), {"moves": list(zip(g.moves, costs))}
+        print(g.piles, list(zip(g.moves, costs)), "pick", best_idx, g.moves[best_idx])
+        return one_hot(best_idx, len(g.moves)).log(), {
+            "moves": list(zip(g.moves, costs))
+        }

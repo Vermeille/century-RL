@@ -68,7 +68,9 @@ class LongestMoveStrategy:
             max(range(len(g.moves)), key=lambda i: len(g.moves[i])), len(g.moves)
         )
         total = sum(len(move) for move in g.moves)
-        return distribution, {"moves": {move: len(g.moves) / total for move in g.moves}}
+        return distribution.log(), {
+            "moves": {move: len(g.moves) / total for move in g.moves}
+        }
 
 
 @strategy_from_string.register("policy_sampling")
