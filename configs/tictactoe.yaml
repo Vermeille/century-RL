@@ -1,11 +1,11 @@
-tag: a2c
+tag: selfplay-mmd
 device: cpu
 game: tictactoe
 
-model: tiny
+model: small
 
 pit:
-  every: 50
+  every: 100
   max_len: 220
   num_games: 1000
   rotate: false
@@ -16,19 +16,30 @@ pit:
 self_play:
   max_len: 500
   num_games: 32
+  rotate: true
   strategies:
   - policy_sampling,model=this
-  - policy_sampling,model=this
+  - policy_sampling,model=prev
 
 train:
   optimizer: AdamW
   batch_size: 64
   discount_factor: 1.0
   gradient_epochs: 1
+  #prev_model_update: "False"
+  prev_model_update: |
+    if not exists("avg_winrate"):
+      avg_winrate = 0.0
+    print("AVG WINRATE:", avg_winrate)
+    avg_winrate = 0.9 * avg_winrate + 0.1 * episode.win_rate(0, by="strategy")
+    update = version + 20 <= epoch and avg_winrate > 0.55
+    if update:
+      avg_winrate = 0.0
+    update
   only_strategies: [0]
   loss:
-    policy: policy_gradient_loss,weight=returns,label_smoothing=0.1,renormalize=False
-    value: value_log_prob,strength=0
-  lr: 0.0001
+    policy: policy_gradient_loss,weight=returns,label_smoothing=0.1,normalizer_alpha=0.9,kl_strength=6
+    value: value_mse_loss,strength=0.001
+  lr: 0.00001
   save_every: 200
-  show_every: 25
+  show_every: 1
