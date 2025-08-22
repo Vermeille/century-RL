@@ -27,7 +27,7 @@ cpdef int fast_sample(x):
         acc += x_[i]
         if acc >= r:
             return i
-    print(x)
+    print("fast_sample fail", x)
     assert False, ("Should not reach here. Called fast_sample on "
         "an invalid distribution (all zeros or negative values)")
 
