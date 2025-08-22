@@ -22,7 +22,7 @@ These metrics are aggregated across all players and all games.
 
 from __future__ import annotations
 
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
 
 
 def _parse_piles(state: str) -> List[int]:
@@ -37,19 +37,15 @@ def _parse_piles(state: str) -> List[int]:
 
 
 def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
-    """Return the (cost, ten_rule_used) for a move."""
+    """Return ``(cost, ten_rule_used)`` for a move."""
 
     card_str, pile_str = move.split("->")
     card, pile = int(card_str), int(pile_str)
     top = piles[pile]
     if pile < 2:  # ascending piles
-        if top - card == 10:
-            return -10, True
-        return card - top, False
+        return card - top, card - top == -10
     else:  # descending piles
-        if card - top == 10:
-            return -10, True
-        return top - card, False
+        return top - card, top - card == -10
 
 
 class Metrics:
@@ -63,6 +59,9 @@ class Metrics:
             print("--")
 
     def metrics_to_visdom(self, viz, epoch):
+        avg_points = sum(game[0][-1].my_points for game in self.data) / len(self.data)
+        viz.push("avg_points", avg_points, epoch)
+
         total_cost = 0.0
         total_moves = 0
         lowest_cost_moves = 0
@@ -96,4 +95,3 @@ class Metrics:
         viz.push("avg_cost", avg_cost, epoch)
         viz.push("ratio_lowest_cost", ratio_lowest, epoch)
         viz.push("ten_rule_moves", ten_rule_moves, epoch)
-        viz.push("collapse", self.data.collapse(), epoch)
