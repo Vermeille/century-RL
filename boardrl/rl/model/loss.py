@@ -11,6 +11,7 @@ loss_from_string = RegisterByName()
 class ImitationCELoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = False
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
@@ -27,6 +28,7 @@ class ImitationCELoss:
 class CELoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = False
 
     def __init__(self, label_smoothing: float = 0.0):
         self.label_smoothing = label_smoothing
@@ -43,6 +45,7 @@ class CELoss:
 class ImitationJeffreysLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = False
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
@@ -59,6 +62,7 @@ class ImitationJeffreysLoss:
 class ImitationJSLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = False
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
@@ -75,6 +79,7 @@ class ImitationJSLoss:
 class ImitationMSELoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = False
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
@@ -91,6 +96,7 @@ class ImitationMSELoss:
 class ImitationKLLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = False
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
@@ -112,6 +118,7 @@ class ImitationKLLoss:
 class ImitationReverseKLLoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = False
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_distribution)
@@ -129,31 +136,21 @@ class ImitationReverseKLLoss:
         return loss / len(sample.action_distribution)
 
 
-def weight_score(samples, prev_model, discount_factor):
+def weight_score(samples, discount_factor):
     return samples.score
 
 
-def weight_returns(samples, prev_model, discount_factor):
+def weight_returns(samples, discount_factor):
     return samples.returns
 
+def weight_baseline_value(samples, discount_factor):
+    return samples.returns - samples.reference_value
 
-def weight_baseline_value(samples, prev_model, discount_factor):
-    return samples.returns - prev_model(samples.state).value.mean
 
-
-def weight_advantage(samples, prev_model, discount_factor):
-    next_value = prev_model([n.state for n in samples.next]).value.mean
-    next_value = torch.where(
-        torch.tensor([n.final for n in samples.next], device=next_value.device),
-        torch.tensor(0.0, device=next_value.device),
-        next_value,
-    )
-    current_value = prev_model(samples.state).value.mean
+def weight_advantage(samples, discount_factor):
+    next_value = samples.next.reference_value
+    current_value = samples.reference_value
     after = samples.reward + next_value * discount_factor
-    for b, i, af in zip(current_value, range(len(samples.state)), after):
-        print(
-            f"{b.item():.2f} {samples.moves[i][samples.action_idx[i]]} {af.item():.2f} (r={samples.reward[i]:.2f})"
-        )
     return after - current_value
 
 
@@ -189,6 +186,7 @@ class RunningNormalizer:
 
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
+    needs_reference_policy_value = False
     @property
     def supports_off_policy(self):
         return self.weight in ["advantage"]
@@ -203,7 +201,6 @@ class PolicyGradientLoss:
         weight: str = "returns",
         label_smoothing: float = 0.0,
         discount_factor: float = None,
-        prev_model=None,
         kl_strength: float = 0.0,
         normalizer_alpha: float = None,
         aux_logits_coef: float = 1e-6,
@@ -218,34 +215,34 @@ class PolicyGradientLoss:
         }[weight]
         self.weight = weight
         self.discount_factor = discount_factor
-        self.prev_model = prev_model
         self.kl_strength = kl_strength
         self.normalizer = None
         self.aux_logits_coef = aux_logits_coef
         if normalizer_alpha is not None:
             self.normalizer = RunningNormalizer(normalizer_alpha)
+        self.needs_reference_policy_value = (
+            weight in ["advantage", "baseline_value"]
+            or (kl_strength is not None and kl_strength != 0)
+        )
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
 
         with torch.no_grad():
-            weight = self.weight_fn(sample, self.prev_model, self.discount_factor)
-            prev_policy = (
-                self.prev_model(sample.state).policy
-                if self.kl_strength is not None and self.kl_strength != 0
-                else None
-            )
+            weight = self.weight_fn(sample, self.discount_factor)
 
         if self.normalizer:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
-        prev_policy_iter = (
-            prev_policy if prev_policy is not None else [None] * len(pred_policy)
+        ref_policy_iter = (
+            sample.reference_policy
+            if self.needs_reference_policy_value
+            else [None] * len(pred_policy)
         )
 
         loss = 0.0
-        for logit, act, w, prev_logit in zip(
-            pred_policy, sample.action_idx, weight, prev_policy_iter
+        for logit, act, w, ref_logit in zip(
+            pred_policy, sample.action_idx, weight, ref_policy_iter
         ):
             loss_step = (
                 w * F.cross_entropy(logit, act, label_smoothing=0.002)
@@ -257,7 +254,7 @@ class PolicyGradientLoss:
 
             if self.kl_strength is not None and self.kl_strength != 0:
                 loss_step += self.kl_strength * F.kl_div(
-                    F.log_softmax(prev_logit, dim=0),
+                    F.log_softmax(ref_logit, dim=0),
                     F.log_softmax(logit, dim=0),
                     reduction="sum",
                     log_target=True,
@@ -270,6 +267,7 @@ class PolicyGradientLoss:
 class ValueMSELoss:
     supports_off_policy = True
     supports_partial_trajectories = False
+    needs_reference_policy_value = False
 
     def __init__(self, strength: float = 1):
         self.strength = strength
@@ -283,6 +281,7 @@ class ValueMSELoss:
 class ValueLogProb:
     supports_off_policy = True
     supports_partial_trajectories = False
+    needs_reference_policy_value = False
 
     def __init__(self, strength: float = 1.0):
         self.strength = strength
@@ -296,23 +295,14 @@ class ValueLogProb:
 class BootstrapMSELoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = True
 
-    def __init__(self, discount_factor: float, strength: float = 1, prev_model=None):
-        self.prev_model = prev_model
+    def __init__(self, discount_factor: float, strength: float = 1):
         self.discount = discount_factor
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        with torch.no_grad():
-            bootstrap_value = self.prev_model([n.state for n in sample.next]).value.mean
-            bootstrap_value = torch.where(
-                torch.tensor(
-                    [n.final for n in sample.next], device=bootstrap_value.device
-                ),
-                torch.tensor(0.0, device=bootstrap_value.device),
-                bootstrap_value,
-            )
-        target = sample.reward + self.discount * bootstrap_value
+        target = sample.reward + self.discount * sample.next.reference_value
         return self.strength * F.mse_loss(pred_value.mean, target)
 
 
@@ -320,25 +310,13 @@ class BootstrapMSELoss:
 class QMSELoss:
     supports_off_policy = True
     supports_partial_trajectories = True
+    needs_reference_policy_value = True
 
-    def __init__(
-        self, discount_factor: float, renormalize: bool = False, prev_model=None
-    ):
+    def __init__(self, discount_factor: float, renormalize: bool = False):
         self.discount_factor = discount_factor
-        self.prev_model = prev_model
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
-
-        with torch.no_grad():
-            q = self.prev_model([n.state for n in sample.next]).q_value()
-            q_next = torch.where(
-                torch.tensor(
-                    [n.final for n in sample.next], device=sample.reward.device
-                ),
-                torch.tensor(0.0, device=sample.action_idx.device),
-                torch.stack([q.max() for q in q]),
-            )
 
         loss = 0
         for adv, act, v, r, nxt in zip(
@@ -346,7 +324,7 @@ class QMSELoss:
             sample.action_idx,
             pred_value.mean,
             sample.reward,
-            q_next,
+            sample.next.reference_q,
         ):
             assert adv.ndim == 1
             loss += F.mse_loss(

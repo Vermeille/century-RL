@@ -125,13 +125,11 @@ class Trainer:
         self.policy_loss = loss_from_string(
             config.train.loss.policy,
             model=self.model,
-            prev_model=self.prev_model,
             discount_factor=config.train.discount_factor,
         )
         self.value_loss = loss_from_string(
             config.train.loss.value,
             model=self.model,
-            prev_model=self.prev_model,
             discount_factor=config.train.discount_factor,
         )
         print(self.policy_loss, self.value_loss)
@@ -150,6 +148,29 @@ class Trainer:
         self.pit_results = None
         self.episode_results = None
         self.prev_update_exec = PythonExec(self.config.train.prev_model_update)
+
+    def _annotate_reference_model(self, trainset):
+        with torch.no_grad():
+            def eval_states(states):
+                out = []
+                for batch in chunk(states, self.config.train.batch_size):
+                    out.extend(self.prev_model(batch).unbatched())
+                return out
+
+            preds = eval_states([s.state for s in trainset])
+            for sample, pv in zip(trainset, preds):
+                sample.reference_policy = pv.policy
+                sample.reference_value = pv.value.mean
+
+            next_preds = eval_states([s.next.state for s in trainset])
+            for sample, pv in zip(trainset, next_preds):
+                if getattr(sample.next, "final", False):
+                    device = pv.value.mean.device
+                    sample.next.reference_value = torch.tensor(0.0, device=device)
+                    sample.next.reference_q = torch.tensor(0.0, device=device)
+                else:
+                    sample.next.reference_value = pv.value.mean
+                    sample.next.reference_q = pv.q_value()[0].max()
 
     def _log_pit(self):
         self.model.eval()
@@ -427,6 +448,12 @@ class Trainer:
             )
 
             random.shuffle(trainset)
+            needs_reference = (
+                self.policy_loss.needs_reference_policy_value
+                or self.value_loss.needs_reference_policy_value
+            )
+            if needs_reference:
+                self._annotate_reference_model(trainset)
             print(len(trainset), "samples")
             if (
                 False
