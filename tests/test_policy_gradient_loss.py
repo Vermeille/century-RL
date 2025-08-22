@@ -39,18 +39,11 @@ def test_kl_regularizer_matches_manual():
         action_idx=[torch.tensor(0)],
         returns=torch.tensor([1.0]),
         state=[None],
+        reference_policy=[prev_logits],
     )
-
-    class PrevModel:
-        def __call__(self, state):
-            return SimpleNamespace(
-                policy=[prev_logits],
-                value=SimpleNamespace(mean=torch.tensor([0.0])),
-            )
 
     loss_fn = PolicyGradientLoss(
         weight="returns",
-        prev_model=PrevModel(),
         kl_strength=0.5,
         aux_logits_coef=0.0,
     )
