@@ -319,7 +319,9 @@ class Trainer:
             total=num_batches,
         ):
             with torch.no_grad():
-                samples = TrainingSample.collate(batch).to(self.config.device)
+                samples = TrainingSample.collate(batch).to(
+                    self.config.device, non_blocking=True
+                )
             policy, value = self.model(samples.state)
             policy_loss = self.policy_loss(policy, value, samples)
             value_loss = self.value_loss(policy, value, samples)

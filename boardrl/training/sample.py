@@ -3,7 +3,7 @@ import torch
 
 def collate(xs):
     if isinstance(xs[0], (int, float)):
-        return torch.tensor(xs)
+        return torch.tensor(xs, pin_memory=True)
     if isinstance(xs[0], torch.Tensor):
         try:
             return torch.stack(xs, dim=0)
