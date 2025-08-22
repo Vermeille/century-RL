@@ -20,7 +20,7 @@ def get_model(arg_str, default, provided_arg):
 strategy_from_string = RegisterByName(arg_readers={"model": get_model})
 
 
-def one_hot(i, n, smooth=0.0):
+def one_hot(i, n, *, smooth=0.0):
     x = torch.ones(n, dtype=torch.float) * smooth / n
     x[i] += 1 - smooth
     return x
