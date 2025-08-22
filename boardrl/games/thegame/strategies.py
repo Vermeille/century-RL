@@ -15,15 +15,11 @@ class LowestCostStrategy:
             card, pile = int(m.split("->")[0]), int(m.split("->")[1])
             asc = pile < 2
             if asc:
-                if self.use_10_rule and (g.piles[pile] - card == 10):
-                    cost = -10
-                else:
-                    cost = card - g.piles[pile]
+                cost = card - g.piles[pile]
             else:
-                if self.use_10_rule and (card - g.piles[pile] == 10):
-                    cost = -10
-                else:
-                    cost = g.piles[pile] - card
+                cost = g.piles[pile] - card
+            if not self.use_10_rule and cost == -10:
+                cost = 100  # to avoid picking -10 moves, make them very costly
             costs.append(cost)
         best_idx = min(range(len(costs)), key=lambda i: costs[i])
         print(g.piles, list(zip(g.moves, costs)), "pick", best_idx, g.moves[best_idx])
