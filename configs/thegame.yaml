@@ -25,10 +25,10 @@ train:
   batch_size: 128
   discount_factor: 1.0
   gradient_epochs: 1
-  prev_model_update: "epoch % 5 == 0"
+  reference_model_update: "epoch % 5 == 0"
   loss:
-    policy: policy_gradient_loss,weight=advantage,label_smoothing=0.3,discount_factor=1.0,normalizer_alpha=0.99
-    value: value_mse_loss,strength=0.004
-  lr: 0.0001
+    policy: policy_gradient_loss,weight=gae,label_smoothing=0.03,normalizer_alpha=0.99
+    value: value_mse_loss,strength=1
+  lr: 0.00001
   save_every: 1000
   show_every: 10
