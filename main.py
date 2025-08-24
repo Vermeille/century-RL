@@ -120,6 +120,9 @@ class Trainer:
             ckpt = torch.load(checkpoint_path)
             self.model.load_state_dict(ckpt["model"])
             self.opt.load_state_dict(ckpt["opt"])
+            # change lr
+            for param_group in self.opt.param_groups:
+                param_group["lr"] = config.train.lr
 
         self.prev_model = copy.deepcopy(self.model)
         self.prev_model.version = 0
