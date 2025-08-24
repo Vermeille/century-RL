@@ -303,7 +303,7 @@ class BootstrapMSELoss:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        target = sample.reward + self.discount * sample.next.reference_value
+        target = sample.reward + self.discount * sample.next_reference_value
         return self.strength * F.mse_loss(pred_value.mean, target)
 
 
