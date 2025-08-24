@@ -142,6 +142,7 @@ class TheGame:
         #  3) Optionally draw a card from the deck if available after the second player's move
         if self.deck and self.turn % 2 == 1:
             self.hands[p].append(self.deck.pop())
+        if self.deck and self.turn % 2 == 1:
             self.hands[p].append(self.deck.pop())
 
         # Move to the next player (if you want multi-player rotation)
