@@ -227,6 +227,7 @@ class PolicyGradientLoss:
         self.needs_reference_policy_value = weight in [
             "advantage",
             "baseline_value",
+            "gae",
         ] or (kl_strength is not None and kl_strength != 0)
 
     def __call__(self, pred_policy, pred_value, sample):

@@ -182,9 +182,10 @@ class Trainer:
             def compute_gae(s):
                 if hasattr(s, "gae"):
                     return s.gae
-                # FIXME: stupid harcoded default:
+                # FIXME: stupid harcoded default lambda, a bit lower than gamma:
                 lambda_ = gamma * 0.98
-                return s.advantage + lambda_ * gamma * compute_gae(s.next)
+                s.gae = s.advantage + lambda_ * gamma * compute_gae(s.next)
+                return s.gae
 
             for sample in trainset:
                 if sample.next:
@@ -195,13 +196,15 @@ class Trainer:
                         + gamma * sample.next_reference_value
                         - sample.reference_value
                     )
+            for sample in trainset:
+                if sample.next:
                     sample.gae = compute_gae(sample)
 
     def _log_pit(self):
         self.model.eval()
         self.reference_model.eval()
         batch_size = self.config.pit.batch_size or self.config.train.batch_size
-        timeout = 0.01
+        timeout = 0.001
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
         reference_bp = BatchProcessor(batch_size, self.reference_model, timeout=timeout)
         pool = ModelPool(bp, batch_size, timeout, reference_bp)
@@ -411,7 +414,7 @@ class Trainer:
         self.model.eval()
         self.reference_model.eval()
         batch_size = self.config.self_play.batch_size or self.config.train.batch_size
-        timeout = 0.02
+        timeout = 0.002
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
         reference_bp = BatchProcessor(batch_size, self.reference_model, timeout=timeout)
         pool = ModelPool(bp, batch_size, timeout, reference_bp)

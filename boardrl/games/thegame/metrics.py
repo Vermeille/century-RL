@@ -57,7 +57,7 @@ class Metrics:
             for player in game:
                 print(
                     [
-                        r.moves[r.action_idx]
+                        f"{r.moves[r.action_idx]} ({_cost(r.moves[r.action_idx], _parse_piles(r.state))[0]})"
                         for r in player
                         if not getattr(r, "final", False)
                     ]

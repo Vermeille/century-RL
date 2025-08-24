@@ -3,25 +3,25 @@ tag: lowestcost-supervised
 
 game: thegame
 
-model: tiny
+model: small
 train:
   optimizer: AdamW
   gradient_epochs: 1
-  discount_factor: 0.8
+  discount_factor: 1.0
   lr: 0.0001
   batch_size: 32
   show_every: 10
   save_every: 100
   loss:
-    value: value_mse_loss,strength=0.1
+    value: value_mse_loss,strength=0.00001
     policy: ce_loss
 
 self_play:
   num_games: 4
   max_len: 500
   strategies:
-    - lowest_cost,use_10_rule=True
-    - lowest_cost,use_10_rule=True
+    - lowest_cost
+    - lowest_cost
 
 pit:
   num_games: 32
