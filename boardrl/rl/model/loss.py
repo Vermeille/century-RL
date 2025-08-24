@@ -149,9 +149,11 @@ def weight_baseline_value(samples, discount_factor):
 
 
 def weight_advantage(samples, discount_factor):
-    current_value = samples.reference_value
-    after = samples.reward + samples.next_reference_value * discount_factor
-    return after - current_value
+    return samples.advantage
+
+
+def weight_gae(samples, discount_factor):
+    return samples.gae
 
 
 class RunningStat:
@@ -206,13 +208,14 @@ class PolicyGradientLoss:
         normalizer_alpha: float = None,
         aux_logits_coef: float = 1e-6,
     ):
-        assert weight in ["returns", "score", "advantage", "baseline_value"]
+        assert weight in ["returns", "score", "advantage", "baseline_value", "gae"]
         self.label_smoothing = label_smoothing
         self.weight_fn = {
             "returns": weight_returns,
             "score": weight_score,
             "baseline_value": weight_baseline_value,
             "advantage": weight_advantage,
+            "gae": weight_gae,
         }[weight]
         self.weight = weight
         self.discount_factor = discount_factor

@@ -174,11 +174,28 @@ class Trainer:
                 if getattr(sample.next, "final", False):
                     sample.next.reference_value = 0
                     sample.next.reference_max_q = 0
+                    sample.next.advantage = 0
+                    sample.next.gae = 0
+
+            gamma = self.config.train.discount_factor
+
+            def compute_gae(s):
+                if hasattr(s, "gae"):
+                    return s.gae
+                # FIXME: stupid harcoded default:
+                lambda_ = gamma * 0.98
+                return s.advantage + lambda_ * gamma * compute_gae(s.next)
 
             for sample in trainset:
                 if sample.next:
                     sample.next_reference_value = sample.next.reference_value
                     sample.next_reference_max_q = sample.next.reference_max_q
+                    sample.advantage = (
+                        sample.reward
+                        + gamma * sample.next_reference_value
+                        - sample.reference_value
+                    )
+                    sample.gae = compute_gae(sample)
 
     def _log_pit(self):
         self.model.eval()
