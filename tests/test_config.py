@@ -17,7 +17,7 @@ def test_config_defaults():
     assert cfg.train.lr == 1e-4
     assert cfg.train.betas == (0.9, 0.999)
     assert cfg.train.weight_decay == 0.01
-    assert cfg.train.reference_model_update == "True"
+    assert cfg.train.reference_model_update == "False"
     assert isinstance(cfg.train.loss, LossConfig)
     assert cfg.train.loss.value == "value_mse_loss"
     assert cfg.train.loss.policy == "policy_gradient_loss"

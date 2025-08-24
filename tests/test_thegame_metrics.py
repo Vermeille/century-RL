@@ -8,6 +8,9 @@ class DummyResults(list):
     def collapse(self):
         return [1.0]
 
+    def num_players(self):
+        return 1
+
 
 def _record(state, moves, action_idx):
     return SimpleNamespace(state=state, moves=moves, action_idx=action_idx, final=False)

@@ -96,6 +96,6 @@ class Metrics:
         viz.push("ratio_lowest_cost", ratio_lowest, epoch)
         viz.push(
             "ten_rule_moves",
-            ten_rule_moves / (len(self.data) * game.num_players()),
+            ten_rule_moves / (len(self.data) * self.data.num_players()),
             epoch,
         )
