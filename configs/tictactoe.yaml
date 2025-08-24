@@ -19,15 +19,15 @@ self_play:
   rotate: true
   strategies:
   - policy_sampling,model=this
-  - policy_sampling,model=prev
+  - policy_sampling,model=reference
 
 train:
   optimizer: AdamW
   batch_size: 64
   discount_factor: 1.0
   gradient_epochs: 1
-  #prev_model_update: "False"
-  prev_model_update: |
+  #reference_model_update: "False"
+  reference_model_update: |
     if not exists("avg_winrate"):
       avg_winrate = 0.0
     print("AVG WINRATE:", avg_winrate)

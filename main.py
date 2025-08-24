@@ -124,9 +124,9 @@ class Trainer:
             for param_group in self.opt.param_groups:
                 param_group["lr"] = config.train.lr
 
-        self.prev_model = copy.deepcopy(self.model)
-        self.prev_model.version = 0
-        self.prev_model.eval()
+        self.reference_model = copy.deepcopy(self.model)
+        self.reference_model.version = 0
+        self.reference_model.eval()
         self.policy_loss = loss_from_string(
             config.train.loss.policy,
             model=self.model,
@@ -152,7 +152,9 @@ class Trainer:
         self.game_name = config.game.split(",")[0]
         self.pit_results = None
         self.episode_results = None
-        self.prev_update_exec = PythonExec(self.config.train.prev_model_update)
+        self.reference_update_exec = PythonExec(
+            self.config.train.reference_model_update
+        )
 
     def _annotate_reference_model(self, trainset):
         with torch.no_grad():
@@ -160,7 +162,7 @@ class Trainer:
             def eval_states(states):
                 out = []
                 for batch in chunk(states, self.config.train.batch_size):
-                    out.extend(self.prev_model(batch).unbatched())
+                    out.extend(self.reference_model(batch).unbatched())
                 return out
 
             preds = eval_states([s.state for s in trainset])
@@ -180,12 +182,12 @@ class Trainer:
 
     def _log_pit(self):
         self.model.eval()
-        self.prev_model.eval()
+        self.reference_model.eval()
         batch_size = self.config.pit.batch_size or self.config.train.batch_size
         timeout = 0.01
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
-        prev_bp = BatchProcessor(batch_size, self.prev_model, timeout=timeout)
-        pool = ModelPool(bp, batch_size, timeout, prev_bp)
+        reference_bp = BatchProcessor(batch_size, self.reference_model, timeout=timeout)
+        pool = ModelPool(bp, batch_size, timeout, reference_bp)
         print("PIT: ", " VS ".join(self.config.pit.strategies))
         pit_results = pit(
             self.game_desc.make_game,
@@ -206,30 +208,30 @@ class Trainer:
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
         self.model.train()
 
-    def _maybe_update_prev_model(self):
+    def _maybe_update_reference_model(self):
         env = {
             "epoch": self.epoch,
             "pit": self.pit_results,
             "episode": self.episode_results,
             "True": True,
             "False": False,
-            "version": self.prev_model.version,
+            "version": self.reference_model.version,
             "__builtins__": {
                 "print": print,
             },
         }
-        env["__builtins__"]["exists"] = lambda s: s in self.prev_update_exec.ctx
+        env["__builtins__"]["exists"] = lambda s: s in self.reference_update_exec.ctx
 
-        update = self.prev_update_exec(env)
+        update = self.reference_update_exec(env)
         if update:
             with torch.no_grad():
-                for prev_param, param in zip(
-                    self.prev_model.state_dict().values(),
+                for reference_param, param in zip(
+                    self.reference_model.state_dict().values(),
                     self.model.state_dict().values(),
                 ):
-                    prev_param.data.copy_(param.data)
-            self.prev_model.eval()
-            self.prev_model.version = self.epoch
+                    reference_param.data.copy_(param.data)
+            self.reference_model.eval()
+            self.reference_model.version = self.epoch
 
     def _train_epoch_off_policy(self, data):
         self.model.train()
@@ -356,7 +358,9 @@ class Trainer:
         total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
-        self.viz.push("prev_model.version", self.prev_model.version, self.epoch)
+        self.viz.push(
+            "reference_model.version", self.reference_model.version, self.epoch
+        )
         if self.epoch % self.config.train.show_every == 0:
             for k, v in total_losses.items():
                 self.viz.push(
@@ -388,12 +392,12 @@ class Trainer:
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
 
         self.model.eval()
-        self.prev_model.eval()
+        self.reference_model.eval()
         batch_size = self.config.self_play.batch_size or self.config.train.batch_size
         timeout = 0.02
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
-        prev_bp = BatchProcessor(batch_size, self.prev_model, timeout=timeout)
-        pool = ModelPool(bp, batch_size, timeout, prev_bp)
+        reference_bp = BatchProcessor(batch_size, self.reference_model, timeout=timeout)
+        pool = ModelPool(bp, batch_size, timeout, reference_bp)
         data = self_play(
             self.game_desc.make_game,
             [
@@ -448,7 +452,7 @@ class Trainer:
                 self._save_model()
 
             data = self._run_episode()
-            self._maybe_update_prev_model()
+            self._maybe_update_reference_model()
             trainset = to_trainset(
                 data,
                 only_players=self.config.train.only_players,

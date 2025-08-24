@@ -17,7 +17,7 @@ def test_config_defaults():
     assert cfg.train.lr == 1e-4
     assert cfg.train.betas == (0.9, 0.999)
     assert cfg.train.weight_decay == 0.01
-    assert cfg.train.prev_model_update == "True"
+    assert cfg.train.reference_model_update == "True"
     assert isinstance(cfg.train.loss, LossConfig)
     assert cfg.train.loss.value == "value_mse_loss"
     assert cfg.train.loss.policy == "policy_gradient_loss"
@@ -40,7 +40,7 @@ def test_config_overrides():
             "weight_decay": 0.1,
             "iterations": 5,
             "loss": {"value": "custom_value", "policy": "custom_policy"},
-            "prev_model_update": "epoch % 2 == 0",
+            "reference_model_update": "epoch % 2 == 0",
         },
         "self_play": {"num_games": 7, "strategies": ["random", "best"]},
         "pit": {"every": 1},
@@ -53,7 +53,7 @@ def test_config_overrides():
     assert cfg.train.iterations == 5
     assert cfg.train.loss.value == "custom_value"
     assert cfg.train.loss.policy == "custom_policy"
-    assert cfg.train.prev_model_update == "epoch % 2 == 0"
+    assert cfg.train.reference_model_update == "epoch % 2 == 0"
     assert cfg.self_play.num_games == 7
     assert cfg.self_play.strategies == ["random", "best"]
     assert cfg.pit.every == 1

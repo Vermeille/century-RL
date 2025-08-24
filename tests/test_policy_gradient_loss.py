@@ -34,12 +34,12 @@ def test_entropy_regularizer_drives_uniform_policy():
 
 def test_kl_regularizer_matches_manual():
     logits = torch.tensor([0.5, -0.5], requires_grad=True)
-    prev_logits = torch.tensor([1.0, 0.0])
+    reference_logits = torch.tensor([1.0, 0.0])
     sample = SimpleNamespace(
         action_idx=[torch.tensor(0)],
         returns=torch.tensor([1.0]),
         state=[None],
-        reference_policy=[prev_logits],
+        reference_policy=[reference_logits],
     )
 
     loss_fn = PolicyGradientLoss(
@@ -51,7 +51,7 @@ def test_kl_regularizer_matches_manual():
     ce = F.cross_entropy(logits, sample.action_idx[0], label_smoothing=0.002)
     kl = F.kl_div(
         F.log_softmax(logits, dim=0),
-        F.log_softmax(prev_logits, dim=0),
+        F.log_softmax(reference_logits, dim=0),
         reduction="batchmean",
         log_target=True,
     )

@@ -41,7 +41,7 @@ class TrainConfig(StrictModel):
     reward_rescale: Optional[float] = None
     only_players: Optional[List[int]] = None
     only_strategies: Optional[List[int]] = None
-    prev_model_update: Optional[str] = "False"
+    reference_model_update: Optional[str] = "False"
 
 
 class SelfPlayConfig(StrictModel):
