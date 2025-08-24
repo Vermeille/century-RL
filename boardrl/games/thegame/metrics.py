@@ -55,7 +55,13 @@ class Metrics:
     def print_short_history(self):
         for game in self.data:
             for player in game:
-                print([r.moves[r.action_idx] for r in player if not getattr(r, "final", False)])
+                print(
+                    [
+                        r.moves[r.action_idx]
+                        for r in player
+                        if not getattr(r, "final", False)
+                    ]
+                )
             print("--")
 
     def metrics_to_visdom(self, viz, epoch):

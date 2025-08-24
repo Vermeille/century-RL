@@ -18,21 +18,25 @@ def _record(state, moves, action_idx):
 
 def test_thegame_metrics_to_visdom():
     # First move uses the 10 rule and is the lowest cost option
-    state1 = "\n".join([
-        "Round: 0, Action: 0",
-        "Piles: asc:20, asc:1, desc:100, desc:100",
-        "Cards: 0",
-        "Hand: 10 30",
-    ])
+    state1 = "\n".join(
+        [
+            "Round: 0, Action: 0",
+            "Piles: asc:20, asc:1, desc:100, desc:100",
+            "Cards: 0",
+            "Hand: 10 30",
+        ]
+    )
     rec1 = _record(state1, ["10->0", "30->2"], 0)
 
     # Second move does not use the 10 rule and is not the cheapest
-    state2 = "\n".join([
-        "Round: 0, Action: 1",
-        "Piles: asc:10, asc:1, desc:60, desc:100",
-        "Cards: 0",
-        "Hand: 30 50",
-    ])
+    state2 = "\n".join(
+        [
+            "Round: 0, Action: 1",
+            "Piles: asc:10, asc:1, desc:60, desc:100",
+            "Cards: 0",
+            "Hand: 30 50",
+        ]
+    )
     rec2 = _record(state2, ["30->2", "50->2"], 0)
 
     end = SimpleNamespace(final=True, my_points=50)
@@ -57,7 +61,9 @@ def test_thegame_metrics_self_play_runs():
 
     make_game = lambda num_players: TheGame(num_players=num_players)
     strat = strategy_from_string("lowest_cost")
-    results = self_play(make_game, [strat, strat], n_games=1, max_len=10, rotate=False, desc="")
+    results = self_play(
+        make_game, [strat, strat], n_games=1, max_len=10, rotate=False, desc=""
+    )
     metrics = Metrics(results)
     viz = SimpleNamespace(push=MagicMock())
     metrics.metrics_to_visdom(viz, 0)
