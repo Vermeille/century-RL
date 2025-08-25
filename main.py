@@ -365,20 +365,28 @@ class Trainer:
             loss = policy_loss + value_loss
             loss = loss * len(samples.state)
             loss.backward()
-            with torch.no_grad():
-                total_losses["loss_policy"] += policy_loss.item()
-                total_losses["loss_value"] += value_loss.item()
+            if self.epoch % self.config.train.show_every == 0:
+                with torch.no_grad():
+                    total_losses["loss_policy"] += policy_loss.item()
+                    total_losses["loss_value"] += value_loss.item()
 
-                total_losses["normalized_perplexity"] += sum(
-                    torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0)))
-                    / len(p)
-                    for p in policy
-                ).item() / len(policy)
-                pearson = pearson_corr(value.mean, samples.returns)
-                total_losses["pearson"] += pearson.item()
-                total_losses["MAE"] += torch.nn.functional.l1_loss(
-                    value.mean, samples.returns
-                ).item()
+                    total_losses["normalized_perplexity"] += sum(
+                        (
+                            torch.exp(
+                                torch.sum(
+                                    -torch.softmax(p, 0) * torch.log_softmax(p, 0)
+                                )
+                            )
+                            - 1
+                        )
+                        / (len(p) - 1 + 1e-8)
+                        for p in policy
+                    ).item() / len(policy)
+                    pearson = pearson_corr(value.mean, samples.returns)
+                    total_losses["pearson"] += pearson.item()
+                    total_losses["MAE"] += torch.nn.functional.l1_loss(
+                        value.mean, samples.returns
+                    ).item()
 
         with torch.no_grad():
             for p in self.model.parameters():

@@ -22,6 +22,7 @@ class TrainingSample:
             **{
                 k: collate([getattr(s, k) for s in samples])
                 for k in samples[0].__dict__
+                if k != "next"
             }
         )
 
