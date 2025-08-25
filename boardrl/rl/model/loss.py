@@ -158,13 +158,11 @@ def weight_gae(samples, discount_factor):
 
 class RunningStat:
     def __init__(self, beta):
-        self.running = None
+        self.running = 0
         self.beta = beta
         self.iter = 0
 
     def update(self, x):
-        if self.running is None:
-            self.running = 0.0
         self.running = self.beta * self.running + (1 - self.beta) * x
         self.iter += 1
 
@@ -183,7 +181,7 @@ class RunningNormalizer:
             self.running_var.update(x.var().item())
 
     def __call__(self, x):
-        return (x - self.running_mean()) / (math.sqrt(self.running_var()) + 0.1)
+        return (x - self.running_mean()) / (math.sqrt(self.running_var()) + 0.0001)
 
 
 @loss_from_string.register("policy_gradient_loss")
