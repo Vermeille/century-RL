@@ -176,12 +176,11 @@ class Trainer:
                     sample.next.gae = 0
 
             gamma = self.config.train.discount_factor
-            lmbda = gamma * 0.98
+            lmbda = self.config.train.gae_lambda
 
             def compute_gae(s):
                 if hasattr(s, "gae"):
                     return s.gae
-                # FIXME: stupid harcoded default lambda, a bit lower than gamma:
                 s.gae = s.advantage + lmbda * gamma * compute_gae(s.next)
                 return s.gae
 

@@ -36,6 +36,7 @@ class TrainConfig(StrictModel):
     save_every: int = 100
     iterations: float = float("inf")
     discount_factor: float = 0.99
+    gae_lambda: float = 0.95
     loss: LossConfig = Field(default_factory=LossConfig)
     entropy_reward_scale: Optional[float] = None
     reward_rescale: Optional[float] = None
