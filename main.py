@@ -60,15 +60,12 @@ def to_trainset(
             for i, log in list(enumerate(hist)):
                 out.append(
                     TrainingSample(
-                        round=log.round,
                         state=log.state,
-                        moves=log.moves,
                         action_idx=log.action_idx,
                         action_distribution=log.action_distribution,
                         score=float(log.current_diff_points),
                         reward=float(log.reward),
                         returns=log.returns,
-                        current_diff_points=float(log.current_diff_points),
                         next=None,
                         final=False,
                     )
