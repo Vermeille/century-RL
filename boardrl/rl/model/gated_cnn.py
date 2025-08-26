@@ -63,7 +63,7 @@ class GatedConvBlock(nn.Module):
 
         if attn_mask is not None:
             m = attn_mask.unsqueeze(-1)
-            return residual * (1 - m) + (residual + x) * m
+            return torch.where(m, residual + x, residual)
         return residual + x
 
 
@@ -77,7 +77,7 @@ class GatedCNNEncoder(nn.Module):
         kernel_size: int = 5,
         dilations: tuple = (1, 2, 4, 8, 16),
         se_ratio: int = 4,
-        dropout: float = 0.1,
+        dropout: float = 0.0,
         stochastic_depth: float = 0.0,
     ):
         super().__init__()
@@ -97,8 +97,6 @@ class GatedCNNEncoder(nn.Module):
                 )
             )
 
-        self.out_norm = nn.RMSNorm(d_model)
-
     @staticmethod
     def _make_drop_path_rates(n: int, sd: float):
         if sd <= 0:
@@ -115,4 +113,4 @@ class GatedCNNEncoder(nn.Module):
                     mask = (torch.rand(shape, device=h.device) < keep).float() / keep
                     h = x + (h - x) * mask
             x = h
-        return self.out_norm(x)
+        return x
