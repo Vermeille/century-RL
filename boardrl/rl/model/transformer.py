@@ -178,10 +178,10 @@ class SelfAttention(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, hidden_size, num_heads, head_size, rotary=False):
         super().__init__()
-        self.layer_norm1 = nn.LayerNorm(hidden_size)
+        self.layer_norm1 = nn.RMSNorm(hidden_size, elementwise_affine=False)
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.feed_forward = nn.Sequential(
-            nn.LayerNorm(hidden_size),
+            nn.RMSNorm(hidden_size, elementwise_affine=False),
             kaiming(
                 nn.Linear(hidden_size, 4 * hidden_size, bias=True)
             ),  # bias is better
@@ -216,7 +216,8 @@ class Transformer(nn.Module):
         )
 
         for m in self.modules():
-            if isinstance(m, nn.LayerNorm):
+            if isinstance(m, nn.RMSNorm):
+                continue
                 m.bias.data.zero_()
                 m.weight.data.fill_(1.0)
 
