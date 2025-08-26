@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from boardrl.rl.model.transformer import Transformer
+from boardrl.rl.model.gated_cnn import GatedCNNEncoder
 
 
 class PolicyValue:
@@ -140,9 +141,23 @@ class LSTMBackbone(Backbone):
         return enc * attn_mask.unsqueeze(-1)
 
 
+class GatedCNNBackbone(Backbone):
+    """Backbone using the :class:`GatedCNNEncoder`."""
+
+    def __init__(self, dim, num_layers, head_size, max_len):
+        super().__init__()
+        self.embed = nn.Embedding(128, dim, padding_idx=0)
+        self.encode = GatedCNNEncoder(d_model=dim, n_blocks=num_layers)
+
+    def forward(self, tokens, attn_mask):
+        emb = self.embed(tokens)
+        return self.encode(emb, attn_mask)
+
+
 BACKBONES = {
     "transformer": TransformerBackbone,
     "lstm": LSTMBackbone,
+    "gated_cnn": GatedCNNBackbone,
 }
 
 
