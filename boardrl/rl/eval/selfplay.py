@@ -103,6 +103,9 @@ class SelfPlayResults(list):
             for player in game:
                 yield player
 
+    def num_samples(self):
+        return sum(len(player) for player in self.all_traces())
+
     def num_traces(self):
         return len(self) * self.num_players()
 
