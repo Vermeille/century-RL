@@ -38,7 +38,7 @@ train:
     update
   only_strategies: [0]
   loss:
-    policy: policy_gradient_loss,weight=returns,label_smoothing=0.1,normalizer_alpha=0.9,kl_strength=6
+    policy: policy_gradient_loss,weight=returns,entropy_bonus=0.1,normalizer_alpha=0.9,kl_strength=6
     value: value_mse_loss,strength=0.001
   lr: 0.00001
   save_every: 200

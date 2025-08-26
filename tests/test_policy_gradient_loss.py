@@ -2,13 +2,14 @@ import torch
 import torch.nn.functional as F
 from types import SimpleNamespace
 from boardrl.rl.model.loss import PolicyGradientLoss
+from boardrl.utils import entropy
 
 
 def test_entropy_regularizer_zero_grad_at_uniform():
     logits = torch.zeros(4, requires_grad=True)
     sample = SimpleNamespace(action_idx=[torch.tensor(0)], returns=torch.tensor([0.0]))
     loss_fn = PolicyGradientLoss(
-        weight="returns", label_smoothing=1.0, aux_logits_coef=0.0
+        weight="returns", entropy_bonus=1.0, aux_logits_coef=0.0
     )
     loss = loss_fn([logits], None, sample)
     loss.backward()
@@ -20,7 +21,7 @@ def test_entropy_regularizer_drives_uniform_policy():
     logits = torch.randn(5, requires_grad=True)
     sample = SimpleNamespace(action_idx=[torch.tensor(0)], returns=torch.tensor([0.0]))
     loss_fn = PolicyGradientLoss(
-        weight="returns", label_smoothing=1.0, aux_logits_coef=0.0
+        weight="returns", entropy_bonus=1.0, aux_logits_coef=0.0
     )
     opt = torch.optim.SGD([logits], lr=0.2)
     for _ in range(400):
