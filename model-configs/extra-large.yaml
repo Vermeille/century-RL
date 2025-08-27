@@ -1,0 +1,5 @@
+# Params: 30.01M
+num_layers: 4
+dim: 768
+num_heads: 16
+head_size: 48

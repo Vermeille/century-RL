@@ -1,4 +1,0 @@
-# Params: 1.07M
-num_layers: 4
-dim: 128
-head_size: 32

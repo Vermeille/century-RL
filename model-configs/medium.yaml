@@ -1,4 +1,5 @@
-# Params: 13.72M
-num_layers: 4
-dim: 512
-head_size: 64
+# Params: 6.87M
+num_layers: 8
+dim: 256
+num_heads: 16
+head_size: 16
