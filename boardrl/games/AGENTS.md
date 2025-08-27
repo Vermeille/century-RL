@@ -64,3 +64,20 @@ For simpler games without custom strategies, pass `strategy_from_string` from
 
 Use existing games such as `tictactoe`, `connectfour`, and `sum` as templates
 when building new ones.
+
+## 5. Web UI
+Games may expose a small web interface for manual play. Place a
+`ui.html` file in the game's directory and follow the pattern used by
+existing games:
+
+- Fetch the state from `/board` and render the board along with the
+  list of legal moves (lines prefixed by `@`).
+- Send actions to `/do` with a JSON body containing `action` and an
+  optional `strategy` selected from `/strategies`.
+- Provide an `Analyze` button that calls `/analyze` and visualises the
+  returned move values. A `Play` button can call `/play-one` to let the
+  server make a move.
+- Reuse the dark style seen in `tictactoe/ui.html` or
+  `connectfour/ui.html` for consistency.
+
+Refer to those HTML files for concrete examples when adding a new UI.
