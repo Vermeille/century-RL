@@ -53,19 +53,29 @@ EXPERIMENTS = {
     ),
     "model_policy_value": (
         model_learns_policy_and_value,
-        [("default", lambda: Model(dim=32, num_layers=2, head_size=8))],
+        [
+            (
+                "default",
+                lambda: Model(dim=32, num_layers=2, head_size=8, num_heads=4),
+            )
+        ],
     ),
     "model_context": (
         model_learns_from_context,
-        [("default", lambda: Model(dim=64, num_layers=3, head_size=8))],
+        [
+            (
+                "default",
+                lambda: Model(dim=64, num_layers=3, head_size=8, num_heads=8),
+            )
+        ],
     ),
     "model_dyck": (
         model_dyck,
-        [("default", lambda: Model(64, 4, 32))],
+        [("default", lambda: Model(64, 4, 32, 2))],
     ),
     "model_arith_mod20": (
         model_arith_mod20,
-        [("default", lambda: Model(64, 4, 32))],
+        [("default", lambda: Model(64, 4, 32, 2))],
     ),
 }
 

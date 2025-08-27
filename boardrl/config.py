@@ -62,7 +62,8 @@ class PitConfig(SelfPlayConfig):
 class NetConfig(StrictModel):
     dim: int = 64
     num_layers: int = 2
-    head_size: int = 33
+    head_size: Optional[int] = None
+    num_heads: Optional[int] = None
     backbone: str = "transformer"
 
 

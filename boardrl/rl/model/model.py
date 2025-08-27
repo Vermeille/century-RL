@@ -35,9 +35,8 @@ class PolicyValue:
 
 
 class ValueHead(nn.Module):
-    def __init__(self, dim, head_size):
+    def __init__(self, dim):
         super().__init__()
-        # self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # nn.LayerNorm(dim),  # Detrimental
             nn.Linear(dim, 2),
@@ -64,9 +63,8 @@ class Scale(nn.Module):
 
 
 class PolicyHead(nn.Module):
-    def __init__(self, dim, head_size):
+    def __init__(self, dim):
         super().__init__()
-        # self.tfblock = Transformer(dim, 1, dim // head_size, head_size)
         self.out = nn.Sequential(
             # it IS Detrimental
             # nn.LayerNorm(dim),
@@ -103,12 +101,22 @@ class TransformerBackbone(Backbone):
         self,
         dim,
         num_layers,
-        head_size,
-        max_len,
+        head_size=None,
+        max_len=2048,
+        num_heads=None,
         rotary: bool = True,
         rotary_single: bool = False,
     ):
         super().__init__()
+        if head_size is None and num_heads is None:
+            head_size = 64
+            num_heads = dim // head_size
+        elif head_size is None:
+            head_size = dim // num_heads
+        elif num_heads is None:
+            num_heads = dim // head_size
+        self.head_size = head_size
+        self.num_heads = num_heads
         self.embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
             PositionalEncoding(dim, max_len),
@@ -117,7 +125,7 @@ class TransformerBackbone(Backbone):
         self.encode = Transformer(
             dim,
             num_layers,
-            dim // head_size,
+            num_heads,
             head_size,
             rotary=rotary,
             rotary_single=rotary_single,
@@ -130,8 +138,9 @@ class TransformerBackbone(Backbone):
 
 
 class LSTMBackbone(Backbone):
-    def __init__(self, dim, num_layers, head_size, max_len):
+    def __init__(self, dim, num_layers, head_size=None, max_len=None, num_heads=None):
         super().__init__()
+        assert head_size is None and num_heads is None
         self.embed = nn.Embedding(128, dim, padding_idx=0)
         self.encode = nn.LSTM(dim, dim, num_layers, batch_first=True)
 
@@ -144,8 +153,9 @@ class LSTMBackbone(Backbone):
 class GatedCNNBackbone(Backbone):
     """Backbone using the :class:`GatedCNNEncoder`."""
 
-    def __init__(self, dim, num_layers, head_size, max_len):
+    def __init__(self, dim, num_layers, head_size=None, max_len=None, num_heads=None):
         super().__init__()
+        assert head_size is None and num_heads is None
         self.embed = nn.Embedding(128, dim, padding_idx=0)
         self.encode = GatedCNNEncoder(d_model=dim, n_blocks=num_layers)
 
@@ -166,7 +176,8 @@ class Model(nn.Module):
         self,
         dim: int,
         num_layers: int,
-        head_size: int = 64,
+        head_size: int | None = None,
+        num_heads: int | None = None,
         backbone: str = "transformer",
     ):
         super().__init__()
@@ -175,10 +186,11 @@ class Model(nn.Module):
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
-        self.backbone = backbone_cls(dim, num_layers, head_size, self.maxlen)
-
-        self.to_pred = PolicyHead(dim, head_size)
-        self.rewards = ValueHead(dim, head_size)
+        self.backbone = backbone_cls(
+            dim, num_layers, head_size, self.maxlen, num_heads
+        )
+        self.to_pred = PolicyHead(dim)
+        self.rewards = ValueHead(dim)
 
     def text_encode(self, txts, maxlen):
         maxlen = min(maxlen, max(len(g) for g in txts))
@@ -222,15 +234,12 @@ class Model(nn.Module):
 
 def load_model(model_path):
     ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
-
-    if "config" not in ckpt:
-        ckpt["config"] = {"dim": 256, "num_layers": 8}
-
     config = ckpt["config"]
     model = Model(
-        config.get("dim", 256),
-        config.get("num_layers", 8),
-        head_size=config.get("head_size", 64),
+        config["dim"],
+        config["num_layers"],
+        config.get("head_size"),
+        config.get("num_heads"),
         backbone=config.get("backbone", "transformer"),
     )
     print(model.load_state_dict(ckpt["model"]))
