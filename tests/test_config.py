@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from pydantic import ValidationError
 
 from boardrl.config import Config, LossConfig
+from boardrl.rl.model.model import Model
 
 
 def test_config_defaults():
@@ -71,3 +72,26 @@ def test_config_invalid_top_level_key():
 def test_config_invalid_nested_key():
     with pytest.raises(ValidationError):
         Config.from_dict({"train": {"unknown": 1}})
+
+
+def test_netconfig_head_params():
+    cfg = Config.from_dict({"net": {"dim": 60, "num_layers": 1, "num_heads": 3}})
+    assert cfg.net.num_heads == 3
+    assert cfg.net.head_size is None
+    model = Model(**cfg.net.model_dump())
+    assert model.backbone.num_heads == 3
+    assert model.backbone.head_size == 20
+
+    cfg2 = Config.from_dict({"net": {"dim": 60, "num_layers": 1, "head_size": 10}})
+    assert cfg2.net.head_size == 10
+    assert cfg2.net.num_heads is None
+    model2 = Model(**cfg2.net.model_dump())
+    assert model2.backbone.head_size == 10
+    assert model2.backbone.num_heads == 6
+
+    cfg3 = Config.from_dict(
+        {"net": {"dim": 60, "num_layers": 1, "head_size": 10, "num_heads": 5}}
+    )
+    model3 = Model(**cfg3.net.model_dump())
+    assert model3.backbone.head_size == 10
+    assert model3.backbone.num_heads == 5

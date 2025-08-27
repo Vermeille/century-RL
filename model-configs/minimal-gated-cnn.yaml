@@ -1,5 +1,4 @@
 # Params: 0.25M
 num_layers: 4
 dim: 128
-head_size: 32
 backbone: gated_cnn

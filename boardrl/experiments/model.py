@@ -28,7 +28,7 @@ def model_learns_policy_and_value(model: Model) -> List[float]:
     for i in range(300):
         out = model(games)
         logits = torch.stack(out.policy)
-        loss_policy = F.nll_loss(logits, targets)
+        loss_policy = F.cross_entropy(logits, targets)
         loss_value = F.mse_loss(out.value.mean, values)
         (loss_policy + loss_value).backward()
         opt.step()
@@ -77,7 +77,7 @@ def model_learns_from_context(model: Model) -> List[float]:
     for i in range(500):
         out = model(games)
         logits = torch.stack(out.policy)
-        loss_policy = F.nll_loss(logits, targets_t)
+        loss_policy = F.cross_entropy(logits, targets_t)
         loss_value = F.mse_loss(out.value.mean, values_t)
         (loss_policy + loss_value).backward()
         opt.step()
