@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Game</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      background-color: #333;
+    }
+    .board {
+      background-color: #222;
+      padding: 20px;
+      border-radius: 10px;
+      color: white;
+      font-family: monospace;
+      font-size: 24px;
+    }
+    .piles, .hand {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .pile, .card {
+      width: 60px;
+      height: 90px;
+      border: 1px solid #444;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 2px;
+    }
+    .card.clickable:hover {
+      background-color: #555;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="board"></div>
+  <div>
+    <select id="strategies"></select>
+    <button onclick="analyze()">Analyze</button>
+    <button onclick="play_one()">Play</button>
+  </div>
+  <script>
+    function parse_state(state) {
+      const lines = state.split('\n');
+      let piles = [];
+      let hand = [];
+      let moves = [];
+      for (const line of lines) {
+        if (line.startsWith('Piles:')) {
+          const parts = line.substring(6).split(',');
+          piles = parts.map(p => {
+            const [type, val] = p.trim().split(':');
+            return { type, val };
+          });
+        } else if (line.startsWith('Hand:')) {
+          hand = line.substring(5).trim().split(/\s+/).filter(x => x);
+        } else if (line.startsWith('@')) {
+          moves.push(line.substring(1));
+        }
+      }
+      return { piles, hand, moves };
+    }
+
+    function render_board(state) {
+      const { piles, hand, moves } = parse_state(state);
+      const moveMap = {};
+      moves.forEach(m => {
+        const [card] = m.split('->');
+        if (!moveMap[card]) moveMap[card] = [];
+        moveMap[card].push(m);
+      });
+
+      let html = '<div class="board">';
+      html += '<div class="piles">';
+      piles.forEach(p => {
+        html += `<div class="pile">${p.type}:${p.val}</div>`;
+      });
+      html += '</div>';
+      html += '<div class="hand">';
+      hand.forEach(c => {
+        const actions = moveMap[c] ? moveMap[c].join(',') : '';
+        html += `<div class="card ${actions ? 'clickable' : ''}" data-card="${c}" data-actions="${actions}">${c}</div>`;
+      });
+      html += '</div></div>';
+      return html;
+    }
+
+    async function refresh() {
+      const root = document.getElementById('board');
+      const response = await fetch('/board');
+      const text = await response.text();
+      root.innerHTML = render_board(text);
+      make_clickable();
+    }
+
+    function make_clickable() {
+      document.querySelectorAll('.card.clickable').forEach(card => {
+        const actions = card.getAttribute('data-actions').split(',');
+        card.addEventListener('click', () => {
+          let chosen = actions[0];
+          if (actions.length > 1) {
+            const choice = prompt('Choose move', actions.join(' '));
+            if (choice && actions.includes(choice)) {
+              chosen = choice;
+            } else {
+              return;
+            }
+          }
+          sendActionToServer(chosen);
+        });
+      });
+    }
+
+    async function sendActionToServer(action) {
+      const response = await fetch('/do', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: action,
+          strategy: document.getElementById('strategies').value
+        })
+      });
+      const state = await response.json();
+      await refresh();
+      if (!state.continue) {
+        alert(state.points > 0 ? 'You won!' : state.points < 0 ? 'You lost!' : 'Draw!');
+        await fetch('/reset');
+        await refresh();
+      }
+    }
+
+    function softmax(arr) {
+      const max = Math.max(...arr);
+      const exps = arr.map(v => Math.exp(v - max));
+      const sum = exps.reduce((a, b) => a + b, 0);
+      return exps.map(e => e / sum);
+    }
+
+    function colorForProb(p) {
+      const hue = p * 120;
+      return `hsl(${hue}, 100%, 50%)`;
+    }
+
+    async function analyze() {
+      const response = await fetch('/analyze?' + new URLSearchParams({
+        strategy: document.getElementById('strategies').value,
+      }));
+      const data = await response.json();
+      const entries = Object.entries(data.moves);
+      const probs = softmax(entries.map(([, v]) => v));
+      const best = {};
+      entries.forEach(([move], i) => {
+        const [card] = move.split('->');
+        const prob = probs[i];
+        if (!best[card] || prob > best[card].prob) {
+          best[card] = { prob, move };
+        }
+      });
+      document.querySelectorAll('.card').forEach(card => {
+        const c = card.getAttribute('data-card');
+        const info = best[c];
+        if (info) {
+          card.style.backgroundColor = colorForProb(info.prob);
+          const pile = info.move.split('->')[1];
+          card.innerHTML = `${c}<br>${pile}:${Math.round(info.prob * 100) / 100}`;
+        }
+      });
+    }
+
+    async function play_one() {
+      const response = await fetch('/play-one?', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          strategy: document.getElementById('strategies').value
+        })
+      });
+      const state = await response.json();
+      await refresh();
+      if (!state.continue) {
+        alert(state.points > 0 ? 'You won!' : state.points < 0 ? 'You lost!' : 'Draw!');
+        await fetch('/reset');
+        await refresh();
+      }
+    }
+
+    async function get_strategies() {
+      const response = await fetch('/strategies');
+      const data = await response.json();
+      const select = document.getElementById('strategies');
+      select.innerHTML = '';
+      for (const strategy of data) {
+        const option = document.createElement('option');
+        option.value = strategy;
+        option.textContent = strategy;
+        select.appendChild(option);
+      }
+    }
+
+    refresh();
+    get_strategies();
+  </script>
+</body>
+</html>
+
