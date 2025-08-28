@@ -28,16 +28,37 @@
     }
     .pile, .card {
       width: 60px;
-      height: 90px;
       border: 1px solid #444;
       display: flex;
       justify-content: center;
       align-items: center;
       margin: 2px;
     }
-    .card.clickable:hover {
-      background-color: #555;
+    .pile {
+      height: 90px;
+    }
+    .card {
+      flex-direction: column;
+      padding: 4px;
+      min-height: 90px;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 4px;
+    }
+    .actions button {
+      background-color: #444;
+      color: white;
+      border: none;
+      margin: 1px;
+      padding: 2px 4px;
+      font-size: 12px;
       cursor: pointer;
+    }
+    .actions button:hover {
+      background-color: #666;
     }
   </style>
 </head>
@@ -82,13 +103,26 @@
       let html = '<div class="board">';
       html += '<div class="piles">';
       piles.forEach(p => {
-        html += `<div class="pile">${p.type}:${p.val}</div>`;
+        const arrow = p.type === 'asc' ? '\u2191' : '\u2193';
+        html += `<div class="pile">${p.val} ${arrow}</div>`;
       });
       html += '</div>';
       html += '<div class="hand">';
       hand.forEach(c => {
-        const actions = moveMap[c] ? moveMap[c].join(',') : '';
-        html += `<div class="card ${actions ? 'clickable' : ''}" data-card="${c}" data-actions="${actions}">${c}</div>`;
+        html += `<div class="card" data-card="${c}">`;
+        html += `<div class="card-val">${c}</div>`;
+        const actions = moveMap[c] || [];
+        if (actions.length) {
+          html += '<div class="actions">';
+          actions.forEach(m => {
+            const pileIdx = parseInt(m.split('->')[1]);
+            const arrow = piles[pileIdx].type === 'asc' ? '\u2191' : '\u2193';
+            const label = `${arrow}${(pileIdx % 2) + 1}`;
+            html += `<button data-action="${m}">${label}</button>`;
+          });
+          html += '</div>';
+        }
+        html += '</div>';
       });
       html += '</div></div>';
       return html;
@@ -103,19 +137,10 @@
     }
 
     function make_clickable() {
-      document.querySelectorAll('.card.clickable').forEach(card => {
-        const actions = card.getAttribute('data-actions').split(',');
-        card.addEventListener('click', () => {
-          let chosen = actions[0];
-          if (actions.length > 1) {
-            const choice = prompt('Choose move', actions.join(' '));
-            if (choice && actions.includes(choice)) {
-              chosen = choice;
-            } else {
-              return;
-            }
-          }
-          sendActionToServer(chosen);
+      document.querySelectorAll('.actions button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.getAttribute('data-action');
+          sendActionToServer(action);
         });
       });
     }
@@ -170,8 +195,10 @@
         const info = best[c];
         if (info) {
           card.style.backgroundColor = colorForProb(info.prob);
-          const pile = info.move.split('->')[1];
-          card.innerHTML = `${c}<br>${pile}:${Math.round(info.prob * 100) / 100}`;
+          const btn = card.querySelector(`button[data-action="${info.move}"]`);
+          if (btn) {
+            btn.textContent += ` (${Math.round(info.prob * 100)}%)`;
+          }
         }
       });
     }

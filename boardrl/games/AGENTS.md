@@ -79,5 +79,7 @@ existing games:
   server make a move.
 - Reuse the dark style seen in `tictactoe/ui.html` or
   `connectfour/ui.html` for consistency.
+- Present move choices with direct UI controls (e.g. buttons or
+  drag-and-drop) rather than text prompts.
 
 Refer to those HTML files for concrete examples when adding a new UI.
