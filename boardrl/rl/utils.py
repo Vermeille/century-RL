@@ -29,3 +29,28 @@ def pearson_corr(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     corr = cov / (x_std * y_std + eps)
 
     return corr
+
+
+def explained_variance(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Compute the explained variance between ``pred`` and ``target``.
+
+    The explained variance is ``1 - Var[target - pred] / Var[target]`` and is a
+    measure of how much of the variance in ``target`` is captured by ``pred``.
+    The output is ``0`` when ``target`` has zero variance.
+    """
+
+    # Flatten to 1D tensors to simplify computation
+    pred = pred.view(-1)
+    target = target.view(-1)
+
+    # Variance of the target
+    var_target = target.var(unbiased=False)
+
+    # Avoid division by zero when the target has no variance
+    if var_target == 0:
+        return torch.tensor(0.0, device=pred.device, dtype=pred.dtype)
+
+    # Variance of the prediction error
+    var_error = (target - pred).var(unbiased=False)
+
+    return 1 - var_error / var_target
