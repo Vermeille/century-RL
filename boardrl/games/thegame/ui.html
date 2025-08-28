@@ -75,6 +75,7 @@
       let piles = [];
       let hand = [];
       let moves = [];
+      let cards = 0;
       for (const line of lines) {
         if (line.startsWith('Piles:')) {
           const parts = line.substring(6).split(',');
@@ -82,17 +83,19 @@
             const [type, val] = p.trim().split(':');
             return { type, val };
           });
+        } else if (line.startsWith("Cards:")) {
+          cards = parseInt(line.substring(6));
         } else if (line.startsWith('Hand:')) {
           hand = line.substring(5).trim().split(/\s+/).filter(x => x);
         } else if (line.startsWith('@')) {
           moves.push(line.substring(1));
         }
       }
-      return { piles, hand, moves };
+      return { piles, hand, moves, cards };
     }
 
     function render_board(state) {
-      const { piles, hand, moves } = parse_state(state);
+      const { piles, hand, moves, cards } = parse_state(state);
       const moveMap = {};
       moves.forEach(m => {
         const [card] = m.split('->');
@@ -101,6 +104,7 @@
       });
 
       let html = '<div class="board">';
+      html += `<div class="score">Deck: ${cards}</div>`;
       html += '<div class="piles">';
       piles.forEach(p => {
         const arrow = p.type === 'asc' ? '\u2191' : '\u2193';
@@ -117,7 +121,7 @@
           actions.forEach(m => {
             const pileIdx = parseInt(m.split('->')[1]);
             const arrow = piles[pileIdx].type === 'asc' ? '\u2191' : '\u2193';
-            const label = `${arrow}${(pileIdx % 2) + 1}`;
+            const label = `${pileIdx + 1}${arrow}`;
             html += `<button data-action="${m}">${label}</button>`;
           });
           html += '</div>';
