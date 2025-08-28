@@ -20,7 +20,7 @@ if "boardrl.cyutils" not in sys.modules:
 
 from boardrl.utils import BatchProcessor, RegisterByName
 import torch
-from boardrl.rl.utils import pearson_corr
+from boardrl.rl.utils import pearson_corr, explained_variance
 
 
 class DummyOut:
@@ -81,3 +81,24 @@ def test_pearson_corr_identity():
     x = torch.randn(10)
     corr = pearson_corr(x, x)
     assert torch.isclose(corr, torch.tensor(1.0), atol=1e-5)
+
+
+def test_explained_variance_identity():
+    y = torch.randn(10)
+    ev = explained_variance(y, y)
+    assert torch.isclose(ev, torch.tensor(1.0), atol=1e-5)
+
+
+def test_explained_variance_basic():
+    target = torch.tensor([1.0, 2.0, 3.0])
+    pred = torch.tensor([1.0, 2.5, 3.5])
+    expected = 1 - (target - pred).var(unbiased=False) / target.var(unbiased=False)
+    ev = explained_variance(pred, target)
+    assert torch.isclose(ev, expected, atol=1e-5)
+
+
+def test_explained_variance_zero_var_target():
+    target = torch.ones(5)
+    pred = torch.zeros(5)
+    ev = explained_variance(pred, target)
+    assert ev == torch.tensor(0.0)
