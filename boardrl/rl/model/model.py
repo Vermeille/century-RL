@@ -119,7 +119,7 @@ class TransformerBackbone(Backbone):
         self.num_heads = num_heads
         self.embed = nn.Sequential(
             nn.Embedding(128, dim, padding_idx=0),
-            PositionalEncoding(dim, max_len),
+            # PositionalEncoding(dim, max_len),
             nn.RMSNorm(dim),
         )
         self.encode = Transformer(
