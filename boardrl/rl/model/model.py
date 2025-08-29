@@ -149,11 +149,15 @@ class LSTMBackbone(Backbone):
         super().__init__()
         assert head_size is None and num_heads is None
         self.embed = nn.Embedding(128, dim, padding_idx=0)
-        self.encode = nn.LSTM(dim, dim, num_layers, batch_first=True)
+        self.encode = nn.LSTM(
+            dim, dim, num_layers, batch_first=True, bidirectional=True
+        )
 
     def forward(self, tokens, attn_mask):
         emb = self.embed(tokens)
         enc, _ = self.encode(emb)
+        x0, x1 = torch.chunk(enc, 2, dim=2)
+        enc = x0 + x1
         return enc * attn_mask.unsqueeze(-1)
 
 
