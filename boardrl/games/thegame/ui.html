@@ -122,7 +122,7 @@
             const pileIdx = parseInt(m.split('->')[1]);
             const arrow = piles[pileIdx].type === 'asc' ? '\u2191' : '\u2193';
             const label = `${pileIdx + 1}${arrow}`;
-            html += `<button data-action="${m}">${label}</button>`;
+            html += `<button class="action" data-action="${m}" data-label="${label}">${label}</button>`;
           });
           html += '</div>';
         }
@@ -186,23 +186,13 @@
       const data = await response.json();
       const entries = Object.entries(data.moves);
       const probs = softmax(entries.map(([, v]) => v));
-      const best = {};
-      entries.forEach(([move], i) => {
-        const [card] = move.split('->');
-        const prob = probs[i];
-        if (!best[card] || prob > best[card].prob) {
-          best[card] = { prob, move };
-        }
-      });
-      document.querySelectorAll('.card').forEach(card => {
-        const c = card.getAttribute('data-card');
-        const info = best[c];
+      document.querySelectorAll('.action').forEach(card => {
+        const c = card.getAttribute('data-action');
+        const info = data.moves[c];
         if (info) {
-          card.style.backgroundColor = colorForProb(info.prob);
-          const btn = card.querySelector(`button[data-action="${info.move}"]`);
-          if (btn) {
-            btn.textContent += ` (${Math.round(info.prob * 100)}%)`;
-          }
+          card.style.backgroundColor = colorForProb(info);
+          const base = card.getAttribute('data-label');
+          card.textContent = `${base} (${Math.round(info * 100)}%)`;
         }
       });
     }
