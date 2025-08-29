@@ -54,3 +54,11 @@ def explained_variance(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor
     var_error = (target - pred).var(unbiased=False)
 
     return 1 - var_error / var_target
+
+
+def R_squared(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    ss_res = ((x - y) ** 2).sum()
+    ss_tot = ((y - y.mean()) ** 2).sum()
+    eps = 1e-8
+    r2 = 1 - ss_res / (ss_tot + eps)
+    return r2
