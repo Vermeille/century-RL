@@ -39,7 +39,7 @@ class ValueHead(nn.Module):
         super().__init__()
         self.out = nn.Sequential(
             # nn.LayerNorm(dim),  # Detrimental
-            nn.Linear(dim, 2),
+            zero(nn.Linear(dim, 2)),
             # Scale(2),
             # B2
         )
@@ -68,11 +68,10 @@ class PolicyHead(nn.Module):
         self.out = nn.Sequential(
             # it IS Detrimental
             # nn.LayerNorm(dim),
-            nn.Linear(dim, 1),
+            init(nn.Linear(dim, 1)),
             # BL
             # nn.LogSoftmax(dim=1), # THIS IS WRONG BECAUSE WE SELECT AFTER
         )
-        nn.init.xavier_normal_(self.out[0].weight)
 
     def forward(self, x, attn_mask):
         # x = self.tfblock(x, attn_mask)
@@ -118,7 +117,7 @@ class TransformerBackbone(Backbone):
         self.head_size = head_size
         self.num_heads = num_heads
         self.embed = nn.Sequential(
-            nn.Embedding(128, dim, padding_idx=0),
+            init(nn.Embedding(128, dim, padding_idx=0)),
             # PositionalEncoding(dim, max_len),
             nn.RMSNorm(dim),
         )
