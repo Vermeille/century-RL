@@ -33,16 +33,11 @@ class PolicyValue:
             for a, v in zip(self.policy, self.value.mean)
         ]
 
-class EnergyPool(nn.Module):
-    def forward(self, x, mask):
-        mask = x.norm(dim=-1, keepdim=True) * mask.unsqueeze(-1)
-        mask = mask / (1e-6 + mask.to(x.dtype).sum(1, keepdim=True))
-        return (x * mask.to(x.dtype)).sum(1)
 
 class ValueHead(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.pool = EnergyPool()
+        #self.pool = EnergyPool()
         self.out = nn.Sequential(
             # nn.LayerNorm(dim),  # Detrimental
             zero(nn.Linear(dim, 2)),
@@ -53,8 +48,8 @@ class ValueHead(nn.Module):
     def forward(self, x, attn_mask):
         # x = self.tfblock(x, attn_mask)
         # x = mask_mean_pool(x, attn_mask)
-        x = self.pool(x, attn_mask)
-        #x = x[:, 0]
+        # x = self.pool(x, attn_mask)
+        x = x[:, 0]
         out = self.out(x)
         return out
 
