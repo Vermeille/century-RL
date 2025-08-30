@@ -4,31 +4,23 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def normal_init(m, std):
+def zero(m):
     assert isinstance(m.weight, torch.Tensor)
-    nn.init.normal_(m.weight, 0, std)
+    nn.init.normal_(m.weight, 0, 0.0)
     if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
         nn.init.constant_(m.bias, 0)
     return m
 
 
-def xavier(m):
+def init(m):
     assert isinstance(m.weight, torch.Tensor)
-    nn.init.xavier_normal_(m.weight)
+    nn.init.normal_(m.weight, 0, 1 / math.sqrt(m.weight.size(1)))
     if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
         nn.init.constant_(m.bias, 0)
     return m
 
-
-def kaiming(m):
-    assert isinstance(m.weight, torch.Tensor)
-    nn.init.kaiming_normal_(m.weight)
-    if hasattr(m, "bias") and m.bias is not None:
-        assert isinstance(m.bias, torch.Tensor)
-        nn.init.constant_(m.bias, 0)
-    return m
 
 
 class Rotary(torch.nn.Module):
@@ -152,15 +144,12 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         self.head_size = head_size
-        self.qkv = xavier(
-            nn.Linear(hidden_size, head_size * num_heads * 3, bias=True),
+        self.qkv = init(
+            nn.Linear(hidden_size, head_size * num_heads * 3, bias=True)
         )
         with torch.no_grad():
-            self.qkv.weight[: head_size * num_heads, :].copy_(
-                self.qkv.weight[head_size * num_heads : head_size * num_heads * 2, :]
-            )
-        self.fc = nn.Linear(head_size * num_heads, hidden_size, bias=True)
-        self.fc.weight.data.zero_()
+            pass#self.qkv.weight[: head_size * num_heads, :].copy_( self.qkv.weight[head_size * num_heads : head_size * num_heads * 2, :])
+        self.fc = zero(nn.Linear(head_size * num_heads, hidden_size, bias=True))
         # Rotary here is detrimental, it's better to use it in the trunk
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary, alibi=False)
 
@@ -182,13 +171,10 @@ class TransformerBlock(nn.Module):
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.feed_forward = nn.Sequential(
             nn.RMSNorm(hidden_size, elementwise_affine=False),
-            kaiming(
-                nn.Linear(hidden_size, 4 * hidden_size, bias=True)
-            ),  # bias is better
+            init(nn.Linear(hidden_size, 4 * hidden_size, bias=True)),
             nn.GELU(),
-            xavier(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
+            zero(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
         )
-        self.feed_forward[-1].weight.data.zero_()
 
     def forward(self, x, attn_mask):
         x = x + self.sa(self.layer_norm1(x), attn_mask)
