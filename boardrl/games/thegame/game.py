@@ -8,19 +8,21 @@ class TheGame:
       - Each pile starts at 1 (for ascending) or 100 (for descending).
       - There's a deck of cards from 2 to 99 (inclusive).
       - Each player has a hand of cards. We'll track only the current player's turn.
+    Can configure the max_value (100 by default)
     """
 
-    def __init__(self, num_players=2):
+    def __init__(self, num_players: int = 2, max_value: int = 100):
         assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
-        # Build the deck of 2..99
-        self.deck = list(range(2, 100))
+        # Build the deck of 2..max_value-1
+        self.max_value = max_value
+        self.deck = list(range(2, max_value))
         random.shuffle(self.deck)
 
         # Initialize the 4 piles
         # For simplicity:
         #   piles[0], piles[1] = ascending, start at 1
-        #   piles[2], piles[3] = descending, start at 100
-        self.piles = [1, 1, 100, 100]
+        #   piles[2], piles[3] = descending, start at max_value
+        self.piles = [1, 1, max_value, max_value]
 
         # Deal initial hands
         # (In the real game, it can be 6 or 7 cards depending on the player count.)
@@ -40,6 +42,7 @@ class TheGame:
         Returns a deep copy of the game state.
         """
         g = TheGame(num_players=self.num_players)
+        g.max_value = self.max_value
         g.deck = self.deck[:]
         if randomize:
             random.shuffle(g.deck)
@@ -159,7 +162,7 @@ class TheGame:
         """
         Returns the score for the current player.
         """
-        return 99 - (len(self.deck) + sum(len(h) for h in self.hands))
+        return self.max_value - 1 - (len(self.deck) + sum(len(h) for h in self.hands))
 
     def points_for(self, player: int) -> int:
         return self.points()
