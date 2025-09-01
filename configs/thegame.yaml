@@ -2,7 +2,7 @@ tag: a2c
 device: cpu
 game: thegame
 
-model: medium
+model: large
 
 pit:
   every: 25
@@ -15,23 +15,23 @@ pit:
 
 self_play:
   max_len: 500
-  num_games: 8
+  num_games: 32
   strategies:
   - policy_sampling,model=this
   - policy_sampling,model=this
 
 train:
   optimizer: AdamW
-  batch_size: 64
+  batch_size: 512
   discount_factor: 0.995
   gradient_epochs: 1
   gae_lambda: 0.8
   reference_model_update: "epoch % 1 == 0"
-  reward_rescale: 0.01
+  reward_rescale: 0.1
   loss:
-    policy: policy_gradient_loss,weight=gae,entropy_bonus=0.1,normalizer_alpha=0.9
+    policy: policy_gradient_loss,weight=gae,entropy_bonus=0.05,normalizer_alpha=0.9
     value: bootstrap_mse_loss,strength=1
   lr: 0.00003
   save_every: 1000
-  show_every: 10
+  show_every: 50
   weight_decay: 0

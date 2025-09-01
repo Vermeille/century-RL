@@ -277,7 +277,7 @@ class Trainer:
             ):
                 with torch.no_grad():
                     samples = TrainingSample.collate([data[bi] for bi in batch]).to(
-                        self.config.device
+                        self.config.device, non_blocking=True,
                     )
                 self.opt.zero_grad()
                 total_losses = defaultdict(float)
@@ -394,9 +394,7 @@ class Trainer:
         total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
-        self.viz.push(
-            "reference_model.version", self.reference_model.version, self.epoch
-        )
+        #self.viz.push( "reference_model.version", self.reference_model.version, self.epoch)
         if self.epoch % self.config.train.show_every == 0:
             for k, v in total_losses.items():
                 self.viz.push(

@@ -17,7 +17,7 @@ train:
     policy: ce_loss
 
 self_play:
-  num_games: 4
+  num_games: 8
   max_len: 500
   strategies:
     - lowest_cost

@@ -6,16 +6,17 @@ import torch.nn.functional as F
 
 def zero(m):
     assert isinstance(m.weight, torch.Tensor)
-    nn.init.normal_(m.weight, 0, 0.0)
+    nn.init.constant_(m.weight, 0)
     if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
-        nn.init.constant_(m.bias, 0)
+        #nn.init.constant_(m.bias, 0)
     return m
 
 
-def init(m):
+def init(m, forward):
     assert isinstance(m.weight, torch.Tensor)
-    nn.init.normal_(m.weight, 0, 1 / math.sqrt(m.weight.size(1)))
+    bound = math.sqrt(3 / (m.weight.size(1 if forward else 0)))
+    nn.init.uniform_(m.weight, -bound, bound)
     if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
         nn.init.constant_(m.bias, 0)
@@ -145,11 +146,11 @@ class SelfAttention(nn.Module):
         self.num_heads = num_heads
         self.head_size = head_size
         self.qkv = init(
-            nn.Linear(hidden_size, head_size * num_heads * 3, bias=True)
+            nn.Linear(hidden_size, head_size * num_heads * 3, bias=True), forward=False
         )
         with torch.no_grad():
-            self.qkv.weight[: head_size * num_heads, :].copy_( self.qkv.weight[head_size * num_heads : head_size * num_heads * 2, :])
-        self.fc = zero(nn.Linear(head_size * num_heads, hidden_size, bias=True))
+            pass#self.qkv.weight[: head_size * num_heads, :].copy_( self.qkv.weight[head_size * num_heads : head_size * num_heads * 2, :])
+        self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=True), forward=False)
         # Rotary here is detrimental, it's better to use it in the trunk
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary, alibi=False)
 
@@ -171,9 +172,9 @@ class TransformerBlock(nn.Module):
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.feed_forward = nn.Sequential(
             nn.RMSNorm(hidden_size, elementwise_affine=False),
-            init(nn.Linear(hidden_size, 4 * hidden_size, bias=True)),
+            init(nn.Linear(hidden_size, 4 * hidden_size, bias=True), forward=True),
             nn.GELU(),
-            zero(nn.Linear(4 * hidden_size, hidden_size, bias=True)),
+            init(nn.Linear(4 * hidden_size, hidden_size, bias=True), forward=False),
         )
 
     def forward(self, x, attn_mask):

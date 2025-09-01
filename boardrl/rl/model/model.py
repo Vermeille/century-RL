@@ -34,10 +34,17 @@ class PolicyValue:
         ]
 
 
+@torch.compile
+class MeanPool(nn.Module):
+    def forward(self, x, mask):
+        mask = mask.unsqueeze(-1).to(x.dtype)
+        return (x * mask).sum(1) / mask.sum(1)
+
+
 class ValueHead(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        #self.pool = EnergyPool()
+        self.pool = MeanPool()
         self.out = nn.Sequential(
             # nn.LayerNorm(dim),  # Detrimental
             zero(nn.Linear(dim, 2)),
@@ -48,8 +55,8 @@ class ValueHead(nn.Module):
     def forward(self, x, attn_mask):
         # x = self.tfblock(x, attn_mask)
         # x = mask_mean_pool(x, attn_mask)
-        # x = self.pool(x, attn_mask)
-        x = x[:, 0]
+        x = self.pool(x, attn_mask)
+        #x = x[:, 0]
         out = self.out(x)
         return out
 
@@ -69,7 +76,7 @@ class PolicyHead(nn.Module):
         self.out = nn.Sequential(
             # it IS Detrimental
             # nn.LayerNorm(dim),
-            init(nn.Linear(dim, 1)),
+            zero(nn.Linear(dim, 1)),
             # BL
             # nn.LogSoftmax(dim=1), # THIS IS WRONG BECAUSE WE SELECT AFTER
         )
@@ -118,9 +125,9 @@ class TransformerBackbone(Backbone):
         self.head_size = head_size
         self.num_heads = num_heads
         self.embed = nn.Sequential(
-            init(nn.Embedding(128, dim, padding_idx=0)),
-            # PositionalEncoding(dim, max_len),
-            nn.RMSNorm(dim),
+            (nn.Embedding(128, dim, padding_idx=0)),
+            #PositionalEncoding(dim, max_len),
+            #nn.RMSNorm(dim),
         )
         self.encode = Transformer(
             dim,
@@ -130,7 +137,6 @@ class TransformerBackbone(Backbone):
             rotary=rotary,
             rotary_single=rotary_single,
         )
-        nn.init.xavier_normal_(self.embed[0].weight)
 
     def forward(self, tokens, attn_mask):
         emb = self.embed(tokens)
