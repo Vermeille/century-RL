@@ -27,13 +27,15 @@ class TheGame:
         # Deal initial hands
         # (In the real game, it can be 6 or 7 cards depending on the player count.)
         self.hands = [[] for _ in range(num_players)]
-        initial_hand_size = 6 if num_players > 3 else 7
+        self.initial_hand_size = 6 if num_players > 3 else 7
         for p in range(num_players):
-            for _ in range(initial_hand_size):
+            for _ in range(self.initial_hand_size):
                 self.hands[p].append(self.deck.pop())
 
         # Current player index
-        self.turn = 0
+        self._round = 0
+        self.action = 0
+        self.curplay = 0
         self.num_players = num_players
         self.moves = self.gen_moves()
 
@@ -48,21 +50,18 @@ class TheGame:
             random.shuffle(g.deck)
         g.piles = self.piles[:]
         g.hands = [h[:] for h in self.hands]
-        g.turn = self.turn
+        g._round = self._round
+        g.action = self.action
+        g.curplay = self.curplay
+        g.num_players = self.num_players
         g.moves = self.moves[:]
         return g
 
     def round(self):
-        # The `turn` counter increments after every action. Because each player
-        # performs exactly two actions before the next player's turn, a full
-        # rotation of all players requires ``2 * num_players`` actions.
-        # ``round()`` therefore counts how many such rotations have completed.
-        return int(self.turn // (2 * self.num_players))
+        return self._round
 
     def current_player(self) -> int:
-        # Use the completed-round count so that a single player gets two
-        # consecutive actions before play passes to the next one.
-        return (self.turn // 2) % self.num_players
+        return self.curplay
 
     def display(self, force=-1) -> str:
         """
@@ -72,7 +71,7 @@ class TheGame:
           - Which player's turn it is
         """
         if force == -1:
-            p = self.current_player()
+            p = self.curplay
         else:
             assert force in range(self.num_players)
             p = force
@@ -81,7 +80,7 @@ class TheGame:
         )
         hand_info = " ".join(str(c) for c in self.hands[p])
         return (
-            f"Round: {self.round()}, Action: {self.turn % 2}\n"
+            f"Round: {self._round}, Action: {self.action}\n"
             f"Piles: {pile_info}\n"
             f"Cards: {len(self.deck)}\n"
             f"Hand: {hand_info}\n"
@@ -101,7 +100,7 @@ class TheGame:
         ascending_indices = [0, 1]
         descending_indices = [2, 3]
 
-        hand = self.hands[self.current_player()]
+        hand = self.hands[self.curplay]
 
         for card in hand:
             for pile_idx in ascending_indices:
@@ -128,7 +127,7 @@ class TheGame:
         if move not in self.moves:
             raise ValueError(f"Illegal move: {move}. Legal moves: {self.moves}")
 
-        p = self.current_player()
+        p = self.curplay
         # Parse the move
         #   expecting 'card->pileIndex'
         card_str, pile_str = move.split("->")
@@ -142,14 +141,17 @@ class TheGame:
         #  2) Update the pile
         self.piles[pile_idx] = card
 
-        #  3) Optionally draw a card from the deck if available after the second player's move
-        if self.deck and self.turn % 2 == 1:
-            self.hands[p].append(self.deck.pop())
-        if self.deck and self.turn % 2 == 1:
-            self.hands[p].append(self.deck.pop())
+        #  3) End of turn
+        self.action += 1
+        if (self.deck and self.action == 2) or not self.deck:
+            # 3.1) draw
+            while self.deck and len(self.hands[p]) < self.initial_hand_size:
+                self.hands[p].append(self.deck.pop())
+            # 3.2) next player
+            self.curplay = (self.curplay + 1) % self.num_players
+            self.action = 0
 
         # Move to the next player (if you want multi-player rotation)
-        self.turn += 1
         self.moves = self.gen_moves()
 
     def ended(self) -> bool:
