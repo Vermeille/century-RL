@@ -9,13 +9,13 @@ def zero(m):
     nn.init.constant_(m.weight, 0)
     if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
-        #nn.init.constant_(m.bias, 0)
+        nn.init.constant_(m.bias, 0)
     return m
 
 
-def init(m, forward):
+def init(m, var_scale=1):
     assert isinstance(m.weight, torch.Tensor)
-    bound = math.sqrt(3 / (m.weight.size(1 if forward else 0)))
+    bound = math.sqrt(3 * var_scale / m.weight.size(1))
     nn.init.uniform_(m.weight, -bound, bound)
     if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)
@@ -145,10 +145,8 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         self.head_size = head_size
-        self.qkv = init(
-            nn.Linear(hidden_size, head_size * num_heads * 3, bias=True), forward=False
-        )
-        self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=True), forward=False)
+        self.qkv = init(nn.Linear(hidden_size, head_size * num_heads * 3, bias=True))
+        self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=True))
         # Rotary here is detrimental, it's better to use it in the trunk
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary, alibi=False)
 
@@ -170,9 +168,9 @@ class TransformerBlock(nn.Module):
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.feed_forward = nn.Sequential(
             nn.RMSNorm(hidden_size, elementwise_affine=False),
-            init(nn.Linear(hidden_size, 4 * hidden_size, bias=True), forward=True),
+            init(nn.Linear(hidden_size, 4 * hidden_size, bias=True)),
             nn.GELU(),
-            init(nn.Linear(4 * hidden_size, hidden_size, bias=True), forward=False),
+            init(nn.Linear(4 * hidden_size, hidden_size, bias=True), var_scale=2),
         )
 
     def forward(self, x, attn_mask):
