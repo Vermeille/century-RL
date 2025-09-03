@@ -86,24 +86,40 @@ def chunk(data, size):
         i += size
 
 
-def flatten(list_of_lists):
-    out = []
-    for l in list_of_lists:
-        out += l
-    return out
+class ReferenceModelHandler:
+    def __init__(self, base, update_str):
+        self.model = copy.deepcopy(base)
+        self.model.eval()
+        self.version = 0
+        self.reference_update_exec = PythonExec(update_str)
 
+    @torch.no_grad()
+    def copy_from(self, src):
+        for reference_param, param in zip(
+            self.model.state_dict().values(),
+            src.state_dict().values(),
+        ):
+            reference_param.data.copy_(param.data)
 
-def autobatch(model, input, bs=None):
-    if bs is None:
-        bs = len(input)
-    assert bs > 0
+    def update(self, src, *, epoch, pit_results, episode_results):
+        env = {
+            "epoch": epoch,
+            "pit": pit_results,
+            "episode": episode_results,
+            "True": True,
+            "False": False,
+            "version": self.version,
+            "__builtins__": {
+                "print": print,
+            },
+        }
+        env["__builtins__"]["exists"] = lambda s: s in self.reference_update_exec.ctx
 
-    try:
-        with torch.no_grad():
-            return flatten([model(x) for x in chunk(input, bs)])
-    except Exception as e:
-        print(e)
-        return autobatch(model, input, bs // 2)
+        update = self.reference_update_exec(env)
+        if update:
+            self.copy_from(src)
+            self.model.eval()
+            self.model.version = epoch
 
 
 class Trainer:
@@ -121,9 +137,9 @@ class Trainer:
             for param_group in self.opt.param_groups:
                 param_group["lr"] = config.train.lr
 
-        self.reference_model = copy.deepcopy(self.model)
-        self.reference_model.version = 0
-        self.reference_model.eval()
+        self.reference_handler = ReferenceModelHandler(
+            self.model, self.config.train.reference_model_update
+        )
         self.policy_loss = loss_from_string(
             config.train.loss.policy,
             model=self.model,
@@ -149,9 +165,6 @@ class Trainer:
         self.game_name = config.game.split(",")[0]
         self.pit_results = None
         self.episode_results = None
-        self.reference_update_exec = PythonExec(
-            self.config.train.reference_model_update
-        )
 
     def _annotate_reference_model(self, trainset):
         with torch.no_grad():
@@ -159,7 +172,7 @@ class Trainer:
             def eval_states(states):
                 out = []
                 for batch in chunk(states, self.config.train.batch_size):
-                    out.extend(self.reference_model(batch).unbatched())
+                    out.extend(self.reference_handler.model(batch).unbatched())
                 return out
 
             preds = eval_states([s.state for s in trainset])
@@ -210,11 +223,12 @@ class Trainer:
 
     def _log_pit(self):
         self.model.eval()
-        self.reference_model.eval()
         batch_size = self.config.pit.batch_size or self.config.train.batch_size
         timeout = 0.001
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
-        reference_bp = BatchProcessor(batch_size, self.reference_model, timeout=timeout)
+        reference_bp = BatchProcessor(
+            batch_size, self.reference_handler.model, timeout=timeout
+        )
         pool = ModelPool(bp, batch_size, timeout, reference_bp)
         print("PIT: ", " VS ".join(self.config.pit.strategies))
         pit_results = pit(
@@ -235,31 +249,6 @@ class Trainer:
         self.viz.push("pit.win_rate (strategy)", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
         self.model.train()
-
-    def _maybe_update_reference_model(self):
-        env = {
-            "epoch": self.epoch,
-            "pit": self.pit_results,
-            "episode": self.episode_results,
-            "True": True,
-            "False": False,
-            "version": self.reference_model.version,
-            "__builtins__": {
-                "print": print,
-            },
-        }
-        env["__builtins__"]["exists"] = lambda s: s in self.reference_update_exec.ctx
-
-        update = self.reference_update_exec(env)
-        if update:
-            with torch.no_grad():
-                for reference_param, param in zip(
-                    self.reference_model.state_dict().values(),
-                    self.model.state_dict().values(),
-                ):
-                    reference_param.data.copy_(param.data)
-            self.reference_model.eval()
-            self.reference_model.version = self.epoch
 
     def _train_epoch_off_policy(self, data):
         self.model.train()
@@ -393,7 +382,7 @@ class Trainer:
         )
         self.opt.step()
 
-        #self.viz.push( "reference_model.version", self.reference_model.version, self.epoch)
+        # self.viz.push( "reference_model.version", self.reference_model.version, self.epoch)
         if self.epoch % self.config.train.show_every == 0:
             total_losses["grad_mag"] += grad_mag.item()
             for k, v in total_losses.items():
@@ -424,13 +413,13 @@ class Trainer:
 
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
-
         self.model.eval()
-        self.reference_model.eval()
         batch_size = self.config.self_play.batch_size or self.config.train.batch_size
         timeout = 0.002
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
-        reference_bp = BatchProcessor(batch_size, self.reference_model, timeout=timeout)
+        reference_bp = BatchProcessor(
+            batch_size, self.reference_handler.model, timeout=timeout
+        )
         pool = ModelPool(bp, batch_size, timeout, reference_bp)
         data = self_play(
             self.game_desc.make_game,
@@ -486,7 +475,12 @@ class Trainer:
                 self._save_model()
 
             data = self._run_episode()
-            self._maybe_update_reference_model()
+            self.reference_handler.update(
+                self.model,
+                epoch=self.epoch,
+                pit_results=self.pit_results,
+                episode_results=self.episode_results,
+            )
             trainset = to_trainset(
                 data,
                 only_players=self.config.train.only_players,
