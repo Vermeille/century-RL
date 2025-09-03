@@ -257,7 +257,7 @@ class PolicyGradientLoss:
 
             if self.kl_strength is not None and self.kl_strength != 0:
                 loss_step += self.kl_strength * F.kl_div(
-                    F.log_softmax(ref_logit, dim=0),
+                    F.log_softmax(ref_logit[0], dim=0),
                     F.log_softmax(logit, dim=0),
                     reduction="sum",
                     log_target=True,
