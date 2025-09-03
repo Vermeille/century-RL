@@ -168,7 +168,7 @@ class Trainer:
                 sample.reference_value = pv.value.mean.item()
                 sample.reference_max_q = pv.q_value()[0].max().item()
 
-                if getattr(sample.next, "final", False):
+                if sample.next.final:
                     sample.next.reference_value = 0
                     sample.next.reference_max_q = 0
                     sample.next.advantage = 0
@@ -391,11 +391,11 @@ class Trainer:
         grad_mag = torch.nn.utils.clip_grad_norm_(
             self.model.parameters(), max_norm=50.0
         )
-        total_losses["grad_mag"] += grad_mag.item()
         self.opt.step()
 
         #self.viz.push( "reference_model.version", self.reference_model.version, self.epoch)
         if self.epoch % self.config.train.show_every == 0:
+            total_losses["grad_mag"] += grad_mag.item()
             for k, v in total_losses.items():
                 self.viz.push(
                     k,
