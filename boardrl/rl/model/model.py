@@ -48,15 +48,11 @@ class ValueHead(nn.Module):
         self.out = nn.Sequential(
             # nn.LayerNorm(dim),  # Detrimental
             zero(nn.Linear(dim, 2)),
-            # Scale(2),
             # B2
         )
 
     def forward(self, x, attn_mask):
-        # x = self.tfblock(x, attn_mask)
-        # x = mask_mean_pool(x, attn_mask)
         x = self.pool(x, attn_mask)
-        #x = x[:, 0]
         out = self.out(x)
         return out
 
@@ -82,18 +78,8 @@ class PolicyHead(nn.Module):
         )
 
     def forward(self, x, attn_mask):
-        # x = self.tfblock(x, attn_mask)
         x = self.out(x)  # BLD
         return x.squeeze(-1)
-
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, dim, max_len=2048):
-        super().__init__()
-        self.pos_enc = nn.Parameter(torch.randn(max_len, dim) / dim)
-
-    def forward(self, x):
-        return x + self.pos_enc[: x.shape[1]]
 
 
 class Backbone(nn.Module):
@@ -125,8 +111,7 @@ class TransformerBackbone(Backbone):
         self.head_size = head_size
         self.num_heads = num_heads
         self.embed = nn.Sequential(
-            (nn.Embedding(128, dim, padding_idx=0)),
-            #PositionalEncoding(dim, max_len),
+            nn.Embedding(128, dim, padding_idx=0),
             nn.RMSNorm(dim),
         )
         self.embed[0].weight.data.normal_(0, 0.1)
@@ -197,9 +182,7 @@ class Model(nn.Module):
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
-        self.backbone = backbone_cls(
-            dim, num_layers, head_size, self.maxlen, num_heads
-        )
+        self.backbone = backbone_cls(dim, num_layers, head_size, self.maxlen, num_heads)
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
 

@@ -23,7 +23,6 @@ def init(m, var_scale=1):
     return m
 
 
-
 class Rotary(torch.nn.Module):
     def __init__(self, dim, base=10000):
         super().__init__()
