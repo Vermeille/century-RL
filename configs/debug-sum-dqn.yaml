@@ -12,9 +12,9 @@ train:
   batch_size: 64
   show_every: 10
   save_every: 100
-  loss:
-    value: value_mse_loss,strength=0.
-    policy: q_mse_loss
+  losses:
+    - value_mse_loss,strength=0.
+    - q_mse_loss
 
 self_play:
   num_games: 50

@@ -20,11 +20,6 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class LossConfig(StrictModel):
-    value: str = "value_mse_loss"
-    policy: str = "policy_gradient_loss"
-
-
 class TrainConfig(StrictModel):
     optimizer: str = "AdamW"
     gradient_epochs: int = 1
@@ -37,7 +32,7 @@ class TrainConfig(StrictModel):
     iterations: float = float("inf")
     discount_factor: float = 0.99
     gae_lambda: float = 0.95
-    loss: LossConfig = Field(default_factory=LossConfig)
+    losses: List[str] = Field(default_factory=list)
     entropy_reward_scale: Optional[float] = None
     reward_rescale: Optional[float] = None
     only_players: Optional[List[int]] = None

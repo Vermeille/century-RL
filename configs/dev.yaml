@@ -9,9 +9,9 @@ train:
   batch_size: 12
   show_every: 10
   save_every: 10
-  loss:
-    value: value_log_prob
-    policy: policy_gradient_loss
+  losses:
+    - value_log_prob
+    - policy_gradient_loss
 
 self_play:
   num_games: 4

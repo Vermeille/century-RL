@@ -140,17 +140,13 @@ class Trainer:
         self.reference_handler = ReferenceModelHandler(
             self.model, self.config.train.reference_model_update
         )
-        self.policy_loss = loss_from_string(
-            config.train.loss.policy,
-            model=self.model,
-            discount_factor=config.train.discount_factor,
-        )
-        self.value_loss = loss_from_string(
-            config.train.loss.value,
-            model=self.model,
-            discount_factor=config.train.discount_factor,
-        )
-        print(self.policy_loss, self.value_loss)
+        self.losses = [
+            loss_from_string(
+                loss_str, model=self.model, discount_factor=config.train.discount_factor
+            )
+            for loss_str in config.train.losses
+        ]
+        print(self.losses)
         self.viz = Visualizer(
             f"{config.game}_{config.tag}-lr={config.train.lr}",
             url=config.visdom_url,
@@ -271,13 +267,13 @@ class Trainer:
                 self.opt.zero_grad()
                 total_losses = defaultdict(float)
                 policy, value = self.model(samples.state)
-                policy_loss = self.policy_loss(policy, value, samples)
-                value_loss = self.value_loss(policy, value, samples)
-                loss = policy_loss + value_loss
+                loss_dict = {
+                    loss_fn._registry_name: loss_fn(policy, value, samples)
+                    for loss_fn in self.losses
+                }
+                loss = sum(loss_dict.values())
                 loss = loss * len(samples.state) / self.config.train.batch_size
                 loss.backward()
-                total_losses["policy"] += policy_loss.item()
-                total_losses["value"] += value_loss.item()
 
                 grad_mag = torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), max_norm=5.0
@@ -345,16 +341,16 @@ class Trainer:
                     self.config.device, non_blocking=True
                 )
             policy, value = self.model(samples.state)
-            policy_loss = self.policy_loss(policy, value, samples)
-            value_loss = self.value_loss(policy, value, samples)
-            loss = policy_loss + value_loss
-            loss = loss * len(samples.state)
-            loss.backward()
+            loss_dict = {
+                loss_fn._registry_name: loss_fn(policy, value, samples)
+                for loss_fn in self.losses
+            }
+            loss = sum(loss_dict.values())
+            (loss * len(samples.state)).backward()
             if self.epoch % self.config.train.show_every == 0:
                 with torch.no_grad():
-                    total_losses["loss_policy"] += policy_loss.item()
-                    total_losses["loss_value"] += value_loss.item()
-
+                    for loss_name, loss_val in loss_dict.items():
+                        total_losses[loss_name] += loss_val.item()
                     total_losses["normalized_perplexity"] += sum(
                         (
                             torch.exp(
@@ -488,9 +484,8 @@ class Trainer:
             )
 
             random.shuffle(trainset)
-            needs_reference = (
-                self.policy_loss.needs_reference_policy_value
-                or self.value_loss.needs_reference_policy_value
+            needs_reference = any(
+                loss_fn.needs_reference_policy_value for loss_fn in self.losses
             )
             if needs_reference:
                 self._annotate_reference_model(trainset)

@@ -27,9 +27,9 @@ train:
   discount_factor: 1.0
   gradient_epochs: 1
   only_players: []
-  loss:
-    policy: policy_gradient_loss,weight=baseline_value,entropy_bonus=0.04,renormalize=False
-    value: bootstrap_mse_loss,strength=1
+  losses:
+    - policy_gradient_loss,weight=baseline_value,entropy_bonus=0.04,renormalize=False
+    - bootstrap_mse_loss,strength=1
   lr: 0.0001
   save_every: 1000
   show_every: 10

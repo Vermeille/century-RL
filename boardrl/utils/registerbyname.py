@@ -34,6 +34,7 @@ class RegisterByName:
                 arg_info = {}
 
             self.registry[name] = (cls, arg_info)
+            cls._registry_name = name
             return cls
 
         return foo

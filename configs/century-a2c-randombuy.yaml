@@ -14,9 +14,9 @@ train:
   show_every: 10
   save_every: 10
   #only_players: [0]
-  loss:
-    value: bootstrap_mse_loss,strength=1
-    policy: policy_gradient_loss,entropy_bonus=0.0,weight=advantage,renormalize=True
+  losses:
+    - bootstrap_mse_loss,strength=1
+    - policy_gradient_loss,entropy_bonus=0.0,weight=advantage,renormalize=True
 
 self_play:
   num_games: 50
