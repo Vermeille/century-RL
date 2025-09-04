@@ -202,7 +202,6 @@ class PolicyGradientLoss:
         weight: str = "returns",
         discount_factor: float = None,
         normalizer_alpha: float = None,
-        aux_logits_coef: float = 1e-6,
     ):
         assert weight in ["returns", "score", "advantage", "baseline_value", "gae"]
         self.weight_fn = {
@@ -215,7 +214,6 @@ class PolicyGradientLoss:
         self.weight = weight
         self.discount_factor = discount_factor
         self.normalizer = None
-        self.aux_logits_coef = aux_logits_coef
         if normalizer_alpha is not None:
             self.normalizer = RunningNormalizer(normalizer_alpha)
         self.needs_reference_policy_value = weight in [
@@ -236,10 +234,7 @@ class PolicyGradientLoss:
 
         loss = torch.zeros((1,), device=pred_value.mean.device)
         for logit, act, w in zip(pred_policy, sample.action_idx, weight):
-            loss += (
-                w * F.cross_entropy(logit, act, label_smoothing=0.002)
-                + self.aux_logits_coef * logit.pow(2).sum()
-            )
+            loss += w * F.cross_entropy(logit, act, label_smoothing=0.002)
 
         return loss / len(sample.action_idx)
 
@@ -264,6 +259,19 @@ class KLPenalty:
                     log_target=True,
                 )
         return self.strength * loss
+
+
+@loss_from_string.register("z_loss")
+class ZLoss:
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(self, strength: float = 1e-6):
+        self.strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample):
+        return self.strength * sum(logit.pow(2).sum() for logit in pred_policy)
 
 
 @loss_from_string.register("entropy_bonus")
