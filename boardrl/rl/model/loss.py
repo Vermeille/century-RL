@@ -263,6 +263,10 @@ class PolicyGradientLoss:
 
 @loss_from_string.register("entropy_bonus")
 class EntropyBonus:
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
     def __init__(self, strength: float):
         self.strength = strength
 
