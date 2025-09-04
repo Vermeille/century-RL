@@ -14,7 +14,8 @@ train:
   save_every: 100
   losses:
     - value_mse_loss,strength=0.1
-    - policy_gradient_loss,entropy_bonus=0.05
+    - policy_gradient_loss
+    - entropy_bonus,strength=0.05
 
 self_play:
   num_games: 50

@@ -27,7 +27,8 @@ train:
   gradient_epochs: 1
   only_strategies: [0]
   losses:
-    - policy_gradient_loss,weight=returns,entropy_bonus=0.04,normalizer_alpha=0.99
+    - policy_gradient_loss,weight=returns,normalizer_alpha=0.99
+    - entropy_bonus,strength=0.04
     - value_mse_loss,strength=0.0001
   lr: 0.00001
   save_every: 200

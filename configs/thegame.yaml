@@ -29,7 +29,8 @@ train:
   reference_model_update: "epoch % 1 == 0"
   reward_rescale: 0.1
   losses:
-    - policy_gradient_loss,weight=gae,entropy_bonus=0.05,normalizer_alpha=0.9
+    - policy_gradient_loss,weight=gae,normalizer_alpha=0.9
+    - entropy_bonus,strength=0.05
     - bootstrap_mse_loss,strength=1
   lr: 0.00003
   save_every: 1000

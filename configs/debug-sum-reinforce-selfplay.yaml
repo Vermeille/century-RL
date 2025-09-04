@@ -14,7 +14,8 @@ train:
   save_every: 100
   losses:
     - value_mse_loss,strength=1
-    - policy_gradient_loss,weight=advantage,entropy_bonus=0.01,renormalize=True
+    - policy_gradient_loss,weight=advantage,renormalize=True
+    - entropy_bonus,strength=0.01
 
 self_play:
   num_games: 50

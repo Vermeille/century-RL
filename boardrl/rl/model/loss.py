@@ -200,14 +200,12 @@ class PolicyGradientLoss:
         self,
         *,
         weight: str = "returns",
-        entropy_bonus: float = 0.0,
         discount_factor: float = None,
         kl_strength: float = 0.0,
         normalizer_alpha: float = None,
         aux_logits_coef: float = 1e-6,
     ):
         assert weight in ["returns", "score", "advantage", "baseline_value", "gae"]
-        self.entropy_bonus = entropy_bonus
         self.weight_fn = {
             "returns": weight_returns,
             "score": weight_score,
@@ -252,9 +250,6 @@ class PolicyGradientLoss:
                 + self.aux_logits_coef * logit.pow(2).sum()
             )
 
-            if self.entropy_bonus != 0:
-                loss_step -= self.entropy_bonus * entropy(logit, dim=0)
-
             if self.kl_strength is not None and self.kl_strength != 0:
                 loss_step += self.kl_strength * F.kl_div(
                     F.log_softmax(ref_logit[0], dim=0),
@@ -264,6 +259,15 @@ class PolicyGradientLoss:
                 )
             loss += loss_step
         return loss / len(sample.action_idx)
+
+
+@loss_from_string.register("entropy_bonus")
+class EntropyBonus:
+    def __init__(self, strength: float):
+        self.strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample):
+        return -self.strength * sum(entropy(logit, dim=0) for logit in pred_policy)
 
 
 @loss_from_string.register("value_mse_loss")
