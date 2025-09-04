@@ -177,8 +177,8 @@ class RunningNormalizer:
 
     def update(self, x):
         if x.numel() > 3:
-            self.running_mean.update(x.mean().item())
-            self.running_var.update(x.var().item())
+            self.running_mean.update(x.mean())
+            self.running_var.update(x.var())
 
     def __call__(self, x):
         return (x - self.running_mean()) / (math.sqrt(self.running_var()) + 0.0001)
