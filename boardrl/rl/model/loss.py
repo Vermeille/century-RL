@@ -201,7 +201,6 @@ class PolicyGradientLoss:
         *,
         weight: str = "returns",
         discount_factor: float = None,
-        kl_strength: float = 0.0,
         normalizer_alpha: float = None,
         aux_logits_coef: float = 1e-6,
     ):
@@ -215,7 +214,6 @@ class PolicyGradientLoss:
         }[weight]
         self.weight = weight
         self.discount_factor = discount_factor
-        self.kl_strength = kl_strength
         self.normalizer = None
         self.aux_logits_coef = aux_logits_coef
         if normalizer_alpha is not None:
@@ -224,7 +222,7 @@ class PolicyGradientLoss:
             "advantage",
             "baseline_value",
             "gae",
-        ] or (kl_strength is not None and kl_strength != 0)
+        ]
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
@@ -235,30 +233,37 @@ class PolicyGradientLoss:
         if self.normalizer:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
-        ref_policy_iter = (
-            sample.reference_policy
-            if self.needs_reference_policy_value
-            else [None] * len(pred_policy)
-        )
 
-        loss = 0.0
-        for logit, act, w, ref_logit in zip(
-            pred_policy, sample.action_idx, weight, ref_policy_iter
-        ):
-            loss_step = (
+        loss = 0
+        for logit, act, w in zip(pred_policy, sample.action_idx, weight):
+            loss += (
                 w * F.cross_entropy(logit, act, label_smoothing=0.002)
                 + self.aux_logits_coef * logit.pow(2).sum()
             )
 
-            if self.kl_strength is not None and self.kl_strength != 0:
-                loss_step += self.kl_strength * F.kl_div(
+        return loss / len(sample.action_idx)
+
+
+@loss_from_string.register("kl")
+class KLPenalty:
+    needs_reference_policy_value = True
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(self, strength: float = 0.0):
+        self.strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample):
+        loss = 0.0
+        for logit, ref_logit in zip(pred_policy, sample.reference_policy):
+            if self.strength is not None and self.strength != 0:
+                loss += F.kl_div(
                     F.log_softmax(ref_logit[0], dim=0),
                     F.log_softmax(logit, dim=0),
                     reduction="sum",
                     log_target=True,
                 )
-            loss += loss_step
-        return loss / len(sample.action_idx)
+        return self.strength * loss
 
 
 @loss_from_string.register("entropy_bonus")
