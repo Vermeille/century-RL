@@ -11,11 +11,11 @@ from heavyball import ForeachMuon
 from boardrl.config import Config
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
-from boardrl.rl.utils import pearson_corr
+from boardrl.rl.utils import pearson_corr, ReferenceModelHandler
 from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, Visualizer, ModelPool, PythonExec
+from boardrl.utils import BatchProcessor, Visualizer, ModelPool
 from boardrl.training.returns import compute_returns
 from boardrl.training import TrainingSample
 
@@ -84,42 +84,6 @@ def chunk(data, size):
     while i < len(data):
         yield data[i : i + size]
         i += size
-
-
-class ReferenceModelHandler:
-    def __init__(self, base, update_str):
-        self.model = copy.deepcopy(base)
-        self.model.eval()
-        self.version = 0
-        self.reference_update_exec = PythonExec(update_str)
-
-    @torch.no_grad()
-    def copy_from(self, src):
-        for reference_param, param in zip(
-            self.model.state_dict().values(),
-            src.state_dict().values(),
-        ):
-            reference_param.data.copy_(param.data)
-
-    def update(self, src, *, epoch, pit_results, episode_results):
-        env = {
-            "epoch": epoch,
-            "pit": pit_results,
-            "episode": episode_results,
-            "True": True,
-            "False": False,
-            "version": self.version,
-            "__builtins__": {
-                "print": print,
-            },
-        }
-        env["__builtins__"]["exists"] = lambda s: s in self.reference_update_exec.ctx
-
-        update = self.reference_update_exec(env)
-        if update:
-            self.copy_from(src)
-            self.model.eval()
-            self.model.version = epoch
 
 
 class Trainer:

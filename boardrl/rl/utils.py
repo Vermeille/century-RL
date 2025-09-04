@@ -1,4 +1,6 @@
+import copy
 import torch
+from boardrl.utils import PythonExec
 
 
 def pearson_corr(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -62,3 +64,39 @@ def R_squared(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     eps = 1e-8
     r2 = 1 - ss_res / (ss_tot + eps)
     return r2
+
+
+class ReferenceModelHandler:
+    def __init__(self, base, update_str):
+        self.model = copy.deepcopy(base)
+        self.model.eval()
+        self.version = 0
+        self.reference_update_exec = PythonExec(update_str)
+
+    @torch.no_grad()
+    def copy_from(self, src):
+        for reference_param, param in zip(
+            self.model.state_dict().values(),
+            src.state_dict().values(),
+        ):
+            reference_param.data.copy_(param.data)
+
+    def update(self, src, *, epoch, pit_results, episode_results):
+        env = {
+            "epoch": epoch,
+            "pit": pit_results,
+            "episode": episode_results,
+            "True": True,
+            "False": False,
+            "version": self.version,
+            "__builtins__": {
+                "print": print,
+            },
+        }
+        env["__builtins__"]["exists"] = lambda s: s in self.reference_update_exec.ctx
+
+        update = self.reference_update_exec(env)
+        if update:
+            self.copy_from(src)
+            self.model.eval()
+            self.model.version = epoch
