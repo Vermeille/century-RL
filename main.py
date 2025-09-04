@@ -410,7 +410,7 @@ class Trainer:
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
         self.model.eval()
-        batch_size = self.config.self_play.batch_size or self.config.train.batch_size
+        batch_size = self.config.self_play.batch_size or self.config.self_play.num_games
         timeout = 0.002
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
         reference_bp = BatchProcessor(
