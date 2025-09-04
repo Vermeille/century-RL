@@ -173,7 +173,7 @@ class Trainer:
 
             preds = eval_states([s.state for s in trainset])
             for sample, pv in zip(trainset, preds):
-                sample.reference_policy = pv.policy
+                sample.reference_policy = pv.policy[0]
                 sample.reference_value = pv.value.mean.item()
                 sample.reference_max_q = pv.q_value()[0].max().item()
 

@@ -253,7 +253,7 @@ class KLPenalty:
         for logit, ref_logit in zip(pred_policy, sample.reference_policy):
             if self.strength is not None and self.strength != 0:
                 loss += F.kl_div(
-                    F.log_softmax(ref_logit[0], dim=0),
+                    F.log_softmax(ref_logit, dim=0),
                     F.log_softmax(logit, dim=0),
                     reduction="sum",
                     log_target=True,
