@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from pydantic import ValidationError
 
-from boardrl.config import Config, LossConfig
+from boardrl.config import Config
 from boardrl.rl.model.model import Model
 
 
@@ -19,9 +19,7 @@ def test_config_defaults():
     assert cfg.train.betas == (0.9, 0.999)
     assert cfg.train.weight_decay == 0.01
     assert cfg.train.reference_model_update == "False"
-    assert isinstance(cfg.train.loss, LossConfig)
-    assert cfg.train.loss.value == "value_mse_loss"
-    assert cfg.train.loss.policy == "policy_gradient_loss"
+    assert cfg.train.losses == []
     assert cfg.self_play.num_games == 4
     assert cfg.self_play.max_len == 500
     assert cfg.pit.every == 4
@@ -40,7 +38,7 @@ def test_config_overrides():
             "betas": [0.8, 0.9],
             "weight_decay": 0.1,
             "iterations": 5,
-            "loss": {"value": "custom_value", "policy": "custom_policy"},
+            "losses": ["custom_value", "custom_policy"],
             "reference_model_update": "epoch % 2 == 0",
         },
         "self_play": {"num_games": 7, "strategies": ["random", "best"]},
@@ -52,8 +50,7 @@ def test_config_overrides():
     assert cfg.train.betas == (0.8, 0.9)
     assert cfg.train.weight_decay == 0.1
     assert cfg.train.iterations == 5
-    assert cfg.train.loss.value == "custom_value"
-    assert cfg.train.loss.policy == "custom_policy"
+    assert cfg.train.losses == ["custom_value", "custom_policy"]
     assert cfg.train.reference_model_update == "epoch % 2 == 0"
     assert cfg.self_play.num_games == 7
     assert cfg.self_play.strategies == ["random", "best"]
