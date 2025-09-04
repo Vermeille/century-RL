@@ -13,7 +13,7 @@ def zero(m):
     return m
 
 
-def init(m, var_scale=1):
+def init(m, var_scale: float = 1.0):
     assert isinstance(m.weight, torch.Tensor)
     bound = math.sqrt(3 * var_scale / m.weight.size(1))
     nn.init.uniform_(m.weight, -bound, bound)
@@ -144,8 +144,12 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         self.head_size = head_size
-        self.qkv = init(nn.Linear(hidden_size, head_size * num_heads * 3, bias=True))
-        self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=True))
+        self.qkv = init(
+            nn.Linear(hidden_size, head_size * num_heads * 3, bias=True), var_scale=0.5
+        )
+        self.fc = init(
+            nn.Linear(head_size * num_heads, hidden_size, bias=True), var_scale=0.1
+        )
         # Rotary here is detrimental, it's better to use it in the trunk
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary, alibi=False)
 
@@ -169,7 +173,7 @@ class TransformerBlock(nn.Module):
             nn.RMSNorm(hidden_size, elementwise_affine=False),
             init(nn.Linear(hidden_size, 4 * hidden_size, bias=True)),
             nn.GELU(),
-            init(nn.Linear(4 * hidden_size, hidden_size, bias=True), var_scale=2),
+            init(nn.Linear(4 * hidden_size, hidden_size, bias=True), var_scale=0.1),
         )
 
     def forward(self, x, attn_mask):
@@ -196,12 +200,6 @@ class Transformer(nn.Module):
                 for _ in range(num_layers)
             ]
         )
-
-        for m in self.modules():
-            if isinstance(m, nn.RMSNorm):
-                continue
-                m.bias.data.zero_()
-                m.weight.data.fill_(1.0)
 
     def forward(self, x, attn_mask):
         if self.rotary_single is not None:
