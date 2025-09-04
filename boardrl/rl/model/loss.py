@@ -271,7 +271,8 @@ class ZLoss:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        return self.strength * sum(logit.pow(2).sum() for logit in pred_policy)
+        s = self.strength / len(sample.action_idx)
+        return s * sum(logit.pow(2).sum() for logit in pred_policy)
 
 
 @loss_from_string.register("entropy_bonus")
@@ -284,7 +285,8 @@ class EntropyBonus:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        return -self.strength * sum(entropy(logit, dim=0) for logit in pred_policy)
+        s = self.strength / len(sample.action_idx)
+        return -s * sum(entropy(logit, dim=0) for logit in pred_policy)
 
 
 @loss_from_string.register("value_mse_loss")
