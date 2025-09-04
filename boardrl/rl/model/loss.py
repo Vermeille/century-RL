@@ -234,7 +234,7 @@ class PolicyGradientLoss:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
 
-        loss = 0
+        loss = torch.zeros((1,), device=pred_value.mean.device)
         for logit, act, w in zip(pred_policy, sample.action_idx, weight):
             loss += (
                 w * F.cross_entropy(logit, act, label_smoothing=0.002)
@@ -254,7 +254,7 @@ class KLPenalty:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample):
-        loss = 0.0
+        loss = torch.zeros((1,), device=pred_value.mean.device)
         for logit, ref_logit in zip(pred_policy, sample.reference_policy):
             if self.strength is not None and self.strength != 0:
                 loss += F.kl_div(
