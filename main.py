@@ -162,8 +162,8 @@ class Trainer:
                 if hasattr(s, "td_lambda"):
                     return s.td_lambda
                 s.td_lambda = (
-                    gamma * (1 - lmbda) * s.reference_value
-                    + s.reward
+                    s.reward
+                    + gamma * (1 - lmbda) * s.next_reference_value
                     + gamma * lmbda * compute_td_lambda(s.next)
                 )
                 return s.td_lambda
