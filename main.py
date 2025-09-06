@@ -147,6 +147,7 @@ class Trainer:
                     sample.next.advantage = 0
                     sample.next.td_lambda = 0
                     sample.next.gae = 0
+                    sample.next.normalized_gae = 0
 
             gamma = self.config.train.discount_factor
             lmbda = self.config.train.gae_lambda
@@ -180,6 +181,14 @@ class Trainer:
                 if sample.next:
                     compute_td_lambda(sample)
                     compute_gae(sample)
+
+            gae_values = torch.tensor([s.gae for s in trainset])
+            mean = gae_values.mean()
+            std = gae_values.std(unbiased=False)
+            for sample in trainset:
+                sample.normalized_gae = (sample.gae - mean.item()) / (
+                    std.item() + 1e-8
+                )
 
     def _log_pit(self):
         self.model.eval()
