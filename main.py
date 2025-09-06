@@ -131,7 +131,7 @@ class Trainer:
 
             def eval_states(states):
                 out = []
-                for batch in chunk(states, self.config.train.batch_size):
+                for batch in chunk(states, self.config.self_play.batch_size):
                     out.extend(self.reference_handler.model(batch).unbatched())
                 return out
 
@@ -383,7 +383,7 @@ class Trainer:
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
         self.model.eval()
-        batch_size = self.config.self_play.batch_size or self.config.self_play.num_games
+        batch_size = self.config.self_play.batch_size
         timeout = 0.002
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
         reference_bp = BatchProcessor(

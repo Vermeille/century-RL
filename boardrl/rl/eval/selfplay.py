@@ -202,6 +202,7 @@ def self_play(
     data: list[GameTrace | None] = [None] * n_games
 
     with tqdm(total=n_games, desc=desc) as pbar:
+        pbar.update(0)
 
         async def run_game(idx):
             offset = idx if rotate else 0

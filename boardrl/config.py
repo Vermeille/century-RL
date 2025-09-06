@@ -78,4 +78,5 @@ class Config(StrictModel):
     def from_dict(d: Dict[str, Any]) -> "Config":
         """Create a :class:`Config` from a plain dictionary."""
 
+        d["self_play"].setdefault("batch_size", d["self_play"]["num_games"])
         return Config.model_validate(d)
