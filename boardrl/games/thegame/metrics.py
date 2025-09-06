@@ -39,6 +39,8 @@ def _parse_piles(state: str) -> List[int]:
 def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
     """Return ``(cost, ten_rule_used)`` for a move."""
 
+    if "->" not in move:
+        return 0, False
     card_str, pile_str = move.split("->")
     card, pile = int(card_str), int(pile_str)
     top = piles[pile]

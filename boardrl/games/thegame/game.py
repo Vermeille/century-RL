@@ -11,10 +11,16 @@ class TheGame:
     Can configure the max_value (100 by default)
     """
 
-    def __init__(self, num_players: int = 2, max_value: int = 100):
+    def __init__(
+        self,
+        num_players: int = 2,
+        max_value: int = 100,
+        more_than_two_actions: bool = False,
+    ):
         assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
         # Build the deck of 2..max_value-1
         self.max_value = max_value
+        self.more_than_two_actions = more_than_two_actions
         self.deck = list(range(2, max_value))
         random.shuffle(self.deck)
 
@@ -54,6 +60,7 @@ class TheGame:
         g.action = self.action
         g.curplay = self.curplay
         g.num_players = self.num_players
+        g.more_than_two_actions = self.more_than_two_actions
         g.moves = self.moves[:]
         return g
 
@@ -117,6 +124,13 @@ class TheGame:
                 if card <= top_val or (card - top_val == 10):
                     moves.append(f"{card}->{pile_idx}")
 
+        # After the minimum required actions have been played this turn,
+        # the player may optionally end their turn with the special move 'x'.
+        # Minimum is 2 when the deck still has cards, otherwise 1.
+        min_actions = 2 if self.deck else 1
+        if self.action >= min_actions:
+            moves.append("x")
+
         return moves
 
     def play_str(self, move: str):
@@ -128,6 +142,21 @@ class TheGame:
             raise ValueError(f"Illegal move: {move}. Legal moves: {self.moves}")
 
         p = self.curplay
+
+        def next_player():
+            while self.deck and len(self.hands[p]) < self.initial_hand_size:
+                self.hands[p].append(self.deck.pop())
+            # Next player
+            self.curplay = (self.curplay + 1) % self.num_players
+            self.action = 0
+            self.moves = self.gen_moves()
+            self._round += 1
+
+        # Handle explicit end-of-turn move
+        if move == "x":
+            # Draw back up to hand size if possible
+            next_player()
+            return
         # Parse the move
         #   expecting 'card->pileIndex'
         card_str, pile_str = move.split("->")
@@ -141,18 +170,19 @@ class TheGame:
         #  2) Update the pile
         self.piles[pile_idx] = card
 
-        #  3) End of turn
+        #  3) Turn progression
+        # Increase the count of actions taken this turn.
         self.action += 1
-        if (self.deck and self.action == 2) or not self.deck:
-            # 3.1) draw
-            while self.deck and len(self.hands[p]) < self.initial_hand_size:
-                self.hands[p].append(self.deck.pop())
-            # 3.2) next player
-            self.curplay = (self.curplay + 1) % self.num_players
-            self.action = 0
 
-        # Move to the next player (if you want multi-player rotation)
+        min_actions = 2 if self.deck else 1
+        if self.action >= min_actions and not self.more_than_two_actions:
+            next_player()
+            return
+
         self.moves = self.gen_moves()
+        # If there are no further playable card moves, auto-end the turn (draw and pass).
+        if self.moves == ["x"]:
+            next_player()
 
     def ended(self) -> bool:
         """
