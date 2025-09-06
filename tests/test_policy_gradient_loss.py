@@ -59,3 +59,16 @@ def test_kl_regularizer_matches_manual():
     )
     expected = ce + 0.5 * kl
     assert torch.allclose(loss, expected)
+
+
+def test_policy_gradient_loss_with_normalized_gae():
+    logits = torch.zeros(2, requires_grad=True)
+    sample = SimpleNamespace(
+        action_idx=[torch.tensor(0)],
+        normalized_gae=torch.tensor([1.0]),
+    )
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+    policy = PolicyGradientLoss(weight="normalized_gae")
+    loss = policy([logits], pred_value, sample)
+    expected = F.cross_entropy(logits, sample.action_idx[0], label_smoothing=0.002)
+    assert torch.allclose(loss, expected)

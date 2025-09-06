@@ -156,6 +156,10 @@ def weight_gae(samples, discount_factor):
     return samples.gae
 
 
+def weight_normalized_gae(samples, discount_factor):
+    return samples.normalized_gae
+
+
 class RunningStat:
     def __init__(self, beta):
         self.running = 0
@@ -203,13 +207,21 @@ class PolicyGradientLoss:
         discount_factor: float = None,
         normalizer_alpha: float = None,
     ):
-        assert weight in ["returns", "score", "advantage", "baseline_value", "gae"]
+        assert weight in [
+            "returns",
+            "score",
+            "advantage",
+            "baseline_value",
+            "gae",
+            "normalized_gae",
+        ]
         self.weight_fn = {
             "returns": weight_returns,
             "score": weight_score,
             "baseline_value": weight_baseline_value,
             "advantage": weight_advantage,
             "gae": weight_gae,
+            "normalized_gae": weight_normalized_gae,
         }[weight]
         self.weight = weight
         self.discount_factor = discount_factor
@@ -220,6 +232,7 @@ class PolicyGradientLoss:
             "advantage",
             "baseline_value",
             "gae",
+            "normalized_gae",
         ]
 
     def __call__(self, pred_policy, pred_value, sample):
