@@ -21,7 +21,7 @@ __all__ = [
 
 def entropy(logits, dim):
     log_probs = torch.log_softmax(logits, dim=dim)
-    return -torch.sum(torch.exp(log_probs) * log_probs, dim=dim).mean()
+    return -torch.sum(torch.exp(log_probs) * log_probs, dim=dim).sum()
 
 
 class Game:
