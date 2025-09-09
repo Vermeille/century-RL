@@ -2,6 +2,19 @@ from boardrl.utils import RegisterByName
 from boardrl.games.strategies import strategy_from_string
 from functools import partial
 
+# Guard Century imports so it's only available when Cython/pyximport works
+CenturyGame = None
+try:
+    import pyximport  # type: ignore
+
+    pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
+    # If pyximport is available, try importing the compiled/compilable engine
+    from boardrl.games.century.engine import Century as CenturyGame  # type: ignore
+except Exception:
+    CenturyGame = None
+
+from boardrl.games.thegame.game import TheGame as TheGameGame
+
 
 class GameDesc:
     def __init__(self, game_class, strategy_from_string, metrics_class):
@@ -13,20 +26,18 @@ class GameDesc:
 games_library = RegisterByName()
 
 
-@games_library.register("century")
-class Century(GameDesc):
-    def __init__(self, goal_cards: int = -1):
-        import pyximport
+# Only register Century when the engine is importable
+if CenturyGame is not None:
+    @games_library.register("century", args_from=CenturyGame)
+    class Century(GameDesc):
+        def __init__(self, *args, **kwargs):
+            from boardrl.games.century.strategies import (
+                strategy_from_string as century_strategy_from_string,
+            )
+            from boardrl.games.century.metrics import Metrics
 
-        pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-        from boardrl.games.century.strategies import (
-            strategy_from_string as century_strategy_from_string,
-        )
-        from boardrl.games.century.engine import Century
-        from boardrl.games.century.metrics import Metrics
-
-        strats = century_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(partial(Century, goal_cards=goal_cards), strats, Metrics)
+            strats = century_strategy_from_string.copy().update(strategy_from_string)
+            super().__init__(partial(CenturyGame, *args, **kwargs), strats, Metrics)
 
 
 @games_library.register("tictactoe")
@@ -34,6 +45,7 @@ class TicTacToe(GameDesc):
     def __init__(self):
         from boardrl.games.tictactoe.game import TicTacToe
         from boardrl.games.tictactoe.metrics import Metrics
+
         super().__init__(TicTacToe, strategy_from_string, Metrics)
 
 
@@ -59,17 +71,16 @@ class Sum(GameDesc):
         super().__init__(Sum, strats, Metrics)
 
 
-@games_library.register("thegame")
+@games_library.register("thegame", args_from=TheGameGame)
 class TheGame(GameDesc):
-    def __init__(self):
-        from boardrl.games.thegame.game import TheGame
+    def __init__(self, *args, **kwargs):
         from boardrl.games.thegame.metrics import Metrics
         from boardrl.games.thegame.strategies import (
             strategy_from_string as thegame_strategy_from_string,
         )
 
         strats = thegame_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(TheGame, strats, Metrics)
+        super().__init__(partial(TheGameGame, *args, **kwargs), strats, Metrics)
 
 
 @games_library.register("rps")

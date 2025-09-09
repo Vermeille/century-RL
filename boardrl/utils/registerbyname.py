@@ -12,12 +12,19 @@ class RegisterByName:
         new_register.arg_readers = self.arg_readers.copy()
         return new_register
 
-    def register(self, name):
+    def register(self, name, args_from=None):
         def foo(cls):
-            # Extract the argument names, types, and defaults from the __init__ method
-            if "__init__" in cls.__dict__:
-                sig = inspect.signature(cls.__init__)
+            source = cls if args_from is None else args_from
+            # If registering a class, prefer its __init__ signature
+            if inspect.isclass(source) and "__init__" in source.__dict__:
+                sig = inspect.signature(source.__init__)
                 params = sig.parameters
+            else:
+                sig = inspect.signature(source)
+                params = sig.parameters
+
+            arg_info = None
+            if params is not None:
                 arg_info = {
                     name: (
                         param.annotation
@@ -78,7 +85,7 @@ class RegisterByName:
     def display(self):
         for fun, args in self.registry.items():
             fun_display = fun
-            for arg, (arg_type, default) in args[1].items():
+            for arg, (_, default) in args[1].items():
                 if default == inspect.Parameter.empty:
                     default = "?"
                 fun_display += f",{arg}={default}"

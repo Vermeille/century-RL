@@ -179,6 +179,7 @@ class TheGame:
             next_player()
             return
 
+        # Otherwise, stay on the same player; allow continuing plays or 'x'
         self.moves = self.gen_moves()
         # If there are no further playable card moves, auto-end the turn (draw and pass).
         if self.moves == ["x"]:
