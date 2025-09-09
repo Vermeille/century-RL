@@ -245,11 +245,14 @@ class PolicyGradientLoss:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
 
-        loss = torch.zeros((1,), device=pred_value.mean.device)
-        for logit, act, w in zip(pred_policy, sample.action_idx, weight):
-            loss += w * F.cross_entropy(logit, act, label_smoothing=0.002)
+        maxlen = max((p.numel() for p in pred_policy), default=0)
+        padded = pred_policy[0].new_full((len(pred_policy), maxlen), float("-inf"))
 
-        return loss / len(sample.action_idx)
+        for i, logits in enumerate(pred_policy):
+            padded[i, :logits.numel()] = logits
+
+        return torch.mean(weight * F.cross_entropy(padded, sample.action_idx, reduction="none"))
+
 
 
 @loss_from_string.register("kl")

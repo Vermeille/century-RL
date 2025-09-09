@@ -19,9 +19,10 @@ __all__ = [
 ]
 
 
-def entropy(logits, dim):
+#@torch.jit.script
+def entropy(logits, dim: int):
     log_probs = torch.log_softmax(logits, dim=dim)
-    return -torch.sum(torch.exp(log_probs) * log_probs, dim=dim).sum()
+    return -torch.sum(torch.exp(log_probs) * log_probs, dim=dim)
 
 
 class Game:
