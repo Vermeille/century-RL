@@ -16,11 +16,17 @@ class TheGame:
         num_players: int = 2,
         max_value: int = 100,
         more_than_two_actions: bool = False,
+        messages: bool = False,
     ):
         assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
         # Build the deck of 2..max_value-1
         self.max_value = max_value
         self.more_than_two_actions = more_than_two_actions
+        # Optional end-of-turn letters A..J instead of 'x'.
+        # Requires ability to take more than the minimum actions before ending.
+        if messages and not self.more_than_two_actions:
+            raise ValueError("messages=True requires more_than_two_actions=True")
+        self.messages = messages
         self.deck = list(range(2, max_value))
         random.shuffle(self.deck)
 
@@ -44,12 +50,19 @@ class TheGame:
         self.curplay = 0
         self.num_players = num_players
         self.moves = self.gen_moves()
+        # Track last message each player sent when ending their turn
+        self._last_messages = ["" for _ in range(num_players)]
 
     def copy(self, randomize=False):
         """
         Returns a deep copy of the game state.
         """
-        g = TheGame(num_players=self.num_players)
+        g = TheGame(
+            num_players=self.num_players,
+            max_value=self.max_value,
+            more_than_two_actions=self.more_than_two_actions,
+            messages=self.messages,
+        )
         g.max_value = self.max_value
         g.deck = self.deck[:]
         if randomize:
@@ -60,8 +73,8 @@ class TheGame:
         g.action = self.action
         g.curplay = self.curplay
         g.num_players = self.num_players
-        g.more_than_two_actions = self.more_than_two_actions
         g.moves = self.moves[:]
+        g._last_messages = self._last_messages[:]
         return g
 
     def round(self):
@@ -86,11 +99,19 @@ class TheGame:
             f"{'asc' if i<2 else 'desc'}:{val}" for i, val in enumerate(self.piles)
         )
         hand_info = " ".join(str(c) for c in self.hands[p])
+        msg_line = ""
+        if self.messages:
+            # Show last messages from other players in order relative to current viewer.
+            # Order: next player, then clockwise, excluding the viewer.
+            order = [((p + i) % self.num_players) for i in range(1, self.num_players)]
+            rel_msgs = [self._last_messages[i] for i in order]
+            msg_line = f"Msgs: {''.join(rel_msgs)}\n"
         return (
             f"Round: {self._round}, Action: {self.action}\n"
             f"Piles: {pile_info}\n"
             f"Cards: {len(self.deck)}\n"
             f"Hand: {hand_info}\n"
+            f"{msg_line}"
         )
 
     def display_with_moves(self) -> str:
@@ -129,7 +150,10 @@ class TheGame:
         # Minimum is 2 when the deck still has cards, otherwise 1.
         min_actions = 2 if self.deck else 1
         if self.action >= min_actions:
-            moves.append("x")
+            if self.messages:
+                moves.extend(list("ABCDEFGHIJ"))
+            else:
+                moves.append("x")
 
         return moves
 
@@ -157,6 +181,11 @@ class TheGame:
             # Draw back up to hand size if possible
             next_player()
             return
+        if self.messages and move in set("ABCDEFGHIJ"):
+            # Record the letter from current player to be shown to others
+            self._last_messages[p] = move
+            next_player()
+            return
         # Parse the move
         #   expecting 'card->pileIndex'
         card_str, pile_str = move.split("->")
@@ -182,7 +211,7 @@ class TheGame:
         # Otherwise, stay on the same player; allow continuing plays or 'x'
         self.moves = self.gen_moves()
         # If there are no further playable card moves, auto-end the turn (draw and pass).
-        if self.moves == ["x"]:
+        if not self.messages and self.moves == ["x"]:
             next_player()
 
     def ended(self) -> bool:
