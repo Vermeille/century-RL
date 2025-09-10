@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from boardrl.rl.model.transformer import Transformer
 from boardrl.rl.model.gated_cnn import GatedCNNEncoder
+from boardrl.rl.model.cnn import CNNEncoder
 from boardrl.rl.model.utils import zero
 
 
@@ -82,6 +83,21 @@ class PolicyHead(nn.Module):
         return x.squeeze(-1)
 
 
+class PolicyHead(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.mean_proj = nn.Linear(dim, dim)
+        self.pred_proj = nn.Linear(dim, dim)
+
+    def forward(self, x, mask):
+        mask = mask.unsqueeze(2)
+        m = (x * mask).sum(dim=1) / mask.sum(dim=1)
+        m = self.mean_proj(m)
+        p = self.pred_proj(x)
+        y = torch.einsum("bd,bld->bl", m, p)
+        return y
+
+
 class Backbone(nn.Module):
     """Common interface for model backbones."""
 
@@ -160,10 +176,25 @@ class GatedCNNBackbone(Backbone):
         return self.encode(emb, attn_mask)
 
 
+class CNNBackbone(Backbone):
+    """Backbone using the :class:`CNNEncoder`."""
+
+    def __init__(self, dim, num_layers, head_size=None, max_len=None, num_heads=None):
+        super().__init__()
+        assert head_size is None and num_heads is None
+        self.embed = nn.Embedding(128, dim, padding_idx=0)
+        self.encode = CNNEncoder(dim=dim, num_layers=num_layers)
+
+    def forward(self, tokens, attn_mask):
+        emb = self.embed(tokens).transpose(1, 2)
+        return self.encode(emb, attn_mask).transpose(1, 2)
+
+
 BACKBONES = {
     "transformer": TransformerBackbone,
     "lstm": LSTMBackbone,
     "gated_cnn": GatedCNNBackbone,
+    "cnn": CNNBackbone,
 }
 
 
