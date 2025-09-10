@@ -2,7 +2,7 @@ tag: a2c
 device: cpu
 game: thegame
 
-model: large
+model: extra-large
 
 pit:
   every: 25
