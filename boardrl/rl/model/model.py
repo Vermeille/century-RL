@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from boardrl.rl.model.transformer import Transformer, zero
+from boardrl.rl.model.transformer import Transformer
 from boardrl.rl.model.gated_cnn import GatedCNNEncoder
+from boardrl.rl.model.utils import zero
 
 
 class PolicyValue:

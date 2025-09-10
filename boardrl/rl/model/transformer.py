@@ -1,26 +1,6 @@
-import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-
-def zero(m):
-    assert isinstance(m.weight, torch.Tensor)
-    nn.init.constant_(m.weight, 0)
-    if hasattr(m, "bias") and m.bias is not None:
-        assert isinstance(m.bias, torch.Tensor)
-        nn.init.constant_(m.bias, 0)
-    return m
-
-
-def init(m, var_scale: float = 1.0):
-    assert isinstance(m.weight, torch.Tensor)
-    bound = math.sqrt(3 * var_scale / m.weight.size(1))
-    nn.init.uniform_(m.weight, -bound, bound)
-    if hasattr(m, "bias") and m.bias is not None:
-        assert isinstance(m.bias, torch.Tensor)
-        nn.init.constant_(m.bias, 0)
-    return m
+from boardrl.rl.model.utils import init
 
 
 @torch.compile
@@ -43,7 +23,9 @@ class Rotary(torch.nn.Module):
             emb = torch.cat((freqs, freqs), dim=-1).to(q.device)
             self.cos_cached = emb.cos()
             self.sin_cached = emb.sin()
-        return self.apply_rotary_pos_emb(q, k, v, self.cos_cached[:seq_len], self.sin_cached[:seq_len])
+        return self.apply_rotary_pos_emb(
+            q, k, v, self.cos_cached[:seq_len], self.sin_cached[:seq_len]
+        )
 
     def rotate_half(self, x):
         x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
@@ -64,21 +46,23 @@ class RotarySingle(torch.nn.Module):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq)
-        self.seq_len_cached = None
+        self.seq_len_cached = 0
         self.cos_cached = None
         self.sin_cached = None
 
     def forward(self, q, seq_dim=-2):
         # B L D
         seq_len = q.shape[seq_dim]
-        if seq_len != self.seq_len_cached:
+        if seq_len > self.seq_len_cached:
             self.seq_len_cached = seq_len
             t = torch.arange(seq_len, device=q.device).type_as(self.inv_freq)
             freqs = torch.einsum("i,j->ij", t, self.inv_freq)
             emb = torch.cat((freqs, freqs), dim=-1).to(q.device)
             self.cos_cached = emb.cos()[:, :]
             self.sin_cached = emb.sin()[:, :]
-        return self.apply_rotary_pos_emb(q, self.cos_cached, self.sin_cached)
+        return self.apply_rotary_pos_emb(
+            q, self.cos_cached[:seq_len], self.sin_cached[:seq_len]
+        )
 
     def rotate_half(self, x):
         x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]

@@ -1,5 +1,26 @@
+import math
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
+
+
+def zero(m):
+    assert isinstance(m.weight, torch.Tensor)
+    nn.init.constant_(m.weight, 0)
+    if hasattr(m, "bias") and m.bias is not None:
+        assert isinstance(m.bias, torch.Tensor)
+        nn.init.constant_(m.bias, 0)
+    return m
+
+
+def init(m, var_scale: float = 1.0):
+    assert isinstance(m.weight, torch.Tensor)
+    bound = math.sqrt(3 * var_scale / m.weight.size(1))
+    nn.init.uniform_(m.weight, -bound, bound)
+    if hasattr(m, "bias") and m.bias is not None:
+        assert isinstance(m.bias, torch.Tensor)
+        nn.init.constant_(m.bias, 0)
+    return m
 
 
 def js_div(log_p, log_q):
