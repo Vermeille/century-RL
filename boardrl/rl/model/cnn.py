@@ -1,8 +1,10 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from boardrl.rl.model.utils import zero, init
 
 
+@torch.compile
 class MaskedConv1d(nn.Conv1d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
