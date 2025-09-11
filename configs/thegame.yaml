@@ -10,12 +10,12 @@ pit:
   num_games: 32
   rotate: false
   strategies:
-  - policy_sampling,model=this
-  - policy_sampling,model=this
+  - policy_sampling,model=this,temperature=0.8
+  - policy_sampling,model=this,temperature=0.8
 
 self_play:
   max_len: 500
-  num_games: 32
+  num_games: 64
   strategies:
   - policy_sampling,model=this
   - policy_sampling,model=this
