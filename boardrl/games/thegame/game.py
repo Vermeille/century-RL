@@ -21,11 +21,8 @@ class TheGame:
         assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
         # Build the deck of 2..max_value-1
         self.max_value = max_value
-        self.more_than_two_actions = more_than_two_actions
+        self.more_than_two_actions = messages or more_than_two_actions
         # Optional end-of-turn letters A..J instead of 'x'.
-        # Requires ability to take more than the minimum actions before ending.
-        if messages and not self.more_than_two_actions:
-            raise ValueError("messages=True requires more_than_two_actions=True")
         self.messages = messages
         self.deck = list(range(2, max_value))
         random.shuffle(self.deck)
