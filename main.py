@@ -337,6 +337,16 @@ class Trainer:
                         / (len(p) - 1 + 1e-8)
                         for p in policy
                     ).item() / len(policy)
+                    total_losses["perplexity"] += sum(
+                        (
+                            torch.exp(
+                                torch.sum(
+                                    -torch.softmax(p, 0) * torch.log_softmax(p, 0)
+                                )
+                            )
+                        )
+                        for p in policy
+                    ).item() / len(policy)
                     pearson = pearson_corr(value.mean, samples.returns)
                     total_losses["pearson"] += pearson.item()
                     total_losses["MAE"] += torch.nn.functional.l1_loss(
