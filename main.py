@@ -28,7 +28,7 @@ def make_optimizer(params, train_cfg):
             lr=train_cfg.lr,
             betas=betas,
             weight_decay=train_cfg.weight_decay,
-            fused=True
+            fused=True,
         )
     elif train_cfg.optimizer == "Muon":
         return ForeachMuon(
