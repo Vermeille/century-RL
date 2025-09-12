@@ -14,6 +14,7 @@ except Exception:
     CenturyGame = None
 
 from boardrl.games.thegame.game import TheGame as TheGameGame
+from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
 
 
 class GameDesc:
@@ -83,6 +84,18 @@ class TheGame(GameDesc):
         super().__init__(partial(TheGameGame, *args, **kwargs), strats, Metrics)
 
 
+@games_library.register("guessnumber", args_from=GuessNumberGame)
+class GuessNumber(GameDesc):
+    def __init__(self, num_symbols: int = 2, secret: int | None = None):
+        from boardrl.games.guessnumber.metrics import Metrics
+
+        super().__init__(
+            partial(GuessNumberGame, num_symbols=num_symbols, secret=secret),
+            strategy_from_string,
+            Metrics,
+        )
+
+
 @games_library.register("rps")
 class RPS(GameDesc):
     def __init__(self):
@@ -90,3 +103,4 @@ class RPS(GameDesc):
         from boardrl.games.rps.metrics import Metrics
 
         super().__init__(RockPaperScissors, strategy_from_string, Metrics)
+
