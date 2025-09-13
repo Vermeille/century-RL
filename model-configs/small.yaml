@@ -1,4 +1,4 @@
-# Params: 1.60M
+# Params: 1.63M
 num_layers: 8
 dim: 128
 num_heads: 16

@@ -100,4 +100,3 @@ class RPS(GameDesc):
         from boardrl.games.rps.metrics import Metrics
 
         super().__init__(RockPaperScissors, strategy_from_string, Metrics)
-
