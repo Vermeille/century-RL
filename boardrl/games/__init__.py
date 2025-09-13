@@ -1,18 +1,6 @@
 from boardrl.utils import RegisterByName
 from boardrl.games.strategies import strategy_from_string
 from functools import partial
-
-# Guard Century imports so it's only available when Cython/pyximport works
-CenturyGame = None
-try:
-    import pyximport  # type: ignore
-
-    pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-    # If pyximport is available, try importing the compiled/compilable engine
-    from boardrl.games.century.engine import Century as CenturyGame  # type: ignore
-except Exception:
-    CenturyGame = None
-
 from boardrl.games.thegame.game import TheGame as TheGameGame
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
 
@@ -27,18 +15,27 @@ class GameDesc:
 games_library = RegisterByName()
 
 
-# Only register Century when the engine is importable
-if CenturyGame is not None:
-    @games_library.register("century", args_from=CenturyGame)
-    class Century(GameDesc):
-        def __init__(self, *args, **kwargs):
-            from boardrl.games.century.strategies import (
-                strategy_from_string as century_strategy_from_string,
-            )
-            from boardrl.games.century.metrics import Metrics
+@games_library.register("century")
+class Century(GameDesc):
+    # Century is defined in Cython so inspect can't find the signature
+    # so we have to repeat the arguments here and it sucks
+    def __init__(self, goal_cards: int = -1, num_players: int = 2):
+        from boardrl.games.century.strategies import (
+            strategy_from_string as century_strategy_from_string,
+        )
+        from boardrl.games.century.metrics import Metrics
+        import pyximport  # type: ignore
 
-            strats = century_strategy_from_string.copy().update(strategy_from_string)
-            super().__init__(partial(CenturyGame, *args, **kwargs), strats, Metrics)
+        pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
+        # If pyximport is available, try importing the compiled/compilable engine
+        from boardrl.games.century.engine import Century as CenturyGame  # type: ignore
+
+        strats = century_strategy_from_string.copy().update(strategy_from_string)
+        super().__init__(
+            partial(CenturyGame, goal_cards=goal_cards, num_players=num_players),
+            strats,
+            Metrics,
+        )
 
 
 @games_library.register("tictactoe")
