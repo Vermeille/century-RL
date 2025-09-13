@@ -1,11 +1,11 @@
 tag: a2c
 device: cpu
-game: thegame
+game: thegame,messages=True
 
-model: extra-large
+model: cnn
 
 pit:
-  every: 25
+  every: 250
   max_len: 220
   num_games: 32
   rotate: false
@@ -22,17 +22,17 @@ self_play:
 
 train:
   optimizer: AdamW
-  batch_size: 64
+  batch_size: 32
   discount_factor: 0.995
   gradient_epochs: 1
-  gae_lambda: 0.8
+  gae_lambda: 0.95
   reference_model_update: "epoch % 1 == 0"
   reward_rescale: 0.1
   losses:
-    - policy_gradient_loss,weight=gae,normalizer_alpha=0.9
+    - policy_gradient_loss,weight=normalized_gae
     - entropy_bonus,strength=0.05
-    - bootstrap_mse_loss,strength=1
-  lr: 0.00003
+    - bootstrap_mse_loss,strength=0.1
+  lr: 0.0001
   save_every: 1000
-  show_every: 50
+  show_every: 10
   weight_decay: 0
