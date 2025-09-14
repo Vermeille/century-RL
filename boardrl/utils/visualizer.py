@@ -30,7 +30,7 @@ class VisdomVisualizer:
         self.viz.text(value, win=name)
 
     def visdom(self, fn, *args, **kwargs):
-        getattr(self.viz, "fn")(*args, **kwargs)
+        getattr(self.viz, fn)(*args, **kwargs)
 
 
 class OfflineVisualizer:
