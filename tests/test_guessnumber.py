@@ -3,13 +3,13 @@ from boardrl.games import games_library
 
 
 def test_guessnumber_flow():
-    g = GuessNumber(num_symbols=2, secret=42)
+    g = GuessNumber(num_symbols=2, secret=42, max_number=100)
     assert g.current_player() == 0
     assert g.moves == ["A", "B"]
 
     g.play_str("A")
     assert g.current_player() == 1
-    assert "0" in g.moves and "100" in g.moves
+    assert "1" in g.moves and "100" in g.moves
 
     g.play_str("41")
     assert not g.ended()
