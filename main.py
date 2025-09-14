@@ -188,7 +188,7 @@ class Trainer:
             std = gae_values.std(unbiased=False)
             for sample in trainset:
                 sample.normalized_gae = max(
-                    -3.0, min(3.0, (sample.gae - mean.item()) / (std.item() + 1e-8))
+                    -5.0, min(5.0, (sample.gae - mean.item()) / (std.item() + 1e-8))
                 )
 
     def _log_pit(self):
