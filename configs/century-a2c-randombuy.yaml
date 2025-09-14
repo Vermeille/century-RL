@@ -16,7 +16,7 @@ train:
   #only_players: [0]
   losses:
     - bootstrap_mse_loss,strength=1
-    - policy_gradient_loss,weight=advantage,renormalize=True
+    - policy_gradient_loss,weight=advantage
 
 self_play:
   num_games: 50

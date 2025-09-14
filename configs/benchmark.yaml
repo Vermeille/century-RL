@@ -28,7 +28,7 @@ train:
   gradient_epochs: 1
   only_players: []
   losses:
-    - policy_gradient_loss,weight=baseline_value,renormalize=False
+    - policy_gradient_loss,weight=baseline_value
     - entropy_bonus,strength=0.04
     - bootstrap_mse_loss,strength=1
   lr: 0.0001
