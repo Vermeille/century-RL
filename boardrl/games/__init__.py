@@ -83,11 +83,11 @@ class TheGame(GameDesc):
 
 @games_library.register("guessnumber", args_from=GuessNumberGame)
 class GuessNumber(GameDesc):
-    def __init__(self, num_symbols: int = 2, secret: int | None = None):
+    def __init__(self, *args, **kwargs):
         from boardrl.games.guessnumber.metrics import Metrics
 
         super().__init__(
-            partial(GuessNumberGame, num_symbols=num_symbols, secret=secret),
+            partial(GuessNumberGame, *args, **kwargs),
             strategy_from_string,
             Metrics,
         )

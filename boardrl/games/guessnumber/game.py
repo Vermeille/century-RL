@@ -2,7 +2,13 @@ import random
 
 
 class GuessNumber:
-    def __init__(self, num_symbols: int = 2, secret: int | None = None):
+    def __init__(
+        self,
+        max_number: int = 10,
+        num_symbols: int = 2,
+        secret: int = None,
+        num_players: int = 2,
+    ):
         """Two player communication game.
 
         Player 1 chooses symbols to hint the secret number. Player 2 guesses
@@ -11,11 +17,13 @@ class GuessNumber:
         Args:
             num_symbols: Number of symbols available to player 1.
             secret: Optional secret number for deterministic tests. If ``None``
-                a random number in ``[0, 100]`` is sampled.
+                a random number in ``[0, max_number]`` is sampled.
         """
         assert num_symbols > 0
+        assert num_players == 2
         self.num_symbols = num_symbols
-        self.secret = secret if secret is not None else random.randint(0, 100)
+        self.secret = secret or random.randint(1, max_number)
+        self.max_number = max_number
         self.turn = 0
         self.round_ = 0
         self.finished = False
@@ -30,11 +38,12 @@ class GuessNumber:
         if self.current_player() == 0:
             return [chr(ord("A") + i) for i in range(self.num_symbols)]
         else:
-            return [str(i) for i in range(101)]
+            return [str(i) for i in range(1, self.max_number + 1)]
 
     # Interface required by framework ----------------------------------------
     def copy(self) -> "GuessNumber":
         g = GuessNumber(self.num_symbols, secret=self.secret)
+        g.max_number = self.max_number
         g.turn = self.turn
         g.round_ = self.round_
         g.finished = self.finished
@@ -62,6 +71,10 @@ class GuessNumber:
         lines.append("History:")
         for sym, guess in self.history:
             lines.append(f"{sym} {guess}")
+
+        if p == 1 and self.current_symbol:
+            lines.append(f"{self.current_symbol} ?")
+
         return "\n".join(lines)
 
     def display_with_moves(self) -> str:
@@ -74,17 +87,16 @@ class GuessNumber:
         if self.current_player() == 0:
             assert mov in self.moves
             self.current_symbol = mov
-            self.turn += 1
         else:
             guess = int(mov)
-            assert 0 <= guess <= 100
+            assert 1 <= guess <= self.max_number
             assert self.current_symbol is not None
             self.history.append((self.current_symbol, guess))
-            self.turn += 1
             self.round_ += 1
             if guess == self.secret:
                 self.finished = True
             self.current_symbol = None
+        self.turn += 1
         self.moves = self._moves_for_current_player()
 
     def play_idx(self, idx: int) -> None:
@@ -93,10 +105,8 @@ class GuessNumber:
     def ended(self) -> bool:
         return self.finished
 
-    def winner(self) -> int | None:
-        return 0 if self.finished else None
-
     def points_for(self, me: int) -> int:
+        # return 1 if self.ended() else 0
         return -self.round_
 
     def points(self) -> int:
@@ -108,3 +118,15 @@ class GuessNumber:
     def simulate_to_end(self) -> None:
         while not self.ended():
             self.play_str(random.choice(self.moves))
+
+
+if __name__ == "__main__":
+    g = GuessNumber(secret=4)
+    print(g.display_with_moves())
+    g.play_idx(0)
+    print("--", g.points())
+    print(g.display_with_moves())
+    g.play_idx(0)
+    print("--", g.points())
+    print(g.display_with_moves())
+    print("--", g.points())
