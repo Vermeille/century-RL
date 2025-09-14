@@ -249,10 +249,11 @@ class PolicyGradientLoss:
         padded = pred_policy[0].new_full((len(pred_policy), maxlen), float("-inf"))
 
         for i, logits in enumerate(pred_policy):
-            padded[i, :logits.numel()] = logits
+            padded[i, : logits.numel()] = logits
 
-        return torch.mean(weight * F.cross_entropy(padded, sample.action_idx, reduction="none"))
-
+        return torch.mean(
+            weight * F.cross_entropy(padded, sample.action_idx, reduction="none")
+        )
 
 
 @loss_from_string.register("kl")
