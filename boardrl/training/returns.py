@@ -162,9 +162,9 @@ def annotate_with_model(model, trainset, bs, gamma, lmbda):
                 compute_gae(sample)
 
         gae_values = torch.tensor([s.gae for s in trainset])
-        mean = gae_values.mean()
-        std = gae_values.std(unbiased=False)
+        mean = gae_values.mean().item()
+        std = gae_values.std(unbiased=False).item()
         for sample in trainset:
             sample.normalized_gae = max(
-                -5.0, min(5.0, (sample.gae - mean.item()) / (std.item() + 1e-8))
+                -5.0, min(5.0, (sample.gae - mean) / (std + 1e-8))
             )
