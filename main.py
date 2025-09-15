@@ -1,12 +1,12 @@
 from collections import defaultdict
 import torch
 import time
-import copy
 import os
 import yaml
 import random
 from tqdm import tqdm
 from heavyball import ForeachMuon
+from functools import partial
 
 from boardrl.config import Config
 from boardrl.rl.model import Model
@@ -133,8 +133,11 @@ class Trainer:
         pit_results = pit(
             self.game_desc.make_game,
             [
-                self.game_desc.strategy_from_string(
-                    s, model=pool, discount_factor=self.config.train.discount_factor
+                partial(
+                    self.game_desc.strategy_from_string,
+                    s,
+                    model=pool,
+                    discount_factor=self.config.train.discount_factor,
                 )
                 for s in self.config.pit.strategies
             ],
@@ -333,8 +336,11 @@ class Trainer:
         data = self_play(
             self.game_desc.make_game,
             [
-                self.game_desc.strategy_from_string(
-                    s, model=pool, discount_factor=self.config.train.discount_factor
+                partial(
+                    self.game_desc.strategy_from_string,
+                    s,
+                    model=pool,
+                    discount_factor=self.config.train.discount_factor,
                 )
                 for s in self.config.self_play.strategies
             ],

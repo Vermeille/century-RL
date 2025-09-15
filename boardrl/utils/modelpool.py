@@ -1,5 +1,7 @@
 import os
 import random
+from typing import Iterable
+
 from boardrl.rl.model import load_model
 from boardrl.utils.batchprocessor import BatchProcessor
 

@@ -1,5 +1,6 @@
 import torch
 from tqdm import tqdm
+from typing import Tuple, Callable, Awaitable
 
 from boardrl.utils import Game, run_tasks
 import pyximport
@@ -179,7 +180,14 @@ class SelfPlayResults(list):
         )
 
 
-async def play_game(game, strategies, max_len):
+Strategy = Callable[[Game], Awaitable[Tuple[torch.Tensor, dict]]]
+
+
+async def play_game(
+    game: Game,
+    strategies: list[Strategy],
+    max_len: int,
+):
     for _ in range(max_len):
         if game.ended():
             break
@@ -196,7 +204,12 @@ async def play_game(game, strategies, max_len):
 
 @torch.no_grad()
 def self_play(
-    make_game, strategies, n_games, max_len, rotate: bool = True, desc="playing games"
+    make_game,
+    strategies: list[Callable[[], Strategy]],
+    n_games: int,
+    max_len: int,
+    rotate: bool = True,
+    desc: str = "playing games",
 ):
     n_players = len(strategies)
     data: list[GameTrace | None] = [None] * n_games
@@ -207,7 +220,7 @@ def self_play(
         async def run_game(idx):
             offset = idx if rotate else 0
             mixed_strategies = [
-                strategies[(i + offset) % n_players] for i in range(n_players)
+                strategies[(i + offset) % n_players]() for i in range(n_players)
             ]
             traces = [
                 PlayerTrace(seat_id=i, strategy_id=(i + offset) % n_players)
