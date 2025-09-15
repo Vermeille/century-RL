@@ -15,8 +15,8 @@ from boardrl.rl.utils import pearson_corr, ReferenceModelHandler
 from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
-from boardrl.utils import BatchProcessor, Visualizer, ModelPool
-from boardrl.training.returns import compute_returns
+from boardrl.utils import BatchProcessor, Visualizer, ModelPool, chunk
+from boardrl.training.returns import compute_returns, annotate_with_model
 from boardrl.training import TrainingSample
 
 
@@ -80,13 +80,6 @@ def to_trainset(
     return out
 
 
-def chunk(data, size):
-    i = 0
-    while i < len(data):
-        yield data[i : i + size]
-        i += size
-
-
 class Trainer:
     def __init__(self, config, checkpoint_path=None):
         self.config = config
@@ -126,70 +119,6 @@ class Trainer:
         self.game_name = config.game.split(",")[0]
         self.pit_results = None
         self.episode_results = None
-
-    def _annotate_reference_model(self, trainset):
-        with torch.no_grad():
-
-            def eval_states(states):
-                out = []
-                for batch in chunk(states, self.config.self_play.batch_size):
-                    out.extend(self.reference_handler.model(batch).unbatched())
-                return out
-
-            preds = eval_states([s.state for s in trainset])
-            for sample, pv in zip(trainset, preds):
-                sample.reference_policy = pv.policy[0]
-                sample.reference_value = pv.value.mean.item()
-                sample.reference_max_q = pv.q_value()[0].max().item()
-
-                if sample.next.final:
-                    sample.next.reference_value = 0
-                    sample.next.reference_max_q = 0
-                    sample.next.advantage = 0
-                    sample.next.td_lambda = 0
-                    sample.next.gae = 0
-                    sample.next.normalized_gae = 0
-
-            gamma = self.config.train.discount_factor
-            lmbda = self.config.train.gae_lambda
-
-            def compute_gae(s):
-                if hasattr(s, "gae"):
-                    return s.gae
-                s.gae = s.advantage + lmbda * gamma * compute_gae(s.next)
-                return s.gae
-
-            def compute_td_lambda(s):
-                if hasattr(s, "td_lambda"):
-                    return s.td_lambda
-                s.td_lambda = (
-                    s.reward
-                    + gamma * (1 - lmbda) * s.next_reference_value
-                    + gamma * lmbda * compute_td_lambda(s.next)
-                )
-                return s.td_lambda
-
-            for sample in trainset:
-                if sample.next:
-                    sample.next_reference_value = sample.next.reference_value
-                    sample.next_reference_max_q = sample.next.reference_max_q
-                    sample.advantage = (
-                        sample.reward
-                        + gamma * sample.next_reference_value
-                        - sample.reference_value
-                    )
-            for sample in trainset:
-                if sample.next:
-                    compute_td_lambda(sample)
-                    compute_gae(sample)
-
-            gae_values = torch.tensor([s.gae for s in trainset])
-            mean = gae_values.mean()
-            std = gae_values.std(unbiased=False)
-            for sample in trainset:
-                sample.normalized_gae = max(
-                    -5.0, min(5.0, (sample.gae - mean.item()) / (std.item() + 1e-8))
-                )
 
     def _log_pit(self):
         self.model.eval()
@@ -472,7 +401,15 @@ class Trainer:
                 loss_fn.needs_reference_policy_value for loss_fn in self.losses
             )
             if needs_reference:
-                self._annotate_reference_model(trainset)
+                annotate_with_model(
+                    self.reference_handler.model,
+                    trainset,
+                    bs=max(
+                        self.config.self_play.batch_size, self.config.train.batch_size
+                    ),
+                    gamma=self.config.train.discount_factor,
+                    lmbda=self.config.train.gae_lambda,
+                )
             print(len(trainset), "samples")
             if (
                 False

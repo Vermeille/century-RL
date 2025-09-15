@@ -1,10 +1,9 @@
 """Utilities for computing rewards, returns and scores for game logs."""
 
-from __future__ import annotations
-
 from functools import partial
 from typing import Iterable
 from boardrl.rl.eval.selfplay import SelfPlayResults
+from boardrl.utils import chunk
 
 import torch
 
@@ -107,3 +106,65 @@ def compute_returns(
 
             for fn in fns:
                 fn(history)
+
+
+def annotate_with_model(model, trainset, bs, gamma, lmbda):
+    with torch.no_grad():
+
+        def eval_states(states):
+            out = []
+            for batch in chunk(states, bs):
+                out.extend(model(batch).unbatched())
+            return out
+
+        preds = eval_states([s.state for s in trainset])
+        for sample, pv in zip(trainset, preds):
+            sample.reference_policy = pv.policy[0]
+            sample.reference_value = pv.value.mean.item()
+            sample.reference_max_q = pv.q_value()[0].max().item()
+
+            if sample.next.final:
+                sample.next.reference_value = 0
+                sample.next.reference_max_q = 0
+                sample.next.advantage = 0
+                sample.next.td_lambda = 0
+                sample.next.gae = 0
+                sample.next.normalized_gae = 0
+
+        def compute_gae(s):
+            if hasattr(s, "gae"):
+                return s.gae
+            s.gae = s.advantage + lmbda * gamma * compute_gae(s.next)
+            return s.gae
+
+        def compute_td_lambda(s):
+            if hasattr(s, "td_lambda"):
+                return s.td_lambda
+            s.td_lambda = (
+                s.reward
+                + gamma * (1 - lmbda) * s.next_reference_value
+                + gamma * lmbda * compute_td_lambda(s.next)
+            )
+            return s.td_lambda
+
+        for sample in trainset:
+            if sample.next:
+                sample.next_reference_value = sample.next.reference_value
+                sample.next_reference_max_q = sample.next.reference_max_q
+                sample.advantage = (
+                    sample.reward
+                    + gamma * sample.next_reference_value
+                    - sample.reference_value
+                )
+        for sample in trainset:
+            if sample.next:
+                compute_td_lambda(sample)
+                compute_gae(sample)
+
+        gae_values = torch.tensor([s.gae for s in trainset])
+        mean = gae_values.mean()
+        std = gae_values.std(unbiased=False)
+        for sample in trainset:
+            sample.normalized_gae = max(
+                -5.0, min(5.0, (sample.gae - mean.item()) / (std.item() + 1e-8))
+            )
