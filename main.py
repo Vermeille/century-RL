@@ -120,9 +120,12 @@ class Trainer:
 
         batch_size = self.config.pit.batch_size or self.config.train.batch_size
         timeout = 0.001
-        bp = BatchProcessor(batch_size, self.model, timeout=timeout)
+        bp = BatchProcessor(batch_size, self.model, timeout=timeout, model_name="this")
         reference_bp = BatchProcessor(
-            batch_size, self.reference_handler.model, timeout=timeout
+            batch_size,
+            self.reference_handler.model,
+            timeout=timeout,
+            model_name="reference",
         )
         self.pool = ModelPool(bp, batch_size, timeout, reference_bp)
 

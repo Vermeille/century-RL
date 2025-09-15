@@ -46,7 +46,9 @@ class ModelPool:
     def _load(self, path: str) -> BatchProcessor:
         model = load_model(path)
         model.eval()
-        return BatchProcessor(self.batch_size, model, timeout=self.timeout)
+        return BatchProcessor(
+            self.batch_size, model, timeout=self.timeout, model_name=path
+        )
 
     def _resolve_path(self, spec: str) -> str:
         if spec.startswith("recent-"):

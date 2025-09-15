@@ -9,12 +9,14 @@ class BatchProcessor:
         batch_size: int,
         process_fn: Callable[[List[Any]], Any],
         timeout: float = 1.0,
+        model_name: str = "undefined",
     ):
         self.batch_size = batch_size
         self.process_fn = process_fn
         self.queue = deque()
         self.timeout = timeout
         self.last_batch_time = None
+        self.model_name = model_name
 
     def process_batch(self):
         if len(self.queue) == 0:
