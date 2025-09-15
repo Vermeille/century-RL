@@ -5,7 +5,6 @@
 # cython: boundscheck=False
 # cython: wraparound=False
 # cython: cdivision=True
-# Bench: gen_move loop ~0.0036s/1000 -> ~0.0030s/1000
 import torch
 cimport cython
 import copy
@@ -26,7 +25,7 @@ cpdef random_buy_fast(Century g):
     return random.choice(moves)
 
 
-class Illegal(BaseException):
+class Illegal(Exception):
     pass
 
 
@@ -42,36 +41,16 @@ cdef Stock make_stock():
 
 @cython.final
 cdef class Stock:
+    """Compact cube stock for Century.
+
+    Fields Y, R, G, B store counts for yellow, red, green, blue.
+    Provides helpers to add/subtract, prefix selection and string forms.
+    """
     cdef int Y
     cdef int R
     cdef int G
     cdef int B
 
-    cpdef str to_str_(self) noexcept:
-        cdef int total = self.Y + self.R + self.G + self.B
-        cdef int pos = 0
-        if total == 0:
-            return ""  # Return an empty string if no characters to process
-
-        # Allocate memory for the result
-        cdef char* buff = <char*>malloc(total * sizeof(char))
-
-        try:
-            # Fill the buffer with characters
-            memset(buff, ord('Y'), self.Y)
-            pos += self.Y
-            memset(buff + pos, ord('R'), self.R)
-            pos += self.R
-            memset(buff + pos, ord('G'), self.G)
-            pos += self.G
-            memset(buff + pos, ord('B'), self.B)
-
-            # Convert to Python string
-            return PyUnicode_DecodeLatin1(buff, total, NULL)
-        finally:
-            free(buff)
-
-    # Bench: to_str 1e6 calls ~0.52s -> ~0.33s
     cpdef str to_str(self):
         if self.Y + self.R + self.G + self.B == 0:
             return ""
@@ -231,29 +210,24 @@ cdef class Stock:
         return self.R + self.G + self.B
 
     cdef void trim(self) nogil:
-        cdef int max_val
-        cdef char max_color
+        """Reduce total cubes to 10 by removing from the largest color."""
+        cdef int idx
         while self.size() > 10:
-            max_val = self.Y
-            max_color = b'Y'
+            idx = 0  # 0:Y, 1:R, 2:G, 3:B
+            if self.R > (self.Y if idx == 0 else self.R):
+                idx = 1
+            if self.G > (self.R if idx == 1 else (self.Y if idx == 0 else self.G)):
+                idx = 2
+            if self.B > (self.G if idx == 2 else (self.R if idx == 1 else self.Y)):
+                idx = 3
 
-            if self.R > max_val:
-                max_val = self.R
-                max_color = b'R'
-            if self.G > max_val:
-                max_val = self.G
-                max_color = b'G'
-            if self.B > max_val:
-                max_val = self.B
-                max_color = b'B'
-
-            if max_color == b'Y':
+            if idx == 0:
                 self.Y -= 1
-            elif max_color == b'R':
+            elif idx == 1:
                 self.R -= 1
-            elif max_color == b'G':
+            elif idx == 2:
                 self.G -= 1
-            elif max_color == b'B':
+            else:
                 self.B -= 1
 
     @cython.profile(False)
@@ -288,10 +262,11 @@ cdef class Stock:
         return out
 
     cpdef Stock prefix(self, int n):
+        """Return a Stock with the first n cubes in Y->R->G->B order."""
         return self._prefix(n)
 
 @cython.profile(False)
-cdef inline void prefix_into_stock(Stock self, int n, Stock out):
+cdef inline void prefix_into_stock(Stock src, int n, Stock out):
     out.Y = 0
     out.R = 0
     out.G = 0
@@ -301,29 +276,33 @@ cdef inline void prefix_into_stock(Stock self, int n, Stock out):
         return
 
     cdef int take
-    take = self.Y if self.Y < n else n
+    take = src.Y if src.Y < n else n
     out.Y = take
     n -= take
     if n == 0:
         return
 
-    take = self.R if self.R < n else n
+    take = src.R if src.R < n else n
     out.R = take
     n -= take
     if n == 0:
         return
 
-    take = self.G if self.G < n else n
+    take = src.G if src.G < n else n
     out.G = take
     n -= take
     if n == 0:
         return
 
-    take = self.B if self.B < n else n
+    take = src.B if src.B < n else n
     out.B = take
 
 
 cdef class ActionCard:
+    """Action card transforming cubes: from_ -> to_.
+
+    gen_move returns strings like 'YY>R' or 'YYRR>RGBB' for multiples.
+    """
     cdef Stock from_
     cdef Stock to_
     cdef list str_cache
@@ -358,28 +337,55 @@ cdef class ActionCard:
         return ActionCard(f, t)
 
     cpdef list gen_move(self, Stock stock):
-        cdef list moves = []
-        cdef Stock needed
+        """Enumerate all valid multiples of this action for a given stock.
+
+        Returns move strings from an internal cache for speed and clarity.
+        """
+        cdef list moves
+        cdef int k, t
+        # If the action is free (no cost), it can always be played once.
         if self.from_.size() == 0:
-            moves.append(self.str_cache[0])
-            return moves
-        i = 1
-        needed = self.from_.ccopy()
-        while stock.contains(needed):
-            moves.append(self.str_cache[i])
-            Stock.iadd(needed, self.from_)
-            i += 1
-        return moves
+            return [self.str_cache[0]]
+
+        # Compute the maximum number of times this action can be applied given the stock,
+        # using integer division per color. k is upper-bounded by available cubes for each
+        # required color (colors with 0 requirement are ignored).
+        k = 1_000_000  # large sentinel; real counts are tiny
+        if self.from_.Y:
+            t = stock.Y // self.from_.Y
+            if t < k:
+                k = t
+        if self.from_.R:
+            t = stock.R // self.from_.R
+            if t < k:
+                k = t
+        if self.from_.G:
+            t = stock.G // self.from_.G
+            if t < k:
+                k = t
+        if self.from_.B:
+            t = stock.B // self.from_.B
+            if t < k:
+                k = t
+
+        if k <= 0:
+            return []
+
+        # str_cache[1] corresponds to 1x application, up to precomputed bound.
+        # The cache is built up to a safe limit; append desired range.
+        # Slice cache from 1..k (inclusive) and return a new list
+        t = min(k + 1, len(self.str_cache))
+        return list(self.str_cache[1:t])
 
     cpdef allows(self, from_: Stock, to_: Stock):
+        """Check if repeatedly applying the card maps from_ to a superset of to_."""
         if self.from_.size() == 0:
             return self.to_.contains(to_)
 
-        cdef Stock gen_
-        from_ = from_.ccopy()
-        gen = make_stock()
-        while from_.contains(self.from_):
-            Stock.isub(from_, self.from_)
+        cdef Stock remain = from_.ccopy()
+        cdef Stock gen = make_stock()
+        while remain.contains(self.from_):
+            Stock.isub(remain, self.from_)
             Stock.iadd(gen, self.to_)
 
         return gen.contains(to_)
@@ -475,7 +481,7 @@ cdef class Joker(ActionCard):
     def __str__(self):
         return 'X' * self.n
 
-    def allows(self, from_, to_):
+    cpdef allows(self, from_: Stock, to_: Stock):
         for ins in self.instances:
             if ins.allows(from_, to_):
                 return True
@@ -629,10 +635,9 @@ cdef class ActionPile:
         return list(zip(self.pile[:6], self.on_cards))
 
     def __str__(self):
-        return '\n'.join([
-            f'A{i} {p[0]} {"X" * i}>{p[1].to_str()}'
-            for i, p in enumerate(self.visible())
-        ])
+        return '\n'.join(
+            [f'A{i} {p[0]} {"X" * i}>{p[1].to_str()}' for i, p in enumerate(self.visible())]
+        )
 
     cpdef Tuple[ActionCard, Stock] take(self, int idx, Stock bonus):
         if idx >= min(6, len(self.pile)):
@@ -641,8 +646,28 @@ cdef class ActionPile:
         if bonus.size() != idx:
             raise Illegal()
 
-        for i, b in enumerate(bonus):
-            self.on_cards[i] += Stock.cfrom_str(b)
+        # Distribute one cube over each previous card according to the
+        # Y->R->G->B order encoded in bonus without constructing temporary Stocks.
+        cdef int i
+        cdef int y = bonus.Y
+        cdef int r = bonus.R
+        cdef int g = bonus.G
+        cdef int b = bonus.B
+        cdef Stock s_i
+        for i in range(idx):
+            s_i = self.on_cards[i]
+            if y:
+                s_i.Y += 1
+                y -= 1
+            elif r:
+                s_i.R += 1
+                r -= 1
+            elif g:
+                s_i.G += 1
+                g -= 1
+            elif b:
+                s_i.B += 1
+                b -= 1
 
         a = self.pile.pop(idx)
 
@@ -731,6 +756,11 @@ cdef class Player:
 
 
 cdef class Century:
+    """Century environment.
+
+    Manages players, piles, turn counter and legal move generation/playing.
+    Moves are represented as strings like 'R' (reload), 'Vi', 'Ai X>Y', 'Hi X>Y'.
+    """
     cdef public Player p0
     cdef public Player p1
     cdef public Player p2
@@ -898,6 +928,10 @@ cdef class Century:
         return self.play_str(self.moves[idx])
 
     cpdef int play_str(self, s: str) except 0:
+        """Apply a move string to the current game state.
+
+        Accepts 'R', 'V{i}', 'A{i} GIVE>TAKE', 'H{i} FROM>TO'.
+        """
         p = self.get_player(self.current_player())
 
         if s == '':
@@ -947,6 +981,7 @@ cdef class Century:
         return 0
 
     cpdef list[str] gen_move(self):
+        """Generate all legal moves for the current player as strings."""
         cdef int i
         cdef Player p
         cdef ActionCard h, a
@@ -964,17 +999,15 @@ cdef class Century:
         if len(p.discard) > 0:
             moves.append('R')
 
-        for i in range(5):
-            if i >= len(self.victory.pile):
-                continue
+        cdef int len_v = len(self.victory.pile)
+        for i in range(min(5, len_v)):
             v = self.victory.pile[i]
             if p.stock.contains(v.cost):
                 moves.append(f'V{i}')
 
         cdef Stock give_tmp = make_stock()
-        for i in range(6):
-            if i >= len(self.action.pile):
-                continue
+        cdef int len_a = len(self.action.pile)
+        for i in range(min(6, len_a)):
 
             a = self.action.pile[i]
             gain = self.action.on_cards[i]
@@ -995,4 +1028,3 @@ cdef class Century:
 
     cpdef round(self: Century):
         return self.turn // self.num_players
-

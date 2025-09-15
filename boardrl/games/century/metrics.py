@@ -131,19 +131,22 @@ class Metrics:
             win="prompt_size",
         )
         for k, v in metrics.items():
-            if isinstance(v, dict):
-                for kk, vv in v.items():
+            try:
+                if isinstance(v, dict):
+                    for kk, vv in v.items():
+                        viz.push(
+                            f"{k}.{kk}",
+                            vv,
+                            epoch,
+                        )
+                else:
                     viz.push(
-                        f"{k}.{kk}",
-                        vv,
+                        k,
+                        v,
                         epoch,
                     )
-            else:
-                viz.push(
-                    k,
-                    v,
-                    epoch,
-                )
+            except Exception as e:
+                print("error when visdoming", k, ":", e)
 
     def print_short_history(self):
         colorized = {
