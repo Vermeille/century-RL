@@ -117,8 +117,6 @@ class Trainer:
         self.epoch = 0
         self.game_desc = games_library(config.game)
         self.game_name = config.game.split(",")[0]
-        self.pit_results = None
-        self.episode_results = None
 
     def _log_pit(self):
         self.model.eval()
@@ -145,12 +143,12 @@ class Trainer:
             self.config.pit.max_len,
             rotate=self.config.pit.rotate,
         )
-        self.pit_results = pit_results
         compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
         self.viz.push("pit.win_rate (strategy)", pit_results.win_rate(0), self.epoch)
         self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
         self.model.train()
+        return pit_results
 
     def _train_epoch_off_policy(self, data):
         self.model.train()
@@ -348,7 +346,6 @@ class Trainer:
             self.config.self_play.max_len,
             rotate=self.config.self_play.rotate,
         )
-        self.episode_results = data
         compute_returns(
             data,
             self.config.train.discount_factor,
@@ -379,12 +376,13 @@ class Trainer:
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
 
         epoch = 0
+        pit_results = None
         while epoch < self.config.train.iterations:
             self.epoch = epoch
 
             print("EPOCH", epoch)
             if epoch % self.config.pit.every == 0:
-                self._log_pit()
+                pit_results = self._log_pit()
 
             if epoch % self.config.train.save_every == 0:
                 self._save_model()
@@ -393,8 +391,8 @@ class Trainer:
             self.reference_handler.update(
                 self.model,
                 epoch=self.epoch,
-                pit_results=self.pit_results,
-                episode_results=self.episode_results,
+                pit_results=pit_results,
+                episode_results=data,
             )
             trainset = to_trainset(
                 data,
