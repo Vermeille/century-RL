@@ -118,15 +118,16 @@ class Trainer:
         self.game_desc = games_library(config.game)
         self.game_name = config.game.split(",")[0]
 
-    def _log_pit(self):
-        self.model.eval()
         batch_size = self.config.pit.batch_size or self.config.train.batch_size
         timeout = 0.001
         bp = BatchProcessor(batch_size, self.model, timeout=timeout)
         reference_bp = BatchProcessor(
             batch_size, self.reference_handler.model, timeout=timeout
         )
-        pool = ModelPool(bp, batch_size, timeout, reference_bp)
+        self.pool = ModelPool(bp, batch_size, timeout, reference_bp)
+
+    def _log_pit(self):
+        self.model.eval()
         print("PIT: ", " VS ".join(self.config.pit.strategies))
         pit_results = pit(
             self.game_desc.make_game,
@@ -134,7 +135,7 @@ class Trainer:
                 partial(
                     self.game_desc.strategy_from_string,
                     s,
-                    model=pool,
+                    model=self.pool,
                     discount_factor=self.config.train.discount_factor,
                 )
                 for s in self.config.pit.strategies
@@ -324,20 +325,13 @@ class Trainer:
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
         self.model.eval()
-        batch_size = self.config.self_play.batch_size
-        timeout = 0.002
-        bp = BatchProcessor(batch_size, self.model, timeout=timeout)
-        reference_bp = BatchProcessor(
-            batch_size, self.reference_handler.model, timeout=timeout
-        )
-        pool = ModelPool(bp, batch_size, timeout, reference_bp)
         data = self_play(
             self.game_desc.make_game,
             [
                 partial(
                     self.game_desc.strategy_from_string,
                     s,
-                    model=pool,
+                    model=self.pool,
                     discount_factor=self.config.train.discount_factor,
                 )
                 for s in self.config.self_play.strategies
