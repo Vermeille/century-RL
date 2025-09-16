@@ -206,6 +206,7 @@ class PolicyGradientLoss:
         weight: str = "returns",
         discount_factor: float = None,
         normalizer_alpha: float = None,
+        importance_sampling: bool = False,
     ):
         assert weight in [
             "returns",
@@ -234,6 +235,7 @@ class PolicyGradientLoss:
             "gae",
             "normalized_gae",
         ]
+        self.importance_sampling = importance_sampling
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
@@ -250,6 +252,24 @@ class PolicyGradientLoss:
 
         for i, logits in enumerate(pred_policy):
             padded[i, : logits.numel()] = logits
+
+        if self.importance_sampling:
+            with torch.no_grad():
+                top = (
+                    F.log_softmax(padded, dim=1)
+                    .gather(1, sample.action_idx[..., None])
+                    .squeeze(1)
+                )
+                bottom = [
+                    F.log_softmax(sample.action_distribution[i], dim=0)[
+                        sample.action_idx[i]
+                    ]
+                    for i in range(len(sample.action_idx))
+                ]
+                bottom = torch.stack(bottom, dim=0)
+                imp_ratio = torch.exp(top - bottom)
+                print(imp_ratio)
+                weight *= imp_ratio
 
         return torch.mean(
             weight * F.cross_entropy(padded, sample.action_idx, reduction="none")
