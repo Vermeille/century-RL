@@ -142,6 +142,17 @@ async def do(
     return {"continue": True}
 
 
+@app.post("/do-one")
+async def do_one(action: str = Body(..., embed=True)):
+    if game.ended():
+        return end_response()
+
+    game.play_str(action)
+    if game.ended():
+        return end_response()
+    return {"continue": True}
+
+
 @app.post("/play-one")
 async def play_one(strategy: str = Body(..., embed=True)):
     if game.ended():
@@ -162,6 +173,243 @@ async def reset():
     global game
     game = game_desc.make_game()
     return True
+
+
+# ----------------------- Game-agnostic visualization -----------------------
+
+
+@app.get("/agnostic", response_class=HTMLResponse)
+def agnostic_ui():
+    # Minimal, game-agnostic UI. Shows the board text (before first '@') in an
+    # editable area, lists clickable '@' moves, and visualizes action
+    # distribution. Edits auto-refresh the viz; Reset restores original state.
+    html = r"""
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>BoardRL – Game-Agnostic Viewer</title>
+    <style>
+      :root {
+        --bg: #0f172a; /* slate-900 */
+        --panel: #111827; /* gray-900 */
+        --muted: #475569; /* slate-500 */
+        --text: #e5e7eb; /* gray-200 */
+        --accent: #22c55e; /* green-500 */
+        --accent2: #38bdf8; /* sky-400 */
+        --danger: #ef4444; /* red-500 */
+      }
+      html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; height: 100%; }
+      .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; }
+      .panel { background: var(--panel); border-radius: 8px; padding: 12px; border: 1px solid #1f2937; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+      label { color: var(--muted); font-size: 12px; }
+      select, button { background: #0b1220; color: var(--text); border: 1px solid #293140; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+      button:hover { border-color: #3a4456; }
+      button.reset { color: var(--danger); }
+      textarea { width: 100%; height: 360px; resize: vertical; background: #0b1220; color: var(--text); border: 1px solid #293140; border-radius: 6px; padding: 8px; white-space: pre; }
+      .moves { display: flex; flex-direction: column; gap: 8px; }
+      .move-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+      .move-btn { white-space: pre; }
+      .bar { height: 14px; background: #111827; border: 1px solid #293140; border-radius: 7px; overflow: hidden; position: relative; }
+      .bar > .fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; }
+      .prob { color: var(--muted); font-size: 12px; }
+      .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+      .section-title { color: var(--muted); margin: 0 0 8px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel">
+        <div class="controls">
+          <div class="row">
+            <label for="strategy">Strategy</label>
+            <select id="strategy"></select>
+          </div>
+          <button id="resetBtn" class="reset">Reset</button>
+        </div>
+        <h4 class="section-title">State (editable, before first @)</h4>
+        <textarea id="state" spellcheck="false"></textarea>
+        <div class="hint">Editing updates the distribution below using the model. Newlines preserved.</div>
+      </div>
+      <div class="panel">
+        <h4 class="section-title">Moves and Distribution</h4>
+        <div id="moves" class="moves"></div>
+      </div>
+    </div>
+
+    <script>
+      const el = (sel) => document.querySelector(sel);
+      const stateEl = el('#state');
+      const movesEl = el('#moves');
+      const strategyEl = el('#strategy');
+      const resetBtn = el('#resetBtn');
+
+      let originalState = '';
+      let currentMoves = []; // array of {label:'@X', id:'X'} in order
+      let movesBlock = '';
+      let isEditing = false;
+
+      function softmax(xs) {
+        if (!xs.length) return [];
+        const m = Math.max(...xs);
+        const exps = xs.map(x => Math.exp(x - m));
+        const s = exps.reduce((a,b)=>a+b, 0) || 1;
+        return exps.map(e => e / s);
+      }
+
+      function toProbs(moveToVal) {
+        const vals = currentMoves.map(m => moveToVal[m.id] ?? 0);
+        // If looks like probs (sum ~1 and within [0,1]), use as-is, else softmax
+        const sum = vals.reduce((a,b)=>a+b,0);
+        const all01 = vals.every(v => v >= -1e-6 && v <= 1+1e-6);
+        const near1 = Math.abs(sum - 1) < 1e-3;
+        const probs = (near1 && all01) ? vals : softmax(vals);
+        const out = {};
+        currentMoves.forEach((m,i)=> out[m.id] = probs[i] ?? 0);
+        return out;
+      }
+
+      function renderMoves() {
+        movesEl.innerHTML = '';
+        for (const m of currentMoves) {
+          const row = document.createElement('div');
+          row.className = 'move-row';
+          const btn = document.createElement('button');
+          btn.className = 'move-btn';
+          btn.textContent = '@' + m.id;
+          btn.addEventListener('click', () => playMove(m.id));
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          const fill = document.createElement('div');
+          fill.className = 'fill';
+          bar.appendChild(fill);
+          const prob = document.createElement('div');
+          prob.className = 'prob';
+          prob.textContent = '0.000';
+          row.appendChild(btn);
+          row.appendChild(bar);
+          row.appendChild(prob);
+          movesEl.appendChild(row);
+        }
+      }
+
+      function updateBars(moveToProb) {
+        const rows = movesEl.querySelectorAll('.move-row');
+        rows.forEach((row, idx) => {
+          const p = Math.max(0, Math.min(1, moveToProb[currentMoves[idx].id] ?? 0));
+          row.querySelector('.fill').style.width = (p * 100).toFixed(1) + '%';
+          row.querySelector('.prob').textContent = p.toFixed(3);
+        });
+      }
+
+      function parseBoard(boardText) {
+        // Split at the first line that starts with '@'
+        const atIdx = boardText.indexOf('\n@');
+        const at0 = boardText.startsWith('@') ? 0 : (atIdx >= 0 ? atIdx + 1 : -1);
+        const state = at0 === -1 ? boardText : boardText.slice(0, at0);
+        const movesLines = (boardText.match(/^@.*$/gm) || []).map(s => s.trim());
+        const moves = movesLines.map(line => ({ label: line, id: line.slice(1).trim() }));
+        const movesText = movesLines.join('\n');
+        return { state, moves, movesText };
+      }
+
+      async function refreshBoard(andAnalyze = true) {
+        const board = await fetch('/board').then(r => r.text());
+        const { state, moves, movesText } = parseBoard(board);
+        originalState = state;
+        stateEl.value = state;
+        currentMoves = moves;
+        movesBlock = movesText;
+        renderMoves();
+        isEditing = false;
+        if (andAnalyze) await analyzeServer();
+      }
+
+      async function analyzeServer() {
+        // Default: use /analyze for the current server-side game state
+        if (!strategyEl.value) return;
+        const data = await fetch('/analyze?'+new URLSearchParams({strategy: strategyEl.value})).then(r=>r.json());
+        const probs = toProbs(data.moves || {});
+        updateBars(probs);
+      }
+
+      async function analyzeText() {
+        // Analyze the edited text through the generic /analyze endpoint (POST)
+        const text = (stateEl.value || '').replace(/\n*$/, '') + (movesBlock ? '\n' + movesBlock : '');
+        const resp = await fetch('/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ strategy: strategyEl.value, state: text })
+        });
+        const data = await resp.json();
+        const probs = toProbs(data.moves || {});
+        updateBars(probs);
+      }
+
+      let typingTimer = null;
+      stateEl.addEventListener('input', () => {
+        isEditing = true;
+        if (typingTimer) clearTimeout(typingTimer);
+        typingTimer = setTimeout(analyzeText, 250);
+      });
+
+      resetBtn.addEventListener('click', () => {
+        stateEl.value = originalState;
+        isEditing = false;
+        analyzeServer();
+      });
+
+      async function playMove(moveId) {
+        if (!strategyEl.value) return;
+        const r = await fetch('/do-one', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: moveId, strategy: strategyEl.value }) });
+        const data = await r.json();
+        await refreshBoard(true);
+      }
+
+      function pickDefaultStrategy(strats) {
+        // Prefer first policy_sampling entry, else fallback to random
+        for (const s of strats) if (s.startsWith('policy_sampling')) return s;
+        return strats.find(s => s === 'random') || strats[0] || '';
+      }
+
+      async function init() {
+        const strategies = await fetch('/strategies').then(r=>r.json());
+        const def = pickDefaultStrategy(strategies);
+        for (const s of strategies) {
+          const opt = document.createElement('option');
+          opt.value = s; opt.textContent = s; if (s === def) opt.selected = true;
+          strategyEl.appendChild(opt);
+        }
+        strategyEl.addEventListener('change', () => {
+          if (isEditing) analyzeText(); else analyzeServer();
+        });
+        await refreshBoard(true);
+      }
+
+      init();
+    </script>
+  </body>
+ </html>
+    """
+    return HTMLResponse(content=html)
+
+
+@app.post("/analyze")
+async def analyze_post(
+    strategy: str = Body(..., embed=True),
+    state: str | None = Body(None, embed=True),
+):
+    class Dummy:
+        def display_with_moves(self):
+            return state
+
+        moves = [s[1:] for s in state.splitlines() if s[0] == "@"]
+
+    # If state is provided, analyze text directly using a model strategy
+    pred = await strategies.get_strategy(strategy)(Dummy())
+    return pred[1]
 
 
 if __name__ == "__main__":
