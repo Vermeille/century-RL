@@ -5,6 +5,7 @@ import os
 import yaml
 import random
 from tqdm import tqdm
+import math
 from heavyball import ForeachMuon
 from functools import partial
 
@@ -86,6 +87,9 @@ class Trainer:
         self.model = Model(**self.config.net.__dict__)
         self.model.to(config.device)
         self.opt = make_optimizer(self.model.parameters(), config.train)
+        # Keep LR scheduling inputs handy
+        self._initial_lr = float(self.config.train.lr)
+        self._total_iterations = float(self.config.train.iterations)
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
@@ -128,6 +132,22 @@ class Trainer:
             model_name="reference",
         )
         self.pool = ModelPool(bp, batch_size, timeout, reference_bp)
+
+    def _update_lr(self, epoch: int) -> None:
+        """Apply linear LR decay over epochs when iterations is finite.
+
+        Schedules LR as lr = initial_lr * max(0, 1 - epoch / total_iterations).
+        Also logs the LR to Visdom for visibility.
+        """
+        total = self._total_iterations
+        if not math.isfinite(total) or total <= 0:
+            return
+        scale = max(0.0, 1.0 - (epoch / total))
+        new_lr = self._initial_lr * scale
+        for pg in self.opt.param_groups:
+            pg["lr"] = new_lr
+        # Always log LR for traceability
+        self.viz.push("lr", new_lr, epoch)
 
     def _log_pit(self):
         self.model.eval()
@@ -376,6 +396,9 @@ class Trainer:
         pit_results = None
         while epoch < self.config.train.iterations:
             self.epoch = epoch
+
+            # Update learning-rate schedule (linear decay) and log it
+            self._update_lr(epoch)
 
             print("EPOCH", epoch)
             if epoch % self.config.pit.every == 0:
