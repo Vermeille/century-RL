@@ -194,7 +194,7 @@ class PolicyGradientLoss:
 
     @property
     def supports_off_policy(self):
-        return self.weight in ["advantage"]
+        return self.importance_sampling
 
     @property
     def supports_partial_trajectories(self):

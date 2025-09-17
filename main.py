@@ -42,6 +42,51 @@ def make_optimizer(params, train_cfg):
         raise ValueError(f"Unknown optimizer: {train_cfg.optimizer}")
 
 
+class Optimizer:
+    def __init__(self, params, train_cfg, multiple_steps):
+        self.opt = make_optimizer(params=params, train_cfg=train_cfg)
+        self._initial_lr = float(train_cfg.lr)
+        self._total_iterations = float(train_cfg.iterations)
+        self.current_lr = 0
+
+        print("multiple_steps", multiple_steps)
+        if multiple_steps:
+            self.epoch_start = lambda e: self._update_lr(e)
+            self.batch_start = lambda: self.opt.zero_grad(set_to_none=True)
+            self.batch_end = lambda: self.opt.step()
+            self.epoch_end = lambda: None
+        else:
+            self.epoch_start = lambda e: (
+                self._update_lr(e),
+                self.opt.zero_grad(set_to_none=True),
+            )
+            self.batch_start = lambda: None
+            self.batch_end = lambda: None
+            self.epoch_end = lambda: self.opt.step()
+
+    def state_dict(self):
+        return self.opt.state_dict()
+
+    def load_state_dict(self, d):
+        return self.opt.load_state_dict(d)
+
+    def _update_lr(self, epoch: int) -> None:
+        """Apply linear LR decay over epochs when iterations is finite.
+
+        Schedules LR as lr = initial_lr * max(0, 1 - epoch / total_iterations).
+        Also logs the LR to Visdom for visibility.
+        """
+        total = self._total_iterations
+        if not math.isfinite(total) or total <= 0:
+            return
+        scale = max(0.0, 1.0 - (epoch / total))
+        new_lr = self._initial_lr * scale
+        for pg in self.opt.param_groups:
+            pg["lr"] = new_lr
+        # Always log LR for traceability
+        self.current_lr = new_lr
+
+
 def to_trainset(
     games_data: SelfPlayResults,
     only_players: list[int] | None = None,
@@ -86,10 +131,19 @@ class Trainer:
         self.config = config
         self.model = Model(**self.config.net.__dict__)
         self.model.to(config.device)
-        self.opt = make_optimizer(self.model.parameters(), config.train)
+
+        self.losses = [
+            loss_from_string(
+                loss_str, model=self.model, discount_factor=config.train.discount_factor
+            )
+            for loss_str in config.train.losses
+        ]
+        self.opt = Optimizer(
+            self.model.parameters(),
+            config.train,
+            multiple_steps=all(loss.supports_off_policy for loss in self.losses),
+        )
         # Keep LR scheduling inputs handy
-        self._initial_lr = float(self.config.train.lr)
-        self._total_iterations = float(self.config.train.iterations)
         self.epoch = 0
 
         if checkpoint_path is not None:
@@ -97,19 +151,10 @@ class Trainer:
             self.model.load_state_dict(ckpt["model"])
             self.opt.load_state_dict(ckpt["opt"])
             self.epoch = ckpt["epoch"]
-            # change lr
-            for param_group in self.opt.param_groups:
-                param_group["lr"] = config.train.lr
 
         self.reference_handler = ReferenceModelHandler(
             self.model, self.config.train.reference_model_update
         )
-        self.losses = [
-            loss_from_string(
-                loss_str, model=self.model, discount_factor=config.train.discount_factor
-            )
-            for loss_str in config.train.losses
-        ]
         print(self.losses)
         self.viz = Visualizer(
             f"{config.game}_{config.tag}-lr={config.train.lr}",
@@ -133,22 +178,6 @@ class Trainer:
             model_name="reference",
         )
         self.pool = ModelPool(bp, batch_size, timeout, reference_bp)
-
-    def _update_lr(self, epoch: int) -> None:
-        """Apply linear LR decay over epochs when iterations is finite.
-
-        Schedules LR as lr = initial_lr * max(0, 1 - epoch / total_iterations).
-        Also logs the LR to Visdom for visibility.
-        """
-        total = self._total_iterations
-        if not math.isfinite(total) or total <= 0:
-            return
-        scale = max(0.0, 1.0 - (epoch / total))
-        new_lr = self._initial_lr * scale
-        for pg in self.opt.param_groups:
-            pg["lr"] = new_lr
-        # Always log LR for traceability
-        self.viz.push("lr", new_lr, epoch)
 
     def _log_pit(self):
         self.model.eval()
@@ -175,96 +204,18 @@ class Trainer:
         self.model.train()
         return pit_results
 
-    def _train_epoch_off_policy(self, data):
-        self.model.train()
-        now = time.time()
-        grad_pct = 1 / self.config.train.gradient_epochs
-        for grad_ep in range(self.config.train.gradient_epochs):
-            indices = torch.randperm(len(data))
-            batch_pct = 1 / (len(indices) / self.config.train.batch_size + 1)
-            for b_i, batch in enumerate(
-                tqdm(
-                    chunk(indices, self.config.train.batch_size),
-                    desc=f"epoch {self.epoch}",
-                    total=len(indices) // self.config.train.batch_size,
-                )
-            ):
-                with torch.no_grad():
-                    samples = TrainingSample.collate([data[bi] for bi in batch]).to(
-                        self.config.device, non_blocking=True,
-                    )
-                self.opt.zero_grad()
-                total_losses = defaultdict(float)
-                policy, value = self.model(samples.state)
-                loss_dict = {
-                    loss_fn._registry_name: loss_fn(policy, value, samples)
-                    for loss_fn in self.losses
-                }
-                loss = sum(loss_dict.values())
-                loss = loss * len(samples.state) / self.config.train.batch_size
-                loss.backward()
-
-                grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=5.0
-                )
-                self.opt.step()
-
-                step = self.epoch + grad_ep * grad_pct + b_i * batch_pct * grad_pct
-
-                if False:
-                    for k, v in total_losses.items():
-                        self.viz.push(
-                            f"loss.{k}",
-                            v,
-                            step,
-                        )
-                    self.viz.push(
-                        "MAE",
-                        torch.nn.functional.l1_loss(value.mean, samples.returns).item(),
-                        step,
-                    )
-                    self.viz.push(
-                        "grad_mag",
-                        grad_mag.item(),
-                        step,
-                    )
-                    self.viz.push(
-                        "perplexity",
-                        sum(
-                            torch.exp(
-                                torch.sum(
-                                    -torch.softmax(p, 0) * torch.log_softmax(p, 0)
-                                )
-                            )
-                            / len(p)
-                            for p in policy
-                        ).item()
-                        / len(policy),
-                        step,
-                    )
-                    pearson = pearson_corr(value.mean, samples.returns)
-                    self.viz.push(
-                        "pearson",
-                        pearson.item(),
-                        step,
-                    )
-        print(
-            "throughput",
-            len(data) * self.config.train.gradient_epochs / (time.time() - now),
-        )
-        print()
-
     def _train_epoch_on_policy(self, data):
         self.model.train()
         now = time.time()
         total_losses = defaultdict(float)
-        self.opt.zero_grad()
         num_batches = 1 + len(data) // self.config.train.batch_size
+        self.opt.epoch_start(self.epoch)
         for batch in tqdm(
             chunk(data, self.config.train.batch_size),
             desc=f"epoch {self.epoch}",
             total=num_batches,
         ):
+            self.opt.batch_start()
             with torch.no_grad():
                 samples = TrainingSample.collate(batch).to(
                     self.config.device, non_blocking=True
@@ -276,6 +227,7 @@ class Trainer:
             }
             loss = sum(loss_dict.values())
             (loss * len(samples.state)).backward()
+            self.opt.batch_end()
             if self.epoch % self.config.train.show_every == 0:
                 with torch.no_grad():
                     for loss_name, loss_val in loss_dict.items():
@@ -315,7 +267,7 @@ class Trainer:
         grad_mag = torch.nn.utils.clip_grad_norm_(
             self.model.parameters(), max_norm=50.0
         )
-        self.opt.step()
+        self.opt.epoch_end()
 
         # self.viz.push( "reference_model.version", self.reference_model.version, self.epoch)
         if self.epoch % self.config.train.show_every == 0:
@@ -326,6 +278,7 @@ class Trainer:
                     v / num_batches,
                     self.epoch,
                 )
+            self.viz.push("lr", self.opt.current_lr, self.epoch)
         print(
             "throughput",
             len(data) * self.config.train.gradient_epochs / (time.time() - now),
@@ -396,8 +349,6 @@ class Trainer:
         pit_results = None
         while self.epoch < self.config.train.iterations:
             # Update learning-rate schedule (linear decay) and log it
-            self._update_lr(self.epoch)
-
             print("EPOCH", self.epoch)
             if self.epoch % self.config.pit.every == 0:
                 pit_results = self._log_pit()
@@ -433,14 +384,7 @@ class Trainer:
                     lmbda=self.config.train.gae_lambda,
                 )
             print(len(trainset), "samples")
-            if (
-                False
-                and self.policy_loss.supports_off_policy
-                and self.value_loss.supports_off_policy
-            ):
-                self._train_epoch_off_policy(trainset)
-            else:
-                self._train_epoch_on_policy(trainset)
+            self._train_epoch_on_policy(trainset)
             torch.cuda.empty_cache()
             self.epoch += 1
         self._save_model()
