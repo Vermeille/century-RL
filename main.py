@@ -90,11 +90,13 @@ class Trainer:
         # Keep LR scheduling inputs handy
         self._initial_lr = float(self.config.train.lr)
         self._total_iterations = float(self.config.train.iterations)
+        self.epoch = 0
 
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
             self.model.load_state_dict(ckpt["model"])
             self.opt.load_state_dict(ckpt["opt"])
+            self.epoch = ckpt["epoch"]
             # change lr
             for param_group in self.opt.param_groups:
                 param_group["lr"] = config.train.lr
@@ -118,7 +120,6 @@ class Trainer:
             "config",
             "<pre>\n" + yaml.dump(config.model_dump()) + "</pre>",
         )
-        self.epoch = 0
         self.game_desc = games_library(config.game)
         self.game_name = config.game.split(",")[0]
 
@@ -392,19 +393,16 @@ class Trainer:
     def train(self):
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
 
-        epoch = 0
         pit_results = None
-        while epoch < self.config.train.iterations:
-            self.epoch = epoch
-
+        while self.epoch < self.config.train.iterations:
             # Update learning-rate schedule (linear decay) and log it
-            self._update_lr(epoch)
+            self._update_lr(self.epoch)
 
-            print("EPOCH", epoch)
-            if epoch % self.config.pit.every == 0:
+            print("EPOCH", self.epoch)
+            if self.epoch % self.config.pit.every == 0:
                 pit_results = self._log_pit()
 
-            if epoch % self.config.train.save_every == 0:
+            if self.epoch % self.config.train.save_every == 0:
                 self._save_model()
 
             data = self._run_episode()
@@ -444,7 +442,8 @@ class Trainer:
             else:
                 self._train_epoch_on_policy(trainset)
             torch.cuda.empty_cache()
-            epoch += 1
+            self.epoch += 1
+        self._save_model()
 
 
 def fix_dict(config, key, new_value):
@@ -508,7 +507,11 @@ def main():
 
     ckpt = opts.ckpt if opts.ckpt != "None" else None
 
-    Trainer(config, ckpt).train()
+    trainer = Trainer(config, ckpt)
+    try:
+        trainer.train()
+    except KeyboardInterrupt:
+        trainer._save_model()
 
 
 if __name__ == "__main__":
