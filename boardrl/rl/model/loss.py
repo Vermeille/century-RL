@@ -268,7 +268,6 @@ class PolicyGradientLoss:
                 ]
                 bottom = torch.stack(bottom, dim=0)
                 imp_ratio = torch.exp(top - bottom)
-                print(imp_ratio)
                 weight *= imp_ratio
 
         return torch.mean(

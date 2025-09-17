@@ -60,7 +60,7 @@ def test_thegame_metrics_self_play_runs():
     from boardrl.rl.eval.selfplay import self_play
 
     make_game = lambda num_players: TheGame(num_players=num_players)
-    strat = strategy_from_string("lowest_cost")
+    strat = lambda: strategy_from_string("lowest_cost")
     results = self_play(
         make_game, [strat, strat], n_games=1, max_len=10, rotate=False, desc=""
     )

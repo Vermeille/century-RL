@@ -7,8 +7,8 @@ from boardrl.rl.eval.selfplay import pit, SelfPlayResults
 def test_selfplay_oop_indexing_and_filters():
     game_desc = games_library("tictactoe")
     strategies = [
-        game_desc.strategy_from_string("random"),
-        game_desc.strategy_from_string("random"),
+        lambda: game_desc.strategy_from_string("random"),
+        lambda: game_desc.strategy_from_string("random"),
     ]
 
     results = pit(game_desc.make_game, strategies, n_games=2, max_len=2)
@@ -35,8 +35,8 @@ def test_selfplay_oop_indexing_and_filters():
 def test_pit_rotate_flag():
     game_desc = games_library("tictactoe")
     strategies = [
-        game_desc.strategy_from_string("random"),
-        game_desc.strategy_from_string("random"),
+        lambda: game_desc.strategy_from_string("random"),
+        lambda: game_desc.strategy_from_string("random"),
     ]
 
     rotated = pit(game_desc.make_game, strategies, n_games=2, max_len=2, rotate=True)
@@ -44,4 +44,3 @@ def test_pit_rotate_flag():
 
     assert rotated[1][0].strategy_id == 1
     assert static[1][0].strategy_id == 0
-
