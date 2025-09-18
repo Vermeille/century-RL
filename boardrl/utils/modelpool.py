@@ -1,6 +1,6 @@
 import os
 import random
-from typing import Iterable
+from collections import OrderedDict
 
 from boardrl.rl.model import load_model
 from boardrl.utils.batchprocessor import BatchProcessor
@@ -36,12 +36,42 @@ class ModelPool:
         batch_size: int,
         timeout: float,
         reference_model: BatchProcessor | None = None,
+        *,
+        max_cache_size: int | None = 16,
     ):
         self.base_model = base_model
         self.reference_model = reference_model
         self.batch_size = batch_size
         self.timeout = timeout
-        self.cache: dict[str, BatchProcessor] = {}
+        self.max_cache_size = max_cache_size
+        self.cache: OrderedDict[str, BatchProcessor] = OrderedDict()
+        self._pinned_keys: set[str] = set()
+
+        if self.base_model is not None:
+            self.cache["this"] = self.base_model
+            self._pinned_keys.add("this")
+        if self.reference_model is not None:
+            self.cache["reference"] = self.reference_model
+            self._pinned_keys.add("reference")
+
+        if (
+            self.max_cache_size is not None
+            and self.max_cache_size < len(self._pinned_keys)
+        ):
+            raise ValueError(
+                "max_cache_size must be at least the number of persistent models"
+            )
+
+    def _evict(self) -> None:
+        if self.max_cache_size is None:
+            return
+        while len(self.cache) > self.max_cache_size:
+            oldest_key = next(iter(self.cache))
+            if oldest_key in self._pinned_keys:
+                # Keep persistent models in the cache by treating them as recently used.
+                self.cache.move_to_end(oldest_key)
+                continue
+            self.cache.pop(oldest_key)
 
     def _load(self, path: str) -> BatchProcessor:
         model = load_model(path)
@@ -64,16 +94,20 @@ class ModelPool:
 
     def __call__(self, spec: str | None):
         if spec in (None, "this"):
-            if self.base_model is None:
+            if "this" not in self.cache:
                 raise ValueError("model='this' requires a provided model")
-            return self.base_model
+            self.cache.move_to_end("this")
+            return self.cache["this"]
         if spec == "reference":
-            if self.reference_model is None:
+            if "reference" not in self.cache:
                 raise ValueError("model='reference' requires a provided model")
-            return self.reference_model
+            self.cache.move_to_end("reference")
+            return self.cache["reference"]
         path = self._resolve_path(spec)
         if not os.path.exists(path):
             raise ValueError(f"model file '{path}' does not exist")
         if path not in self.cache:
             self.cache[path] = self._load(path)
+        self.cache.move_to_end(path)
+        self._evict()
         return self.cache[path]
