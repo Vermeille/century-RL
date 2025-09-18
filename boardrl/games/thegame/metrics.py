@@ -31,8 +31,8 @@ def _parse_piles(state: str) -> List[int]:
     for line in state.splitlines():
         if line.startswith("Piles:"):
             # Format: ``Piles: asc:1, asc:1, desc:100, desc:100``
-            parts = line[len("Piles:") :].split(",")
-            return [int(p.split(":")[1]) for p in parts]
+            parts = line[len("Piles: ") :].split(" ")
+            return [int(p) for p in parts]
     raise ValueError("Could not find pile information in state string")
 
 

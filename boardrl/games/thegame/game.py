@@ -92,9 +92,7 @@ class TheGame:
         else:
             assert force in range(self.num_players)
             p = force
-        pile_info = ", ".join(
-            f"{'asc' if i<2 else 'desc'}:{val}" for i, val in enumerate(self.piles)
-        )
+        pile_info = " ".join(f"{val}" for val in self.piles)
         hand_info = " ".join(str(c) for c in self.hands[p])
         msg_line = ""
         if self.messages:
