@@ -325,6 +325,20 @@ class EntropyBonus:
         return -s * sum(entropy(logit, dim=0) for logit in pred_policy)
 
 
+@loss_from_string.register("reverse_entropy_bonus")
+class ReverseEntropyBonus:
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(self, strength: float):
+        self.strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample):
+        s = self.strength / len(sample.action_idx)
+        return -s * sum(F.log_softmax(logit, dim=0).sum() for logit in pred_policy)
+
+
 @loss_from_string.register("value_mse_loss")
 class ValueMSELoss:
     supports_off_policy = True
