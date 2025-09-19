@@ -3,7 +3,7 @@ import torch.nn as nn
 from boardrl.rl.model.transformer import Transformer
 from boardrl.rl.model.gated_cnn import GatedCNNEncoder
 from boardrl.rl.model.cnn import CNNEncoder
-from boardrl.rl.model.utils import zero
+from boardrl.rl.model.utils import zero, init
 
 
 class PolicyValue:
@@ -182,11 +182,12 @@ class CNNBackbone(Backbone):
     def __init__(self, dim, num_layers, head_size=None, max_len=None, num_heads=None):
         super().__init__()
         assert head_size is None and num_heads is None
-        self.embed = nn.Embedding(128, dim, padding_idx=0)
+        self.embed = init(nn.Embedding(128, dim, padding_idx=0))
+        self.norm = nn.LayerNorm(dim)
         self.encode = CNNEncoder(dim=dim, num_layers=num_layers)
 
     def forward(self, tokens, attn_mask):
-        emb = self.embed(tokens).transpose(1, 2)
+        emb = self.norm(self.embed(tokens)).transpose(1, 2)
         return self.encode(emb, attn_mask).transpose(1, 2)
 
 
@@ -231,6 +232,7 @@ class Model(nn.Module):
         txt = self.text_encode(games, self.maxlen)
         attn_mask = txt != 0
         enc = self.backbone(txt, attn_mask)
+        assert enc.shape[:-1] == txt.shape
         policy_logits = self.to_pred(enc, attn_mask)
         value = self.rewards(enc, attn_mask)
 
