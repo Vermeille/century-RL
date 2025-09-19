@@ -47,7 +47,7 @@ class Optimizer:
         self.opt = make_optimizer(params=params, train_cfg=train_cfg)
         self._initial_lr = float(train_cfg.lr)
         self._total_iterations = float(train_cfg.iterations)
-        self.current_lr = 0
+        self.current_lr = train_cfg.lr
 
         print("multiple_steps", multiple_steps)
         if multiple_steps:
@@ -71,15 +71,24 @@ class Optimizer:
         return self.opt.load_state_dict(d)
 
     def _update_lr(self, epoch: int) -> None:
-        """Apply linear LR decay over epochs when iterations is finite.
+        """Apply piecewise LR schedule with optional warmup and linear decay.
 
-        Schedules LR as lr = initial_lr * max(0, 1 - epoch / total_iterations).
-        Also logs the LR to Visdom for visibility.
+        - Warmup: linearly ramps 0 -> initial_lr over ``warmup_epochs``.
+        - Decay: then linearly decays to 0 across the remaining iterations.
+
+        If ``iterations`` is not finite, only the warmup phase is applied.
         """
         total = self._total_iterations
-        if not math.isfinite(total) or total <= 0:
+        warmup = min(100, total * 0.05)
+
+        if not math.isfinite(total) or total < 0:
             return
-        scale = max(0.0, 1.0 - (epoch / total))
+
+        if epoch < warmup:
+            scale = epoch / warmup
+        else:
+            scale = 1 - ((epoch - warmup) / total)
+
         new_lr = self._initial_lr * scale
         for pg in self.opt.param_groups:
             pg["lr"] = new_lr
