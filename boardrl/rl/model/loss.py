@@ -373,12 +373,21 @@ class BootstrapMSELoss:
     supports_partial_trajectories = True
     needs_reference_policy_value = True
 
-    def __init__(self, discount_factor: float, strength: float = 1):
+    def __init__(self, discount_factor: float, strength: float = 1, clip: float = -1):
         self.discount = discount_factor
         self.strength = strength
+        self.clip = clip
 
     def __call__(self, pred_policy, pred_value, sample):
-        return self.strength * F.mse_loss(pred_value.mean, sample.td_lambda)
+        target = sample.td_lambda
+        if self.clip > 0:
+            with torch.no_grad():
+                target = torch.clamp(
+                    target,
+                    min=pred_value * (1 - self.clip),
+                    max=pred_value * (1 + self.clip),
+                )
+        return self.strength * F.mse_loss(pred_value.mean, target)
 
 
 @loss_from_string.register("q_mse_loss")
