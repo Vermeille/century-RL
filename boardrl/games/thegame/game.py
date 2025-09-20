@@ -70,7 +70,8 @@ class TheGame:
         g.action = self.action
         g.curplay = self.curplay
         g.num_players = self.num_players
-        g.moves = self.moves[:]
+        # Recompute legal moves from the copied state to avoid stale moves
+        g.moves = g.gen_moves()
         g._last_messages = self._last_messages[:]
         return g
 
