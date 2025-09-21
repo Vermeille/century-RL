@@ -395,15 +395,16 @@ class BootstrapMSELoss:
         self.clip = clip
 
     def __call__(self, pred_policy, pred_value, sample):
+        p = pred_value.mean
         target = sample.td_lambda
         if self.clip > 0:
             with torch.no_grad():
                 target = torch.clamp(
                     target,
-                    min=pred_value * (1 - self.clip),
-                    max=pred_value * (1 + self.clip),
+                    min=p - self.clip,
+                    max=p + self.clip,
                 )
-        return self.strength * F.mse_loss(pred_value.mean, target)
+        return self.strength * F.mse_loss(p, target)
 
 
 @loss_from_string.register("q_mse_loss")
