@@ -188,6 +188,14 @@ class RunningNormalizer:
         return (x - self.running_mean()) / (math.sqrt(self.running_var()) + 0.0001)
 
 
+@torch.jit.script
+def imp_ratio_clip(advantage, imp_ratio, clip_val: float, rectification: float):
+    mask = (advantage > 0) & (imp_ratio > 1 + clip_val) | (advantage < 0) & (
+        imp_ratio < 1 - clip_val
+    )
+    imp_ratio[mask] *= -rectification
+
+
 @loss_from_string.register("policy_gradient_loss")
 class PolicyGradientLoss:
     needs_reference_policy_value = False
@@ -207,6 +215,8 @@ class PolicyGradientLoss:
         discount_factor: float = None,
         normalizer_alpha: float = None,
         importance_sampling: bool = False,
+        imp_ratio_clip: float = 1.0,
+        rectification: float = 0.0,
     ):
         assert weight in [
             "returns",
@@ -236,6 +246,8 @@ class PolicyGradientLoss:
             "normalized_gae",
         ]
         self.importance_sampling = importance_sampling
+        self.imp_ratio_clip = imp_ratio_clip
+        self.rectification = rectification
 
     def __call__(self, pred_policy, pred_value, sample):
         assert len(pred_policy) == len(sample.action_idx)
@@ -268,6 +280,10 @@ class PolicyGradientLoss:
                 ]
                 bottom = torch.stack(bottom, dim=0)
                 imp_ratio = torch.exp(top - bottom)
+                if self.imp_ratio_clip < 1.0:
+                    imp_ratio_clip(
+                        weight, imp_ratio, self.imp_ratio_clip, self.rectification
+                    )
                 weight *= imp_ratio
 
         return torch.mean(
