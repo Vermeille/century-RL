@@ -13,7 +13,7 @@ class ImitationCELoss:
     supports_partial_trajectories = True
     needs_reference_policy_value = False
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_distribution):
@@ -33,7 +33,7 @@ class CELoss:
     def __init__(self, label_smoothing: float = 0.0):
         self.label_smoothing = label_smoothing
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_idx)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_idx):
@@ -47,7 +47,7 @@ class ImitationJeffreysLoss:
     supports_partial_trajectories = True
     needs_reference_policy_value = False
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_distribution):
@@ -64,7 +64,7 @@ class ImitationJSLoss:
     supports_partial_trajectories = True
     needs_reference_policy_value = False
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_distribution):
@@ -81,7 +81,7 @@ class ImitationMSELoss:
     supports_partial_trajectories = True
     needs_reference_policy_value = False
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_distribution):
@@ -98,7 +98,7 @@ class ImitationKLLoss:
     supports_partial_trajectories = True
     needs_reference_policy_value = False
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_distribution):
@@ -120,7 +120,7 @@ class ImitationReverseKLLoss:
     supports_partial_trajectories = True
     needs_reference_policy_value = False
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_distribution)
         loss = 0
         for logit, act in zip(pred_policy, sample.action_distribution):
@@ -249,7 +249,7 @@ class PolicyGradientLoss:
         self.imp_ratio_clip = imp_ratio_clip
         self.rectification = rectification
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_idx)
 
         with torch.no_grad():
@@ -300,7 +300,7 @@ class KLPenalty:
     def __init__(self, strength: float = 0.0):
         self.strength = strength
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         loss = torch.zeros((1,), device=pred_value.mean.device)
         for logit, ref_logit in zip(pred_policy, sample.reference_policy):
             if self.strength is not None and self.strength != 0:
@@ -322,7 +322,7 @@ class ZLoss:
     def __init__(self, strength: float = 1e-6):
         self.strength = strength
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         s = self.strength / len(sample.action_idx)
         return s * sum(logit.pow(2).sum() for logit in pred_policy)
 
@@ -336,7 +336,7 @@ class EntropyBonus:
     def __init__(self, strength: float):
         self.strength = strength
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         s = self.strength / len(sample.action_idx)
         return -s * sum(entropy(logit, dim=0) for logit in pred_policy)
 
@@ -350,7 +350,7 @@ class ReverseEntropyBonus:
     def __init__(self, strength: float):
         self.strength = strength
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         s = self.strength / len(sample.action_idx)
         return -s * sum(F.log_softmax(logit, dim=0).sum() for logit in pred_policy)
 
@@ -364,7 +364,7 @@ class ValueMSELoss:
     def __init__(self, strength: float = 1):
         self.strength = strength
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert pred_value.mean.shape == sample.returns.shape
         return self.strength * F.mse_loss(pred_value.mean, sample.returns)
 
@@ -378,7 +378,7 @@ class ValueLogProb:
     def __init__(self, strength: float = 1.0):
         self.strength = strength
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         lp = pred_value.log_prob(sample.returns)
         return -self.strength * lp.mean()
 
@@ -394,7 +394,7 @@ class BootstrapMSELoss:
         self.strength = strength
         self.clip = clip
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         p = pred_value.mean
         target = sample.td_lambda
         if self.clip > 0:
@@ -416,7 +416,7 @@ class QMSELoss:
     def __init__(self, discount_factor: float, renormalize: bool = False):
         self.discount_factor = discount_factor
 
-    def __call__(self, pred_policy, pred_value, sample):
+    def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_idx)
 
         loss = 0

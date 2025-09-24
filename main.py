@@ -231,7 +231,7 @@ class Trainer:
                 )
             policy, value = self.model(samples.state)
             loss_dict = {
-                loss_fn._registry_name: loss_fn(policy, value, samples)
+                loss_fn._registry_name: loss_fn(policy, value, samples, {})
                 for loss_fn in self.losses
             }
             loss = sum(loss_dict.values())
