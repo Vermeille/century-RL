@@ -189,11 +189,29 @@ class RunningNormalizer:
 
 
 @torch.jit.script
-def imp_ratio_clip(advantage, imp_ratio, clip_val: float, rectification: float):
-    mask = (advantage > 0) & (imp_ratio > 1 + clip_val) | (advantage < 0) & (
-        imp_ratio < 1 - clip_val
+def ppo(imp_ratio, advantage, clip_val: float, rectification: float):
+    mask = ((advantage > 0) & (imp_ratio > 1 + clip_val)) | (
+        (advantage < 0) & (imp_ratio < 1 - clip_val)
     )
     imp_ratio[mask] *= -rectification
+
+
+def pack(logits):
+    maxlen = max((p.numel() for p in logits), default=0)
+    padded = logits[0].new_full((len(logits), maxlen), float("-inf"))
+
+    for i, logit in enumerate(logits):
+        padded[i, : logit.numel()] = logit
+    return padded
+
+
+def importance_sampling(r, A):
+    return r * A
+
+
+@torch.jit.script
+def spo(r, A, clip: float):
+    return r * (A - A.abs() / clip * (r - 1))
 
 
 @loss_from_string.register("policy_gradient_loss")
@@ -202,7 +220,7 @@ class PolicyGradientLoss:
 
     @property
     def supports_off_policy(self):
-        return self.importance_sampling
+        return self.drift
 
     @property
     def supports_partial_trajectories(self):
@@ -214,7 +232,7 @@ class PolicyGradientLoss:
         weight: str = "returns",
         discount_factor: float = None,
         normalizer_alpha: float = None,
-        importance_sampling: bool = False,
+        drift: str = None,
         imp_ratio_clip: float = 1.0,
         rectification: float = 0.0,
     ):
@@ -234,6 +252,16 @@ class PolicyGradientLoss:
             "gae": weight_gae,
             "normalized_gae": weight_normalized_gae,
         }[weight]
+        self.drift = {
+            "importance_sampling": importance_sampling,
+            "ppo": (lambda r, A: ppo(r, A, clip_val=imp_ratio_clip, rectification=0)),
+            "ppo-rb": (
+                lambda r, A: ppo(
+                    r, A, clip_val=imp_ratio_clip, rectification=rectification
+                )
+            ),
+            "spo": (lambda r, A: spo(r, A, imp_ratio_clip)),
+        }.get(drift)
         self.weight = weight
         self.discount_factor = discount_factor
         self.normalizer = None
@@ -245,7 +273,6 @@ class PolicyGradientLoss:
             "gae",
             "normalized_gae",
         ]
-        self.importance_sampling = importance_sampling
         self.imp_ratio_clip = imp_ratio_clip
         self.rectification = rectification
 
@@ -259,13 +286,9 @@ class PolicyGradientLoss:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
 
-        maxlen = max((p.numel() for p in pred_policy), default=0)
-        padded = pred_policy[0].new_full((len(pred_policy), maxlen), float("-inf"))
+        padded = pack(pred_policy)
 
-        for i, logits in enumerate(pred_policy):
-            padded[i, : logits.numel()] = logits
-
-        if self.importance_sampling:
+        if self.drift:
             with torch.no_grad():
                 top = (
                     F.log_softmax(padded, dim=1)
@@ -280,11 +303,7 @@ class PolicyGradientLoss:
                 ]
                 bottom = torch.stack(bottom, dim=0)
                 imp_ratio = torch.exp(top - bottom)
-                if self.imp_ratio_clip < 1.0:
-                    imp_ratio_clip(
-                        weight, imp_ratio, self.imp_ratio_clip, self.rectification
-                    )
-                weight *= imp_ratio
+                weight = self.drift(imp_ratio, weight)
 
         return torch.mean(
             weight * F.cross_entropy(padded, sample.action_idx, reduction="none")
