@@ -341,6 +341,35 @@ class EntropyBonus:
         return -s * sum(entropy(logit, dim=0) for logit in pred_policy)
 
 
+@loss_from_string.register("scheduled_perplexity")
+class ScheduledPerplexity:
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(self, start: float, end: float):
+        self.start = start
+        self.end = end
+        self.entropy = EntropyBonus(0.01)
+
+    @staticmethod
+    def normalized_perplexity(policy):
+        return sum(
+            (torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0))) - 1)
+            / (len(p) - 1 + 1e-8)
+            for p in policy
+        ).item() / len(policy)
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        progress = training_state["progress"]
+        assert 0.0 <= progress <= 1.0
+        tgt = self.end * progress + self.start * (1 - progress)
+        ppl = self.normalized_perplexity(pred_policy) + 1e-8
+        print(tgt, ppl, tgt / ppl, self.entropy.strength)
+        self.entropy.strength *= 1.01 if ppl < tgt else 1 / 1.01
+        return self.entropy(pred_policy, pred_value, sample, training_state)
+
+
 @loss_from_string.register("reverse_entropy_bonus")
 class ReverseEntropyBonus:
     needs_reference_policy_value = False
