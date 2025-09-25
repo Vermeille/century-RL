@@ -19,11 +19,14 @@ __all__ = [
 ]
 
 
-def chunk(data, size):
+def chunk(data, size, skip_last=False):
     i = 0
-    while i < len(data):
+    while i + size < len(data):
         yield data[i : i + size]
         i += size
+
+    if not skip_last:
+        yield data[i : i + size]
 
 
 # @torch.jit.script

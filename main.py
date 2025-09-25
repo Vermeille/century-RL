@@ -217,10 +217,10 @@ class Trainer:
         self.model.train()
         now = time.time()
         total_losses = defaultdict(float)
-        num_batches = 1 + len(data) // self.config.train.batch_size
+        num_batches = 0
         self.opt.epoch_start(self.epoch)
         for batch in tqdm(
-            chunk(data, self.config.train.batch_size),
+            chunk(data, self.config.train.batch_size, skip_last=True),
             desc=f"epoch {self.epoch}",
             total=num_batches,
         ):
@@ -240,7 +240,8 @@ class Trainer:
                 for loss_fn in self.losses
             }
             loss = sum(loss_dict.values())
-            (loss * len(samples.state)).backward()
+            # (loss * len(samples.state)).backward()
+            loss.backward()
             self.opt.batch_end()
             if self.epoch % self.config.train.show_every == 0:
                 with torch.no_grad():
@@ -273,6 +274,7 @@ class Trainer:
                     total_losses["MAE"] += torch.nn.functional.l1_loss(
                         value.mean, samples.returns
                     ).item()
+            num_batches += 1
 
         with torch.no_grad():
             for p in self.model.parameters():
