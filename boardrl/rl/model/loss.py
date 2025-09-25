@@ -371,13 +371,13 @@ class ScheduledPerplexity:
         self,
         start: float,
         end: float = 0.0,
-        ppl_beta: float = 0.9,
+        ppl_beta: float = 0.997,
         adaptation_rate: float = 0.5,
     ):
         self.start = start
         self.end = end
-        self.entropy = EntropyBonus(0.01)
-        self.strength_ema = 0.01
+        self.entropy = EntropyBonus(1)
+        self.strength_ema = 1
         self.ppl_beta = ppl_beta
         self.adaptation_rate = adaptation_rate
 
@@ -395,12 +395,10 @@ class ScheduledPerplexity:
         tgt = self.end * progress + self.start * (1 - progress)
         ppl = self.normalized_perplexity(pred_policy) + 1e-8
 
-        s = math.log(self.entropy.strength)
-        s = max(
-            math.log(1e-3), min(math.log(5), s + self.adaptation_rate * (tgt - ppl))
-        )
+        s = self.entropy.strength
+        s = max(1e-3, min(5, s + self.adaptation_rate * (tgt - ppl)))
         self.strength_ema = self.ppl_beta * self.strength_ema + (1 - self.ppl_beta) * s
-        self.entropy.strength = math.exp(self.strength_ema)
+        self.entropy.strength = self.strength_ema
         e = self.entropy(pred_policy, pred_value, sample, training_state)
         return e - e.detach() + torch.tensor(self.entropy.strength)
 
