@@ -194,6 +194,7 @@ def ppo(imp_ratio, advantage, clip_val: float, rectification: float):
         (advantage < 0) & (imp_ratio < 1 - clip_val)
     )
     imp_ratio[mask] *= -rectification
+    return imp_ratio * advantage
 
 
 def pack(logits):
