@@ -310,7 +310,7 @@ class Trainer:
                 "model": self.model.state_dict(),
                 "opt": self.opt.state_dict(),
                 "epoch": self.epoch,
-                "config": self.config.net.model_dump(),
+                "config": self.config.model_dump(),
             },
             f"{self.game_name}-ckpt/rl-{self.epoch}.pth",
         )

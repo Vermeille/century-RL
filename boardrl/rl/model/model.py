@@ -261,7 +261,7 @@ class Model(nn.Module):
 
 def load_model(model_path):
     ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
-    config = ckpt["config"]
+    config = ckpt["config"]["net"]
     model = Model(
         config["dim"],
         config["num_layers"],
