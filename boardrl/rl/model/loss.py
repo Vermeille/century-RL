@@ -366,10 +366,19 @@ class ScheduledPerplexity:
     supports_off_policy = True
     supports_partial_trajectories = True
 
-    def __init__(self, start: float, end: float):
+    def __init__(
+        self,
+        start: float,
+        end: float = 0.0,
+        ppl_beta: float = 0.9,
+        adaptation_rate: float = 0.5,
+    ):
         self.start = start
         self.end = end
         self.entropy = EntropyBonus(0.01)
+        self.strength_ema = 0.01
+        self.ppl_beta = ppl_beta
+        self.adaptation_rate = adaptation_rate
 
     @staticmethod
     def normalized_perplexity(policy):
@@ -384,8 +393,13 @@ class ScheduledPerplexity:
         assert 0.0 <= progress <= 1.0
         tgt = self.end * progress + self.start * (1 - progress)
         ppl = self.normalized_perplexity(pred_policy) + 1e-8
-        print(tgt, ppl, tgt / ppl, self.entropy.strength)
-        self.entropy.strength *= 1.01 if ppl < tgt else 1 / 1.01
+
+        s = math.log(self.entropy.strength)
+        s = max(
+            math.log(1e-3), min(math.log(5), s + self.adaptation_rate * (tgt - ppl))
+        )
+        self.strength_ema = self.ppl_beta * self.strength_ema + (1 - self.ppl_beta) * s
+        self.entropy.strength = math.exp(self.strength_ema)
         return self.entropy(pred_policy, pred_value, sample, training_state)
 
 
