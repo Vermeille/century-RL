@@ -222,7 +222,7 @@ class Trainer:
         for batch in tqdm(
             chunk(data, self.config.train.batch_size, skip_last=True),
             desc=f"epoch {self.epoch}",
-            total=num_batches,
+            total=len(data) // self.config.train.batch_size,
         ):
             self.opt.batch_start()
             with torch.no_grad():
