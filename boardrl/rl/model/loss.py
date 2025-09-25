@@ -400,7 +400,8 @@ class ScheduledPerplexity:
         )
         self.strength_ema = self.ppl_beta * self.strength_ema + (1 - self.ppl_beta) * s
         self.entropy.strength = math.exp(self.strength_ema)
-        return self.entropy(pred_policy, pred_value, sample, training_state)
+        e = self.entropy(pred_policy, pred_value, sample, training_state)
+        return e - e.detach() + torch.tensor(self.entropy.strength)
 
 
 @loss_from_string.register("reverse_entropy_bonus")
