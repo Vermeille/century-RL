@@ -222,7 +222,9 @@ class TheGame:
         """
         Returns the score for the current player.
         """
-        return self.max_value - 1 - (len(self.deck) + sum(len(h) for h in self.hands))
+        # Yes, there should be a -2, but I absolutely can't stand the max score
+        # being 98. It's very frustrating.
+        return self.max_value - (len(self.deck) + sum(len(h) for h in self.hands))
 
     def points_for(self, player: int) -> int:
         return self.points()
