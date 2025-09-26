@@ -209,7 +209,8 @@ class Trainer:
         compute_returns(pit_results.games, self.config.train.discount_factor)
         self.game_desc.make_metrics(pit_results.games).print_short_history()
         self.viz.push("pit.win_rate (strategy)", pit_results.win_rate(0), self.epoch)
-        self.viz.push("pit.avg_points", pit_results.my_avg_points(0), self.epoch)
+        # If supported, also display min/max band around mean for pit points.
+        self.viz.push_range("pit.points", pit_results.my_points(0), self.epoch)
         self.model.train()
         return pit_results
 

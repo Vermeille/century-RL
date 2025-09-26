@@ -67,16 +67,19 @@ class Metrics:
             print("--")
 
     def metrics_to_visdom(self, viz, epoch):
-        avg_points = sum(game[0][-1].my_points for game in self.data) / len(self.data)
-        viz.push("avg_points", avg_points, epoch)
+        # self.data.my_points(0) is discounted so it's not good for logging
+        points = [game[0][-1].my_points for game in self.data]
+        viz.push_range("points", points, epoch)
+        # Also plot a min/max band around the mean when the visualizer supports it.
 
         total_cost = 0.0
         total_moves = 0
         lowest_cost_moves = 0
-        ten_rule_moves = 0
+        ten_rule_moves = []
 
         for game in self.data:
             for player in game:
+                ten_rule_moves.append(0)
                 for rec in player:
                     if getattr(rec, "final", False):
                         continue
@@ -95,15 +98,11 @@ class Metrics:
                     if chosen_cost == min(costs):
                         lowest_cost_moves += 1
                     if ten_flags[rec.action_idx]:
-                        ten_rule_moves += 1
+                        ten_rule_moves[-1] += 1
 
         avg_cost = total_cost / total_moves if total_moves else 0.0
         ratio_lowest = lowest_cost_moves / total_moves if total_moves else 0.0
 
         viz.push("avg_cost", avg_cost, epoch)
         viz.push("ratio_lowest_cost", ratio_lowest, epoch)
-        viz.push(
-            "ten_rule_moves",
-            ten_rule_moves / (len(self.data) * self.data.num_players()),
-            epoch,
-        )
+        viz.push_range("ten_rule_moves", ten_rule_moves, epoch)
