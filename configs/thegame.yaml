@@ -10,29 +10,32 @@ pit:
   num_games: 32
   rotate: false
   strategies:
-  - policy_sampling,model=this,temperature=0.8
-  - policy_sampling,model=this,temperature=0.8
+  - policy_sampling,model=this
+  - policy_sampling,model=this
 
 self_play:
   max_len: 500
-  num_games: 64
+  num_games: 32
   strategies:
+  #- gumbel,model=this,q_scale=4
+  #- gumbel,model=this,q_scale=4
   - policy_sampling,model=this
   - policy_sampling,model=this
 
 train:
   optimizer: AdamW
-  batch_size: 32
+  batch_size: 64
   discount_factor: 0.995
   gradient_epochs: 1
-  gae_lambda: 0.95
+  gae_lambda: 0.98
   reference_model_update: "epoch % 1 == 0"
   reward_rescale: 0.1
   losses:
-    - policy_gradient_loss,weight=normalized_gae
-    - entropy_bonus,strength=0.05
+    - policy_gradient_loss,weight=normalized_gae,drift=ppo,imp_ratio_clip=0.2
+    - scheduled_perplexity,start=0.4,adaptation_rate=2
     - bootstrap_mse_loss,strength=0.1
-  lr: 0.0001
+  lr: 0.00005
   save_every: 1000
   show_every: 10
   weight_decay: 0
+  iterations: 2000

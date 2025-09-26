@@ -15,7 +15,8 @@ def zero(m):
 
 def init(m, var_scale: float = 1.0):
     assert isinstance(m.weight, torch.Tensor)
-    bound = math.sqrt(3 * var_scale / m.weight.size(1))
+    out_dim = m.weight.size(0)
+    bound = math.sqrt(3 * var_scale / m.weight.view(out_dim, -1).size(1))
     nn.init.uniform_(m.weight, -bound, bound)
     if hasattr(m, "bias") and m.bias is not None:
         assert isinstance(m.bias, torch.Tensor)

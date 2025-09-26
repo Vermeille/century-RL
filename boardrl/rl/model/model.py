@@ -187,7 +187,7 @@ class CNNBackbone(Backbone):
         self.encode = CNNEncoder(dim=dim, num_layers=num_layers)
 
     def forward(self, tokens, attn_mask):
-        emb = self.norm(self.embed(tokens)).transpose(1, 2)
+        emb = self.embed(tokens).transpose(1, 2)
         return self.encode(emb, attn_mask).transpose(1, 2)
 
 

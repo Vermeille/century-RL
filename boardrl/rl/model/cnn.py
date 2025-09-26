@@ -28,7 +28,8 @@ class ConvBlock1(nn.Module):
             MaskedConv1d(
                 dim,
                 dim,
-                groups=max(1, dim // 32),
+                # groups=max(1, dim // 32),
+                groups=dim,
                 kernel_size=kernel_size,
                 padding=(kernel_size // 2) * dilation,
                 dilation=dilation,
@@ -48,13 +49,13 @@ class ConvBlock1(nn.Module):
                 dim,
                 dim,
                 # groups=max(1, dim // 32),
-                kernel_size=1,
-                padding=0,
+                kernel_size=kernel_size,
+                padding=kernel_size // 2,
             )
         )
 
     def forward(self, x, mask):
-        x = x + self.c3(F.gelu(self.c2(self.c1(self.norm(x), mask), mask)), mask)
+        x = x + self.c3(F.gelu(self.c2(self.norm(self.c1(x, mask)), mask)), mask)
         return x
 
 
