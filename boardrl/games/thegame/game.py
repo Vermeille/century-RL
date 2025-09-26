@@ -214,7 +214,9 @@ class TheGame:
         """
         The game ends when the deck is empty or the current player can't make any moves.
         """
-        return not self.deck or not self.moves
+        return (
+            len(self.deck) == 0 and sum(len(h) for h in self.hands) == 0
+        ) or not self.moves
 
     def points(self) -> int:
         """
