@@ -376,8 +376,8 @@ class ScheduledPerplexity:
     ):
         self.start = start
         self.end = end
-        self.entropy = EntropyBonus(1)
-        self.strength_ema = 1
+        self.entropy = EntropyBonus(0.01)
+        self.strength_ema = self.entropy.strength
         self.ppl_beta = ppl_beta
         self.adaptation_rate = adaptation_rate
 
@@ -396,7 +396,7 @@ class ScheduledPerplexity:
         ppl = self.normalized_perplexity(pred_policy) + 1e-8
 
         s = self.entropy.strength
-        s = max(1e-3, min(5, s + self.adaptation_rate * (tgt - ppl)))
+        s = max(1e-4, min(5, s + self.adaptation_rate * (tgt - ppl)))
         self.strength_ema = self.ppl_beta * self.strength_ema + (1 - self.ppl_beta) * s
         self.entropy.strength = self.strength_ema
         e = self.entropy(pred_policy, pred_value, sample, training_state)
