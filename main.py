@@ -7,13 +7,13 @@ import random
 from tqdm import tqdm
 import math
 from heavyball import ForeachMuon
-from functools import partial
 
 from boardrl.config import Config
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
 from boardrl.rl.utils import pearson_corr, ReferenceModelHandler
-from boardrl.rl.eval.selfplay import self_play, pit, SelfPlayResults
+from boardrl.rl.eval.matchmaker import MatchMaker
+from boardrl.rl.eval.selfplay import SelfPlayResults
 from boardrl.games import games_library
 from boardrl.cyutils import init_seed
 from boardrl.utils import BatchProcessor, Visualizer, ModelPool, chunk
@@ -187,21 +187,17 @@ class Trainer:
             model_name="reference",
         )
         self.pool = ModelPool(bp, batch_size, timeout, reference_bp)
+        self.match_maker = MatchMaker(
+            self.game_desc,
+            self.pool,
+            self.config.train.discount_factor,
+        )
 
     def _log_pit(self):
         self.model.eval()
         print("PIT: ", " VS ".join(self.config.pit.strategies))
-        pit_results = pit(
-            self.game_desc.make_game,
-            [
-                partial(
-                    self.game_desc.strategy_from_string,
-                    s,
-                    model=self.pool,
-                    discount_factor=self.config.train.discount_factor,
-                )
-                for s in self.config.pit.strategies
-            ],
+        pit_results = self.match_maker.run_pit(
+            self.config.pit.strategies,
             self.config.pit.num_games,
             self.config.pit.max_len,
             rotate=self.config.pit.rotate,
@@ -319,17 +315,8 @@ class Trainer:
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
         self.model.eval()
-        data = self_play(
-            self.game_desc.make_game,
-            [
-                partial(
-                    self.game_desc.strategy_from_string,
-                    s,
-                    model=self.pool,
-                    discount_factor=self.config.train.discount_factor,
-                )
-                for s in self.config.self_play.strategies
-            ],
+        data = self.match_maker.run_self_play(
+            self.config.self_play.strategies,
             self.config.self_play.num_games,
             self.config.self_play.max_len,
             rotate=self.config.self_play.rotate,
