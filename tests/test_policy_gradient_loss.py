@@ -14,8 +14,8 @@ def test_entropy_regularizer_zero_grad_at_uniform():
     pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
     policy = PolicyGradientLoss(weight="returns")
     entropy_bonus = EntropyBonus(strength=1.0)
-    loss = policy([logits], pred_value, sample) + entropy_bonus(
-        [logits], pred_value, sample
+    loss = policy([logits], pred_value, sample, training_state={}) + entropy_bonus(
+        [logits], pred_value, sample, training_state={}
     )
     loss.backward()
     assert torch.allclose(logits.grad, torch.zeros_like(logits), atol=1e-6)
@@ -31,8 +31,8 @@ def test_entropy_regularizer_drives_uniform_policy():
     opt = torch.optim.SGD([logits], lr=0.2)
     for _ in range(400):
         opt.zero_grad()
-        loss = policy([logits], pred_value, sample) + entropy_bonus(
-            [logits], pred_value, sample
+        loss = policy([logits], pred_value, sample, training_state={}) + entropy_bonus(
+            [logits], pred_value, sample, training_state={}
         )
         loss.backward()
         opt.step()
@@ -53,8 +53,8 @@ def test_kl_regularizer_matches_manual():
     pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
     policy = PolicyGradientLoss(weight="returns")
     kl_penalty = KLPenalty(strength=0.5)
-    loss = policy([logits], pred_value, sample) + kl_penalty(
-        [logits], pred_value, sample
+    loss = policy([logits], pred_value, sample, training_state={}) + kl_penalty(
+        [logits], pred_value, sample, training_state={}
     )
     ce = F.cross_entropy(logits, sample.action_idx[0])
     kl = F.kl_div(
@@ -75,6 +75,6 @@ def test_policy_gradient_loss_with_normalized_gae():
     )
     pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
     policy = PolicyGradientLoss(weight="normalized_gae")
-    loss = policy([logits], pred_value, sample)
+    loss = policy([logits], pred_value, sample, training_state={})
     expected = F.cross_entropy(logits, sample.action_idx[0], label_smoothing=0.002)
     assert torch.allclose(loss, expected)
