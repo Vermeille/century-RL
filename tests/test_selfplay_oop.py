@@ -1,7 +1,12 @@
 import math
 
+from types import SimpleNamespace
+
+import pytest
+
 from boardrl.games import games_library
-from boardrl.rl.eval.selfplay import pit, SelfPlayResults
+from boardrl.rl.eval.matchmaker import MatchMaker
+from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults, pit
 
 
 def test_selfplay_oop_indexing_and_filters():
@@ -44,3 +49,50 @@ def test_pit_rotate_flag():
 
     assert rotated[1][0].strategy_id == 1
     assert static[1][0].strategy_id == 0
+
+
+def _make_game_trace(scores: list[tuple[int, float]]):
+    traces = []
+    for seat_id, (strategy_id, score) in enumerate(scores):
+        trace = PlayerTrace(seat_id=seat_id, strategy_id=strategy_id)
+        trace.append(
+            SimpleNamespace(current_diff_points=score, my_points=score, final=True)
+        )
+        traces.append(trace)
+    return GameTrace(traces)
+
+
+def test_matchmaker_tracks_win_rates_and_elo():
+    game_desc = games_library("tictactoe")
+    maker = MatchMaker(game_desc, model_pool=None, discount_factor=1.0)
+    strategies = ["alpha", "beta"]
+
+    first_game = SelfPlayResults([
+        _make_game_trace([(0, 1.0), (1, -1.0)])
+    ])
+    maker._record_outcomes(strategies, first_game)
+
+    matrix = maker.win_matrix
+    assert matrix["alpha"]["beta"] == pytest.approx(1.0)
+    assert matrix["beta"]["alpha"] == pytest.approx(0.0)
+
+    elo_after_first = maker.elo
+    assert elo_after_first["alpha"] == pytest.approx(1516.0)
+    assert elo_after_first["beta"] == pytest.approx(1484.0)
+
+    second_game = SelfPlayResults([
+        _make_game_trace([(0, 0.0), (1, 0.0)])
+    ])
+    maker._record_outcomes(strategies, second_game)
+
+    matrix = maker.win_matrix
+    assert matrix["alpha"]["beta"] == pytest.approx(0.75)
+    assert matrix["beta"]["alpha"] == pytest.approx(0.25)
+
+    stats = maker.head_to_head("alpha", "beta")
+    assert stats.games == 2
+    assert stats.win_rate == pytest.approx(0.75)
+
+    elo_after_second = maker.elo
+    assert elo_after_second["alpha"] == pytest.approx(1514.5304984710244)
+    assert elo_after_second["beta"] == pytest.approx(1485.4695015289756)
