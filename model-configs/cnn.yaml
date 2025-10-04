@@ -1,4 +1,4 @@
-# Params: 0.07M
+# Params: 0.14M
 backbone: cnn
 num_layers: 5
 dim: 64

@@ -21,7 +21,7 @@ def test_thegame_metrics_to_visdom():
     state1 = "\n".join(
         [
             "Round: 0, Action: 0",
-            "Piles: asc:20, asc:1, desc:100, desc:100",
+            "Piles: 20 1 100 100",
             "Cards: 0",
             "Hand: 10 30",
         ]
@@ -32,7 +32,7 @@ def test_thegame_metrics_to_visdom():
     state2 = "\n".join(
         [
             "Round: 0, Action: 1",
-            "Piles: asc:10, asc:1, desc:60, desc:100",
+            "Piles: 10 1 60 100",
             "Cards: 0",
             "Hand: 30 50",
         ]
@@ -45,13 +45,13 @@ def test_thegame_metrics_to_visdom():
     game = [player]
     results = DummyResults([game])
     metrics = Metrics(results)
-    viz = SimpleNamespace(push=MagicMock())
+    viz = SimpleNamespace(push=MagicMock(), push_range=MagicMock())
     metrics.metrics_to_visdom(viz, 0)
 
-    viz.push.assert_any_call("avg_points", 50, 0)
     viz.push.assert_any_call("avg_cost", 10.0, 0)
     viz.push.assert_any_call("ratio_lowest_cost", 0.5, 0)
-    viz.push.assert_any_call("ten_rule_moves", 1, 0)
+    viz.push_range.assert_any_call("points", [50], 0)
+    viz.push_range.assert_any_call("ten_rule_moves", [1], 0)
 
 
 def test_thegame_metrics_self_play_runs():
@@ -65,6 +65,6 @@ def test_thegame_metrics_self_play_runs():
         make_game, [strat, strat], n_games=1, max_len=10, rotate=False, desc=""
     )
     metrics = Metrics(results)
-    viz = SimpleNamespace(push=MagicMock())
+    viz = SimpleNamespace(push=MagicMock(), push_range=MagicMock())
     metrics.metrics_to_visdom(viz, 0)
     assert viz.push.call_count > 0
