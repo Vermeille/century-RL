@@ -203,24 +203,24 @@ async def play_game(
 
 
 @torch.no_grad()
-def self_play(
+def self_play2(
     make_game,
-    strategies: list[Callable[[], Strategy]],
-    n_games: int,
+    strategies: list[list[Strategy]],
     max_len: int,
     rotate: bool = True,
     desc: str = "playing games",
 ):
-    n_players = len(strategies)
+    n_games = len(strategies)
     data: list[GameTrace | None] = [None] * n_games
 
     with tqdm(total=n_games, desc=desc) as pbar:
         pbar.update(0)
 
         async def run_game(idx):
+            n_players = len(strategies[idx])
             offset = idx if rotate else 0
             mixed_strategies = [
-                strategies[(i + offset) % n_players]() for i in range(n_players)
+                strategies[idx][(i + offset) % n_players] for i in range(n_players)
             ]
             traces = [
                 PlayerTrace(seat_id=i, strategy_id=(i + offset) % n_players)
@@ -238,5 +238,17 @@ def self_play(
 
 
 @torch.no_grad()
+def self_play(
+    make_game,
+    strategies: list[Strategy],
+    n_games: int,
+    max_len: int,
+    rotate: bool = True,
+    desc: str = "playing games",
+):
+    return self_play2(make_game, [strategies] * n_games, max_len, rotate, desc=desc)
+
+
+@torch.no_grad()
 def pit(make_game, strategies, n_games, max_len, *, rotate: bool = True):
-    return self_play(make_game, strategies, n_games, max_len, rotate=rotate)
+    return self_play(make_game, strategies, n_games, max_len, rotate=rotate, desc="pit")

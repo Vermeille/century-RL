@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import torch
 from dataclasses import dataclass
-from functools import partial
 from typing import Mapping, MutableMapping, Sequence
 
-from boardrl.rl.eval.selfplay import SelfPlayResults, pit, self_play
+from boardrl.rl.eval.selfplay import SelfPlayResults, pit, self_play2
 
 
 @dataclass
@@ -24,11 +24,16 @@ class PairStats:
             return 0.0
         return self.wins / self.games
 
+    def __repr__(self) -> str:
+        return str(self.win_rate)
+
 
 class MatchMaker:
     """Creates strategies, runs games and tracks aggregated outcomes."""
 
-    def __init__(self, game_desc, model_pool, discount_factor: float, *, elo_k: float = 32.0):
+    def __init__(
+        self, game_desc, model_pool, discount_factor: float, *, elo_k: float = 32.0
+    ):
         self._game_desc = game_desc
         self._model_pool = model_pool
         self._discount_factor = discount_factor
@@ -72,10 +77,35 @@ class MatchMaker:
         rotate: bool = True,
         desc: str = "playing games",
     ) -> SelfPlayResults:
-        results = self_play(
+        def x(strats):
+            ss = strats[:]
+            for i, s in enumerate(ss):
+                if not s.startswith("opponent,to="):
+                    continue
+
+                new = None
+                for p1, op in self._win_matrix.items():
+                    if len(op) == 0:
+                        new = p1
+                        break
+
+                if new is None:
+                    to = int(s[len("opponent,to=") :])
+                    base = strats[to]
+                    if base not in self._win_matrix:
+                        continue
+                    candidates = list(self._win_matrix[base].items())
+                    values = torch.tensor([c[1].win_rate for c in candidates])
+                    values = torch.distributions.Categorical(logits=-20 * values)
+                    sampled = values.sample((1,))
+                    new = candidates[sampled.item()][0]
+                ss[i] = new
+            return ss
+
+        strategy_names = [x(strategy_names) for _ in range(num_games)]
+        results = self_play2(
             self._game_desc.make_game,
-            self._make_strategies(strategy_names),
-            num_games,
+            [self._make_strategies(s) for s in strategy_names],
             max_len,
             rotate=rotate,
             desc=desc,
@@ -98,13 +128,11 @@ class MatchMaker:
             max_len,
             rotate=rotate,
         )
-        self._record_outcomes(strategy_names, results)
         return results
 
     def _make_strategies(self, strategy_names: Sequence[str]):
         return [
-            partial(
-                self._game_desc.strategy_from_string,
+            self._game_desc.strategy_from_string(
                 strategy,
                 model=self._model_pool,
                 discount_factor=self._discount_factor,
@@ -113,27 +141,25 @@ class MatchMaker:
         ]
 
     def _record_outcomes(
-        self, strategy_names: Sequence[str], results: SelfPlayResults
+        self, strategy_names: Sequence[Sequence[str]], results: SelfPlayResults
     ) -> None:
         if not results:
             return
 
-        for game in results:
+        for s_name, game in zip(strategy_names, results):
             scores: dict[str, float] = {}
             for trace in game.by_strategy:
-                strategy_name = strategy_names[trace.strategy_id]
+                name = s_name[trace.strategy_id]
                 end_state = trace[-1]
-                score = getattr(end_state, "current_diff_points", None)
-                if score is None:
-                    score = getattr(end_state, "my_points", 0.0)
-                scores[strategy_name] = float(score)
+                score = end_state.current_diff_points
+                scores[name] = float(score)
 
             if len(scores) < 2:
                 # Nothing to aggregate if only one strategy participated.
                 continue
 
             for name in scores:
-                self._ensure_strategy_registered(name)
+                self.ensure_strategy_registered(name)
 
             pairwise_deltas: dict[str, float] = {name: 0.0 for name in scores}
             names = list(scores)
@@ -154,7 +180,7 @@ class MatchMaker:
             for name, delta in pairwise_deltas.items():
                 self._elo[name] += delta
 
-    def _ensure_strategy_registered(self, name: str) -> None:
+    def ensure_strategy_registered(self, name: str) -> None:
         if name not in self._win_matrix:
             self._win_matrix[name] = {}
         if name not in self._elo:
@@ -185,4 +211,4 @@ class MatchMaker:
     @staticmethod
     def _expected_score(rating_a: float, rating_b: float) -> float:
         exponent = (rating_b - rating_a) / 400.0
-        return 1.0 / (1.0 + 10 ** exponent)
+        return 1.0 / (1.0 + 10**exponent)
