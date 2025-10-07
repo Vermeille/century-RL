@@ -302,6 +302,7 @@ class Trainer:
         import os
 
         os.makedirs(f"{self.game_name}-ckpt", exist_ok=True)
+        path = f"{self.game_name}-ckpt/rl-{self.epoch}.pth"
         torch.save(
             {
                 "model": self.model.state_dict(),
@@ -309,8 +310,9 @@ class Trainer:
                 "epoch": self.epoch,
                 "config": self.config.model_dump(),
             },
-            f"{self.game_name}-ckpt/rl-{self.epoch}.pth",
+            path,
         )
+        return path
 
     def _run_episode(self):
         print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
@@ -358,7 +360,10 @@ class Trainer:
                 pit_results = self._log_pit()
 
             if self.epoch % self.config.train.save_every == 0:
-                self._save_model()
+                saved = self._save_model()
+                self.match_maker.ensure_strategy_registered(
+                    f"policy_sampling,model={saved}"
+                )
 
             data = self._run_episode()
             self.reference_handler.update(
