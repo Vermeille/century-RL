@@ -80,18 +80,6 @@ class ModelPool:
             self.batch_size, model, timeout=self.timeout, model_name=path
         )
 
-    def _resolve_path(self, spec: str) -> str:
-        if spec.startswith("recent-"):
-            try:
-                topk = int(spec.split("-", 1)[1])
-            except ValueError as exc:  # pragma: no cover - defensive programming
-                raise ValueError(f"invalid recent model spec: {spec}") from exc
-            candidates = _recent_models(topk)
-            if not candidates:
-                raise ValueError("no recent model files found")
-            return random.choice(candidates)
-        return spec
-
     def __call__(self, spec: str | None):
         if spec in (None, "this"):
             if "this" not in self.cache:
@@ -103,11 +91,10 @@ class ModelPool:
                 raise ValueError("model='reference' requires a provided model")
             self.cache.move_to_end("reference")
             return self.cache["reference"]
-        path = self._resolve_path(spec)
-        if not os.path.exists(path):
-            raise ValueError(f"model file '{path}' does not exist")
-        if path not in self.cache:
-            self.cache[path] = self._load(path)
-        self.cache.move_to_end(path)
+        if not os.path.exists(spec):
+            raise ValueError(f"model file '{spec}' does not exist")
+        if spec not in self.cache:
+            self.cache[spec] = self._load(spec)
+        self.cache.move_to_end(spec)
         self._evict()
-        return self.cache[path]
+        return self.cache[spec]
