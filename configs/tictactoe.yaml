@@ -1,13 +1,13 @@
-tag: selfplay-mmd
+tag: spo
 device: cpu
 game: tictactoe
 
-model: small
+model: cnn
 
 pit:
-  every: 100
+  every: 10
   max_len: 220
-  num_games: 1000
+  num_games: 100
   rotate: false
   strategies:
   - policy_sampling,model=this
@@ -19,29 +19,21 @@ self_play:
   rotate: true
   strategies:
   - policy_sampling,model=this
-  - policy_sampling,model=reference
+  - policy_sampling,model=this
 
 train:
   optimizer: AdamW
   batch_size: 64
   discount_factor: 1.0
   gradient_epochs: 1
-  #reference_model_update: "False"
-  reference_model_update: |
-    if not exists("avg_winrate"):
-      avg_winrate = 0.0
-    print("AVG WINRATE:", avg_winrate)
-    avg_winrate = 0.9 * avg_winrate + 0.1 * episode.win_rate(0, by="strategy")
-    update = version + 20 <= epoch and avg_winrate > 0.55
-    if update:
-      avg_winrate = 0.0
-    update
-  only_strategies: [0]
+  reference_model_update: "True"
+  #only_strategies: [0]
   losses:
-    - policy_gradient_loss,weight=returns,normalizer_alpha=0.99
-    - kl,strength=0.2
-    - entropy_bonus,strength=0.2
-    - value_mse_loss,strength=0.000001
-  lr: 0.0001
-  save_every: 200
-  show_every: 1
+    - policy_gradient_loss,weight=normalized_gae,drift=spo,imp_ratio_clip=0.2
+    - scheduled_perplexity,start=0.5,end=0.3
+    - bootstrap_mse_loss,strength=0.1
+  lr: 5e-5
+  save_every: 1000
+  show_every: 10
+  weight_decay: 0.01
+  iterations: 8000

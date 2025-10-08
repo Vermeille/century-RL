@@ -7,17 +7,19 @@ model: medium
 train:
   optimizer: AdamW
   gradient_epochs: 1
-  discount_factor: 0.95
-  lr: 0.0001
+  discount_factor: 0.99
+  lr: 0.001
+  reference_model_update: "True"
   batch_size: 8
   show_every: 1
   save_every: 10
+  reward_rescale: 0.1
   losses:
     - value_mse_loss,strength=0
     - q_mse_loss
 
 self_play:
-  num_games: 50
+  num_games: 8
   max_len: 500
   strategies:
     - argmax,model=this,epsilon=0.1
@@ -25,7 +27,7 @@ self_play:
 pit:
   num_games: 32
   max_len: 220
-  every: 1
+  every: 100
   strategies:
     - argmax,model=this
     - random_buy

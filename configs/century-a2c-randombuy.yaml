@@ -1,25 +1,31 @@
 device: cuda
-tag: a2c
+tag: spo
 
 game: century
 
-model: medium
+model: cnn
 
 train:
   optimizer: AdamW
   gradient_epochs: 1
-  discount_factor: 0.98
-  lr: 0.001
-  batch_size: 8
+  discount_factor: 0.995
+  lr: 1e-5
+  batch_size: 32
   show_every: 10
-  save_every: 10
+  save_every: 1000
+  gae_lambda: 0.98
+  weight_decay: 0.01
+  reference_model_update: "True"
+  iterations: 8000
+  reward_rescale: 0.1
   #only_players: [0]
   losses:
-    - bootstrap_mse_loss,strength=1
-    - policy_gradient_loss,weight=advantage
+    - policy_gradient_loss,weight=normalized_gae,drift=spo,imp_ratio_clip=0.2
+    - scheduled_perplexity,start=0.5,end=0.3
+    - bootstrap_mse_loss,strength=0.1
 
 self_play:
-  num_games: 50
+  num_games: 12
   max_len: 200
   batch_size: 50
   strategies:
@@ -34,3 +40,5 @@ pit:
   strategies:
     - policy_sampling,model=this,temperature=0.001
     - random_buy
+
+
