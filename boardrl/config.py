@@ -32,7 +32,7 @@ class TrainConfig(StrictModel):
     iterations: float = float("inf")
     discount_factor: float = 0.99
     gae_lambda: float = 0.95
-    losses: List[str] = Field(default_factory=list)
+    losses: List[str | dict] = Field(default_factory=list)
     entropy_reward_scale: Optional[float] = None
     reward_rescale: Optional[float] = None
     only_players: Optional[List[int]] = None

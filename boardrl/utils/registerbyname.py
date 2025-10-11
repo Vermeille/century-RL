@@ -52,11 +52,17 @@ class RegisterByName:
         return self
 
     def __call__(self, descr_string, **provided_args):
-        name, *arg_list = descr_string.split(",")
-        args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
+        if isinstance(descr_string, str):
+            name, *arg_list = descr_string.split(",")
+            args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
+        elif isinstance(descr_string, dict):
+            args = descr_string
+            name = args.pop("name")
+        else:
+            raise ValueError("descr_string must be a string or a dict")
 
         if name not in self.registry:
-            raise ValueError(f"Unknown class: {descr_string}")
+            raise ValueError(f"Unknown class: {name}")
 
         klass, arg_info = self.registry[name]
         init_args = {}
