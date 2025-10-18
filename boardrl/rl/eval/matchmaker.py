@@ -2,9 +2,50 @@ from __future__ import annotations
 
 import torch
 from dataclasses import dataclass
-from typing import Mapping, MutableMapping, Sequence
+from typing import Mapping, MutableMapping, Sequence, List
+from boardrl.utils.registerbyname import RegisterByName
 
 from boardrl.rl.eval.selfplay import SelfPlayResults, pit, self_play2
+
+meta_strategies = RegisterByName()
+
+
+def resolve_strat(s, meta_strategies, state, **kwargs):
+    print("s", s, kwargs)
+    if s in meta_strategies:
+        return meta_strategies(
+            s,
+            meta_strategies=meta_strategies,
+            state=state,
+            kwargs=kwargs,
+        )
+    return s
+
+
+@meta_strategies.register("meta_random")
+def meta_random(meta_strategies, candidates, state, kwargs):
+    import random
+
+    c = random.choices(
+        [c["strat"] for c in candidates],
+        weights=[c.get("weight", 1.0) for c in candidates],
+    )[0]
+    return resolve_strat(c, meta_strategies, state, **kwargs)
+
+
+@meta_strategies.register("meta_best_opponent")
+def meta_best_opponent(meta_strategies, to, state, kwargs):
+    winrates = state["matrix"]
+    print("winrates", winrates)
+    for op, op2 in winrates.items():
+        if len(op2) == 0:
+            return resolve_strat(op, meta_strategies, state, **kwargs)
+    candidates = list(winrates[to].items())
+    values = torch.tensor([c[1] for c in candidates])
+    values = torch.distributions.Categorical(logits=-40 * values)
+    sampled = values.sample((1,))
+    new = candidates[sampled.item()][0]
+    return resolve_strat(new, meta_strategies, state, **kwargs)
 
 
 @dataclass
@@ -31,15 +72,11 @@ class PairStats:
 class MatchMaker:
     """Creates strategies, runs games and tracks aggregated outcomes."""
 
-    def __init__(
-        self, game_desc, model_pool, discount_factor: float, *, elo_k: float = 32.0
-    ):
+    def __init__(self, game_desc, model_pool, discount_factor: float):
         self._game_desc = game_desc
         self._model_pool = model_pool
         self._discount_factor = discount_factor
-        self._elo_k = elo_k
         self._win_matrix: MutableMapping[str, MutableMapping[str, PairStats]] = {}
-        self._elo: dict[str, float] = {}
 
     @property
     def win_matrix(self) -> Mapping[str, Mapping[str, float]]:
@@ -49,12 +86,6 @@ class MatchMaker:
             outer: {inner: stats.win_rate for inner, stats in inner_map.items()}
             for outer, inner_map in self._win_matrix.items()
         }
-
-    @property
-    def elo(self) -> Mapping[str, float]:
-        """Return the current Elo ratings for each seen strategy."""
-
-        return dict(self._elo)
 
     def head_to_head(self, first: str, second: str) -> PairStats:
         """Return cumulative head-to-head stats between two strategies."""
@@ -66,51 +97,35 @@ class MatchMaker:
 
     def reset_history(self) -> None:
         self._win_matrix.clear()
-        self._elo.clear()
 
     def run_self_play(
         self,
-        strategy_names: Sequence[str],
+        strategy_names: Sequence[str | dict],
         num_games: int,
         max_len: int,
         *,
         rotate: bool = True,
         desc: str = "playing games",
     ) -> SelfPlayResults:
-        def x(strats):
-            ss = strats[:]
-            for i, s in enumerate(ss):
-                if not s.startswith("opponent,to="):
-                    continue
-
-                new = None
-                for p1, op in self._win_matrix.items():
-                    if len(op) == 0:
-                        new = p1
-                        break
-
-                if new is None:
-                    to = int(s[len("opponent,to=") :])
-                    base = strats[to]
-                    if base not in self._win_matrix:
-                        continue
-                    candidates = list(self._win_matrix[base].items())
-                    values = torch.tensor([c[1].win_rate for c in candidates])
-                    values = torch.distributions.Categorical(logits=-20 * values)
-                    sampled = values.sample((1,))
-                    new = candidates[sampled.item()][0]
-                ss[i] = new
-            return ss
-
-        strategy_names = [x(strategy_names) for _ in range(num_games)]
+        strategies_names = [
+            [
+                resolve_strat(
+                    s,
+                    meta_strategies=meta_strategies,
+                    state={"matrix": self.win_matrix},
+                )
+                for s in strategy_names
+            ]
+            for _ in range(num_games)
+        ]
         results = self_play2(
             self._game_desc.make_game,
-            [self._make_strategies(s) for s in strategy_names],
+            [self._make_strategies(s) for s in strategies_names],
             max_len,
             rotate=rotate,
             desc=desc,
         )
-        self._record_outcomes(strategy_names, results)
+        self._record_outcomes(strategies_names, results)
         return results
 
     def run_pit(
@@ -130,7 +145,7 @@ class MatchMaker:
         )
         return results
 
-    def _make_strategies(self, strategy_names: Sequence[str]):
+    def _make_strategies(self, strategy_names: Sequence[str | dict]):
         return [
             self._game_desc.strategy_from_string(
                 strategy,
@@ -141,7 +156,7 @@ class MatchMaker:
         ]
 
     def _record_outcomes(
-        self, strategy_names: Sequence[Sequence[str]], results: SelfPlayResults
+        self, strategy_names: Sequence[Sequence[str | dict]], results: SelfPlayResults
     ) -> None:
         if not results:
             return
@@ -149,6 +164,7 @@ class MatchMaker:
         for s_name, game in zip(strategy_names, results):
             scores: dict[str, float] = {}
             for trace in game.by_strategy:
+                print(s_name, trace.strategy_id)
                 name = s_name[trace.strategy_id]
                 end_state = trace[-1]
                 score = end_state.current_diff_points
@@ -161,7 +177,6 @@ class MatchMaker:
             for name in scores:
                 self.ensure_strategy_registered(name)
 
-            pairwise_deltas: dict[str, float] = {name: 0.0 for name in scores}
             names = list(scores)
             for i in range(len(names)):
                 for j in range(i + 1, len(names)):
@@ -172,19 +187,9 @@ class MatchMaker:
                     result_a, result_b = self._pair_result(scores[a], scores[b])
                     self._update_pair_stats(a, b, result_a, result_b)
 
-                    expected_a = self._expected_score(self._elo[a], self._elo[b])
-                    expected_b = 1.0 - expected_a
-                    pairwise_deltas[a] += self._elo_k * (result_a - expected_a)
-                    pairwise_deltas[b] += self._elo_k * (result_b - expected_b)
-
-            for name, delta in pairwise_deltas.items():
-                self._elo[name] += delta
-
     def ensure_strategy_registered(self, name: str) -> None:
         if name not in self._win_matrix:
             self._win_matrix[name] = {}
-        if name not in self._elo:
-            self._elo[name] = 1500.0
 
     def _get_pair_stats(self, first: str, second: str) -> PairStats:
         inner = self._win_matrix.setdefault(first, {})
@@ -207,8 +212,3 @@ class MatchMaker:
         if score_a > score_b:
             return 1.0, 0.0
         return 0.0, 1.0
-
-    @staticmethod
-    def _expected_score(rating_a: float, rating_b: float) -> float:
-        exponent = (rating_b - rating_a) / 400.0
-        return 1.0 / (1.0 + 10**exponent)

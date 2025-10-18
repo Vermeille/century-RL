@@ -43,7 +43,7 @@ class TrainConfig(StrictModel):
 class SelfPlayConfig(StrictModel):
     num_games: int = 4
     max_len: int = 500
-    strategies: List[str] = Field(default_factory=list)
+    strategies: List[dict | str] = Field(default_factory=list)
     batch_size: Optional[int] = None
     rotate: bool = True
 

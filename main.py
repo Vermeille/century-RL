@@ -195,7 +195,7 @@ class Trainer:
 
     def _log_pit(self):
         self.model.eval()
-        print("PIT: ", " VS ".join(self.config.pit.strategies))
+        print("PIT: ", " VS ".join(str(s) for s in self.config.pit.strategies))
         pit_results = self.match_maker.run_pit(
             self.config.pit.strategies,
             self.config.pit.num_games,
@@ -315,7 +315,7 @@ class Trainer:
         return path
 
     def _run_episode(self):
-        print("SELF PLAY: ", " VS ".join(self.config.self_play.strategies))
+        print("PIT: ", " VS ".join(str(s) for s in self.config.pit.strategies))
         self.model.eval()
         data = self.match_maker.run_self_play(
             self.config.self_play.strategies,

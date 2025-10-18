@@ -1,3 +1,4 @@
+from typing import Tuple
 import inspect
 
 
@@ -51,15 +52,24 @@ class RegisterByName:
         self.arg_readers.update(other.arg_readers)
         return self
 
-    def __call__(self, descr_string, **provided_args):
-        if isinstance(descr_string, str):
-            name, *arg_list = descr_string.split(",")
+    def __contains__(self, descr):
+        name, _ = self._read(descr)
+        return name in self.registry
+
+    def _read(self, descr: str | dict) -> Tuple[str, dict]:
+        if isinstance(descr, str):
+            name, *arg_list = descr.split(",")
             args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
-        elif isinstance(descr_string, dict):
-            args = descr_string
+        elif isinstance(descr, dict):
+            descr = dict(descr)
+            args = descr
             name = args.pop("name")
         else:
-            raise ValueError("descr_string must be a string or a dict")
+            raise ValueError(f"Invalid description: {descr} (type: {type(descr)})")
+        return name, args
+
+    def __call__(self, descr_string, **provided_args):
+        name, args = self._read(descr_string)
 
         if name not in self.registry:
             raise ValueError(f"Unknown class: {name}")
@@ -71,20 +81,27 @@ class RegisterByName:
             assert arg_name in arg_info, f"Unknown argument {arg_name} for {name}"
 
         for arg_name, (arg_type, default) in arg_info.items():
-            if arg_name in self.arg_readers:
-                init_args[arg_name] = self.arg_readers[arg_name](
-                    args.get(arg_name, None), default, provided_args.get(arg_name, None)
-                )
-            elif arg_name in provided_args:
-                init_args[arg_name] = provided_args[arg_name]
-            elif arg_name in args:
-                if arg_type is bool:
-                    assert args[arg_name] in ["True", "False"]
-                    init_args[arg_name] = args[arg_name] == "True"
+            try:
+                if arg_name in self.arg_readers:
+                    init_args[arg_name] = self.arg_readers[arg_name](
+                        args.get(arg_name, None),
+                        default,
+                        provided_args.get(arg_name, None),
+                    )
+                elif arg_name in provided_args:
+                    init_args[arg_name] = provided_args[arg_name]
+                elif arg_name in args:
+                    if arg_type is bool:
+                        assert args[arg_name] in ["True", "False"]
+                        init_args[arg_name] = args[arg_name] == "True"
+                    else:
+                        init_args[arg_name] = arg_type(args[arg_name])
                 else:
-                    init_args[arg_name] = arg_type(args[arg_name])
-            else:
-                init_args[arg_name] = default
+                    init_args[arg_name] = default
+            except Exception as e:
+                raise ValueError(
+                    f"Error processing argument {arg_name} ({repr(arg_type)}({args[arg_name]})) for {name} : {e}"
+                ) from e
 
         return klass(**init_args)
 

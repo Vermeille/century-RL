@@ -1,5 +1,5 @@
 device: cuda
-tag: spo
+tag: spo-8sp
 
 game: century
 
@@ -12,16 +12,16 @@ train:
   lr: 1e-5
   batch_size: 32
   show_every: 10
-  save_every: 1000
+  save_every: 10
   gae_lambda: 0.98
   weight_decay: 0.01
   reference_model_update: "True"
   iterations: 8000
   reward_rescale: 0.1
-  #only_players: [0]
+  only_strategies: [0]
   losses:
     - policy_gradient_loss,weight=normalized_gae,drift=spo,imp_ratio_clip=0.2
-    - scheduled_perplexity,start=0.5,end=0.3
+    - scheduled_perplexity,start=0.3,end=0.1
     - bootstrap_mse_loss,strength=0.1
 
 self_play:
@@ -30,15 +30,23 @@ self_play:
   batch_size: 50
   strategies:
     - policy_sampling,model=this
-    - policy_sampling,model=this
+    - name: meta_random
+      candidates: 
+        - weight: 8
+          strat: policy_sampling,model=this
+        - weight: 2
+          strat:
+            name: meta_best_opponent
+            to: policy_sampling,model=this
 
 pit:
-  num_games: 32
+  num_games: 8
   max_len: 200
   every: 10
   batch_size: 32
+  rotate: False
   strategies:
-    - policy_sampling,model=this,temperature=0.001
-    - random_buy
+    - policy_sampling,model=this
+    - random
 
 

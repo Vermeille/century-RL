@@ -54,9 +54,8 @@ class ModelPool:
             self.cache["reference"] = self.reference_model
             self._pinned_keys.add("reference")
 
-        if (
-            self.max_cache_size is not None
-            and self.max_cache_size < len(self._pinned_keys)
+        if self.max_cache_size is not None and self.max_cache_size < len(
+            self._pinned_keys
         ):
             raise ValueError(
                 "max_cache_size must be at least the number of persistent models"
