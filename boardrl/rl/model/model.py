@@ -214,7 +214,12 @@ class Model(nn.Module):
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
-        self.backbone = backbone_cls(dim, num_layers, head_size, self.maxlen, num_heads)
+        self.backbone_p = backbone_cls(
+            dim, num_layers, head_size, self.maxlen, num_heads
+        )
+        self.backbone_v = backbone_cls(
+            dim, num_layers, head_size, self.maxlen, num_heads
+        )
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
 
@@ -225,16 +230,17 @@ class Model(nn.Module):
             return l + [1] + [0] * (maxlen + 1 - len(l))
 
         txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
-        device = next(self.backbone.parameters()).device
+        device = next(self.backbone_p.parameters()).device
         return torch.stack(txts, dim=0).to(device)
 
     def forward(self, games: list[str], return_hidden=False):
         txt = self.text_encode(games, self.maxlen)
         attn_mask = txt != 0
-        enc = self.backbone(txt, attn_mask)
-        assert enc.shape[:-1] == txt.shape
-        policy_logits = self.to_pred(enc, attn_mask)
-        value = self.rewards(enc, attn_mask)
+        enc_p = self.backbone_p(txt, attn_mask)
+        enc_v = self.backbone_v(txt, attn_mask)
+        assert enc_v.shape[:-1] == txt.shape
+        policy_logits = self.to_pred(enc_p, attn_mask)
+        value = self.rewards(enc_v, attn_mask)
 
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
 
