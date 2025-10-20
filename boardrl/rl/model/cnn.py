@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from boardrl.rl.model.utils import zero, init
 
 
-@torch.compile
 class MaskedConv1d(nn.Conv1d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -15,7 +14,7 @@ class MaskedConv1d(nn.Conv1d):
         return super().forward(input * mask) * mask
 
 
-class Norm(nn.LayerNorm):
+class Norm(nn.RMSNorm):
     def forward(self, x):
         return super().forward(x.transpose(1, 2)).transpose(1, 2)
 
@@ -31,7 +30,7 @@ class ConvBlock1(nn.Module):
                 # groups=max(1, dim // 32),
                 groups=dim,
                 kernel_size=kernel_size,
-                padding=(kernel_size // 2) * dilation,
+                padding=(kernel_size - 1) * dilation // 2,
                 dilation=dilation,
             )
         )

@@ -1,3 +1,4 @@
+from typing import List
 import torch
 import torch.nn as nn
 from boardrl.rl.model.transformer import Transformer
@@ -28,14 +29,14 @@ class PolicyValue:
             for i in range(len(self))
         ]
 
-    def q_value(self) -> [torch.Tensor]:
+    def q_value(self) -> List[torch.Tensor]:
         return [
             v + (a - a.mean() if len(a) != 0 else 0)
             for a, v in zip(self.policy, self.value.mean)
         ]
 
 
-@torch.compile
+# @torch.compile
 class MeanPool(nn.Module):
     def forward(self, x, mask):
         mask = mask.unsqueeze(-1).to(x.dtype)
@@ -65,22 +66,6 @@ class Scale(nn.Module):
 
     def forward(self, x):
         return x * self.scale
-
-
-class PolicyHead(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.out = nn.Sequential(
-            # it IS Detrimental
-            # nn.LayerNorm(dim),
-            zero(nn.Linear(dim, 1)),
-            # BL
-            # nn.LogSoftmax(dim=1), # THIS IS WRONG BECAUSE WE SELECT AFTER
-        )
-
-    def forward(self, x, attn_mask):
-        x = self.out(x)  # BLD
-        return x.squeeze(-1)
 
 
 class PolicyHead(nn.Module):
