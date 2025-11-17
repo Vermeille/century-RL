@@ -119,7 +119,7 @@ def to_trainset(
                         state=log.state,
                         action_idx=log.action_idx,
                         action_distribution=log.action_distribution,
-                        score=float(log.current_diff_points),
+                        score=float(log.score),
                         reward=float(log.reward),
                         returns=log.returns,
                         next=None,
