@@ -77,7 +77,9 @@ class SelfPlayResults(list):
         return SelfPlayResults(
             [
                 GameTrace(
-                    sorted([g.by_seat[p] for p in players], key=lambda t: t.seat_id)
+                    list(
+                        sorted([g.by_seat[p] for p in players], key=lambda t: t.seat_id)
+                    )
                 )
                 for g in self
             ]
@@ -87,9 +89,11 @@ class SelfPlayResults(list):
         return SelfPlayResults(
             [
                 GameTrace(
-                    sorted(
-                        [g.by_strategy[s] for s in strategies],
-                        key=lambda t: t.seat_id,
+                    list(
+                        sorted(
+                            [g.by_strategy[s] for s in strategies],
+                            key=lambda t: t.seat_id,
+                        )
                     )
                 )
                 for g in self
