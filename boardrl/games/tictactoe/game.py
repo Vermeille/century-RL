@@ -1,3 +1,4 @@
+from typing import List
 import random
 
 
@@ -5,7 +6,7 @@ class TicTacToe:
     # Specific
     def __init__(self, num_players=2):
         assert num_players == 2
-        self.board = [None for _ in range(9)]
+        self.board: List[int | None] = [None for _ in range(9)]
         self.turn = 0
         self.moves = [str(i) for i in range(9)]
 
@@ -32,7 +33,7 @@ class TicTacToe:
         rep = {None: " ", 0: "O", 1: "X"}
         lines = [">" + rep[p]]
         for row in [self.board[i * 3 : (i + 1) * 3] for i in range(3)]:
-            lines.append("|" + "".join([rep[r] for r in row]) + "|")
+            lines.append("".join([rep[r] for r in row]))
         return "\n".join(lines)
 
     def display_with_moves(self):

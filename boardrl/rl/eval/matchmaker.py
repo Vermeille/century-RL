@@ -11,7 +11,6 @@ meta_strategies = RegisterByName()
 
 
 def resolve_strat(s, meta_strategies, state, **kwargs):
-    print("s", s, kwargs)
     if s in meta_strategies:
         return meta_strategies(
             s,
