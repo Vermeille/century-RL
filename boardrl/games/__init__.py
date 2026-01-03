@@ -3,6 +3,7 @@ from boardrl.games.strategies import strategy_from_string
 from functools import partial
 from boardrl.games.thegame.game import TheGame as TheGameGame
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
+from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
 
 
 class GameDesc:
@@ -93,10 +94,13 @@ class GuessNumber(GameDesc):
         )
 
 
-@games_library.register("rps")
+@games_library.register("rps", args_from=RockPaperScissorsGame)
 class RPS(GameDesc):
-    def __init__(self):
-        from boardrl.games.rps.game import RockPaperScissors
+    def __init__(self, *args, **kwargs):
         from boardrl.games.rps.metrics import Metrics
 
-        super().__init__(RockPaperScissors, strategy_from_string, Metrics)
+        super().__init__(
+            partial(RockPaperScissorsGame, *args, **kwargs),
+            strategy_from_string,
+            Metrics,
+        )

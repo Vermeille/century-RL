@@ -1,14 +1,22 @@
+from typing import List
 import random
 
 
 class RockPaperScissors:
     """Single-round Rock Paper Scissors game with hidden decisions."""
 
-    def __init__(self, num_players: int = 2):
+    def __init__(
+        self,
+        num_players: int = 2,
+        v_rock: float = 1,
+        v_paper: float = 1,
+        v_scissors: float = 1,
+    ):
         assert num_players == 2, "RockPaperScissors supports exactly two players"
         self.num_players = num_players
         self.turn = 0
         self.moves = ["rock", "paper", "scissors"]
+        self.values = [v_rock, v_paper, v_scissors]
         self._choices = [None, None]
 
     # ------------------------------------------------------------------
@@ -72,8 +80,12 @@ class RockPaperScissors:
             return 0
         if a == b:
             return 0
-        wins = {("rock", "scissors"), ("scissors", "paper"), ("paper", "rock")}
-        return 1 if (a, b) in wins else -1
+        wins = {
+            ("rock", "scissors"): self.values[0],
+            ("paper", "rock"): self.values[1],
+            ("scissors", "paper"): self.values[2],
+        }
+        return wins.get((a, b), -wins.get((b, a), 0))
 
     def points_for(self, me: int):
         if not self.ended():
