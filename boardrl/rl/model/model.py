@@ -199,9 +199,52 @@ class Model(nn.Module):
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
-        self.backbone = backbone_cls(dim, num_layers, head_size, self.maxlen, num_heads)
+        self.policy_backbone = backbone_cls(
+            dim, num_layers, head_size, self.maxlen, num_heads
+        )
+        self.value_backbone = backbone_cls(
+            dim, num_layers, head_size, self.maxlen, num_heads
+        )
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
+
+    def _expand_backbone_state_dict(self, state_dict):
+        has_backbone = any(k.startswith("backbone.") for k in state_dict)
+        has_policy = any(k.startswith("policy_backbone.") for k in state_dict)
+        has_value = any(k.startswith("value_backbone.") for k in state_dict)
+
+        if has_backbone and not (has_policy or has_value):
+            expanded = {}
+            for key, value in state_dict.items():
+                if key.startswith("backbone."):
+                    suffix = key[len("backbone.") :]
+                    expanded[f"policy_backbone.{suffix}"] = value
+                    expanded[f"value_backbone.{suffix}"] = value
+                else:
+                    expanded[key] = value
+            return expanded
+
+        if has_policy and not has_value:
+            expanded = dict(state_dict)
+            for key, value in state_dict.items():
+                if key.startswith("policy_backbone."):
+                    suffix = key[len("policy_backbone.") :]
+                    expanded.setdefault(f"value_backbone.{suffix}", value)
+            return expanded
+
+        if has_value and not has_policy:
+            expanded = dict(state_dict)
+            for key, value in state_dict.items():
+                if key.startswith("value_backbone."):
+                    suffix = key[len("value_backbone.") :]
+                    expanded.setdefault(f"policy_backbone.{suffix}", value)
+            return expanded
+
+        return state_dict
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        expanded = self._expand_backbone_state_dict(state_dict)
+        return super().load_state_dict(expanded, strict=strict)
 
     def text_encode(self, txts, maxlen):
         maxlen = min(maxlen, max(len(g) for g in txts))
@@ -210,16 +253,18 @@ class Model(nn.Module):
             return l + [1] + [0] * (maxlen + 1 - len(l))
 
         txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
-        device = next(self.backbone.parameters()).device
+        device = next(self.policy_backbone.parameters()).device
         return torch.stack(txts, dim=0).to(device)
 
     def forward(self, games: list[str], return_hidden=False):
         txt = self.text_encode(games, self.maxlen)
         attn_mask = txt != 0
-        enc = self.backbone(txt, attn_mask)
-        assert enc.shape[:-1] == txt.shape
-        policy_logits = self.to_pred(enc, attn_mask)
-        value = self.rewards(enc, attn_mask)
+        policy_enc = self.policy_backbone(txt, attn_mask)
+        value_enc = self.value_backbone(txt, attn_mask)
+        assert policy_enc.shape[:-1] == txt.shape
+        assert value_enc.shape[:-1] == txt.shape
+        policy_logits = self.to_pred(policy_enc, attn_mask)
+        value = self.rewards(value_enc, attn_mask)
 
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
 
@@ -241,7 +286,7 @@ class Model(nn.Module):
         if not return_hidden:
             return out
         else:
-            return out, enc
+            return out, policy_enc
 
 
 def load_model(model_path):
