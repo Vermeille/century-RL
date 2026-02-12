@@ -4,6 +4,7 @@ from functools import partial
 from boardrl.games.thegame.game import TheGame as TheGameGame
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
 from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
+from boardrl.games.nim.game import Nim as NimGame
 
 
 class GameDesc:
@@ -101,6 +102,18 @@ class RPS(GameDesc):
 
         super().__init__(
             partial(RockPaperScissorsGame, *args, **kwargs),
+            strategy_from_string,
+            Metrics,
+        )
+
+
+@games_library.register("nim", args_from=NimGame)
+class Nim(GameDesc):
+    def __init__(self, *args, **kwargs):
+        from boardrl.games.nim.metrics import Metrics
+
+        super().__init__(
+            partial(NimGame, *args, **kwargs),
             strategy_from_string,
             Metrics,
         )
