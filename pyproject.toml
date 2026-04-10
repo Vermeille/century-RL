@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "wheel", "Cython"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["boardrl", "experiments"]
+[tool.setuptools.packages.find]
+include = ["boardrl*"]

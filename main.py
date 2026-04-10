@@ -6,6 +6,7 @@ import yaml
 import random
 from tqdm import tqdm
 import math
+import pyximport
 from heavyball import ForeachMuon
 
 from boardrl.config import Config
@@ -15,6 +16,8 @@ from boardrl.rl.utils import pearson_corr, ReferenceModelHandler
 from boardrl.rl.eval.matchmaker import MatchMaker
 from boardrl.rl.eval.selfplay import SelfPlayResults
 from boardrl.games import games_library
+
+pyximport.install()
 from boardrl.cyutils import init_seed
 from boardrl.utils import BatchProcessor, Visualizer, ModelPool, chunk
 from boardrl.training.returns import compute_returns, annotate_with_model
