@@ -35,7 +35,7 @@ class ConnectFour:
             assert force in [0, 1]
             p = force
 
-        rep = {None: " ", p: "O", 1 - p: "X"}
+        # Absolute encoding; the leading marker below indicates the side to move.
         rep = {None: " ", 0: "O", 1: "X"}
         lines = [">" + rep[p]]
         for y in range(self.height - 1, -1, -1):

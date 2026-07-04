@@ -87,3 +87,42 @@ class PolicySamplingStrategy:
         policy = (await self.nn(g.display_with_moves())).policy[0].cpu()
         policy = policy / self.temperature
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
+
+
+@strategy_from_string.register("gumbel")
+class Gumbel:
+    def __init__(
+        self, model, discount_factor: float, num_evals: int = 2, q_scale: float = 1.0
+    ):
+        self.model = model
+        self.num_evals = num_evals
+        self.gamma = discount_factor
+        self.q_scale = q_scale
+
+    async def __call__(self, g: Game):
+        if len(g.moves) == 1:
+            return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
+
+        player = g.current_player()
+        base_points = g.diff_points_for(player)
+        nn_out = await self.model(g.display_with_moves())
+        base_val = nn_out.value.mean.cpu()
+        logits = nn_out.policy[0].cpu()
+        gumbels = torch.distributions.Gumbel(
+            torch.tensor([0.0] * len(logits)), torch.tensor([1.0] * len(logits))
+        ).sample((1,))[0]
+        qs = torch.full_like(logits, fill_value=float("-inf"))
+        for mov in (logits + gumbels).topk(self.num_evals).indices:
+            g2 = g.copy()
+            g2.play_idx(mov)
+            val = (await self.model(g2.display_with_moves())).value.mean.cpu()
+            r = g2.diff_points_for(player) - base_points
+            q = 0.1 * r + self.gamma * val - base_val
+            qs[mov] = q
+        final_move = torch.argmax(logits + gumbels + self.q_scale * qs)
+        print(self.q_scale * qs)
+        return one_hot(final_move, len(logits)).log(), {
+            "moves": dict(
+                zip(g.moves, zip(logits.tolist(), gumbels.tolist(), qs.tolist()))
+            )
+        }

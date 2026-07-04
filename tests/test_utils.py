@@ -18,7 +18,7 @@ if "boardrl.cyutils" not in sys.modules:
     cyutils.fast_sample = lambda x: 0
     sys.modules["boardrl.cyutils"] = cyutils
 
-from boardrl.utils import BatchProcessor, RegisterByName
+from boardrl.utils import BatchProcessor, RegisterByName, chunk
 import torch
 from boardrl.rl.utils import pearson_corr, explained_variance
 
@@ -75,6 +75,31 @@ def test_register_by_name_basic():
 
     inst2 = registry("foo,x=5")
     assert inst2.x == 5 and inst2.y == "bar"
+
+
+@pytest.mark.parametrize(
+    "n,size,expected",
+    [
+        (0, 4, []),
+        (1, 4, []),
+        (3, 4, []),
+        (4, 4, [[0, 1, 2, 3]]),
+        (5, 4, [[0, 1, 2, 3]]),
+        (8, 4, [[0, 1, 2, 3], [4, 5, 6, 7]]),
+        (9, 4, [[0, 1, 2, 3], [4, 5, 6, 7]]),
+    ],
+)
+def test_chunk_skip_last_boundaries(n, size, expected):
+    assert list(chunk(list(range(n)), size, skip_last=True)) == expected
+
+
+def test_chunk_keeps_incomplete_tail_by_default():
+    assert list(chunk(list(range(5)), 4)) == [[0, 1, 2, 3], [4]]
+
+
+def test_chunk_rejects_non_positive_size():
+    with pytest.raises(ValueError, match="positive"):
+        list(chunk([1], 0))
 
 
 def test_pearson_corr_identity():

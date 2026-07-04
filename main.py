@@ -397,7 +397,7 @@ class Trainer:
                 )
             print(len(trainset), "samples")
             self._train_epoch_on_policy(trainset)
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
             self.epoch += 1
         self._save_model()
 

@@ -111,9 +111,14 @@ class RPS(GameDesc):
 class Nim(GameDesc):
     def __init__(self, *args, **kwargs):
         from boardrl.games.nim.metrics import Metrics
+        from boardrl.games.nim.strategies import (
+            strategy_from_string as nim_strategy_from_string,
+        )
+
+        strats = nim_strategy_from_string.copy().update(strategy_from_string)
 
         super().__init__(
             partial(NimGame, *args, **kwargs),
-            strategy_from_string,
+            strats,
             Metrics,
         )

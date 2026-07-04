@@ -60,9 +60,6 @@ class Strategies:
             "random_buy",
             "all_actions_then_random_buy",
             "no_actions_random_buy",
-            "mcts,iterations=50,max_unroll=30,discount_factor=0.9",
-            "mcts,iterations=100,max_unroll=30,discount_factor=0.9",
-            "mcts,iterations=1000,max_unroll=30,discount_factor=0.9",
         ]
         return strategies
 
@@ -330,7 +327,12 @@ def agnostic_ui():
       async function analyzeServer() {
         // Default: use /analyze for the current server-side game state
         if (!strategyEl.value) return;
-        const data = await fetch('/analyze?'+new URLSearchParams({strategy: strategyEl.value})).then(r=>r.json());
+        const text = (stateEl.value || '').replace(/\n*$/, '') + (movesBlock ? '\n' + movesBlock : '');
+        const data = await fetch('/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ strategy: strategyEl.value, state: text })
+        }).then(r => r.json());
         const probs = toProbs(data.moves || {});
         updateBars(probs);
       }
@@ -401,15 +403,10 @@ async def analyze_post(
     strategy: str = Body(..., embed=True),
     state: str | None = Body(None, embed=True),
 ):
-    class Dummy:
-        def display_with_moves(self):
-            return state
-
-        moves = [s[1:] for s in state.splitlines() if s[0] == "@"]
-
-    # If state is provided, analyze text directly using a model strategy
-    pred = await strategies.get_strategy(strategy)(Dummy())
-    return pred[1]
+    moves = state.split("@")[1:]
+    pred, value = await strategies.get_strategy(strategy).nn(state)
+    print(value)
+    return {"moves": {m.strip(): p.item() for m, p in zip(moves, pred[0])}}
 
 
 if __name__ == "__main__":

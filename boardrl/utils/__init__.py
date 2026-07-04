@@ -1,4 +1,5 @@
 import torch
+from torch._dynamo.decorators import skip
 from boardrl.utils.batchprocessor import BatchProcessor, run_tasks, CachedBatchProcessor
 from boardrl.utils.modelpool import ModelPool
 from boardrl.utils.registerbyname import RegisterByName
@@ -20,13 +21,14 @@ __all__ = [
 
 
 def chunk(data, size, skip_last=False):
-    i = 0
-    while i + size < len(data):
-        yield data[i : i + size]
-        i += size
+    if size <= 0:
+        raise ValueError("chunk size must be positive")
 
-    if not skip_last:
-        yield data[i : i + size]
+    for i in range(0, len(data), size):
+        batch = data[i : i + size]
+        if skip_last and len(batch) < size:
+            continue
+        yield batch
 
 
 # @torch.jit.script
@@ -52,6 +54,8 @@ class Game:
     def simulate_to_end(self): ...
 
     def diff_points_for(self, player: int) -> float: ...
+
+    def points_for(self, player: int) -> float: ...
 
     def ended(self) -> bool: ...
 
