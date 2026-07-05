@@ -208,6 +208,10 @@ class Model(nn.Module):
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
 
+    @property
+    def backbone(self):
+        return self.policy_backbone
+
     def _expand_backbone_state_dict(self, state_dict):
         has_backbone = any(k.startswith("backbone.") for k in state_dict)
         has_policy = any(k.startswith("policy_backbone.") for k in state_dict)
@@ -244,6 +248,12 @@ class Model(nn.Module):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         expanded = self._expand_backbone_state_dict(state_dict)
+        if strict:
+            model_keys = set(super().state_dict())
+            extra_keys = sorted(set(expanded) - model_keys)
+            if extra_keys:
+                expanded = {k: v for k, v in expanded.items() if k in model_keys}
+                print(f"Dropped {len(extra_keys)} stale checkpoint keys")
         return super().load_state_dict(expanded, strict=strict)
 
     def text_encode(self, txts, maxlen):
@@ -299,7 +309,13 @@ def load_model(model_path):
         config.get("num_heads"),
         backbone=config.get("backbone", "transformer"),
     )
-    print(model.load_state_dict(ckpt["model"]))
+    ckpt_state = model._expand_backbone_state_dict(ckpt["model"])
+    model_state = model.state_dict()
+    extra_keys = sorted(set(ckpt_state) - set(model_state))
+    if extra_keys:
+        ckpt_state = {k: v for k, v in ckpt_state.items() if k in model_state}
+        print(f"Dropped {len(extra_keys)} stale checkpoint keys from {model_path}")
+    print(model.load_state_dict(ckpt_state))
     if torch.cuda.is_available():
         model.cuda()
     model.eval()

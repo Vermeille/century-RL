@@ -330,7 +330,7 @@ class KLPenalty:
                     reduction="sum",
                     log_target=True,
                 )
-        return self.strength * loss
+        return self.strength * loss / len(sample.reference_policy)
 
 
 @loss_from_string.register("z_loss")
@@ -359,6 +359,27 @@ class EntropyBonus:
     def __call__(self, pred_policy, pred_value, sample, training_state):
         s = self.strength / len(sample.action_idx)
         return -s * sum(entropy(logit, dim=0) for logit in pred_policy)
+
+
+@loss_from_string.register("linear_entropy_bonus")
+class LinearEntropyBonus:
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(self, start: float, end: float = 0.0):
+        self.start = start
+        self.end = end
+
+    def strength(self, progress: float) -> float:
+        progress = max(0.0, min(1.0, progress))
+        return self.start * (1 - progress) + self.end * progress
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        progress = training_state["progress"]
+        return EntropyBonus(self.strength(progress))(
+            pred_policy, pred_value, sample, training_state
+        )
 
 
 @loss_from_string.register("scheduled_perplexity")

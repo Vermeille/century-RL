@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from boardrl.rl.model.loss import (
     PolicyGradientLoss,
     EntropyBonus,
+    LinearEntropyBonus,
     KLPenalty,
 )
 
@@ -40,6 +41,16 @@ def test_entropy_regularizer_drives_uniform_policy():
     assert torch.allclose(probs, torch.full_like(probs, 1 / probs.numel()), atol=1e-3)
 
 
+def test_linear_entropy_bonus_interpolates_strength():
+    loss = LinearEntropyBonus(start=0.01, end=0.001)
+
+    assert loss.strength(-1.0) == 0.01
+    assert loss.strength(0.0) == 0.01
+    assert loss.strength(0.5) == 0.0055
+    assert loss.strength(1.0) == 0.001
+    assert loss.strength(2.0) == 0.001
+
+
 def test_kl_regularizer_matches_manual():
     logits = torch.tensor([0.5, -0.5], requires_grad=True)
     reference_logits = torch.tensor([1.0, 0.0])
@@ -65,6 +76,21 @@ def test_kl_regularizer_matches_manual():
     )
     expected = ce + 0.5 * kl
     assert torch.allclose(loss, expected)
+
+
+def test_kl_regularizer_batch_size_invariant():
+    logits = torch.tensor([0.5, -0.5])
+    reference_logits = torch.tensor([-0.5, 0.5])
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0, 0.0]))
+    kl_penalty = KLPenalty(strength=0.5)
+
+    one_sample = SimpleNamespace(reference_policy=[reference_logits])
+    two_samples = SimpleNamespace(reference_policy=[reference_logits, reference_logits])
+
+    one_loss = kl_penalty([logits], pred_value, one_sample, training_state={})
+    two_loss = kl_penalty([logits, logits], pred_value, two_samples, training_state={})
+
+    assert torch.allclose(one_loss, two_loss)
 
 
 def test_policy_gradient_loss_with_normalized_gae():

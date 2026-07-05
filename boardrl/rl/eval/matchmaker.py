@@ -35,7 +35,6 @@ def meta_random(meta_strategies, candidates, state, kwargs):
 @meta_strategies.register("meta_best_opponent")
 def meta_best_opponent(meta_strategies, to, state, kwargs):
     winrates = state["matrix"]
-    print("winrates", winrates)
     for op, op2 in winrates.items():
         if len(op2) == 0:
             return resolve_strat(op, meta_strategies, state, **kwargs)

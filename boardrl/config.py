@@ -24,10 +24,13 @@ class TrainConfig(StrictModel):
     optimizer: str = "AdamW"
     gradient_epochs: int = 1
     lr: float = 1e-4
+    lr_min_scale: float = 0.0
+    warmup_epochs: Optional[float] = None
     betas: Tuple[float, float] = (0.9, 0.999)
     weight_decay: float = 0.01
     batch_size: int = 12
     show_every: int = 10
+    print_histories: bool = True
     save_every: int = 100
     iterations: float = float("inf")
     discount_factor: float = 0.99
@@ -65,6 +68,7 @@ class NetConfig(StrictModel):
 class Config(StrictModel):
     device: str = "cpu"
     tag: str = ""
+    seed: Optional[int] = None
     game: str = "century"
     model: Optional[str] = None
     net: NetConfig = Field(default_factory=NetConfig)

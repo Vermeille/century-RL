@@ -116,6 +116,8 @@ def to_trainset(
                 continue
             end = hist[-1]
             hist = hist[:-1]
+            if len(hist) == 0:
+                continue
             for i, log in list(enumerate(hist)):
                 out.append(
                     TrainingSample(
@@ -161,8 +163,18 @@ class Trainer:
         if checkpoint_path is not None:
             ckpt = torch.load(checkpoint_path)
             self.model.load_state_dict(ckpt["model"])
-            self.opt.load_state_dict(ckpt["opt"])
+            try:
+                self.opt.load_state_dict(ckpt["opt"])
+            except ValueError as e:
+                print(f"Could not load optimizer state from {checkpoint_path}: {e}")
             self.epoch = ckpt["epoch"]
+            ckpt_train = ckpt.get("config", {}).get("train", {})
+            if ckpt_train.get("iterations") != config.train.iterations:
+                print(
+                    "Checkpoint was trained with train.iterations="
+                    f"{ckpt_train.get('iterations')}; current run uses "
+                    f"{config.train.iterations}. This changes the LR schedule."
+                )
 
         self.reference_handler = ReferenceModelHandler(
             self.model, self.config.train.reference_model_update
@@ -196,6 +208,12 @@ class Trainer:
             self.config.train.discount_factor,
         )
 
+    def _training_progress(self) -> float:
+        total = float(self.config.train.iterations)
+        if not math.isfinite(total) or total <= 0:
+            return 0.0
+        return max(0.0, min(1.0, self.epoch / total))
+
     def _log_pit(self):
         self.model.eval()
         print("PIT: ", " VS ".join(str(s) for s in self.config.pit.strategies))
@@ -206,7 +224,11 @@ class Trainer:
             rotate=self.config.pit.rotate,
         )
         compute_returns(pit_results.games, self.config.train.discount_factor)
-        self.game_desc.make_metrics(pit_results.games).print_short_history()
+        if (
+            self.config.train.print_histories
+            and self.epoch % self.config.train.show_every == 0
+        ):
+            self.game_desc.make_metrics(pit_results.games).print_short_history()
         self.viz.push("pit.win_rate (strategy)", pit_results.win_rate(0), self.epoch)
         # If supported, also display min/max band around mean for pit points.
         self.viz.push_range("pit.points", pit_results.my_points(0), self.epoch)
@@ -218,76 +240,101 @@ class Trainer:
         now = time.time()
         total_losses = defaultdict(float)
         num_batches = 0
+        total_samples = 0
+        if len(data) == 0:
+            print("No training samples; skipping optimizer step")
+            return
         self.opt.epoch_start(self.epoch)
-        for batch in tqdm(
-            chunk(data, self.config.train.batch_size, skip_last=True),
-            desc=f"epoch {self.epoch}",
-            total=len(data) // self.config.train.batch_size,
-        ):
-            self.opt.batch_start()
-            with torch.no_grad():
-                samples = TrainingSample.collate(batch).to(
-                    self.config.device, non_blocking=True
-                )
-            policy, value = self.model(samples.state)
-            loss_dict = {
-                loss_fn._registry_name: loss_fn(
-                    policy,
-                    value,
-                    samples,
-                    {"progress": self.epoch / self.config.train.iterations},
-                )
-                for loss_fn in self.losses
-            }
-            loss = sum(loss_dict.values())
-            # (loss * len(samples.state)).backward()
-            loss.backward()
-            self.opt.batch_end()
-            if self.epoch % self.config.train.show_every == 0:
+        can_reuse_rollout = all(loss.supports_off_policy for loss in self.losses)
+        gradient_epochs = self.config.train.gradient_epochs if can_reuse_rollout else 1
+        if not can_reuse_rollout and self.config.train.gradient_epochs != 1:
+            print("strict on-policy losses: ignoring gradient_epochs > 1")
+        batch_total = math.ceil(len(data) / self.config.train.batch_size)
+        for grad_epoch in range(gradient_epochs):
+            random.shuffle(data)
+            if not can_reuse_rollout:
+                self.opt.batch_start()
+            for batch in tqdm(
+                chunk(data, self.config.train.batch_size),
+                desc=f"epoch {self.epoch}.{grad_epoch}",
+                total=batch_total,
+            ):
+                if can_reuse_rollout:
+                    self.opt.batch_start()
                 with torch.no_grad():
-                    for loss_name, loss_val in loss_dict.items():
-                        total_losses[loss_name] += loss_val.item()
-                    total_losses["normalized_perplexity"] += sum(
-                        (
-                            torch.exp(
-                                torch.sum(
-                                    -torch.softmax(p, 0) * torch.log_softmax(p, 0)
+                    samples = TrainingSample.collate(batch).to(
+                        self.config.device, non_blocking=True
+                    )
+                policy, value = self.model(samples.state)
+                loss_dict = {
+                    loss_fn._registry_name: loss_fn(
+                        policy,
+                        value,
+                        samples,
+                        {"progress": self._training_progress()},
+                    )
+                    for loss_fn in self.losses
+                }
+                loss = sum(loss_dict.values())
+                if not can_reuse_rollout:
+                    loss = loss * (len(batch) / len(data))
+                loss.backward()
+                if can_reuse_rollout:
+                    grad_mag = torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=50.0
+                    )
+                    self.opt.batch_end()
+                else:
+                    grad_mag = None
+                total_samples += len(batch)
+                if self.epoch % self.config.train.show_every == 0:
+                    with torch.no_grad():
+                        for loss_name, loss_val in loss_dict.items():
+                            total_losses[loss_name] += loss_val.item()
+                        total_losses["normalized_perplexity"] += sum(
+                            (
+                                torch.exp(
+                                    torch.sum(
+                                        -torch.softmax(p, 0) * torch.log_softmax(p, 0)
+                                    )
+                                )
+                                - 1
+                            )
+                            / (len(p) - 1 + 1e-8)
+                            for p in policy
+                        ).item() / len(policy)
+                        total_losses["perplexity"] += sum(
+                            (
+                                torch.exp(
+                                    torch.sum(
+                                        -torch.softmax(p, 0) * torch.log_softmax(p, 0)
+                                    )
                                 )
                             )
-                            - 1
-                        )
-                        / (len(p) - 1 + 1e-8)
-                        for p in policy
-                    ).item() / len(policy)
-                    total_losses["perplexity"] += sum(
-                        (
-                            torch.exp(
-                                torch.sum(
-                                    -torch.softmax(p, 0) * torch.log_softmax(p, 0)
-                                )
-                            )
-                        )
-                        for p in policy
-                    ).item() / len(policy)
-                    pearson = pearson_corr(value.mean, samples.returns)
-                    total_losses["pearson"] += pearson.item()
-                    total_losses["MAE"] += torch.nn.functional.l1_loss(
-                        value.mean, samples.returns
-                    ).item()
-            num_batches += 1
+                            for p in policy
+                        ).item() / len(policy)
+                        pearson = pearson_corr(value.mean, samples.returns)
+                        total_losses["pearson"] += pearson.item()
+                        total_losses["MAE"] += torch.nn.functional.l1_loss(
+                            value.mean, samples.returns
+                        ).item()
+                        if grad_mag is not None:
+                            total_losses["grad_mag"] += grad_mag.item()
+                num_batches += 1
+            if not can_reuse_rollout:
+                grad_mag = torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), max_norm=50.0
+                )
+                self.opt.batch_end()
+                if self.epoch % self.config.train.show_every == 0:
+                    total_losses["grad_mag"] += grad_mag.item()
 
-        with torch.no_grad():
-            for p in self.model.parameters():
-                if p.grad is not None:
-                    p.grad /= len(data)
-        grad_mag = torch.nn.utils.clip_grad_norm_(
-            self.model.parameters(), max_norm=50.0
-        )
-        self.opt.epoch_end()
+        if num_batches == 0:
+            print("No full training batches; skipping optimizer step")
+            return
 
         # self.viz.push( "reference_model.version", self.reference_model.version, self.epoch)
         if self.epoch % self.config.train.show_every == 0:
-            total_losses["grad_mag"] += grad_mag.item()
             for k, v in total_losses.items():
                 self.viz.push(
                     k,
@@ -297,7 +344,7 @@ class Trainer:
             self.viz.push("lr", self.opt.current_lr, self.epoch)
         print(
             "throughput",
-            len(data) * self.config.train.gradient_epochs / (time.time() - now),
+            total_samples / (time.time() - now),
         )
         print()
 
@@ -318,7 +365,9 @@ class Trainer:
         return path
 
     def _run_episode(self):
-        print("PIT: ", " VS ".join(str(s) for s in self.config.pit.strategies))
+        print(
+            "SELF-PLAY: ", " VS ".join(str(s) for s in self.config.self_play.strategies)
+        )
         self.model.eval()
         data = self.match_maker.run_self_play(
             self.config.self_play.strategies,
@@ -334,8 +383,9 @@ class Trainer:
             reward_rescale=self.config.train.reward_rescale,
         )
         metrics = self.game_desc.make_metrics(data)
-        metrics.print_short_history()
         if self.epoch % self.config.train.show_every == 0:
+            if self.config.train.print_histories:
+                metrics.print_short_history()
             metrics.metrics_to_visdom(self.viz, self.epoch)
             avg_reward_strat = [
                 data.my_avg_reward(p, by="strategy") for p in range(data.num_players())
@@ -356,7 +406,7 @@ class Trainer:
         print("#parameters", sum(p.numel() for p in self.model.parameters()) / 1e6, "M")
 
         pit_results = None
-        while self.epoch < self.config.train.iterations:
+        while self.epoch < self.config.train.iterations + 1:
             # Update learning-rate schedule (linear decay) and log it
             print("EPOCH", self.epoch)
             if self.epoch % self.config.pit.every == 0:
@@ -434,7 +484,6 @@ def main():
     parser.add_argument("--visdom-port", default=8097)
     opts = parser.parse_args()
 
-    init_seed()
     with open(opts.config_file) as f:
         raw_config = yaml.safe_load(f)
 
@@ -456,6 +505,10 @@ def main():
         raise ValueError("config must specify 'model'")
 
     config = Config.from_dict(raw_config)
+    init_seed(config.seed)
+    if config.seed is not None:
+        random.seed(config.seed)
+        torch.manual_seed(config.seed)
 
     if config.device.startswith("cuda") and not torch.cuda.is_available():
         print(r"* - . /!\ /!\ CUDA not available, using CPU /!\ /!\ . - *")

@@ -31,5 +31,8 @@ cpdef int fast_sample(x):
     assert False, ("Should not reach here. Called fast_sample on "
         "an invalid distribution (all zeros or negative values)")
 
-cpdef init_seed():
-    srand(time(NULL))
+cpdef init_seed(seed=None):
+    if seed is None:
+        srand(time(NULL))
+    else:
+        srand(<unsigned int>seed)

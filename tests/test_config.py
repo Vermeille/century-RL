@@ -14,6 +14,7 @@ from boardrl.rl.model.model import Model
 def test_config_defaults():
     cfg = Config.from_dict({})
     assert cfg.device == "cpu"
+    assert cfg.seed is None
     assert cfg.train.optimizer == "AdamW"
     assert cfg.train.lr == 1e-4
     assert cfg.train.betas == (0.9, 0.999)
@@ -32,6 +33,7 @@ def test_config_defaults():
 def test_config_overrides():
     raw = {
         "device": "cuda",
+        "seed": 123,
         "net": {"backbone": "lstm"},
         "train": {
             "lr": 0.5,
@@ -46,6 +48,7 @@ def test_config_overrides():
     }
     cfg = Config.from_dict(raw)
     assert cfg.device == "cuda"
+    assert cfg.seed == 123
     assert cfg.train.lr == 0.5
     assert cfg.train.betas == (0.8, 0.9)
     assert cfg.train.weight_decay == 0.1
