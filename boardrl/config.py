@@ -63,6 +63,7 @@ class NetConfig(StrictModel):
     head_size: Optional[int] = None
     num_heads: Optional[int] = None
     backbone: str = "transformer"
+    shared_backbone: bool = True
 
 
 class Config(StrictModel):

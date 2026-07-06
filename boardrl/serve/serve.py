@@ -19,8 +19,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--game", default="century")
 args, _ = parser.parse_known_args()
 
-game_name = args.game
-game_desc = games_library(game_name)
+game_name = args.game.split(",")[0]
+game_desc = games_library(args.game)
 game = game_desc.make_game()
 game_dir = Path(__file__).parent.parent / "games" / game_name
 

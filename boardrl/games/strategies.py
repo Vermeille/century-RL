@@ -1,4 +1,5 @@
 import torch
+from inspect import signature
 
 from boardrl.utils import Game, ModelPool, RegisterByName
 
@@ -61,6 +62,12 @@ def mean(xs):
     return sum(xs) / len(xs)
 
 
+def randomized_copy(g: Game):
+    if "randomize" in signature(g.copy).parameters:
+        return g.copy(randomize=True)
+    return g.copy()
+
+
 @strategy_from_string.register("longest_move")
 class LongestMoveStrategy:
     async def __call__(self, g: Game):
@@ -75,9 +82,10 @@ class LongestMoveStrategy:
 
 @strategy_from_string.register("policy_sampling")
 class PolicySamplingStrategy:
-    def __init__(self, model, temperature: float = 1.0):
+    def __init__(self, model, temperature: float = 1.0, epsilon: float = 0.0):
         self.nn = model
         self.temperature = temperature
+        self.epsilon = epsilon
 
     @torch.no_grad()
     async def __call__(self, g: Game):
@@ -86,6 +94,10 @@ class PolicySamplingStrategy:
 
         policy = (await self.nn(g.display_with_moves())).policy[0].cpu()
         policy = policy / self.temperature
+        if self.epsilon != 0.0:
+            policy = torch.softmax(policy, dim=0)
+            policy = (1 - self.epsilon) * policy + self.epsilon / len(policy)
+            policy = policy.log()
         return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
 
 
@@ -112,15 +124,15 @@ class Gumbel:
             torch.tensor([0.0] * len(logits)), torch.tensor([1.0] * len(logits))
         ).sample((1,))[0]
         qs = torch.full_like(logits, fill_value=float("-inf"))
-        for mov in (logits + gumbels).topk(self.num_evals).indices:
-            g2 = g.copy()
-            g2.play_idx(mov)
+        num_evals = min(self.num_evals, len(logits))
+        for mov in (logits + gumbels).topk(num_evals).indices:
+            g2 = randomized_copy(g)
+            g2.play_idx(mov.item())
             val = (await self.model(g2.display_with_moves())).value.mean.cpu()
             r = g2.diff_points_for(player) - base_points
             q = 0.1 * r + self.gamma * val - base_val
             qs[mov] = q
         final_move = torch.argmax(logits + gumbels + self.q_scale * qs)
-        print(self.q_scale * qs)
         return one_hot(final_move, len(logits)).log(), {
             "moves": dict(
                 zip(g.moves, zip(logits.tolist(), gumbels.tolist(), qs.tolist()))

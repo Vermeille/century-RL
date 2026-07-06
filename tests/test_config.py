@@ -28,6 +28,7 @@ def test_config_defaults():
     assert cfg.pit.max_len == 220
     assert math.isinf(cfg.train.iterations)
     assert cfg.net.backbone == "transformer"
+    assert cfg.net.shared_backbone is True
 
 
 def test_config_overrides():
@@ -95,3 +96,23 @@ def test_netconfig_head_params():
     model3 = Model(**cfg3.net.model_dump())
     assert model3.backbone.head_size == 10
     assert model3.backbone.num_heads == 5
+
+
+def test_dual_backbone_config_and_state_mapping():
+    shared = Model(dim=16, num_layers=1, backbone="cnn", shared_backbone=True)
+    dual = Model(dim=16, num_layers=1, backbone="cnn", shared_backbone=False)
+
+    assert hasattr(shared, "backbone")
+    assert not hasattr(dual, "backbone")
+    assert hasattr(dual, "policy_backbone")
+    assert hasattr(dual, "value_backbone")
+
+    shared_state = shared.state_dict()
+    dual_state = dual.state_dict()
+    mapped_to_dual = dual._normalize_backbone_state_dict(shared_state)
+    mapped_to_shared = shared._normalize_backbone_state_dict(dual_state)
+
+    assert any(k.startswith("policy_backbone.") for k in mapped_to_dual)
+    assert any(k.startswith("value_backbone.") for k in mapped_to_dual)
+    assert any(k.startswith("backbone.") for k in mapped_to_shared)
+    assert not any(k.startswith("value_backbone.") for k in mapped_to_shared)

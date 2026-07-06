@@ -159,10 +159,12 @@ class MatchMaker:
         if not results:
             return
 
+        if len(strategy_names) != len(results):
+            strategy_names = [strategy_names for _ in results]
+
         for s_name, game in zip(strategy_names, results):
             scores: dict[str, float] = {}
             for trace in game.by_strategy:
-                print(s_name, trace.strategy_id)
                 name = s_name[trace.strategy_id]
                 end_state = trace[-1]
                 score = end_state.current_diff_points

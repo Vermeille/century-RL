@@ -46,26 +46,22 @@ def make_optimizer(params, train_cfg):
 
 
 class Optimizer:
-    def __init__(self, params, train_cfg, multiple_steps):
+    def __init__(self, params, train_cfg):
         self.opt = make_optimizer(params=params, train_cfg=train_cfg)
         self._initial_lr = float(train_cfg.lr)
         self._total_iterations = float(train_cfg.iterations)
+        self._warmup_epochs = train_cfg.warmup_epochs
+        self._min_lr_scale = float(train_cfg.lr_min_scale)
         self.current_lr = train_cfg.lr
 
-        print("multiple_steps", multiple_steps)
-        if multiple_steps:
-            self.epoch_start = lambda e: self._update_lr(e)
-            self.batch_start = lambda: self.opt.zero_grad(set_to_none=True)
-            self.batch_end = lambda: self.opt.step()
-            self.epoch_end = lambda: None
-        else:
-            self.epoch_start = lambda e: (
-                self._update_lr(e),
-                self.opt.zero_grad(set_to_none=True),
-            )
-            self.batch_start = lambda: None
-            self.batch_end = lambda: None
-            self.epoch_end = lambda: self.opt.step()
+    def epoch_start(self, epoch: int) -> None:
+        self._update_lr(epoch)
+
+    def batch_start(self) -> None:
+        self.opt.zero_grad(set_to_none=True)
+
+    def batch_end(self) -> None:
+        self.opt.step()
 
     def state_dict(self):
         return self.opt.state_dict()
@@ -77,22 +73,31 @@ class Optimizer:
         """Apply piecewise LR schedule with optional warmup and linear decay.
 
         - Warmup: linearly ramps 0 -> initial_lr over ``warmup_epochs``.
-        - Decay: then linearly decays to 0 across the remaining iterations.
+        - Decay: then linearly decays to ``lr_min_scale * initial_lr``.
 
         If ``iterations`` is not finite, only the warmup phase is applied.
         """
         total = self._total_iterations
-        warmup = min(100, total * 0.05)
 
         if not math.isfinite(total) or total < 0:
             return
 
-        if epoch < warmup:
+        warmup = (
+            float(self._warmup_epochs)
+            if self._warmup_epochs is not None
+            else min(100, total * 0.05)
+        )
+        warmup = max(warmup, 0.0)
+        min_scale = max(self._min_lr_scale, 0.0)
+
+        if warmup > 0 and epoch < warmup:
             scale = epoch / warmup
         else:
-            scale = 1 - ((epoch - warmup) / total)
+            decay_steps = max(total - warmup, 1)
+            progress = (epoch - warmup) / decay_steps
+            scale = min_scale + (1 - min_scale) * (1 - progress)
 
-        new_lr = self._initial_lr * scale
+        new_lr = self._initial_lr * max(scale, 0.0)
         for pg in self.opt.param_groups:
             pg["lr"] = new_lr
         # Always log LR for traceability
@@ -155,7 +160,6 @@ class Trainer:
         self.opt = Optimizer(
             self.model.parameters(),
             config.train,
-            multiple_steps=all(loss.supports_off_policy for loss in self.losses),
         )
         # Keep LR scheduling inputs handy
         self.epoch = 0
@@ -493,6 +497,7 @@ def main():
     raw_config.setdefault("visdom_port", opts.visdom_port)
 
     if "model" in raw_config:
+        net_overrides = raw_config.get("net", {})
         with open(
             os.path.join(
                 os.path.dirname(__file__),
@@ -501,6 +506,7 @@ def main():
             )
         ) as f:
             raw_config["net"] = yaml.safe_load(f)
+        raw_config["net"].update(net_overrides)
     else:
         raise ValueError("config must specify 'model'")
 

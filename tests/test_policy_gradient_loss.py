@@ -6,6 +6,7 @@ from boardrl.rl.model.loss import (
     EntropyBonus,
     LinearEntropyBonus,
     KLPenalty,
+    BootstrapValueMSELoss,
 )
 
 
@@ -104,3 +105,15 @@ def test_policy_gradient_loss_with_normalized_gae():
     loss = policy([logits], pred_value, sample, training_state={})
     expected = F.cross_entropy(logits, sample.action_idx[0], label_smoothing=0.002)
     assert torch.allclose(loss, expected)
+
+
+def test_bootstrap_value_mse_loss_targets_td_lambda_mean():
+    pred_value = SimpleNamespace(
+        mean=torch.tensor([1.0, 3.0], requires_grad=True),
+    )
+    sample = SimpleNamespace(td_lambda=torch.tensor([2.0, 1.0]))
+    loss = BootstrapValueMSELoss(strength=0.5)(
+        [], pred_value, sample, training_state={}
+    )
+
+    assert torch.allclose(loss, torch.tensor(1.25))

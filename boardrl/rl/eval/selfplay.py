@@ -187,6 +187,14 @@ class SelfPlayResults(list):
 Strategy = Callable[[Game], Awaitable[Tuple[torch.Tensor, dict]]]
 
 
+async def call_strategy(strategy, game: Game):
+    try:
+        result = strategy(game)
+    except TypeError:
+        result = strategy()(game)
+    return await result
+
+
 async def play_game(
     game: Game,
     strategies: list[Strategy],
@@ -196,7 +204,7 @@ async def play_game(
         if game.ended():
             break
         p = game.current_player()
-        dist, _ = await strategies[p](game)
+        dist, _ = await call_strategy(strategies[p], game)
         assert dist.ndim == 1, "Distribution must be a 1D tensor"
         action = fast_sample(torch.softmax(dist, dim=0))
         rec = Record(game, dist, action)

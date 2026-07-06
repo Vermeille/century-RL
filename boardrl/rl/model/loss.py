@@ -322,11 +322,11 @@ class KLPenalty:
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         loss = torch.zeros((1,), device=pred_value.mean.device)
-        for logit, ref_logit in zip(pred_policy, sample.reference_policy):
-            if self.strength is not None and self.strength != 0:
+        if self.strength is not None and self.strength != 0:
+            for logit, ref_logit in zip(pred_policy, sample.reference_policy):
                 loss += F.kl_div(
-                    F.log_softmax(ref_logit, dim=0),
                     F.log_softmax(logit, dim=0),
+                    F.log_softmax(ref_logit, dim=0),
                     reduction="sum",
                     log_target=True,
                 )
@@ -488,6 +488,19 @@ class BootstrapMSELoss:
             )
             target = clipped
         return -self.strength * pred_value.log_prob(target).mean()
+
+
+@loss_from_string.register("bootstrap_value_mse_loss")
+class BootstrapValueMSELoss:
+    supports_off_policy = True
+    supports_partial_trajectories = True
+    needs_reference_policy_value = True
+
+    def __init__(self, strength: float = 1):
+        self.strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        return self.strength * F.mse_loss(pred_value.mean, sample.td_lambda)
 
 
 @loss_from_string.register("q_mse_loss")

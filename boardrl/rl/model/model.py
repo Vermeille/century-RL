@@ -192,62 +192,83 @@ class Model(nn.Module):
         head_size: int | None = None,
         num_heads: int | None = None,
         backbone: str = "transformer",
+        shared_backbone: bool = True,
     ):
         super().__init__()
         self.maxlen = 2048
         self.backbone_name = backbone
+        self.shared_backbone = shared_backbone
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
-        self.policy_backbone = backbone_cls(
-            dim, num_layers, head_size, self.maxlen, num_heads
-        )
-        self.value_backbone = backbone_cls(
-            dim, num_layers, head_size, self.maxlen, num_heads
-        )
+        self.backbone = backbone_cls(dim, num_layers, head_size, self.maxlen, num_heads)
+        if not shared_backbone:
+            self.policy_backbone = self.backbone
+            self.value_backbone = backbone_cls(
+                dim, num_layers, head_size, self.maxlen, num_heads
+            )
+            del self.backbone
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
 
-    @property
-    def backbone(self):
-        return self.policy_backbone
-
-    def _expand_backbone_state_dict(self, state_dict):
+    def _normalize_backbone_state_dict(self, state_dict):
         has_backbone = any(k.startswith("backbone.") for k in state_dict)
         has_policy = any(k.startswith("policy_backbone.") for k in state_dict)
         has_value = any(k.startswith("value_backbone.") for k in state_dict)
 
-        if has_backbone and not (has_policy or has_value):
-            expanded = {}
+        if self.shared_backbone:
+            if has_backbone:
+                return {
+                    k: v
+                    for k, v in state_dict.items()
+                    if not k.startswith(("policy_backbone.", "value_backbone."))
+                }
+
+            old_prefix = "policy_backbone." if has_policy else "value_backbone."
+            if has_policy or has_value:
+                normalized = {}
+                for key, value in state_dict.items():
+                    if key.startswith(old_prefix):
+                        suffix = key[len(old_prefix) :]
+                        normalized[f"backbone.{suffix}"] = value
+                    elif not key.startswith(("policy_backbone.", "value_backbone.")):
+                        normalized[key] = value
+                return normalized
+
+            return state_dict
+
+        if has_policy or has_value:
+            if has_policy and has_value:
+                return {
+                    k: v for k, v in state_dict.items() if not k.startswith("backbone.")
+                }
+
+            old_prefix = "policy_backbone." if has_policy else "value_backbone."
+            normalized = {}
+            for key, value in state_dict.items():
+                if key.startswith(old_prefix):
+                    suffix = key[len(old_prefix) :]
+                    normalized[f"policy_backbone.{suffix}"] = value
+                    normalized[f"value_backbone.{suffix}"] = value.clone()
+                elif not key.startswith(("policy_backbone.", "value_backbone.")):
+                    normalized[key] = value
+            return normalized
+
+        if has_backbone:
+            normalized = {}
             for key, value in state_dict.items():
                 if key.startswith("backbone."):
                     suffix = key[len("backbone.") :]
-                    expanded[f"policy_backbone.{suffix}"] = value
-                    expanded[f"value_backbone.{suffix}"] = value
+                    normalized[f"policy_backbone.{suffix}"] = value
+                    normalized[f"value_backbone.{suffix}"] = value.clone()
                 else:
-                    expanded[key] = value
-            return expanded
-
-        if has_policy and not has_value:
-            expanded = dict(state_dict)
-            for key, value in state_dict.items():
-                if key.startswith("policy_backbone."):
-                    suffix = key[len("policy_backbone.") :]
-                    expanded.setdefault(f"value_backbone.{suffix}", value)
-            return expanded
-
-        if has_value and not has_policy:
-            expanded = dict(state_dict)
-            for key, value in state_dict.items():
-                if key.startswith("value_backbone."):
-                    suffix = key[len("value_backbone.") :]
-                    expanded.setdefault(f"policy_backbone.{suffix}", value)
-            return expanded
+                    normalized[key] = value
+            return normalized
 
         return state_dict
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        expanded = self._expand_backbone_state_dict(state_dict)
+        expanded = self._normalize_backbone_state_dict(state_dict)
         if strict:
             model_keys = set(super().state_dict())
             extra_keys = sorted(set(expanded) - model_keys)
@@ -263,17 +284,21 @@ class Model(nn.Module):
             return l + [1] + [0] * (maxlen + 1 - len(l))
 
         txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
-        device = next(self.policy_backbone.parameters()).device
+        device = next(self.parameters()).device
         return torch.stack(txts, dim=0).to(device)
 
     def forward(self, games: list[str], return_hidden=False):
         txt = self.text_encode(games, self.maxlen)
         attn_mask = txt != 0
-        policy_enc = self.policy_backbone(txt, attn_mask)
-        value_enc = self.value_backbone(txt, attn_mask)
-        assert policy_enc.shape[:-1] == txt.shape
+        if self.shared_backbone:
+            enc = self.backbone(txt, attn_mask)
+            value_enc = enc
+        else:
+            enc = self.policy_backbone(txt, attn_mask)
+            value_enc = self.value_backbone(txt, attn_mask)
+        assert enc.shape[:-1] == txt.shape
         assert value_enc.shape[:-1] == txt.shape
-        policy_logits = self.to_pred(policy_enc, attn_mask)
+        policy_logits = self.to_pred(enc, attn_mask)
         value = self.rewards(value_enc, attn_mask)
 
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
@@ -296,7 +321,7 @@ class Model(nn.Module):
         if not return_hidden:
             return out
         else:
-            return out, policy_enc
+            return out, enc
 
 
 def load_model(model_path):
@@ -308,8 +333,9 @@ def load_model(model_path):
         config.get("head_size"),
         config.get("num_heads"),
         backbone=config.get("backbone", "transformer"),
+        shared_backbone=config.get("shared_backbone", True),
     )
-    ckpt_state = model._expand_backbone_state_dict(ckpt["model"])
+    ckpt_state = model._normalize_backbone_state_dict(ckpt["model"])
     model_state = model.state_dict()
     extra_keys = sorted(set(ckpt_state) - set(model_state))
     if extra_keys:
