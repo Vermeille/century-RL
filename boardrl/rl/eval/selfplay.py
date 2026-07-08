@@ -10,8 +10,10 @@ from boardrl.cyutils import fast_sample  # noqa: E402
 
 
 class Record:
-    def __init__(self, game: Game, action_distribution, action: int):
-        self.state = game.display_with_moves()
+    def __init__(self, game: Game, action_distribution, action: int, info: dict):
+        self.state = info.get("state")
+        if self.state is None:
+            self.state = game.display_with_moves()
         self.moves = game.moves[:]
         self.action_distribution = action_distribution
         self.action_idx = action
@@ -20,6 +22,9 @@ class Record:
         self.final = False
         self.player = game.current_player()
         self.round = game.round()
+        for key in ("reference_policy", "reference_value", "reference_max_q"):
+            if key in info:
+                setattr(self, key, info[key])
 
 
 class EndState:
@@ -204,10 +209,10 @@ async def play_game(
         if game.ended():
             break
         p = game.current_player()
-        dist, _ = await call_strategy(strategies[p], game)
+        dist, info = await call_strategy(strategies[p], game)
         assert dist.ndim == 1, "Distribution must be a 1D tensor"
         action = fast_sample(torch.softmax(dist, dim=0))
-        rec = Record(game, dist, action)
+        rec = Record(game, dist, action, info)
         yield rec
         game.play_idx(action)
     for p in range(len(strategies)):

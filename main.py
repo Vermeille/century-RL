@@ -136,6 +136,9 @@ def to_trainset(
                         final=False,
                     )
                 )
+                for key in ("reference_policy", "reference_value", "reference_max_q"):
+                    if hasattr(log, key):
+                        setattr(out[-1], key, getattr(log, key))
                 if i != 0:
                     out[-2].next = out[-1]
             out[-1].next = end
@@ -270,12 +273,13 @@ class Trainer:
                         self.config.device, non_blocking=True
                     )
                 policy, value = self.model(samples.state)
+                training_state = {"progress": self._training_progress()}
                 loss_dict = {
                     loss_fn._registry_name: loss_fn(
                         policy,
                         value,
                         samples,
-                        {"progress": self._training_progress()},
+                        training_state,
                     )
                     for loss_fn in self.losses
                 }
@@ -423,7 +427,7 @@ class Trainer:
                 )
 
             data = self._run_episode()
-            self.reference_handler.update(
+            reference_updated = self.reference_handler.update(
                 self.model,
                 epoch=self.epoch,
                 pit_results=pit_results,
@@ -448,6 +452,7 @@ class Trainer:
                     ),
                     gamma=self.config.train.discount_factor,
                     lmbda=self.config.train.gae_lambda,
+                    use_cached_rollout=reference_updated,
                 )
             print(len(trainset), "samples")
             self._train_epoch_on_policy(trainset)

@@ -2,7 +2,7 @@ import math
 import torch
 import torch.nn.functional as F
 from boardrl.rl.model.utils import js_div, jeffreys_div
-from boardrl.utils import RegisterByName, entropy
+from boardrl.utils import RegisterByName
 
 loss_from_string = RegisterByName()
 
@@ -206,6 +206,14 @@ def pack(logits):
     return padded
 
 
+def pack_cached(logits, training_state, name):
+    cache = training_state.setdefault("_pack_cache", {})
+    key = (name, id(logits))
+    if key not in cache:
+        cache[key] = pack(logits)
+    return cache[key]
+
+
 def importance_sampling(r, A):
     return r * A
 
@@ -287,7 +295,7 @@ class PolicyGradientLoss:
             self.normalizer.update(weight)
             weight = self.normalizer(weight)
 
-        padded = pack(pred_policy)
+        padded = pack_cached(pred_policy, training_state, "pred_policy")
 
         if self.drift:
             with torch.no_grad():
@@ -296,13 +304,18 @@ class PolicyGradientLoss:
                     .gather(1, sample.action_idx[..., None])
                     .squeeze(1)
                 )
-                bottom = [
-                    F.log_softmax(sample.action_distribution[i], dim=0)[
-                        sample.action_idx[i]
-                    ]
-                    for i in range(len(sample.action_idx))
-                ]
-                bottom = torch.stack(bottom, dim=0)
+                bottom = (
+                    F.log_softmax(
+                        pack_cached(
+                            sample.action_distribution,
+                            training_state,
+                            "action_distribution",
+                        ),
+                        dim=1,
+                    )
+                    .gather(1, sample.action_idx[..., None])
+                    .squeeze(1)
+                )
                 imp_ratio = torch.exp(top - bottom)
                 weight = self.drift(imp_ratio, weight)
 
@@ -321,15 +334,24 @@ class KLPenalty:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
-        loss = torch.zeros((1,), device=pred_value.mean.device)
-        if self.strength is not None and self.strength != 0:
-            for logit, ref_logit in zip(pred_policy, sample.reference_policy):
-                loss += F.kl_div(
-                    F.log_softmax(logit, dim=0),
-                    F.log_softmax(ref_logit, dim=0),
-                    reduction="sum",
-                    log_target=True,
-                )
+        if self.strength is None or self.strength == 0:
+            return torch.zeros((1,), device=pred_value.mean.device)
+
+        padded_policy = pack_cached(pred_policy, training_state, "pred_policy")
+        padded_reference = pack_cached(
+            sample.reference_policy, training_state, "reference_policy"
+        )
+        mask = torch.isfinite(padded_reference)
+        log_policy = F.log_softmax(padded_policy, dim=1)
+        log_reference = F.log_softmax(padded_reference, dim=1)
+        safe_log_policy = torch.where(mask, log_policy, torch.zeros_like(log_policy))
+        safe_log_reference = torch.where(
+            mask, log_reference, torch.zeros_like(log_reference)
+        )
+        reference_prob = torch.where(
+            mask, safe_log_reference.exp(), torch.zeros_like(safe_log_reference)
+        )
+        loss = (reference_prob * (safe_log_reference - safe_log_policy)).sum()
         return self.strength * loss / len(sample.reference_policy)
 
 
@@ -357,8 +379,13 @@ class EntropyBonus:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
-        s = self.strength / len(sample.action_idx)
-        return -s * sum(entropy(logit, dim=0) for logit in pred_policy)
+        padded = pack_cached(pred_policy, training_state, "pred_policy")
+        mask = torch.isfinite(padded)
+        log_probs = F.log_softmax(padded, dim=1)
+        safe_log_probs = torch.where(mask, log_probs, torch.zeros_like(log_probs))
+        probs = torch.where(mask, safe_log_probs.exp(), torch.zeros_like(safe_log_probs))
+        terms = probs * safe_log_probs
+        return self.strength * terms.sum() / len(sample.action_idx)
 
 
 @loss_from_string.register("linear_entropy_bonus")

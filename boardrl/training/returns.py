@@ -108,7 +108,7 @@ def compute_returns(
                 fn(history)
 
 
-def annotate_with_model(model, trainset, bs, gamma, lmbda):
+def annotate_with_model(model, trainset, bs, gamma, lmbda, *, use_cached_rollout=False):
     with torch.no_grad():
 
         def eval_states(states):
@@ -117,12 +117,28 @@ def annotate_with_model(model, trainset, bs, gamma, lmbda):
                 out.extend(model(batch).unbatched())
             return out
 
-        preds = eval_states([s.state for s in trainset])
-        for sample, pv in zip(trainset, preds):
+        if use_cached_rollout:
+            missing_samples = [
+                s
+                for s in trainset
+                if not all(
+                    hasattr(s, key)
+                    for key in (
+                        "reference_policy",
+                        "reference_value",
+                        "reference_max_q",
+                    )
+                )
+            ]
+        else:
+            missing_samples = trainset
+        preds = eval_states([s.state for s in missing_samples])
+        for sample, pv in zip(missing_samples, preds):
             sample.reference_policy = pv.policy[0]
             sample.reference_value = pv.value.mean.item()
             sample.reference_max_q = pv.q_value()[0].max().item()
 
+        for sample in trainset:
             if sample.next.final:
                 sample.next.reference_value = 0
                 sample.next.reference_max_q = 0

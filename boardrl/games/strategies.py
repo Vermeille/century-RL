@@ -82,23 +82,42 @@ class LongestMoveStrategy:
 
 @strategy_from_string.register("policy_sampling")
 class PolicySamplingStrategy:
-    def __init__(self, model, temperature: float = 1.0, epsilon: float = 0.0):
+    def __init__(
+        self,
+        model,
+        temperature: float = 1.0,
+        epsilon: float = 0.0,
+        include_moves: bool = True,
+    ):
         self.nn = model
         self.temperature = temperature
         self.epsilon = epsilon
+        self.include_moves = include_moves
 
     @torch.no_grad()
     async def __call__(self, g: Game):
         if len(g.moves) == 1:
-            return torch.tensor([1.0]), {"moves": {g.moves[0]: 1.0}}
+            info = {"moves": {g.moves[0]: 1.0}} if self.include_moves else {}
+            return torch.tensor([1.0]), info
 
-        policy = (await self.nn(g.display_with_moves())).policy[0].cpu()
-        policy = policy / self.temperature
+        state = g.display_with_moves()
+        nn_out = await self.nn(state)
+        raw_policy = nn_out.policy[0].cpu()
+        raw_value = nn_out.value.mean.cpu()[0]
+        policy = raw_policy / self.temperature
         if self.epsilon != 0.0:
             policy = torch.softmax(policy, dim=0)
             policy = (1 - self.epsilon) * policy + self.epsilon / len(policy)
             policy = policy.log()
-        return policy, {"moves": dict(zip(g.moves, policy.tolist()))}
+        info = {
+            "state": state,
+            "reference_policy": raw_policy,
+            "reference_value": raw_value.item(),
+            "reference_max_q": (raw_value + (raw_policy - raw_policy.mean()).max()).item(),
+        }
+        if self.include_moves:
+            info["moves"] = dict(zip(g.moves, policy.tolist()))
+        return policy, info
 
 
 @strategy_from_string.register("gumbel")

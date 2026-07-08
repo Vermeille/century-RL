@@ -100,3 +100,4 @@ class ReferenceModelHandler:
             self.copy_from(src)
             self.model.eval()
             self.model.version = epoch
+        return update

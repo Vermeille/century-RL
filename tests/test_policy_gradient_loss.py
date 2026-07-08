@@ -94,6 +94,60 @@ def test_kl_regularizer_batch_size_invariant():
     assert torch.allclose(one_loss, two_loss)
 
 
+def test_kl_regularizer_matches_manual_for_variable_move_counts():
+    pred_policy = [
+        torch.tensor([0.5, -0.5], requires_grad=True),
+        torch.tensor([1.0, 0.0, -1.0], requires_grad=True),
+    ]
+    reference_policy = [
+        torch.tensor([-0.25, 0.25]),
+        torch.tensor([0.1, 0.2, 0.3]),
+    ]
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0, 0.0]))
+    sample = SimpleNamespace(reference_policy=reference_policy)
+
+    loss = KLPenalty(strength=0.5)(pred_policy, pred_value, sample, training_state={})
+    manual = sum(
+        F.kl_div(
+            F.log_softmax(logit, dim=0),
+            F.log_softmax(ref_logit, dim=0),
+            reduction="sum",
+            log_target=True,
+        )
+        for logit, ref_logit in zip(pred_policy, reference_policy)
+    )
+
+    assert torch.allclose(loss, 0.5 * manual / len(reference_policy))
+
+
+def test_vectorized_regularizers_have_finite_gradients_with_padding():
+    pred_policy = [
+        torch.tensor([0.5, -0.5], requires_grad=True),
+        torch.tensor([1.0, 0.0, -1.0], requires_grad=True),
+    ]
+    reference_policy = [
+        torch.tensor([-0.25, 0.25]),
+        torch.tensor([0.1, 0.2, 0.3]),
+    ]
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0, 0.0]))
+    sample = SimpleNamespace(
+        action_idx=torch.tensor([0, 1]),
+        reference_policy=reference_policy,
+    )
+
+    training_state = {}
+    loss = EntropyBonus(strength=0.5)(
+        pred_policy, pred_value, sample, training_state=training_state
+    )
+    loss = loss + KLPenalty(strength=0.5)(
+        pred_policy, pred_value, sample, training_state=training_state
+    )
+
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert all(torch.isfinite(logit.grad).all() for logit in pred_policy)
+
+
 def test_policy_gradient_loss_with_normalized_gae():
     logits = torch.zeros(2, requires_grad=True)
     sample = SimpleNamespace(
