@@ -5,7 +5,7 @@ from boardrl.games.thegame.game import TheGame
 
 def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     # Create a small game to make assertions simpler
-    g = TheGame(num_players=3, max_value=30, messages=True)
+    g = TheGame(num_players=3, max_value=30, mode="strict_message_before_draw")
 
     # Record references and snapshots for comparison
     orig_deck = g.deck[:]
@@ -68,3 +68,39 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     # Moves remain consistent (length of deck unchanged)
     assert g3.moves == g3.gen_moves()
 
+
+def test_thegame_copy_preserves_message_only_turn():
+    g = TheGame(num_players=2, mode="strict_message_before_draw")
+    g.deck = [50, 51, 52]
+    g.piles = [1, 1, 100, 100]
+    g.hands[0] = [20, 21, 22]
+    g.moves = g.gen_moves()
+
+    g.play_str("20->0")
+    g.play_str("21->0")
+
+    g2 = g.copy()
+
+    assert g.moves == list("ABCDEFGHIJ")
+    assert g2.moves == list("ABCDEFGHIJ")
+    assert g2.current_player() == 0
+    assert g2.action == 2
+
+
+def test_thegame_copy_preserves_after_draw_message_turn():
+    g = TheGame(num_players=2, mode="strict_message_after_draw")
+    g.deck = [50, 51, 52]
+    g.piles = [1, 1, 100, 100]
+    g.hands[0] = [20, 21, 22]
+    g.moves = g.gen_moves()
+
+    g.play_str("20->0")
+    g.play_str("21->0")
+
+    g2 = g.copy()
+
+    assert len(g.deck) == 0
+    assert g.moves == list("ABCDEFGHIJ")
+    assert g2.moves == list("ABCDEFGHIJ")
+    assert g2.current_player() == 0
+    assert g2.action == 2

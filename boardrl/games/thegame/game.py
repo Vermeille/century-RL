@@ -1,6 +1,117 @@
 import random
 
 
+MESSAGE_MOVES = list("ABCDEFGHIJ")
+GAME_MODES = {
+    "strict",
+    "free",
+    "strict_message_before_draw",
+    "free_message_before_draw",
+    "strict_message_after_draw",
+    "free_message_after_draw",
+}
+PLAYING_PHASE = "playing"
+AFTER_DRAW_MESSAGE_PHASE = "after_draw_message"
+
+
+# A turn first enforces the required card count, then the selected game mode
+# decides whether extra cards, exits, or message actions are available.
+class GameMode:
+    name = ""
+    has_messages = False
+
+    def moves_after_minimum_cards(self, game):
+        raise NotImplementedError
+
+    def after_minimum_cards_reached(self, game, player):
+        raise NotImplementedError
+
+    def play_x(self, game, player):
+        raise ValueError("This turn state does not allow ending with x.")
+
+    def play_message(self, game, player, message):
+        raise ValueError("This turn state does not allow messages.")
+
+
+class Strict(GameMode):
+    name = "strict"
+
+    def moves_after_minimum_cards(self, game):
+        return []
+
+    def after_minimum_cards_reached(self, game, player):
+        game.finish_turn(player)
+
+
+class Free(GameMode):
+    name = "free"
+
+    def moves_after_minimum_cards(self, game):
+        return game.card_moves() + ["x"]
+
+    def after_minimum_cards_reached(self, game, player):
+        game.moves = self.moves_after_minimum_cards(game)
+        if game.moves == ["x"]:
+            self.play_x(game, player)
+
+    def play_x(self, game, player):
+        game.finish_turn(player)
+
+
+class StrictMessageBeforeDraw(GameMode):
+    name = "strict_message_before_draw"
+    has_messages = True
+
+    def moves_after_minimum_cards(self, game):
+        return game.message_moves()
+
+    def after_minimum_cards_reached(self, game, player):
+        game.moves = self.moves_after_minimum_cards(game)
+
+    def play_message(self, game, player, message):
+        game.record_message(player, message)
+        game.finish_turn(player)
+
+
+class FreeMessageBeforeDraw(StrictMessageBeforeDraw):
+    name = "free_message_before_draw"
+
+    def moves_after_minimum_cards(self, game):
+        return game.card_moves() + game.message_moves()
+
+
+class StrictMessageAfterDraw(GameMode):
+    name = "strict_message_after_draw"
+    has_messages = True
+
+    def moves_after_minimum_cards(self, game):
+        return []
+
+    def after_minimum_cards_reached(self, game, player):
+        game.draw_then_wait_for_message(player)
+
+
+class FreeMessageAfterDraw(Free):
+    name = "free_message_after_draw"
+    has_messages = True
+
+    def play_x(self, game, player):
+        game.draw_then_wait_for_message(player)
+
+
+GAME_MODE_BY_NAME = {
+    mode.name: mode
+    for mode in (
+        Strict(),
+        Free(),
+        StrictMessageBeforeDraw(),
+        FreeMessageBeforeDraw(),
+        StrictMessageAfterDraw(),
+        FreeMessageAfterDraw(),
+    )
+}
+
+
 class TheGame:
     """
     A simplified version of 'The Game':
@@ -15,15 +126,17 @@ class TheGame:
         self,
         num_players: int = 2,
         max_value: int = 100,
-        more_than_two_actions: bool = False,
-        messages: bool = False,
+        mode: str = "strict",
     ):
         assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
+        if mode not in GAME_MODES:
+            raise ValueError(
+                f"mode must be one of {sorted(GAME_MODES)}, got {mode!r}"
+            )
         # Build the deck of 2..max_value-1
         self.max_value = max_value
-        self.more_than_two_actions = messages or more_than_two_actions
-        # Optional end-of-turn letters A..J instead of 'x'.
-        self.messages = messages
+        self.mode = mode
+        self.game_mode = GAME_MODE_BY_NAME[mode]
         self.deck = list(range(2, max_value))
         random.shuffle(self.deck)
 
@@ -46,6 +159,7 @@ class TheGame:
         self.action = 0
         self.curplay = 0
         self.num_players = num_players
+        self._turn_phase = PLAYING_PHASE
         self.moves = self.gen_moves()
         # Track last message each player sent when ending their turn
         self._last_messages = ["" for _ in range(num_players)]
@@ -57,8 +171,7 @@ class TheGame:
         g = TheGame(
             num_players=self.num_players,
             max_value=self.max_value,
-            more_than_two_actions=self.more_than_two_actions,
-            messages=self.messages,
+            mode=self.mode,
         )
         g.max_value = self.max_value
         g.deck = self.deck[:]
@@ -70,6 +183,7 @@ class TheGame:
         g.action = self.action
         g.curplay = self.curplay
         g.num_players = self.num_players
+        g._turn_phase = self._turn_phase
         # Recompute legal moves from the copied state to avoid stale moves
         g.moves = g.gen_moves()
         g._last_messages = self._last_messages[:]
@@ -96,7 +210,7 @@ class TheGame:
         pile_info = " ".join(f"{val}" for val in self.piles)
         hand_info = " ".join(str(c) for c in self.hands[p])
         msg_line = ""
-        if self.messages:
+        if self.has_messages():
             # Show last messages from other players in order relative to current viewer.
             # Order: next player, then clockwise, excluding the viewer.
             order = [((p + i) % self.num_players) for i in range(1, self.num_players)]
@@ -120,6 +234,22 @@ class TheGame:
         We'll use the format 'card->pileIndex'.
           e.g. '42->0' means 'play card 42 onto pile 0'.
         """
+        if self._turn_phase == AFTER_DRAW_MESSAGE_PHASE:
+            return self.message_moves()
+        if self.needs_more_cards_this_turn():
+            return self.card_moves()
+        return self.game_mode.moves_after_minimum_cards(self)
+
+    def has_messages(self) -> bool:
+        return self.game_mode.has_messages
+
+    def needs_more_cards_this_turn(self) -> bool:
+        return self.action < self.min_actions()
+
+    def min_actions(self) -> int:
+        return 2 if self.deck else 1
+
+    def card_moves(self) -> list[str]:
         moves = []
         ascending_indices = [0, 1]
         descending_indices = [2, 3]
@@ -141,17 +271,43 @@ class TheGame:
                 if card <= top_val or (card - top_val == 10):
                     moves.append(f"{card}->{pile_idx}")
 
-        # After the minimum required actions have been played this turn,
-        # the player may optionally end their turn with the special move 'x'.
-        # Minimum is 2 when the deck still has cards, otherwise 1.
-        min_actions = 2 if self.deck else 1
-        if self.action >= min_actions:
-            if self.messages:
-                moves.extend(list("ABCDEFGHIJ"))
-            else:
-                moves.append("x")
-
         return moves
+
+    def message_moves(self) -> list[str]:
+        return MESSAGE_MOVES[:]
+
+    def draw_to_hand(self, player: int):
+        while self.deck and len(self.hands[player]) < self.initial_hand_size:
+            self.hands[player].append(self.deck.pop())
+
+    def finish_turn(self, player: int):
+        self.draw_to_hand(player)
+        self.pass_to_next_player()
+
+    def draw_then_wait_for_message(self, player: int):
+        self.draw_to_hand(player)
+        self._turn_phase = AFTER_DRAW_MESSAGE_PHASE
+        self.moves = self.gen_moves()
+
+    def pass_to_next_player(self):
+        self.curplay = (self.curplay + 1) % self.num_players
+        self.skip_empty_hands_after_deck_empty()
+        self.action = 0
+        self._turn_phase = PLAYING_PHASE
+        self.moves = self.gen_moves()
+        self._round += 1
+
+    def skip_empty_hands_after_deck_empty(self):
+        if self.deck:
+            return
+        for _ in range(self.num_players):
+            if self.hands[self.curplay]:
+                return
+            self._last_messages[self.curplay] = ""
+            self.curplay = (self.curplay + 1) % self.num_players
+
+    def record_message(self, player: int, message: str):
+        self._last_messages[player] = message
 
     def play_str(self, move: str):
         """
@@ -161,26 +317,14 @@ class TheGame:
         if move not in self.moves:
             raise ValueError(f"Illegal move: {move}. Legal moves: {self.moves}")
 
-        p = self.curplay
-
-        def next_player():
-            while self.deck and len(self.hands[p]) < self.initial_hand_size:
-                self.hands[p].append(self.deck.pop())
-            # Next player
-            self.curplay = (self.curplay + 1) % self.num_players
-            self.action = 0
-            self.moves = self.gen_moves()
-            self._round += 1
+        player = self.curplay
 
         # Handle explicit end-of-turn move
         if move == "x":
-            # Draw back up to hand size if possible
-            next_player()
+            self.game_mode.play_x(self, player)
             return
-        if self.messages and move in set("ABCDEFGHIJ"):
-            # Record the letter from current player to be shown to others
-            self._last_messages[p] = move
-            next_player()
+        if move in set(MESSAGE_MOVES):
+            self.play_message(player, move)
             return
         # Parse the move
         #   expecting 'card->pileIndex'
@@ -190,7 +334,7 @@ class TheGame:
 
         # Execute the move:
         #  1) Remove the card from the current player's hand
-        self.hands[p].remove(card)
+        self.hands[player].remove(card)
 
         #  2) Update the pile
         self.piles[pile_idx] = card
@@ -199,24 +343,25 @@ class TheGame:
         # Increase the count of actions taken this turn.
         self.action += 1
 
-        min_actions = 2 if self.deck else 1
-        if self.action >= min_actions and not self.more_than_two_actions:
-            next_player()
-            return
+        if self.needs_more_cards_this_turn():
+            self.moves = self.card_moves()
+        else:
+            self.game_mode.after_minimum_cards_reached(self, player)
 
-        # Otherwise, stay on the same player; allow continuing plays or 'x'
-        self.moves = self.gen_moves()
-        # If there are no further playable card moves, auto-end the turn (draw and pass).
-        if not self.messages and self.moves == ["x"]:
-            next_player()
+    def play_message(self, player: int, message: str):
+        if self._turn_phase == AFTER_DRAW_MESSAGE_PHASE:
+            self.record_message(player, message)
+            self.pass_to_next_player()
+        else:
+            self.game_mode.play_message(self, player, message)
 
     def ended(self) -> bool:
         """
-        The game ends when the deck is empty or the current player can't make any moves.
+        The game ends when all cards are played or the active player is stuck.
         """
-        return (
-            len(self.deck) == 0 and sum(len(h) for h in self.hands) == 0
-        ) or not self.moves
+        return (not self.deck and not any(self.hands)) or (
+            bool(self.hands[self.curplay]) and not self.moves
+        )
 
     def points(self) -> int:
         """

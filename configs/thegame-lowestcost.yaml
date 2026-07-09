@@ -1,7 +1,7 @@
 device: cuda
 tag: lowestcost-supervised
 
-game: thegame,more_than_two_actions=True
+game: thegame,mode=free
 
 model: small
 train:

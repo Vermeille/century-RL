@@ -1,6 +1,6 @@
 tag: a2c
 device: cpu
-game: thegame,messages=True
+game: thegame,mode=strict_message_before_draw
 
 model: cnn
 
