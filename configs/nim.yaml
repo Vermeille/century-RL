@@ -1,0 +1,37 @@
+tag: nim
+device: cpu
+game: nim,num_stones=21,max_pick=3
+
+model: toy
+
+pit:
+  every: 10
+  max_len: 40
+  num_games: 32
+  rotate: false
+  strategies:
+    - policy_sampling,model=this
+    - random
+
+self_play:
+  max_len: 40
+  num_games: 32
+  rotate: false
+  strategies:
+    - policy_sampling,model=this
+    - random
+
+train:
+  optimizer: AdamW
+  batch_size: 32
+  discount_factor: 1.0
+  gradient_epochs: 1
+  only_strategies: [0]
+  losses:
+    - policy_gradient_loss,weight=returns
+    #- entropy_bonus,strength=0.01
+    - value_mse_loss,strength=1
+  lr: 0.0003
+  save_every: 1000
+  show_every: 10
+  iterations: 1000

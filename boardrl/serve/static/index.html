@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BoardRL</title>
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">BoardRL</p>
+          <h1 id="gameName">Game</h1>
+        </div>
+        <div class="status-strip" aria-live="polite">
+          <div>
+            <span>Player</span>
+            <strong id="currentPlayer">-</strong>
+          </div>
+          <div>
+            <span>Round</span>
+            <strong id="round">-</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="status">Loading</strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="Game controls">
+        <label class="field compact">
+          <span>Game</span>
+          <select id="game"></select>
+        </label>
+        <label class="field">
+          <span>Strategy</span>
+          <select id="strategy"></select>
+        </label>
+        <label class="field">
+          <span>Compare</span>
+          <select id="compareStrategy"></select>
+        </label>
+        <label class="toggle">
+          <input id="replyWithAgent" type="checkbox">
+          <span>Agent replies</span>
+        </label>
+        <button id="playTop" type="button">Play Top</button>
+        <button id="agentMove" type="button">Agent Move</button>
+        <button id="autoPlay" type="button">Auto Play</button>
+        <button id="undo" type="button" class="secondary">Undo</button>
+        <button id="redo" type="button" class="secondary">Redo</button>
+        <button id="reset" type="button" class="secondary">Reset</button>
+      </section>
+
+      <section id="message" class="message" hidden></section>
+
+      <div class="layout">
+        <section class="play-panel" aria-label="Game board">
+          <div id="visualBoard" class="visual-board"></div>
+          <details class="raw-panel" open>
+            <summary>Raw State</summary>
+            <div class="raw-toolbar">
+              <button id="syncRaw" type="button" class="secondary">Live State</button>
+              <button id="analyzeRaw" type="button">Analyze Text</button>
+            </div>
+            <textarea id="rawState" class="board" spellcheck="false"></textarea>
+          </details>
+        </section>
+
+        <aside class="moves-panel" aria-label="Legal moves">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Legal Moves</p>
+              <h2>Policy</h2>
+            </div>
+            <span id="moveCount">0 moves</span>
+          </div>
+          <div id="inspector" class="inspector"></div>
+          <details class="history-panel" open>
+            <summary>History</summary>
+            <div id="history" class="history"></div>
+          </details>
+          <div id="moves" class="moves"></div>
+        </aside>
+      </div>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

@@ -87,11 +87,13 @@ class PolicySamplingStrategy:
         model,
         temperature: float = 1.0,
         epsilon: float = 0.0,
+        dirichlet_alpha: float = 0.3,
         include_moves: bool = True,
     ):
         self.nn = model
         self.temperature = temperature
         self.epsilon = epsilon
+        self.dirichlet_alpha = dirichlet_alpha
         self.include_moves = include_moves
 
     @torch.no_grad()
@@ -107,7 +109,10 @@ class PolicySamplingStrategy:
         policy = raw_policy / self.temperature
         if self.epsilon != 0.0:
             policy = torch.softmax(policy, dim=0)
-            policy = (1 - self.epsilon) * policy + self.epsilon / len(policy)
+            noise = torch.distributions.Dirichlet(
+                policy.new_full((len(policy),), self.dirichlet_alpha)
+            ).sample()
+            policy = (1 - self.epsilon) * policy + self.epsilon * noise
             policy = policy.log()
         info = {
             "state": state,

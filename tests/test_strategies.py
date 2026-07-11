@@ -1,12 +1,14 @@
 import asyncio
 import importlib
 import sys
+from types import SimpleNamespace
 
 import pyximport
 import pytest
 import torch
 
 from boardrl.games import games_library
+from boardrl.games.strategies import PolicySamplingStrategy
 from boardrl.rl.model.model import PolicyValue
 from boardrl.utils import BatchProcessor, ModelPool
 
@@ -68,3 +70,32 @@ def test_strategy_game_smoke(game_name, strat_name):
 
     asyncio.run(play_all())
     # No assertion needed: the test passes if no exceptions are raised.
+
+
+def test_policy_sampling_epsilon_uses_dirichlet_noise(monkeypatch):
+    class DummyDirichlet:
+        def __init__(self, concentration):
+            self.concentration = concentration
+
+        def sample(self):
+            assert torch.allclose(self.concentration, torch.full((3,), 0.7))
+            return torch.tensor([0.1, 0.2, 0.7])
+
+    async def model(_state):
+        return SimpleNamespace(
+            policy=[torch.tensor([0.0, 0.0, 0.0])],
+            value=SimpleNamespace(mean=torch.tensor([0.0])),
+        )
+
+    game = SimpleNamespace(
+        moves=["a", "b", "c"],
+        display_with_moves=lambda: "state",
+    )
+    monkeypatch.setattr(torch.distributions, "Dirichlet", DummyDirichlet)
+
+    strat = PolicySamplingStrategy(
+        model, epsilon=1.0, dirichlet_alpha=0.7, include_moves=False
+    )
+    policy, _ = asyncio.run(strat(game))
+
+    assert torch.allclose(policy.exp(), torch.tensor([0.1, 0.2, 0.7]))

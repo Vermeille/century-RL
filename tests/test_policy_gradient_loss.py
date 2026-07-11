@@ -54,7 +54,7 @@ def test_linear_entropy_bonus_interpolates_strength():
 
 def test_kl_regularizer_matches_manual():
     logits = torch.tensor([0.5, -0.5], requires_grad=True)
-    reference_logits = torch.tensor([1.0, 0.0])
+    reference_logits = torch.tensor([-0.25, 0.25])
     sample = SimpleNamespace(
         action_idx=torch.tensor([0]),
         returns=torch.tensor([1.0]),

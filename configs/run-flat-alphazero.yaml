@@ -1,0 +1,32 @@
+device: cuda
+tag: century-flataphazero
+
+net:
+  num_layers: 8
+  dim: 256
+  head_size: 64
+
+train:
+  gradient_epochs: 1
+  lr: 0.0001
+  batch_size: 12
+  show_every: 10
+  save_every: 10
+  loss:
+    value: value_mse_loss
+    policy: ce_loss
+
+self_play:
+  num_games: 4
+  max_len: 500
+  strategies:
+    - pick_best_value,model=this,budget=1
+    - pick_best_value,model=this,budget=1
+
+pit:
+  num_games: 32
+  max_len: 220
+  every: 4
+  strategies:
+    - policy_sampling,model=this,temperature=0.001
+    - random_buy
