@@ -51,6 +51,22 @@ def test_pit_rotate_flag():
     assert static[1][0].strategy_id == 0
 
 
+def test_max_len_is_truncation_not_terminal():
+    game_desc = games_library("tictactoe")
+    strategies = [
+        lambda: game_desc.strategy_from_string("random"),
+        lambda: game_desc.strategy_from_string("random"),
+    ]
+
+    results = pit(game_desc.make_game, strategies, n_games=1, max_len=1)
+
+    for trace in results[0]:
+        end = trace[-1]
+        assert end.cause == "toolong"
+        assert not end.terminal
+        assert end.truncated
+
+
 def _make_game_trace(scores: list[tuple[int, float]]):
     traces = []
     for seat_id, (strategy_id, score) in enumerate(scores):

@@ -62,7 +62,8 @@ def to_trainset(
                         returns=log.returns,
                         current_diff_points=float(log.current_diff_points),
                         next=None,
-                        final=False,
+                        terminal=False,
+                        truncated=False,
                     )
                 )
                 if i != 0:

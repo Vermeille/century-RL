@@ -60,8 +60,7 @@ class Metrics:
                 print(
                     [
                         f"{r.moves[r.action_idx]} ({_cost(r.moves[r.action_idx], _parse_piles(r.state))[0]})"
-                        for r in player
-                        if not getattr(r, "final", False)
+                        for r in player[:-1]
                     ]
                 )
             print("--")
@@ -80,10 +79,7 @@ class Metrics:
         for game in self.data:
             for player in game:
                 ten_rule_moves.append(0)
-                for rec in player:
-                    if getattr(rec, "final", False):
-                        continue
-
+                for rec in player[:-1]:
                     piles = _parse_piles(rec.state)
                     costs = []
                     ten_flags = []

@@ -54,11 +54,13 @@ def entropy_reward(history: list, strength: float) -> None:
 def set_returns(history: list, discount_factor: float) -> None:
     """Compute discounted returns for each log.
 
-    If the history is non-terminal (the last log has ``final`` False) the
-    ``returns`` field of each step is set to ``NaN``.
+    Properly terminal histories receive ordinary discounted returns. A
+    truncated history is deliberately left without a terminal return: its
+    endpoint must be bootstrapped from a value estimate by
+    :func:`annotate_with_model`.
     """
 
-    if history[-1].final:
+    if history[-1].terminal:
         for i in range(len(history) - 1):
             history[i].returns = discount(history[i:], discount_factor)
     else:
@@ -69,7 +71,7 @@ def set_returns(history: list, discount_factor: float) -> None:
 def set_score(history: list) -> None:
     """Attach the final score to each log if the game terminated."""
 
-    if history[-1].final:
+    if history[-1].terminal:
         for log in history:
             log.score = history[-1].current_diff_points
     else:
@@ -111,16 +113,35 @@ def compute_returns(
 def annotate_with_model(model, trainset, bs, gamma, lmbda, *, use_cached_rollout=False):
     with torch.no_grad():
 
+        def is_terminal(sample):
+            return sample.terminal
+
+        def is_truncated(sample):
+            return sample.truncated
+
         def eval_states(states):
             out = []
             for batch in chunk(states, bs):
                 out.extend(model(batch).unbatched())
             return out
 
+        # The final state of a truncated trace is not itself a training
+        # sample, but it is the bootstrap state for the preceding action.
+        # Evaluate it alongside the rollout samples when its cached value is
+        # unavailable.
+        evaluation_samples = list(trainset)
+        evaluation_samples.extend(
+            sample.next
+            for sample in trainset
+            if sample.next is not None and is_truncated(sample.next)
+        )
+        unique_samples = list(
+            {id(sample): sample for sample in evaluation_samples}.values()
+        )
         if use_cached_rollout:
             missing_samples = [
                 s
-                for s in trainset
+                for s in unique_samples
                 if not all(
                     hasattr(s, key)
                     for key in (
@@ -131,7 +152,7 @@ def annotate_with_model(model, trainset, bs, gamma, lmbda, *, use_cached_rollout
                 )
             ]
         else:
-            missing_samples = trainset
+            missing_samples = unique_samples
         preds = eval_states([s.state for s in missing_samples])
         for sample, pv in zip(missing_samples, preds):
             sample.reference_policy = pv.policy[0]
@@ -139,11 +160,20 @@ def annotate_with_model(model, trainset, bs, gamma, lmbda, *, use_cached_rollout
             sample.reference_max_q = pv.q_value()[0].max().item()
 
         for sample in trainset:
-            if sample.next.final:
+            if sample.next is None:
+                continue
+            if is_terminal(sample.next):
                 sample.next.reference_value = 0
                 sample.next.reference_max_q = 0
                 sample.next.advantage = 0
                 sample.next.td_lambda = 0
+                sample.next.gae = 0
+                sample.next.normalized_gae = 0
+            elif is_truncated(sample.next):
+                # At a cutoff the game has not ended. The endpoint value is
+                # therefore the base case for TD(lambda), while its GAE is
+                # zero because there is no action/advantage at the endpoint.
+                sample.next.td_lambda = sample.next.reference_value
                 sample.next.gae = 0
                 sample.next.normalized_gae = 0
 

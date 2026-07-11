@@ -133,7 +133,8 @@ def to_trainset(
                         reward=float(log.reward),
                         returns=log.returns,
                         next=None,
-                        final=False,
+                        terminal=False,
+                        truncated=False,
                     )
                 )
                 for key in ("reference_policy", "reference_value", "reference_max_q"):

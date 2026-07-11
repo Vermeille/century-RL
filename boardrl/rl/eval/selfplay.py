@@ -19,7 +19,8 @@ class Record:
         self.action_idx = action
         self.current_diff_points = game.diff_points()
         self.my_points = game.points()
-        self.final = False
+        self.terminal = False
+        self.truncated = False
         self.player = game.current_player()
         self.round = game.round()
         for key in ("reference_policy", "reference_value", "reference_max_q"):
@@ -30,12 +31,13 @@ class Record:
 class EndState:
     def __init__(self, game: Game, player: int):
         self.state = game.display(force=player)
-        self.cause = "proper" if game.ended() else "toolong"
+        self.terminal = game.ended()
+        self.truncated = not self.terminal
+        self.cause = "proper" if self.terminal else "toolong"
         self.my_points = game.points_for(player)
         self.current_diff_points = game.diff_points_for(player)
         self.player = player
         self.round = game.round()
-        self.final = True
 
 
 class PlayerTrace(list):
