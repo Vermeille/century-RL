@@ -23,46 +23,56 @@ class ConvBlock1(nn.Module):
     def __init__(self, dim, kernel_size, dilation):
         super().__init__()
         self.norm = Norm(dim)
-        self.c1 = init(
+        self.expand = init(
+            MaskedConv1d(
+                dim,
+                2 * dim,
+                kernel_size=1,
+                padding=0,
+            )
+        )
+        self.dilated = init(
             MaskedConv1d(
                 dim,
                 dim,
-                # groups=max(1, dim // 32),
                 groups=dim,
                 kernel_size=kernel_size,
                 padding=(kernel_size - 1) * dilation // 2,
                 dilation=dilation,
             )
         )
-        self.c2 = init(
+        self.local = init(
             MaskedConv1d(
                 dim,
                 dim,
-                # groups=max(1, dim // 32),
-                kernel_size=1,
-                padding=0,
-            )
-        )
-        self.c3 = zero(
-            MaskedConv1d(
-                dim,
-                dim,
-                # groups=max(1, dim // 32),
+                groups=dim,
                 kernel_size=kernel_size,
                 padding=kernel_size // 2,
             )
         )
+        self.project = zero(
+            MaskedConv1d(
+                dim,
+                dim,
+                kernel_size=1,
+                padding=0,
+            )
+        )
 
     def forward(self, x, mask):
-        x = x + self.c3(F.gelu(self.c2(self.norm(self.c1(x, mask)), mask)), mask)
-        return x
+        residual = x
+        x = self.norm(x)
+        x = F.glu(self.expand(x, mask), dim=1)
+        x = F.gelu(self.dilated(x, mask))
+        x = F.gelu(self.local(x, mask))
+        return residual + self.project(x, mask)
 
 
 class CNNEncoder(nn.Module):
     def __init__(self, dim, num_layers):
         super().__init__()
         self.blocks = nn.ModuleList(
-            [ConvBlock1(dim, 5, dilation=2 ** (i % 4)) for i in range(num_layers)]
+            [ConvBlock1(dim, 5, dilation=2 ** (i % 6)) for i in range(num_layers)]
         )
 
     def forward(self, x, mask):
