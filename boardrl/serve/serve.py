@@ -24,7 +24,8 @@ parser.add_argument("--game", default="century")
 args, _ = parser.parse_known_args()
 
 initial_game_spec = args.game
-game_name = args.game.split(",")[0]
+initial_game_spec = initial_game_spec.strip()
+game_name = initial_game_spec.split(",", 1)[0].strip()
 serve_dir = Path(__file__).parent
 static_dir = serve_dir / "static"
 
@@ -32,6 +33,7 @@ static_dir = serve_dir / "static"
 @dataclass
 class GameSnapshot:
     name: str
+    spec: str
     board: str
     board_with_moves: str
     moves: list[str]
@@ -44,10 +46,13 @@ class GameSnapshot:
     can_redo: bool
 
     @classmethod
-    def from_game(cls, name, game, history=None, can_undo=False, can_redo=False):
+    def from_game(
+        cls, name, spec, game, history=None, can_undo=False, can_redo=False
+    ):
         ended = bool(game.ended())
         return cls(
             name=name,
+            spec=spec,
             board=game.display(force=0) if ended else game.display(),
             board_with_moves=(
                 game.display(force=0) if ended else game.display_with_moves()
@@ -97,6 +102,7 @@ class GameSession:
     def snapshot(self):
         return GameSnapshot.from_game(
             self.name,
+            self.spec,
             self.game,
             self.history,
             can_undo=bool(self.undo_stack),
@@ -199,31 +205,38 @@ class Strategies:
 
 sessions = {}
 current_game_name = game_name
+current_game_spec = initial_game_spec
 
 
 def available_games():
     return sorted(games_library.registry.keys())
 
 
-def game_spec_for(name: str):
-    if name == game_name:
-        return initial_game_spec
-    return name
+def base_game_name(spec: str) -> str:
+    return spec.split(",", 1)[0].strip()
 
 
-def get_session(name: str | None = None):
-    name = name or current_game_name
+def get_session(spec: str | None = None):
+    spec = (spec or current_game_spec).strip()
+    name = base_game_name(spec)
     if name not in games_library.registry:
         raise HTTPException(status_code=404, detail=f"Unknown game: {name}")
-    if name not in sessions:
-        sessions[name] = GameSession.create(name, game_spec_for(name))
-    return sessions[name]
+    if spec not in sessions:
+        try:
+            sessions[spec] = GameSession.create(name, spec)
+        except (AssertionError, TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid options for game '{name}': {exc}",
+            ) from exc
+    return sessions[spec]
 
 
-def set_current_session(name: str):
-    global current_game_name, game_name, game_desc, game, strategies
-    session = get_session(name)
+def set_current_session(spec: str):
+    global current_game_name, current_game_spec, game_name, game_desc, game, strategies
+    session = get_session(spec)
     current_game_name = session.name
+    current_game_spec = session.spec
     game_name = session.name
     game_desc = session.game_desc
     game = session.game
@@ -231,7 +244,7 @@ def set_current_session(name: str):
     return session
 
 
-set_current_session(game_name)
+set_current_session(initial_game_spec)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -259,7 +272,11 @@ def get_strategies(game: str | None = None):
 
 @app.get("/games")
 def get_games():
-    return {"games": available_games(), "current": current_game_name}
+    return {
+        "games": available_games(),
+        "current": current_game_name,
+        "current_spec": current_game_spec,
+    }
 
 
 @app.post("/set-game")
@@ -348,8 +365,8 @@ async def play_one(strategy: str = Body(..., embed=True), game: str | None = Non
 async def reset(game: str | None = None):
     session = get_session(game)
     session.reset()
-    if session.name == current_game_name:
-        set_current_session(session.name)
+    if session.spec == current_game_spec:
+        set_current_session(session.spec)
     return True
 
 
@@ -357,8 +374,8 @@ async def reset(game: str | None = None):
 async def undo(game: str | None = None):
     session = get_session(game)
     session.undo()
-    if session.name == current_game_name:
-        set_current_session(session.name)
+    if session.spec == current_game_spec:
+        set_current_session(session.spec)
     return session.snapshot()
 
 
@@ -366,8 +383,8 @@ async def undo(game: str | None = None):
 async def redo(game: str | None = None):
     session = get_session(game)
     session.redo()
-    if session.name == current_game_name:
-        set_current_session(session.name)
+    if session.spec == current_game_spec:
+        set_current_session(session.spec)
     return session.snapshot()
 
 

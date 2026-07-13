@@ -20,12 +20,22 @@ Games are selected with the `game` query parameter on stateful endpoints:
 - `POST /redo?game=<name>`
 - `GET /reset?game=<name>`
 
+`<name>` may be a complete game specification using the same format as the
+game registry, for example `nim,num_stones=5,max_pick=2`. The same value can
+be supplied to `POST /set-game` as `{ "game": "nim,num_stones=5,max_pick=2" }`.
 The old no-query behavior still maps to the current/default game for backwards
 compatibility. `POST /set-game` changes that default for the current process.
+
+The same specification can be selected at startup, for example:
+
+```bash
+python -m boardrl.serve.serve --game nim,num_stones=5,max_pick=2
+```
 
 `/state` returns the canonical UI payload:
 
 - `name`
+- `spec`
 - `board`
 - `board_with_moves`
 - `moves`
@@ -36,6 +46,10 @@ compatibility. `POST /set-game` changes that default for the current process.
 - `history`
 - `can_undo`
 - `can_redo`
+
+`GET /games` continues to return registered base names in `games`, keeps the
+selected base name in `current`, and also returns the complete selected
+specification in `current_spec`.
 
 The frontend should use `moves` for legal actions instead of scraping moves from
 the raw text.

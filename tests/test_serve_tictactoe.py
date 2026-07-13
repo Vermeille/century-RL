@@ -48,3 +48,17 @@ def test_tictactoe_play_one_and_analyze_random_policy():
         data = analyze.json()
         assert "moves" in data
         assert isinstance(data["moves"], dict)
+
+
+def test_option_bearing_startup_game_is_preserved():
+    spec = "nim,num_stones=5,max_pick=2"
+    with serve_for_game(spec) as serve:
+        client = TestClient(serve.app)
+        games = client.get("/games").json()
+        assert games["current"] == "nim"
+        assert games["current_spec"] == spec
+
+        state = client.get("/state").json()
+        assert state["name"] == "nim"
+        assert state["spec"] == spec
+        assert state["moves"] == ["1", "2"]

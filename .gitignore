@@ -5,3 +5,5 @@ boardrl/cyutils.c
 boardrl/cyutils.cpython-*.so
 boardrl/games/century/engine.cpp
 boardrl/games/century/engine.cpython-*.so
+*-ckpt
+.venv

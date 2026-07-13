@@ -93,6 +93,8 @@ def test_root_serves_shared_ui():
     assert 'id="undo"' in response.text
     assert 'id="redo"' in response.text
     assert 'id="compareStrategy"' in response.text
+    assert 'id="gameSpec"' in response.text
+    assert 'id="applyGame"' in response.text
 
 
 def test_static_ui_exposes_keyboard_shortcuts():
@@ -102,6 +104,9 @@ def test_static_ui_exposes_keyboard_shortcuts():
     assert "state.orderedMoves" in app_js
     assert "function playTopMove" in app_js
     assert "compareStrategy" in app_js
+    assert "function gameQuery" in app_js
+    assert "gameSpec.value.trim()" in app_js
+    assert "applyGameSpec" in app_js
 
 
 def test_state_endpoint_matches_current_game():
@@ -134,6 +139,37 @@ def test_games_endpoint_and_selected_game_state():
     data = response.json()
     assert data["name"] == "tictactoe"
     assert data["moves"] == [str(i) for i in range(9)]
+
+
+def test_game_options_work_through_http_and_keep_sessions_separate():
+    client = TestClient(serve.app)
+    spec = "nim,num_stones=5,max_pick=2"
+
+    response = client.get("/state", params={"game": spec})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "nim"
+    assert data["spec"] == spec
+    assert data["moves"] == ["1", "2"]
+
+    response = client.post("/do-one", params={"game": spec}, json={"action": "1"})
+    assert response.status_code == 200
+    assert response.json()["state"]["spec"] == spec
+
+    default_nim = client.get("/state", params={"game": "nim"})
+    assert default_nim.status_code == 200
+    assert default_nim.json()["spec"] == "nim"
+    assert default_nim.json()["moves"] == ["1", "2", "3"]
+
+    response = client.post("/set-game", json={"game": spec})
+    assert response.status_code == 200
+    assert response.json()["spec"] == spec
+    assert client.get("/games").json()["current_spec"] == spec
+
+    assert client.get("/state", params={"game": "nim,unknown=1"}).status_code == 400
+    assert client.get("/state", params={"game": "unknown"}).status_code == 404
+
+    client.post("/set-game", json={"game": "century"})
 
 
 def test_set_game_changes_legacy_default():

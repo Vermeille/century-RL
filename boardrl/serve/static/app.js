@@ -13,6 +13,8 @@ const state = {
 const els = {
   gameName: document.querySelector("#gameName"),
   game: document.querySelector("#game"),
+  gameSpec: document.querySelector("#gameSpec"),
+  applyGame: document.querySelector("#applyGame"),
   currentPlayer: document.querySelector("#currentPlayer"),
   round: document.querySelector("#round"),
   status: document.querySelector("#status"),
@@ -37,7 +39,8 @@ const els = {
 };
 
 function gameQuery() {
-  return `game=${encodeURIComponent(els.game.value || state.game?.name || "")}`;
+  const spec = els.gameSpec.value.trim() || els.game.value || state.game?.spec || "";
+  return `game=${encodeURIComponent(spec)}`;
 }
 
 function api(path) {
@@ -55,6 +58,8 @@ function setBusy(value) {
   els.strategy.disabled = value;
   els.compareStrategy.disabled = value;
   els.game.disabled = value || state.autoPlaying;
+  els.gameSpec.disabled = value || state.autoPlaying;
+  els.applyGame.disabled = value || state.autoPlaying;
   els.autoPlay.disabled = value && !state.autoPlaying;
   for (const button of document.querySelectorAll("button[data-action]")) {
     button.disabled = value;
@@ -93,7 +98,7 @@ function pickDefaultStrategy(strategies) {
   );
 }
 
-function renderGameSelect(current) {
+function renderGameSelect(current, currentSpec = current) {
   els.game.replaceChildren();
   for (const game of state.games) {
     const option = document.createElement("option");
@@ -102,6 +107,7 @@ function renderGameSelect(current) {
     option.selected = game === current;
     els.game.append(option);
   }
+  els.gameSpec.value = currentSpec;
 }
 
 function renderStrategies() {
@@ -902,13 +908,20 @@ async function redoMove() {
 }
 
 async function changeGame() {
+  els.gameSpec.value = els.game.value;
+  await applyGameSpec();
+}
+
+async function applyGameSpec() {
   await runAction(async () => {
     state.rawDirty = false;
-    await request("/set-game", {
+    const snapshot = await request("/set-game", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ game: els.game.value }),
+      body: JSON.stringify({ game: els.gameSpec.value.trim() }),
     });
+    els.game.value = snapshot.name;
+    els.gameSpec.value = snapshot.spec;
     await loadStrategies();
   });
 }
@@ -930,7 +943,7 @@ async function init() {
   try {
     const gamesPayload = await request("/games");
     state.games = gamesPayload.games;
-    renderGameSelect(gamesPayload.current);
+    renderGameSelect(gamesPayload.current, gamesPayload.current_spec);
     await loadStrategies();
     await refresh();
   } catch (error) {
@@ -941,6 +954,10 @@ async function init() {
 }
 
 els.game.addEventListener("change", changeGame);
+els.applyGame.addEventListener("click", applyGameSpec);
+els.gameSpec.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") applyGameSpec();
+});
 els.strategy.addEventListener("change", () => runAction(async () => {}));
 els.compareStrategy.addEventListener("change", () => runAction(async () => {}));
 els.rawState.addEventListener("input", () => {

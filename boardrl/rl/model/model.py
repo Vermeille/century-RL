@@ -1,6 +1,8 @@
 from typing import List
+import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from boardrl.rl.model.transformer import Transformer
 from boardrl.rl.model.gated_cnn import GatedCNNEncoder
 from boardrl.rl.model.cnn import CNNEncoder
@@ -36,21 +38,38 @@ class PolicyValue:
         ]
 
 
-# @torch.compile
-class MeanPool(nn.Module):
+class VariancePreservingAttentionPool(nn.Module):
+    """Learned pooling initialized as ``sum(x) / sqrt(length)``.
+
+    If the token states are independent with equal variance, a weighted sum
+    has variance proportional to ``sum(weights ** 2)``.  Normalizing by that
+    quantity preserves the variance while allowing the head to focus on the
+    useful parts of the input.
+    """
+
+    def __init__(self, dim):
+        super().__init__()
+        # Uniform attention at initialization recovers the existing pool.
+        self.score = zero(nn.Linear(dim, 1, bias=False))
+
     def forward(self, x, mask):
-        mask = mask.unsqueeze(-1).to(x.dtype)
-        return (x * mask).sum(1) / mask.sum(1).sqrt()
+        mask = mask.bool()
+        scores = self.score(x).squeeze(-1)
+        scores = scores.masked_fill(~mask, -torch.inf)
+        weights = F.softmax(scores, dim=1)
+
+        weight_norm = weights.square().sum(dim=1, keepdim=True).sqrt()
+        weight_norm = weight_norm.clamp_min(1e-6)
+        pooled = torch.einsum("bl,bld->bd", weights, x)
+        return pooled / weight_norm
 
 
 class ValueHead(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.pool = MeanPool()
+        self.pool = VariancePreservingAttentionPool(dim)
         self.out = nn.Sequential(
-            # nn.LayerNorm(dim),  # Detrimental
             zero(nn.Linear(dim, 2)),
-            # B2
         )
 
     def forward(self, x, attn_mask):
@@ -69,18 +88,24 @@ class Scale(nn.Module):
 
 
 class PolicyHead(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, initial_logit_scale=1.0):
         super().__init__()
+        self.dim = dim
+        self.pool = VariancePreservingAttentionPool(dim)
         self.mean_proj = nn.Linear(dim, dim)
         self.pred_proj = nn.Linear(dim, dim)
+        self.action_bias = zero(nn.Linear(dim, 1))
+        self.raw_logit_scale = nn.Parameter(
+            torch.tensor(math.log(math.expm1(initial_logit_scale)))
+        )
 
     def forward(self, x, mask):
-        mask = mask.unsqueeze(2)
-        m = (x * mask).sum(dim=1) / mask.sum(dim=1).sqrt()
-        m = self.mean_proj(m)
-        p = self.pred_proj(x)
-        y = torch.einsum("bd,bld->bl", m, p)
-        return y
+        query = self.mean_proj(self.pool(x, mask))
+        keys = self.pred_proj(x)
+        compatibility = torch.einsum("bd,bld->bl", query, keys)
+        compatibility = compatibility / math.sqrt(self.dim)
+        logit_scale = F.softplus(self.raw_logit_scale)
+        return logit_scale * compatibility + self.action_bias(keys).squeeze(-1)
 
 
 class Backbone(nn.Module):
@@ -270,11 +295,30 @@ class Model(nn.Module):
     def load_state_dict(self, state_dict, strict: bool = True):
         expanded = self._normalize_backbone_state_dict(state_dict)
         if strict:
-            model_keys = set(super().state_dict())
+            model_state = super().state_dict()
+            model_keys = set(model_state)
             extra_keys = sorted(set(expanded) - model_keys)
             if extra_keys:
                 expanded = {k: v for k, v in expanded.items() if k in model_keys}
                 print(f"Dropped {len(extra_keys)} stale checkpoint keys")
+            # Checkpoints created before the learned pooling/scaling heads do
+            # not contain these parameters.  Their defaults are deliberately
+            # chosen to recover the old normalized-sum behavior as closely as
+            # possible, so they can be loaded without invalidating old runs.
+            optional_head_keys = tuple(
+                key
+                for key in model_keys
+                if key.startswith(
+                    (
+                        "to_pred.pool.score.",
+                        "to_pred.action_bias.",
+                        "to_pred.raw_logit_scale",
+                        "rewards.pool.score.",
+                    )
+                )
+            )
+            for key in optional_head_keys:
+                expanded.setdefault(key, model_state[key])
         return super().load_state_dict(expanded, strict=strict)
 
     def text_encode(self, txts, maxlen):

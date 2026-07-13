@@ -27,12 +27,14 @@ body {
 }
 
 button,
-select {
+select,
+input[type="text"] {
   font: inherit;
 }
 
 button,
-select {
+select,
+input[type="text"] {
   min-height: 40px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -59,7 +61,8 @@ button.secondary {
   color: var(--danger);
 }
 
-select {
+select,
+input[type="text"] {
   width: min(58vw, 560px);
   padding: 0 34px 0 10px;
 }
@@ -852,6 +855,10 @@ h2 {
   }
 
   select {
+    width: 100%;
+  }
+
+  input[type="text"] {
     width: 100%;
   }
 
