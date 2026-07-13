@@ -1,4 +1,5 @@
 from boardrl.utils import RegisterByName
+from boardrl.games.augmentations import shuffle_actions
 from boardrl.games.strategies import strategy_from_string
 from functools import partial
 from boardrl.games.thegame.game import TheGame as TheGameGame
@@ -8,10 +9,17 @@ from boardrl.games.nim.game import Nim as NimGame
 
 
 class GameDesc:
-    def __init__(self, game_class, strategy_from_string, metrics_class):
+    def __init__(
+        self,
+        game_class,
+        strategy_from_string,
+        metrics_class,
+        augmentations=(),
+    ):
         self.make_game = game_class
         self.strategy_from_string = strategy_from_string
         self.make_metrics = metrics_class
+        self.augmentations = tuple(augmentations)
 
 
 games_library = RegisterByName()
@@ -37,6 +45,7 @@ class Century(GameDesc):
             partial(CenturyGame, goal_cards=goal_cards, num_players=num_players),
             strats,
             Metrics,
+            augmentations=(shuffle_actions,),
         )
 
 
@@ -46,7 +55,12 @@ class TicTacToe(GameDesc):
         from boardrl.games.tictactoe.game import TicTacToe
         from boardrl.games.tictactoe.metrics import Metrics
 
-        super().__init__(TicTacToe, strategy_from_string, Metrics)
+        super().__init__(
+            TicTacToe,
+            strategy_from_string,
+            Metrics,
+            augmentations=(shuffle_actions,),
+        )
 
 
 @games_library.register("connectfour")
@@ -55,7 +69,12 @@ class ConnectFour(GameDesc):
         from boardrl.games.connectfour.game import ConnectFour
         from boardrl.games.connectfour.metrics import Metrics
 
-        super().__init__(ConnectFour, strategy_from_string, Metrics)
+        super().__init__(
+            ConnectFour,
+            strategy_from_string,
+            Metrics,
+            augmentations=(shuffle_actions,),
+        )
 
 
 @games_library.register("sum")
@@ -68,19 +87,25 @@ class Sum(GameDesc):
         )
 
         strats = sum_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(Sum, strats, Metrics)
+        super().__init__(Sum, strats, Metrics, augmentations=(shuffle_actions,))
 
 
 @games_library.register("thegame", args_from=TheGameGame)
 class TheGame(GameDesc):
     def __init__(self, *args, **kwargs):
         from boardrl.games.thegame.metrics import Metrics
+        from boardrl.games.thegame.augmentations import shuffle_hand
         from boardrl.games.thegame.strategies import (
             strategy_from_string as thegame_strategy_from_string,
         )
 
         strats = thegame_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(partial(TheGameGame, *args, **kwargs), strats, Metrics)
+        super().__init__(
+            partial(TheGameGame, *args, **kwargs),
+            strats,
+            Metrics,
+            augmentations=(shuffle_actions, shuffle_hand),
+        )
 
 
 @games_library.register("guessnumber", args_from=GuessNumberGame)
@@ -92,6 +117,7 @@ class GuessNumber(GameDesc):
             partial(GuessNumberGame, *args, **kwargs),
             strategy_from_string,
             Metrics,
+            augmentations=(shuffle_actions,),
         )
 
 
@@ -104,6 +130,7 @@ class RPS(GameDesc):
             partial(RockPaperScissorsGame, *args, **kwargs),
             strategy_from_string,
             Metrics,
+            augmentations=(shuffle_actions,),
         )
 
 
@@ -121,4 +148,5 @@ class Nim(GameDesc):
             partial(NimGame, *args, **kwargs),
             strats,
             Metrics,
+            augmentations=(shuffle_actions,),
         )
