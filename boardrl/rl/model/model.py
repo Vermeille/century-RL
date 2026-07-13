@@ -40,7 +40,7 @@ class PolicyValue:
 class MeanPool(nn.Module):
     def forward(self, x, mask):
         mask = mask.unsqueeze(-1).to(x.dtype)
-        return (x * mask).sum(1) / mask.sum(1)
+        return (x * mask).sum(1) / mask.sum(1).sqrt()
 
 
 class ValueHead(nn.Module):
@@ -76,7 +76,7 @@ class PolicyHead(nn.Module):
 
     def forward(self, x, mask):
         mask = mask.unsqueeze(2)
-        m = (x * mask).sum(dim=1) / mask.sum(dim=1)
+        m = (x * mask).sum(dim=1) / mask.sum(dim=1).sqrt()
         m = self.mean_proj(m)
         p = self.pred_proj(x)
         y = torch.einsum("bd,bld->bl", m, p)

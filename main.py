@@ -12,7 +12,7 @@ from heavyball import ForeachMuon
 from boardrl.config import Config
 from boardrl.rl.model import Model
 from boardrl.rl.model.loss import loss_from_string
-from boardrl.rl.utils import pearson_corr, ReferenceModelHandler
+from boardrl.rl.utils import explained_variance, pearson_corr, ReferenceModelHandler
 from boardrl.rl.eval.matchmaker import MatchMaker
 from boardrl.rl.eval.selfplay import SelfPlayResults
 from boardrl.games import games_library
@@ -327,6 +327,9 @@ class Trainer:
                         ).item() / len(policy)
                         pearson = pearson_corr(value.mean, samples.returns)
                         total_losses["pearson"] += pearson.item()
+                        total_losses["explained_variance"] += explained_variance(
+                            value.mean, samples.returns
+                        ).item()
                         total_losses["MAE"] += torch.nn.functional.l1_loss(
                             value.mean, samples.returns
                         ).item()

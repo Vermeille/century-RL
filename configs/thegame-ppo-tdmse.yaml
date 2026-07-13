@@ -7,15 +7,15 @@ model: cnn-large
 pit:
   every: 20
   max_len: 800
-  num_games: 16
+  num_games: 23
   rotate: true
   strategies:
     - policy_sampling,model=this,temperature=0.2,include_moves=False
     - policy_sampling,model=this,temperature=0.2,include_moves=False
 
 self_play:
-  max_len: 500
-  num_games: 128
+  max_len: 5000
+  num_games: 256
   rotate: true
   strategies:
     - policy_sampling,model=this,include_moves=False
@@ -29,16 +29,16 @@ train:
   batch_size: 256
   print_histories: false
   discount_factor: 1.0
-  gradient_epochs: 4
+  gradient_epochs: 2
   gae_lambda: 1.0
   reference_model_update: "True"
   reward_rescale: 0.01
   losses:
     - policy_gradient_loss,weight=normalized_gae,drift=ppo,imp_ratio_clip=0.2
-    - entropy_bonus,strength=0.05
+    - entropy_bonus,strength=0.01
     - kl,strength=3
     - bootstrap_value_mse_loss,strength=1
-  lr: 0.0003
+  lr: 0.0001
   warmup_epochs: 15
   save_every: 50
   show_every: 5
