@@ -430,6 +430,26 @@ if (!sumHtml.includes('5') || !sumHtml.includes('/ 2')) {
 if ((sumHtml.match(/data-action="/g) || []).length !== 10) {
   throw new Error('sum did not expose 10 number moves');
 }
+
+const take5Put = {
+  name: 'take5',
+  moves: ['12', '47'],
+  board_with_moves: ['Put', 'Hand: 12 47', 'S0: 5 19', 'S1: 23', '@12', '@47'].join('\n'),
+};
+const take5PutHtml = sandbox.renderTake5(take5Put);
+if (!take5PutHtml.includes('Play a card') || !take5PutHtml.includes('data-action="12"')) {
+  throw new Error('take5 hand renderer missed playable cards');
+}
+
+const take5Take = {
+  name: 'take5',
+  moves: ['S0', 'S1'],
+  board_with_moves: ['Take 5', 'Hand:', 'S0: 5 19', 'S1: 23', '@S0', '@S1'].join('\n'),
+};
+const take5TakeHtml = sandbox.renderTake5(take5Take);
+if (!take5TakeHtml.includes('Take a stack') || !take5TakeHtml.includes('data-action="S0"')) {
+  throw new Error('take5 stack renderer missed take actions');
+}
 """
     )
 

@@ -336,6 +336,69 @@ function renderGeneric(game) {
   return `<pre class="fallback-board">${escapeHtml(game.board_with_moves || game.board)}</pre>`;
 }
 
+function parseTake5(game) {
+  const data = { phase: "put", hand: [], stacks: [], moves: game.moves };
+  for (const line of linesWithoutMoves(game)) {
+    if (line.startsWith("Take")) {
+      data.phase = "take";
+    } else if (line.startsWith("Hand:")) {
+      data.hand = line
+        .slice(5)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    } else {
+      const match = line.match(/^S(\d+):\s*(.*)$/);
+      if (match) {
+        data.stacks[Number(match[1])] = match[2]
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+      }
+    }
+  }
+  return data;
+}
+
+function renderTake5(game) {
+  const data = parseTake5(game);
+  const stackMoves = new Set(data.moves.filter((move) => /^S\d+$/.test(move)));
+  const cardMoves = new Set(data.moves.filter((move) => !move.startsWith("S")));
+  return `<div class="take5-board">
+    <section class="take5-status">
+      <span class="score-pill">${data.phase === "take" ? "Take a stack" : "Play a card"}</span>
+      <span class="score-pill">${data.stacks.length} stacks</span>
+    </section>
+    <section class="take5-section">
+      <div class="section-label">Rows</div>
+      <div class="take5-stacks">${data.stacks
+        .map((cards, index) => {
+          const move = `S${index}`;
+          const playable = stackMoves.has(move);
+          return `<button class="take5-stack ${playable ? "playable" : ""}" ${playable ? `data-action="${move}"` : ""}>
+            <span class="take5-stack-label">Stack ${index + 1}</span>
+            <span class="take5-stack-cards">${(cards || [])
+              .map((card) => `<span class="take5-card">${escapeHtml(card)}</span>`)
+              .join("")}</span>
+            ${playable ? `<span class="take5-stack-hint">Take this stack ${moveBadge(move)}</span>` : ""}
+          </button>`;
+        })
+        .join("")}</div>
+    </section>
+    <section class="take5-section">
+      <div class="section-label">Hand</div>
+      <div class="take5-hand">${data.hand
+        .map((card) => {
+          const playable = cardMoves.has(card);
+          return `<button class="take5-card take5-hand-card ${playable ? "playable" : ""}" ${playable ? `data-action="${escapeHtml(card)}"` : ""}>
+            ${escapeHtml(card)} ${playable ? moveBadge(card) : ""}
+          </button>`;
+        })
+        .join("")}</div>
+    </section>
+  </div>`;
+}
+
 function renderTictactoe(game) {
   const lines = linesWithoutMoves(game).filter((line) => line && !line.startsWith(">"));
   const rows = lines.slice(0, 3);
@@ -773,6 +836,7 @@ function renderSum(game) {
 }
 
 const renderers = {
+  take5: renderTake5,
   tictactoe: renderTictactoe,
   connectfour: renderConnectfour,
   century: renderCentury,

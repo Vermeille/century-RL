@@ -62,3 +62,18 @@ def test_option_bearing_startup_game_is_preserved():
         assert state["name"] == "nim"
         assert state["spec"] == spec
         assert state["moves"] == ["1", "2"]
+
+
+def test_take5_is_available_through_the_web_server():
+    with serve_for_game("take5") as serve:
+        client = TestClient(serve.app)
+        state = client.get("/state").json()
+
+        assert state["name"] == "take5"
+        assert len(state["moves"]) == 10
+        assert "Put" in state["board_with_moves"]
+        assert "random" in client.get("/strategies").json()
+
+        response = client.post("/do-one", json={"action": state["moves"][0]})
+        assert response.status_code == 200
+        assert response.json()["state"]["history"][0]["action"] == state["moves"][0]

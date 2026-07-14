@@ -435,6 +435,96 @@ h2 {
   white-space: pre;
 }
 
+.take5-board {
+  display: grid;
+  gap: 16px;
+}
+
+.take5-status,
+.take5-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.take5-section {
+  display: grid;
+  gap: 8px;
+}
+
+.take5-stacks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  max-width: 760px;
+}
+
+.take5-stack {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 150px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+}
+
+.take5-stack.playable {
+  cursor: pointer;
+  outline: 2px solid rgba(27, 110, 243, 0.35);
+  outline-offset: 2px;
+}
+
+.take5-stack.playable:hover {
+  border-color: var(--accent);
+}
+
+.take5-stack-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.take5-stack-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-content: start;
+}
+
+.take5-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-strong);
+  font-weight: 850;
+}
+
+.take5-hand-card.playable {
+  cursor: pointer;
+  outline: 2px solid rgba(27, 110, 243, 0.35);
+  outline-offset: 2px;
+}
+
+.take5-hand-card.playable:hover {
+  border-color: var(--accent);
+}
+
+.take5-stack-hint {
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .grid-game {
   display: grid;
   justify-content: start;
