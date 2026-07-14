@@ -418,37 +418,79 @@ class ScheduledPerplexity:
     def __init__(
         self,
         start: float,
-        end: float = 0.0,
-        ppl_beta: float = 0.997,
-        adaptation_rate: float = 0.5,
+        end: float = 0.05,
+        ppl_beta: float = 0.99,
+        adaptation_rate: float = 0.03,
+        init_strength: float = 0.01,
+        min_strength: float = 1e-5,
+        max_strength: float = 1.0,
     ):
         self.start = start
         self.end = end
-        self.entropy = EntropyBonus(0.01)
-        self.strength_ema = self.entropy.strength
+
+        self.entropy = EntropyBonus(init_strength)
+
+        self.log_strength = math.log(init_strength)
+        self.min_log_strength = math.log(min_strength)
+        self.max_log_strength = math.log(max_strength)
+
+        self.ppl_ema = None
         self.ppl_beta = ppl_beta
         self.adaptation_rate = adaptation_rate
 
     @staticmethod
     def normalized_perplexity(policy):
-        return sum(
-            (torch.exp(torch.sum(-torch.softmax(p, 0) * torch.log_softmax(p, 0))) - 1)
-            / (len(p) - 1 + 1e-8)
-            for p in policy
-        ).item() / len(policy)
+        vals = []
+
+        for logits in policy:
+            n = len(logits)
+            if n <= 1:
+                vals.append(logits.new_tensor(0.0))
+                continue
+
+            logp = torch.log_softmax(logits, dim=0)
+            p = torch.softmax(logits, dim=0)
+            entropy = -(p * logp).sum()
+
+            ppl = entropy.exp()
+            norm_ppl = (ppl - 1.0) / (n - 1.0)
+            vals.append(norm_ppl)
+
+        return torch.stack(vals).mean()
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         progress = training_state["progress"]
         assert 0.0 <= progress <= 1.0
-        tgt = self.end * progress + self.start * (1 - progress)
-        ppl = self.normalized_perplexity(pred_policy) + 1e-8
 
-        s = self.entropy.strength
-        s = max(1e-4, min(5, s + self.adaptation_rate * (tgt - ppl)))
-        self.strength_ema = self.ppl_beta * self.strength_ema + (1 - self.ppl_beta) * s
-        self.entropy.strength = self.strength_ema
+        target = self.start * (1.0 - progress) + self.end * progress
+
+        # Controller signal only, no gradient needed.
+        ppl = self.normalized_perplexity(pred_policy).detach().item()
+
+        if self.ppl_ema is None:
+            self.ppl_ema = ppl
+        else:
+            self.ppl_ema = (
+                self.ppl_beta * self.ppl_ema
+                + (1.0 - self.ppl_beta) * ppl
+            )
+
+        error = target - self.ppl_ema
+
+        # If ppl too low, increase entropy strength.
+        # If ppl too high, decrease entropy strength.
+        self.log_strength += self.adaptation_rate * error
+        self.log_strength = max(
+            self.min_log_strength,
+            min(self.max_log_strength, self.log_strength),
+        )
+
+        self.entropy.strength = math.exp(self.log_strength)
+
         e = self.entropy(pred_policy, pred_value, sample, training_state)
-        return e - e.detach() + torch.tensor(self.entropy.strength)
+
+        # Optional: keep gradient from e but report coefficient as scalar value.
+        return e - e.detach() + e.new_tensor(self.entropy.strength)
 
 
 @loss_from_string.register("reverse_entropy_bonus")

@@ -5,6 +5,7 @@ from boardrl.rl.model.loss import (
     PolicyGradientLoss,
     EntropyBonus,
     LinearEntropyBonus,
+    ScheduledPerplexity,
     KLPenalty,
     BootstrapValueMSELoss,
 )
@@ -50,6 +51,51 @@ def test_linear_entropy_bonus_interpolates_strength():
     assert loss.strength(0.5) == 0.0055
     assert loss.strength(1.0) == 0.001
     assert loss.strength(2.0) == 0.001
+
+
+def test_scheduled_perplexity_normalizes_uniform_and_single_action_policies():
+    assert torch.allclose(
+        ScheduledPerplexity.normalized_perplexity(
+            [torch.zeros(4), torch.tensor([0.0])]
+        ),
+        torch.tensor(0.5),
+    )
+
+
+def test_scheduled_perplexity_adapts_strength_in_log_space():
+    loss = ScheduledPerplexity(
+        start=0.8,
+        ppl_beta=0.0,
+        adaptation_rate=10.0,
+        init_strength=0.1,
+        min_strength=0.05,
+        max_strength=0.2,
+    )
+    sample = SimpleNamespace(action_idx=torch.tensor([0]))
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+
+    low_ppl_logits = torch.tensor([10.0, -10.0], requires_grad=True)
+    loss([low_ppl_logits], pred_value, sample, {"progress": 0.0})
+    assert abs(loss.entropy.strength - 0.2) < 1e-12
+
+    high_ppl_logits = torch.zeros(2, requires_grad=True)
+    loss([high_ppl_logits], pred_value, sample, {"progress": 0.0})
+    assert abs(loss.entropy.strength - 0.05) < 1e-12
+
+
+def test_scheduled_perplexity_preserves_entropy_gradient():
+    loss = ScheduledPerplexity(start=1.0, init_strength=0.1)
+    logits = torch.tensor([1.0, -1.0], requires_grad=True)
+    sample = SimpleNamespace(action_idx=torch.tensor([0]))
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+
+    result = loss([logits], pred_value, sample, {"progress": 0.0})
+    result.backward()
+
+    assert torch.isfinite(result)
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert not torch.allclose(logits.grad, torch.zeros_like(logits.grad))
 
 
 def test_kl_regularizer_matches_manual():
