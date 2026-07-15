@@ -75,6 +75,38 @@ def test_thegame_shuffle_hand_keeps_actions_and_metadata(monkeypatch):
     assert sample.state == "Piles: 1 1 100 100\nHand: 12 45 78\n@12->0\n@45->0"
 
 
+def test_thegame_shuffle_hand_only_reorders_omni_current_hand(monkeypatch):
+    monkeypatch.setattr(
+        "boardrl.games.thegame.augmentations.random.shuffle",
+        lambda values: values.reverse(),
+    )
+    sample = TrainingSample(
+        state=(
+            "Hand: 12 45 78\n"
+            "Hand: 3 4\n"
+            "Hand: 5 6\n"
+            "Deck: 99 98 97\n"
+            "@12->0\n"
+            "@45->0"
+        ),
+        moves=["12->0", "45->0"],
+        action_idx=1,
+    )
+
+    augmented = shuffle_hand([sample])[0]
+
+    assert augmented.state == (
+        "Hand: 78 45 12\n"
+        "Hand: 3 4\n"
+        "Hand: 5 6\n"
+        "Deck: 99 98 97\n"
+        "@12->0\n"
+        "@45->0"
+    )
+    assert augmented.moves == sample.moves
+    assert augmented.action_idx == sample.action_idx
+
+
 def test_thegame_shuffle_hand_preserves_hand_line_ending(monkeypatch):
     monkeypatch.setattr(
         "boardrl.games.thegame.augmentations.random.shuffle",

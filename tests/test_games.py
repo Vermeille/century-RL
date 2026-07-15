@@ -203,6 +203,28 @@ def test_thegame_free_without_messages_can_continue_or_exit():
     assert g.current_player() == 1
 
 
+def test_thegame_omni_matches_free_moves_and_displays_full_information():
+    free = TheGame(num_players=3, mode="free")
+    omni = TheGame(num_players=3, mode="omni")
+    for game in (free, omni):
+        game.curplay = 1
+        game.deck = list(range(1, 13))
+        game.piles = [1, 1, 100, 100]
+        game.hands = [[20], [21], [22]]
+        game.moves = game.gen_moves()
+
+    assert omni.moves == free.moves
+    assert omni.display() == (
+        "Round: 0, Action: 0\n"
+        "Piles: 1 1 100 100\n"
+        "Cards: 12\n"
+        "Hand: 21\n"
+        "Hand: 22\n"
+        "Hand: 20\n"
+        "Deck: 12 11 10 9 8 7 6 5 4 3\n"
+    )
+
+
 def test_thegame_free_before_draw_message_can_continue_or_message():
     g = _thegame_ready_for_second_play(mode="free_message_before_draw")
 

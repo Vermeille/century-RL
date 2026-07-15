@@ -58,29 +58,66 @@ def test_scheduled_perplexity_normalizes_uniform_and_single_action_policies():
         ScheduledPerplexity.normalized_perplexity(
             [torch.zeros(4), torch.tensor([0.0])]
         ),
-        torch.tensor(0.5),
+        torch.tensor(1.0),
+    )
+    assert torch.allclose(
+        ScheduledPerplexity.normalized_perplexity([torch.tensor([0.0])]),
+        torch.tensor(0.0),
     )
 
 
-def test_scheduled_perplexity_adapts_strength_in_log_space():
+def test_scheduled_perplexity_uses_baseline_and_asymmetric_control():
     loss = ScheduledPerplexity(
-        start=0.8,
+        start=0.5,
         ppl_beta=0.0,
-        adaptation_rate=10.0,
         init_strength=0.1,
-        min_strength=0.05,
-        max_strength=0.2,
+        baseline_ratio=0.2,
+        adaptation_rate=0.05,
     )
+
+    loss.update_strength(measured_ppl=0.0, target_ppl=0.5)
+    assert loss.entropy.strength > loss.init_strength
+    assert loss.entropy.strength <= loss.max_strength
+
+    increased_strength = loss.entropy.strength
+    loss.update_strength(measured_ppl=1.0, target_ppl=0.5)
+    assert loss.entropy.strength < increased_strength
+    assert loss.entropy.strength > loss.baseline_strength
+
+
+def test_scheduled_perplexity_deadband_relaxes_toward_baseline():
+    loss = ScheduledPerplexity(
+        start=0.5,
+        init_strength=0.1,
+        baseline_ratio=0.2,
+        ppl_beta=0.0,
+        deadband=0.02,
+    )
+
+    loss.update_strength(measured_ppl=0.49, target_ppl=0.5)
+
+    assert loss.entropy.strength < loss.init_strength
+    assert loss.entropy.strength > loss.baseline_strength
+
+
+def test_scheduled_perplexity_can_freeze_controller_during_evaluation():
+    loss = ScheduledPerplexity(start=0.5, init_strength=0.1)
     sample = SimpleNamespace(action_idx=torch.tensor([0]))
     pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+    logits = torch.tensor([1.0, -1.0], requires_grad=True)
 
-    low_ppl_logits = torch.tensor([10.0, -10.0], requires_grad=True)
-    loss([low_ppl_logits], pred_value, sample, {"progress": 0.0})
-    assert abs(loss.entropy.strength - 0.2) < 1e-12
+    result = loss(
+        [logits],
+        pred_value,
+        sample,
+        {"progress": 0.5, "update_entropy_controller": False},
+    )
 
-    high_ppl_logits = torch.zeros(2, requires_grad=True)
-    loss([high_ppl_logits], pred_value, sample, {"progress": 0.0})
-    assert abs(loss.entropy.strength - 0.05) < 1e-12
+    assert loss.ppl_ema is None
+    assert loss.last_target_ppl == 0.275
+    assert loss.last_ppl is not None
+    assert loss.entropy.strength == loss.init_strength
+    assert torch.isfinite(result)
 
 
 def test_scheduled_perplexity_preserves_entropy_gradient():
