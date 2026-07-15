@@ -421,77 +421,154 @@ class ScheduledPerplexity:
         self,
         start: float,
         end: float = 0.05,
-        ppl_beta: float = 0.99,
-        adaptation_rate: float = 0.03,
         init_strength: float = 0.01,
-        min_strength: float = 1e-5,
-        max_strength: float = 1.0,
+        baseline_ratio: float = 0.2,
+        adaptation_rate: float = 0.05,
+        ppl_beta: float = 0.99,
+        deadband: float = 0.02,
     ):
+        assert start >= 0.0
+        assert end >= 0.0
+        assert init_strength > 0.0
+        assert 0.0 < baseline_ratio <= 1.0
+        assert adaptation_rate > 0.0
+        assert 0.0 <= ppl_beta < 1.0
+        assert deadband >= 0.0
+
         self.start = start
         self.end = end
 
+        self.init_strength = init_strength
+        self.baseline_strength = init_strength * baseline_ratio
+
+        # Hard clamps derived from init/baseline, not exposed as knobs.
+        self.min_strength = self.baseline_strength * 0.1
+        self.max_strength = self.init_strength * 10.0
+
+        self.adaptation_rate = adaptation_rate
+        self.ppl_beta = ppl_beta
+        self.deadband = deadband
+
         self.entropy = EntropyBonus(init_strength)
 
-        self.log_strength = math.log(init_strength)
-        self.min_log_strength = math.log(min_strength)
-        self.max_log_strength = math.log(max_strength)
-
         self.ppl_ema = None
-        self.ppl_beta = ppl_beta
-        self.adaptation_rate = adaptation_rate
+
+        # Useful for logging.
+        self.last_target_ppl = None
+        self.last_ppl = None
+        self.last_ppl_ema = None
+        self.last_strength = init_strength
 
     @staticmethod
     def normalized_perplexity(policy):
+        """
+        policy: iterable of 1D logits tensors, one per state.
+                Each tensor should already contain only legal-action logits.
+
+        Returns normalized perplexity in [0, 1]:
+
+            0 = deterministic
+            1 = uniform over legal actions
+        """
+
         vals = []
 
         for logits in policy:
-            n = len(logits)
+            n = logits.numel()
             if n <= 1:
-                vals.append(logits.new_tensor(0.0))
                 continue
 
+            # Use float32 for stable entropy math, while preserving device.
+            logits = logits.float()
+
             logp = torch.log_softmax(logits, dim=0)
-            p = torch.softmax(logits, dim=0)
+            p = logp.exp()
             entropy = -(p * logp).sum()
 
             ppl = entropy.exp()
             norm_ppl = (ppl - 1.0) / (n - 1.0)
             vals.append(norm_ppl)
 
+        if not vals:
+            # Degenerate batch: no state with >1 legal action.
+            # Return a tensor on a reasonable device.
+            first = next(iter(policy))
+            return first.new_tensor(0.0)
+
         return torch.stack(vals).mean()
 
-    def __call__(self, pred_policy, pred_value, sample, training_state):
-        progress = training_state["progress"]
+    def target_ppl(self, progress: float) -> float:
         assert 0.0 <= progress <= 1.0
+        return self.start * (1.0 - progress) + self.end * progress
 
-        target = self.start * (1.0 - progress) + self.end * progress
+    def update_strength(self, measured_ppl: float, target_ppl: float):
+        """
+        Thermostat logic.
 
-        # Controller signal only, no gradient needed.
-        ppl = self.normalized_perplexity(pred_policy).detach().item()
+        If PPL is below target:
+            increase entropy strength.
+
+        If PPL is above target:
+            slowly relax toward baseline_strength, not toward zero.
+        """
 
         if self.ppl_ema is None:
-            self.ppl_ema = ppl
+            self.ppl_ema = measured_ppl
         else:
             self.ppl_ema = (
                 self.ppl_beta * self.ppl_ema
-                + (1.0 - self.ppl_beta) * ppl
+                + (1.0 - self.ppl_beta) * measured_ppl
             )
 
-        error = target - self.ppl_ema
+        strength = self.entropy.strength
 
-        # If ppl too low, increase entropy strength.
-        # If ppl too high, decrease entropy strength.
-        self.log_strength += self.adaptation_rate * error
-        self.log_strength = max(
-            self.min_log_strength,
-            min(self.max_log_strength, self.log_strength),
-        )
+        error = target_ppl - self.ppl_ema
 
-        self.entropy.strength = math.exp(self.log_strength)
+        if error > self.deadband:
+            # Policy is too deterministic.
+            #
+            # Additive increase, scaled by init_strength so adaptation_rate
+            # stays dimensionless.
+            strength += self.adaptation_rate * self.init_strength * error
+
+        else:
+            # Policy is exploratory enough.
+            #
+            # Relax gently toward the nonzero baseline.
+            # Downward motion is intentionally slower than upward correction.
+            relax_rate = 0.1 * self.adaptation_rate
+            strength += relax_rate * (self.baseline_strength - strength)
+
+        strength = max(self.min_strength, min(self.max_strength, strength))
+
+        self.entropy.strength = strength
+
+        self.last_strength = strength
+        self.last_ppl_ema = self.ppl_ema
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        progress = training_state["progress"]
+        target = self.target_ppl(progress)
+
+        ppl_tensor = self.normalized_perplexity(pred_policy)
+        ppl = ppl_tensor.detach().item()
+
+        # Optional escape hatch: useful if this loss is called during eval/logging.
+        update_controller = training_state.get("update_entropy_controller", True)
+
+        if update_controller:
+            self.update_strength(
+                measured_ppl=ppl,
+                target_ppl=target,
+            )
+
+        self.last_target_ppl = target
+        self.last_ppl = ppl
 
         e = self.entropy(pred_policy, pred_value, sample, training_state)
 
-        # Optional: keep gradient from e but report coefficient as scalar value.
+        # Preserve the gradient of the entropy bonus,
+        # but report the current entropy strength as the scalar value.
         return e - e.detach() + e.new_tensor(self.entropy.strength)
 
 
