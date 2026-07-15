@@ -34,13 +34,14 @@ train:
   reference_model_update: "True"
   reward_rescale: 0.01
   losses:
-    - policy_gradient_loss,weight=normalized_gae,drift=ppo,imp_ratio_clip=0.2
-    - entropy_bonus,strength=0.01
-    - kl,strength=3
+    - policy_gradient_loss,weight=normalized_gae,drift=ppo,imp_ratio_clip=0.2,strength=1
+    - scheduled_perplexity,start=0.8,end=0.05,init_strength=0.1,baseline_ratio=0.2,adaptation_rate=0.005,ppl_beta=0.99,deadband=0.04
+    - kl,strength=0.5
     - bootstrap_value_mse_loss,strength=1
   lr: 0.0001
+  lr_min_scale: 0.3
   warmup_epochs: 15
   save_every: 50
   show_every: 5
   weight_decay: 0.01
-  iterations: 80000
+  iterations: 1000
