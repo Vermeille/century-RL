@@ -543,6 +543,7 @@ function parseTheGame(game) {
     messages: "",
     moves: game.moves,
   };
+  let handSeen = false;
   for (const line of (game.board_with_moves || "").split("\n")) {
     if (line.startsWith("Round:")) {
       const match = line.match(/Round:\s*(\d+),\s*Action:\s*(\d+)/);
@@ -554,8 +555,9 @@ function parseTheGame(game) {
       data.piles = parseTheGamePiles(line.slice(6).trim());
     } else if (line.startsWith("Cards:")) {
       data.cards = Number(line.slice(6));
-    } else if (line.startsWith("Hand:")) {
+    } else if (line.startsWith("Hand:") && !handSeen) {
       data.hand = line.slice(5).trim().split(/\s+/).filter(Boolean);
+      handSeen = true;
     } else if (line.startsWith("Msgs:")) {
       data.messages = line.slice(5).trim();
     }
