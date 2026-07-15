@@ -76,6 +76,7 @@
       let hand = [];
       let moves = [];
       let cards = 0;
+      let handSeen = false;
       for (const line of lines) {
         if (line.startsWith('Piles:')) {
           const parts = line.substring(6).split(',');
@@ -85,8 +86,9 @@
           });
         } else if (line.startsWith("Cards:")) {
           cards = parseInt(line.substring(6));
-        } else if (line.startsWith('Hand:')) {
+        } else if (line.startsWith('Hand:') && !handSeen) {
           hand = line.substring(5).trim().split(/\s+/).filter(x => x);
+          handSeen = true;
         } else if (line.startsWith('@')) {
           moves.push(line.substring(1));
         }
@@ -232,4 +234,3 @@
   </script>
 </body>
 </html>
-

@@ -5,6 +5,7 @@ MESSAGE_MOVES = list("ABCDEFGHIJ")
 GAME_MODES = {
     "strict",
     "free",
+    "omni",
     "strict_message_before_draw",
     "free_message_before_draw",
     "strict_message_after_draw",
@@ -19,6 +20,7 @@ AFTER_DRAW_MESSAGE_PHASE = "after_draw_message"
 class GameMode:
     name = ""
     has_messages = False
+    displays_all_information = False
 
     def moves_after_minimum_cards(self, game):
         raise NotImplementedError
@@ -56,6 +58,13 @@ class Free(GameMode):
 
     def play_x(self, game, player):
         game.finish_turn(player)
+
+
+class Omni(Free):
+    """Free play with a complete view of the players and draw pile."""
+
+    name = "omni"
+    displays_all_information = True
 
 
 class StrictMessageBeforeDraw(GameMode):
@@ -104,6 +113,7 @@ GAME_MODE_BY_NAME = {
     for mode in (
         Strict(),
         Free(),
+        Omni(),
         StrictMessageBeforeDraw(),
         FreeMessageBeforeDraw(),
         StrictMessageAfterDraw(),
@@ -118,7 +128,7 @@ class TheGame:
       - 4 piles: 2 ascending (indices 0 and 1) and 2 descending (indices 2 and 3).
       - Each pile starts at 1 (for ascending) or 100 (for descending).
       - There's a deck of cards from 2 to 99 (inclusive).
-      - Each player has a hand of cards. We'll track only the current player's turn.
+      - Each player has a hand of cards.
     Can configure the max_value (100 by default)
     """
 
@@ -199,7 +209,8 @@ class TheGame:
         """
         Returns a string showing:
           - Pile states
-          - Current player's hand
+          - The current player's hand, or all hands in omni mode
+          - The next ten cards in the deck in omni mode
           - Which player's turn it is
         """
         if force == -1:
@@ -208,7 +219,19 @@ class TheGame:
             assert force in range(self.num_players)
             p = force
         pile_info = " ".join(f"{val}" for val in self.piles)
-        hand_info = " ".join(str(c) for c in self.hands[p])
+        hand_lines = [f"Hand: {' '.join(str(c) for c in self.hands[p])}"]
+        deck_line = ""
+        if self.game_mode.displays_all_information:
+            # Cards are drawn from the end of the list, so reverse this slice
+            # to show the cards in the order in which they will be drawn.
+            for offset in range(1, self.num_players):
+                player = (p + offset) % self.num_players
+                hand_lines.append(
+                    f"Hand: {' '.join(str(c) for c in self.hands[player])}"
+                )
+            next_cards = self.deck[-10:][::-1]
+            deck_line = f"Deck: {' '.join(str(c) for c in next_cards)}\n"
+        hands_line = "\n".join(hand_lines)
         msg_line = ""
         if self.has_messages():
             # Show last messages from other players in order relative to current viewer.
@@ -220,7 +243,8 @@ class TheGame:
             f"Round: {self._round}, Action: {self.action}\n"
             f"Piles: {pile_info}\n"
             f"Cards: {len(self.deck)}\n"
-            f"Hand: {hand_info}\n"
+            f"{hands_line}\n"
+            f"{deck_line}"
             f"{msg_line}"
         )
 
