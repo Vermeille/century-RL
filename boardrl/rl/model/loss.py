@@ -244,6 +244,7 @@ class PolicyGradientLoss:
         drift: str = None,
         imp_ratio_clip: float = 1.0,
         rectification: float = 0.0,
+        strength: float = 1.0,
     ):
         assert weight in [
             "returns",
@@ -284,6 +285,7 @@ class PolicyGradientLoss:
         ]
         self.imp_ratio_clip = imp_ratio_clip
         self.rectification = rectification
+        self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_idx)
@@ -319,7 +321,7 @@ class PolicyGradientLoss:
                 imp_ratio = torch.exp(top - bottom)
                 weight = self.drift(imp_ratio, weight)
 
-        return torch.mean(
+        return self.strength * torch.mean(
             weight * F.cross_entropy(padded, sample.action_idx, reduction="none")
         )
 
