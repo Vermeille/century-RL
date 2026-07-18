@@ -23,6 +23,7 @@ class StrictModel(BaseModel):
 class TrainConfig(StrictModel):
     optimizer: str = "AdamW"
     gradient_epochs: int = 1
+    gradient_clip_norm: Optional[float] = None
     lr: float = 1e-4
     lr_min_scale: float = 0.0
     warmup_epochs: Optional[float] = None

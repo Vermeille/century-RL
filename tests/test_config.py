@@ -16,6 +16,7 @@ def test_config_defaults():
     assert cfg.device == "cpu"
     assert cfg.seed is None
     assert cfg.train.optimizer == "AdamW"
+    assert cfg.train.gradient_clip_norm is None
     assert cfg.train.lr == 1e-4
     assert cfg.train.betas == (0.9, 0.999)
     assert cfg.train.weight_decay == 0.01
@@ -38,6 +39,7 @@ def test_config_overrides():
         "net": {"backbone": "lstm"},
         "train": {
             "lr": 0.5,
+            "gradient_clip_norm": 12.5,
             "betas": [0.8, 0.9],
             "weight_decay": 0.1,
             "iterations": 5,
@@ -51,6 +53,7 @@ def test_config_overrides():
     assert cfg.device == "cuda"
     assert cfg.seed == 123
     assert cfg.train.lr == 0.5
+    assert cfg.train.gradient_clip_norm == 12.5
     assert cfg.train.betas == (0.8, 0.9)
     assert cfg.train.weight_decay == 0.1
     assert cfg.train.iterations == 5

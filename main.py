@@ -45,6 +45,17 @@ def make_optimizer(params, train_cfg):
         raise ValueError(f"Unknown optimizer: {train_cfg.optimizer}")
 
 
+def measure_gradient_norm(parameters):
+    norms = [
+        parameter.grad.detach().norm()
+        for parameter in parameters
+        if parameter.grad is not None
+    ]
+    if not norms:
+        return torch.tensor(0.0)
+    return torch.linalg.vector_norm(torch.stack(norms))
+
+
 class Optimizer:
     def __init__(self, params, train_cfg):
         self.opt = make_optimizer(params=params, train_cfg=train_cfg)
@@ -292,9 +303,13 @@ class Trainer:
                     loss = loss * (len(batch) / len(data))
                 loss.backward()
                 if can_reuse_rollout:
-                    grad_mag = torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), max_norm=50.0
-                    )
+                    if self.config.train.gradient_clip_norm is None:
+                        grad_mag = measure_gradient_norm(self.model.parameters())
+                    else:
+                        grad_mag = torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(),
+                            max_norm=self.config.train.gradient_clip_norm,
+                        )
                     self.opt.batch_end()
                 else:
                     grad_mag = None
@@ -337,9 +352,13 @@ class Trainer:
                             total_losses["grad_mag"] += grad_mag.item()
                 num_batches += 1
             if not can_reuse_rollout:
-                grad_mag = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=50.0
-                )
+                if self.config.train.gradient_clip_norm is None:
+                    grad_mag = measure_gradient_norm(self.model.parameters())
+                else:
+                    grad_mag = torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(),
+                        max_norm=self.config.train.gradient_clip_norm,
+                    )
                 self.opt.batch_end()
                 if self.epoch % self.config.train.show_every == 0:
                     total_losses["grad_mag"] += grad_mag.item()
