@@ -7,6 +7,7 @@ from boardrl.rl.model.loss import (
     LinearEntropyBonus,
     ScheduledPerplexity,
     KLPenalty,
+    AdaptiveKLPenalty,
     BootstrapValueMSELoss,
 )
 
@@ -155,7 +156,9 @@ def test_kl_regularizer_matches_manual():
     kl = F.kl_div(
         F.log_softmax(logits, dim=0),
         F.log_softmax(reference_logits, dim=0),
-        reduction="batchmean",
+        # KLPenalty treats each state as one batch item, even though this
+        # standalone distribution is represented by a 1-D tensor.
+        reduction="sum",
         log_target=True,
     )
     expected = ce + 0.5 * kl
@@ -201,6 +204,70 @@ def test_kl_regularizer_matches_manual_for_variable_move_counts():
     )
 
     assert torch.allclose(loss, 0.5 * manual / len(reference_policy))
+
+
+def test_adaptive_kl_increases_strength_above_fixed_target():
+    loss = AdaptiveKLPenalty(
+        target=0.01,
+        init_strength=0.1,
+        adaptation_rate=0.05,
+        deadband=0.0,
+    )
+    pred_policy = [torch.tensor([1.0, -1.0])]
+    reference_policy = [torch.tensor([-1.0, 1.0])]
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+    sample = SimpleNamespace(reference_policy=reference_policy)
+
+    loss(pred_policy, pred_value, sample, training_state={})
+
+    assert loss.last_kl > loss.target
+    assert loss.kl.strength > loss.init_strength
+
+
+def test_adaptive_kl_relaxes_but_not_below_base_strength():
+    loss = AdaptiveKLPenalty(
+        target=0.01,
+        init_strength=0.1,
+        deadband=0.0,
+    )
+    pred_policy = [torch.tensor([1.0, -1.0])]
+    reference_policy = [torch.tensor([-1.0, 1.0])]
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+    sample = SimpleNamespace(reference_policy=reference_policy)
+
+    loss(pred_policy, pred_value, sample, training_state={})
+    increased_strength = loss.kl.strength
+
+    loss(
+        [torch.tensor([0.0, 0.0])],
+        pred_value,
+        SimpleNamespace(reference_policy=[torch.tensor([0.0, 0.0])]),
+        training_state={},
+    )
+
+    assert loss.last_kl < loss.target
+    assert increased_strength > loss.init_strength
+    assert loss.kl.strength < increased_strength
+    assert loss.kl.strength >= loss.init_strength
+
+
+def test_adaptive_kl_has_fixed_target_and_can_freeze_controller():
+    loss = AdaptiveKLPenalty(target=0.1, init_strength=0.1)
+    logits = torch.tensor([1.0, -1.0], requires_grad=True)
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+    sample = SimpleNamespace(reference_policy=[torch.tensor([-1.0, 1.0])])
+
+    result = loss(
+        [logits],
+        pred_value,
+        sample,
+        {"progress": 0.9, "update_kl_controller": False},
+    )
+    result.backward()
+
+    assert loss.last_kl is not None
+    assert loss.kl.strength == loss.init_strength
+    assert torch.isfinite(logits.grad).all()
 
 
 def test_vectorized_regularizers_have_finite_gradients_with_padding():

@@ -335,10 +335,7 @@ class KLPenalty:
     def __init__(self, strength: float = 0.0):
         self.strength = strength
 
-    def __call__(self, pred_policy, pred_value, sample, training_state):
-        if self.strength is None or self.strength == 0:
-            return torch.zeros((1,), device=pred_value.mean.device)
-
+    def divergence(self, pred_policy, sample, training_state):
         padded_policy = pack_cached(pred_policy, training_state, "pred_policy")
         padded_reference = pack_cached(
             sample.reference_policy, training_state, "reference_policy"
@@ -353,8 +350,86 @@ class KLPenalty:
         reference_prob = torch.where(
             mask, safe_log_reference.exp(), torch.zeros_like(safe_log_reference)
         )
-        loss = (reference_prob * (safe_log_reference - safe_log_policy)).sum()
-        return self.strength * loss / len(sample.reference_policy)
+        return (reference_prob * (safe_log_reference - safe_log_policy)).sum() / len(
+            sample.reference_policy
+        )
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        if self.strength is None or self.strength == 0:
+            return torch.zeros((1,), device=pred_value.mean.device)
+
+        return self.strength * self.divergence(pred_policy, sample, training_state)
+
+
+@loss_from_string.register("adaptive_kl")
+class AdaptiveKLPenalty:
+    """Adapt KL penalty strength to keep KL below a fixed target.
+
+    The controller increases the penalty when the measured KL is above the
+    target and relaxes it toward the initial base strength otherwise. The
+    target is intentionally constant; this loss does not depend on training
+    progress.
+    """
+
+    needs_reference_policy_value = True
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(
+        self,
+        target: float,
+        init_strength: float = 0.01,
+        adaptation_rate: float = 0.05,
+        deadband: float = 0.0,
+    ):
+        assert target >= 0.0
+        assert init_strength > 0.0
+        assert adaptation_rate > 0.0
+        assert deadband >= 0.0
+
+        self.target = target
+        self.init_strength = init_strength
+        self.max_strength = self.init_strength * 10.0
+        self.adaptation_rate = adaptation_rate
+        self.deadband = deadband
+
+        self.kl = KLPenalty(init_strength)
+
+        # Useful for logging and inspection.
+        self.last_target_kl = target
+        self.last_kl = None
+        self.last_strength = init_strength
+
+    def update_strength(self, measured_kl: float):
+        error = measured_kl - self.target
+        strength = self.kl.strength
+
+        if error > self.deadband:
+            # The policy is outside its KL budget.
+            strength += self.adaptation_rate * self.init_strength * error
+        else:
+            # Recover from an earlier increase, but never below the base
+            # strength used to initialize the controller.
+            relax_rate = 0.1 * self.adaptation_rate
+            strength += relax_rate * (self.init_strength - strength)
+
+        strength = max(self.init_strength, min(self.max_strength, strength))
+        self.kl.strength = strength
+        self.last_strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        divergence = self.kl.divergence(pred_policy, sample, training_state)
+        measured_kl = divergence.detach().item()
+
+        if training_state.get("update_kl_controller", True):
+            self.update_strength(measured_kl)
+
+        self.last_kl = measured_kl
+        penalty = self.kl.strength * divergence
+
+        # Preserve the KL gradient while reporting the current controller
+        # strength as the scalar value, matching ScheduledPerplexity.
+        return penalty - penalty.detach() + penalty.new_tensor(measured_kl)
 
 
 @loss_from_string.register("z_loss")
