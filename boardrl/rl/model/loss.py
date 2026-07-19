@@ -1,10 +1,17 @@
 import math
+from dataclasses import dataclass, field
 import torch
 import torch.nn.functional as F
 from boardrl.rl.model.utils import js_div, jeffreys_div
 from boardrl.utils import RegisterByName
 
 loss_from_string = RegisterByName()
+
+
+@dataclass
+class LossResult:
+    objective: torch.Tensor
+    metrics: dict[str, float | torch.Tensor] = field(default_factory=dict)
 
 
 @loss_from_string.register("imitation_ce_loss")
@@ -21,7 +28,7 @@ class ImitationCELoss:
             act = act.unsqueeze(0)
 
             loss += F.cross_entropy(logit, F.softmax(act, dim=1))
-        return loss / len(sample.action_distribution)
+        return LossResult(loss / len(sample.action_distribution))
 
 
 @loss_from_string.register("ce_loss")
@@ -38,7 +45,7 @@ class CELoss:
         loss = 0
         for logit, act in zip(pred_policy, sample.action_idx):
             loss += F.cross_entropy(logit, act, label_smoothing=self.label_smoothing)
-        return loss / len(sample.action_distribution)
+        return LossResult(loss / len(sample.action_distribution))
 
 
 @loss_from_string.register("imitation_jeffreys_loss")
@@ -55,7 +62,7 @@ class ImitationJeffreysLoss:
             act = act.unsqueeze(0)
 
             loss += jeffreys_div(logit, act)
-        return loss / len(sample.action_distribution)
+        return LossResult(loss / len(sample.action_distribution))
 
 
 @loss_from_string.register("imitation_js_loss")
@@ -72,7 +79,7 @@ class ImitationJSLoss:
             act = act.unsqueeze(0)
 
             loss += js_div(logit, act)
-        return loss / len(sample.action_distribution)
+        return LossResult(loss / len(sample.action_distribution))
 
 
 @loss_from_string.register("imitation_mse_loss")
@@ -89,7 +96,7 @@ class ImitationMSELoss:
             act = act.unsqueeze(0)
 
             loss += F.mse_loss(logit, act)
-        return loss / len(sample.action_distribution)
+        return LossResult(loss / len(sample.action_distribution))
 
 
 @loss_from_string.register("imitation_kl_loss")
@@ -111,7 +118,7 @@ class ImitationKLLoss:
                 reduction="batchmean",
                 log_target=True,
             )
-        return loss / len(sample.action_distribution)
+        return LossResult(loss / len(sample.action_distribution))
 
 
 @loss_from_string.register("imitation_reverse_kl_loss")
@@ -133,7 +140,7 @@ class ImitationReverseKLLoss:
                 reduction="batchmean",
                 log_target=True,
             )
-        return loss / len(sample.action_distribution)
+        return LossResult(loss / len(sample.action_distribution))
 
 
 def weight_score(samples, discount_factor):
@@ -321,8 +328,11 @@ class PolicyGradientLoss:
                 imp_ratio = torch.exp(top - bottom)
                 weight = self.drift(imp_ratio, weight)
 
-        return self.strength * torch.mean(
-            weight * F.cross_entropy(padded, sample.action_idx, reduction="none")
+        return LossResult(
+            self.strength
+            * torch.mean(
+                weight * F.cross_entropy(padded, sample.action_idx, reduction="none")
+            )
         )
 
 
@@ -356,9 +366,11 @@ class KLPenalty:
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         if self.strength is None or self.strength == 0:
-            return torch.zeros((1,), device=pred_value.mean.device)
+            return LossResult(torch.zeros((1,), device=pred_value.mean.device))
 
-        return self.strength * self.divergence(pred_policy, sample, training_state)
+        return LossResult(
+            self.strength * self.divergence(pred_policy, sample, training_state)
+        )
 
 
 @loss_from_string.register("adaptive_kl")
@@ -426,10 +438,14 @@ class AdaptiveKLPenalty:
 
         self.last_kl = measured_kl
         penalty = self.kl.strength * divergence
-
-        # Preserve the KL gradient while reporting the current controller
-        # strength as the scalar value, matching ScheduledPerplexity.
-        return penalty - penalty.detach() + penalty.new_tensor(measured_kl)
+        return LossResult(
+            penalty,
+            metrics={
+                "kl": measured_kl,
+                "target": self.target,
+                "strength": self.kl.strength,
+            },
+        )
 
 
 @loss_from_string.register("z_loss")
@@ -443,7 +459,7 @@ class ZLoss:
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         s = self.strength / len(sample.action_idx)
-        return s * sum(logit.pow(2).sum() for logit in pred_policy)
+        return LossResult(s * sum(logit.pow(2).sum() for logit in pred_policy))
 
 
 @loss_from_string.register("entropy_bonus")
@@ -460,9 +476,11 @@ class EntropyBonus:
         mask = torch.isfinite(padded)
         log_probs = F.log_softmax(padded, dim=1)
         safe_log_probs = torch.where(mask, log_probs, torch.zeros_like(log_probs))
-        probs = torch.where(mask, safe_log_probs.exp(), torch.zeros_like(safe_log_probs))
+        probs = torch.where(
+            mask, safe_log_probs.exp(), torch.zeros_like(safe_log_probs)
+        )
         terms = probs * safe_log_probs
-        return self.strength * terms.sum() / len(sample.action_idx)
+        return LossResult(self.strength * terms.sum() / len(sample.action_idx))
 
 
 @loss_from_string.register("linear_entropy_bonus")
@@ -481,9 +499,12 @@ class LinearEntropyBonus:
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         progress = training_state["progress"]
-        return EntropyBonus(self.strength(progress))(
+        strength = self.strength(progress)
+        result = EntropyBonus(strength)(
             pred_policy, pred_value, sample, training_state
         )
+        result.metrics["strength"] = strength
+        return result
 
 
 @loss_from_string.register("scheduled_perplexity")
@@ -591,8 +612,7 @@ class ScheduledPerplexity:
             self.ppl_ema = measured_ppl
         else:
             self.ppl_ema = (
-                self.ppl_beta * self.ppl_ema
-                + (1.0 - self.ppl_beta) * measured_ppl
+                self.ppl_beta * self.ppl_ema + (1.0 - self.ppl_beta) * measured_ppl
             )
 
         strength = self.entropy.strength
@@ -641,10 +661,16 @@ class ScheduledPerplexity:
         self.last_ppl = ppl
 
         e = self.entropy(pred_policy, pred_value, sample, training_state)
-
-        # Preserve the gradient of the entropy bonus,
-        # but report the current entropy strength as the scalar value.
-        return e - e.detach() + e.new_tensor(self.entropy.strength)
+        ppl_ema = self.ppl_ema if self.ppl_ema is not None else ppl
+        return LossResult(
+            e.objective,
+            metrics={
+                "perplexity": ppl,
+                "target": target,
+                "ema": ppl_ema,
+                "strength": self.entropy.strength,
+            },
+        )
 
 
 @loss_from_string.register("reverse_entropy_bonus")
@@ -658,7 +684,9 @@ class ReverseEntropyBonus:
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         s = self.strength / len(sample.action_idx)
-        return -s * sum(F.log_softmax(logit, dim=0).sum() for logit in pred_policy)
+        return LossResult(
+            -s * sum(F.log_softmax(logit, dim=0).sum() for logit in pred_policy)
+        )
 
 
 @loss_from_string.register("value_mse_loss")
@@ -672,7 +700,7 @@ class ValueMSELoss:
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         assert pred_value.mean.shape == sample.returns.shape
-        return self.strength * F.mse_loss(pred_value.mean, sample.returns)
+        return LossResult(self.strength * F.mse_loss(pred_value.mean, sample.returns))
 
 
 @loss_from_string.register("value_log_prob")
@@ -686,7 +714,7 @@ class ValueLogProb:
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         lp = pred_value.log_prob(sample.returns)
-        return -self.strength * lp.mean()
+        return LossResult(-self.strength * lp.mean())
 
 
 @loss_from_string.register("bootstrap_mse_loss")
@@ -710,7 +738,7 @@ class BootstrapMSELoss:
                 max=pred_value.mean + 2 * pred_value.stddev,
             )
             target = clipped
-        return -self.strength * pred_value.log_prob(target).mean()
+        return LossResult(-self.strength * pred_value.log_prob(target).mean())
 
 
 @loss_from_string.register("bootstrap_value_mse_loss")
@@ -723,7 +751,9 @@ class BootstrapValueMSELoss:
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
-        return self.strength * F.mse_loss(pred_value.mean, sample.td_lambda)
+        return LossResult(
+            self.strength * F.mse_loss(pred_value.mean, sample.td_lambda)
+        )
 
 
 @loss_from_string.register("q_mse_loss")
@@ -751,4 +781,4 @@ class QMSELoss:
                 v + adv[act] - adv.mean(), r + self.discount_factor * nxt
             )
 
-        return loss / len(sample.action_idx)
+        return LossResult(loss / len(sample.action_idx))

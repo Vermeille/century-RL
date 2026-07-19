@@ -56,6 +56,12 @@ def measure_gradient_norm(parameters):
     return torch.linalg.vector_norm(torch.stack(norms))
 
 
+def metric_to_float(value):
+    if torch.is_tensor(value):
+        return value.detach().item()
+    return float(value)
+
+
 class Optimizer:
     def __init__(self, params, train_cfg):
         self.opt = make_optimizer(params=params, train_cfg=train_cfg)
@@ -289,16 +295,19 @@ class Trainer:
                     )
                 policy, value = self.model(samples.state)
                 training_state = {"progress": self._training_progress()}
-                loss_dict = {
-                    loss_fn._registry_name: loss_fn(
-                        policy,
-                        value,
-                        samples,
-                        training_state,
+                loss_results = [
+                    (
+                        loss_fn._registry_name,
+                        loss_fn(
+                            policy,
+                            value,
+                            samples,
+                            training_state,
+                        ),
                     )
                     for loss_fn in self.losses
-                }
-                loss = sum(loss_dict.values())
+                ]
+                loss = sum(result.objective for _, result in loss_results)
                 if not can_reuse_rollout:
                     loss = loss * (len(batch) / len(data))
                 loss.backward()
@@ -316,8 +325,14 @@ class Trainer:
                 total_samples += len(batch)
                 if self.epoch % self.config.train.show_every == 0:
                     with torch.no_grad():
-                        for loss_name, loss_val in loss_dict.items():
-                            total_losses[loss_name] += loss_val.item()
+                        for loss_name, result in loss_results:
+                            total_losses[loss_name] += (
+                                result.objective.detach().item()
+                            )
+                            for metric_name, metric_value in result.metrics.items():
+                                total_losses[f"{loss_name}.{metric_name}"] += (
+                                    metric_to_float(metric_value)
+                                )
                         total_losses["normalized_perplexity"] += sum(
                             (
                                 torch.exp(
