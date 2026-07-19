@@ -28,7 +28,6 @@ train:
   gradient_epochs: 1
   gae_lambda: 0.9
   reference_model_update: "epoch % 1 == 0"
-  reward_rescale: 0.1
   losses:
     - policy_gradient_loss,weight=normalized_gae
     - entropy_bonus,strength=0.05

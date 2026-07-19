@@ -414,7 +414,7 @@ class Trainer:
             self.config.train.discount_factor,
             # 1 - 1 / (1 + self.epoch * 0.1),
             entropy_reward_scale=self.config.train.entropy_reward_scale,
-            reward_rescale=self.config.train.reward_rescale,
+            reward_rescale=self.game_desc.reward_rescale,
         )
         metrics = self.game_desc.make_metrics(data)
         if self.epoch % self.config.train.show_every == 0:

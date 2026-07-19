@@ -38,7 +38,6 @@ class TrainConfig(StrictModel):
     gae_lambda: float = 0.95
     losses: List[str | dict] = Field(default_factory=list)
     entropy_reward_scale: Optional[float] = None
-    reward_rescale: Optional[float] = None
     only_players: Optional[List[int]] = None
     only_strategies: Optional[List[int]] = None
     reference_model_update: Optional[str] = "False"

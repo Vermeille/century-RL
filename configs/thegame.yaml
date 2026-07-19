@@ -29,7 +29,6 @@ train:
   gradient_epochs: 4
   gae_lambda: 0.98
   reference_model_update: "epoch % 1 == 0"
-  reward_rescale: 0.1
   losses:
     - policy_gradient_loss,weight=normalized_gae,drift=ppo,imp_ratio_clip=0.2
     #- scheduled_perplexity,start=0.4,end=-0.05,adaptation_rate=2

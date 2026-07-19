@@ -99,3 +99,17 @@ def test_policy_sampling_epsilon_uses_dirichlet_noise(monkeypatch):
     policy, _ = asyncio.run(strat(game))
 
     assert torch.allclose(policy.exp(), torch.tensor([0.1, 0.2, 0.7]))
+
+
+@pytest.mark.parametrize(
+    "game_name,expected_scale",
+    [
+        ("tictactoe", 1.0),
+        ("connectfour", 1.0),
+        ("thegame", 0.01),
+        ("century", 0.01),
+        ("guessnumber", 0.1),
+    ],
+)
+def test_game_descriptor_reward_rescale(game_name, expected_scale):
+    assert games_library(game_name).reward_rescale == expected_scale

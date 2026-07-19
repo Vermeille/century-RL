@@ -15,11 +15,14 @@ class GameDesc:
         strategy_from_string,
         metrics_class,
         augmentations=(),
+        *,
+        reward_rescale: float,
     ):
         self.make_game = game_class
         self.strategy_from_string = strategy_from_string
         self.make_metrics = metrics_class
         self.augmentations = tuple(augmentations)
+        self.reward_rescale = reward_rescale
 
 
 games_library = RegisterByName()
@@ -46,6 +49,7 @@ class Century(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=0.01,
         )
 
 
@@ -60,6 +64,7 @@ class TicTacToe(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=1.0,
         )
 
 
@@ -74,6 +79,7 @@ class ConnectFour(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=1.0,
         )
 
 
@@ -87,7 +93,13 @@ class Sum(GameDesc):
         )
 
         strats = sum_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(Sum, strats, Metrics, augmentations=(shuffle_actions,))
+        super().__init__(
+            Sum,
+            strats,
+            Metrics,
+            augmentations=(shuffle_actions,),
+            reward_rescale=1.0,
+        )
 
 
 @games_library.register("thegame", args_from=TheGameGame)
@@ -105,6 +117,7 @@ class TheGame(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions, shuffle_hand),
+            reward_rescale=0.01,
         )
 
 
@@ -118,6 +131,7 @@ class GuessNumber(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=0.1,
         )
 
 
@@ -131,6 +145,7 @@ class RPS(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=1.0,
         )
 
 
@@ -149,4 +164,5 @@ class Nim(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=1.0,
         )
