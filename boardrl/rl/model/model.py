@@ -65,17 +65,21 @@ class VariancePreservingAttentionPool(nn.Module):
 
 
 class ValueHead(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, initial_value_scale=1.0):
         super().__init__()
         self.pool = VariancePreservingAttentionPool(dim)
         self.out = nn.Sequential(
             zero(nn.Linear(dim, 2)),
         )
+        self.raw_value_scale = nn.Parameter(
+            torch.tensor(math.log(math.expm1(initial_value_scale)))
+        )
 
     def forward(self, x, attn_mask):
         x = self.pool(x, attn_mask)
         out = self.out(x)
-        return out
+        value_scale = F.softplus(self.raw_value_scale)
+        return value_scale * out
 
 
 class Scale(nn.Module):

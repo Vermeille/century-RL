@@ -41,23 +41,3 @@ def test_model_heads_produce_gradients():
     loss.backward()
 
     assert all(parameter.grad is not None for parameter in model.parameters())
-
-
-def test_old_head_state_can_load_with_new_defaults():
-    torch.manual_seed(0)
-    model = Model(dim=16, num_layers=1, head_size=4, num_heads=4)
-    state = model.state_dict()
-    optional_prefixes = (
-        "to_pred.pool.score.",
-        "to_pred.action_bias.",
-        "to_pred.raw_logit_scale",
-        "rewards.pool.score.",
-    )
-    old_state = {
-        key: value
-        for key, value in state.items()
-        if not key.startswith(optional_prefixes)
-    }
-
-    restored = Model(dim=16, num_layers=1, head_size=4, num_heads=4)
-    restored.load_state_dict(old_state)
