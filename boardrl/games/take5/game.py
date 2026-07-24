@@ -66,17 +66,17 @@ class Take5:
             assert force in range(self.num_players)
             p = force
         phase = "Put\n" if self.phase == 0 else f"Take {self.table[0][1]}\n"
-        return phase + f"Hand: {' '.join(map(str, self.players[p]))}\n" + "\n".join(
-            [f"S{i}: {' '.join(map(str, s))}\n" for i, s in enumerate(self.stacks)]
+        return (
+            phase
+            + f"Hand: {' '.join(map(str, self.players[p]))}\n"
+            + "\n".join(
+                [f"S{i}: {' '.join(map(str, s))}\n" for i, s in enumerate(self.stacks)]
+            )
         )
 
     def display_with_moves(self) -> str:
         board = self.display()
-        if self.phase == 0:
-            moves = [f"@{c}" for c in self.players[self.current_player_]]
-        else:
-            moves = [f"@S{i}" for i in range(len(self.stacks))]
-        return board + "\n".join(moves)
+        return board + "\n".join(f"@{m}" for m in self.moves)
 
     def solve(self):
         self.phase = 1

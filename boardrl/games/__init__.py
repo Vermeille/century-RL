@@ -7,6 +7,7 @@ from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
 from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
 from boardrl.games.nim.game import Nim as NimGame
 from boardrl.games.take5.game import Take5 as Take5Game
+from boardrl.games.skullking.game import SkullKing as SkullKingGame
 
 
 class GameDesc:
@@ -176,6 +177,19 @@ class Take5(GameDesc):
 
         super().__init__(
             partial(Take5Game, *args, **kwargs),
+            strategy_from_string,
+            Metrics,
+            augmentations=(shuffle_actions,),
+        )
+
+
+@games_library.register("skullking", args_from=SkullKingGame)
+class SkullKing(GameDesc):
+    def __init__(self, *args, **kwargs):
+        from boardrl.games.skullking.metrics import Metrics
+
+        super().__init__(
+            partial(SkullKingGame, *args, **kwargs),
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
