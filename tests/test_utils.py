@@ -9,13 +9,13 @@ if "pyximport" not in sys.modules:
     import types
 
     pyx = types.ModuleType("pyximport")
-    pyx.install = lambda *a, **k: None
+    setattr(pyx, "install", lambda *a, **k: None)
     sys.modules["pyximport"] = pyx
 if "boardrl.cyutils" not in sys.modules:
     import types
 
     cyutils = types.ModuleType("boardrl.cyutils")
-    cyutils.fast_sample = lambda x: 0
+    setattr(cyutils, "fast_sample", lambda x: 0)
     sys.modules["boardrl.cyutils"] = cyutils
 
 from boardrl.utils import BatchProcessor, RegisterByName, chunk

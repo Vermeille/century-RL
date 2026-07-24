@@ -26,7 +26,6 @@ class LowestCostStrategy:
                 cost = 100  # to avoid picking -10 moves, make them very costly
             costs.append(cost)
         best_idx = min(range(len(costs)), key=lambda i: costs[i])
-        print(g.piles, list(zip(g.moves, costs)), "pick", best_idx, g.moves[best_idx])
         return one_hot(best_idx, len(g.moves)).log(), {
             "moves": list(zip(g.moves, costs))
         }

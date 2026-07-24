@@ -11,11 +11,11 @@ from fastapi import FastAPI, Body, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-import pyximport
+import pyximport  # type: ignore[import-untyped]
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 from boardrl.games import games_library
-from boardrl.cyutils import fast_sample
+from boardrl.cyutils import fast_sample  # type: ignore[import-not-found]
 from boardrl.utils import ModelPool
 
 
@@ -151,7 +151,7 @@ class Strategies:
         self.game_desc = game_desc or get_session().game_desc
         self.game_name = game_name or current_game_name
         self.strategies = self.populate_strategies()
-        self.cache = []
+        self.cache: list[tuple[str, Any]] = []
         self.cache_len = cache_len
         # ModelPool handles loading models and batching inference similar to
         # the training setup in ``main.py``.
@@ -203,9 +203,12 @@ class Strategies:
         return self.cache[-1][1]
 
 
-sessions = {}
+sessions: dict[str, GameSession] = {}
 current_game_name = game_name
 current_game_spec = initial_game_spec
+game_desc: Any
+game: Any
+strategies: Strategies
 
 
 def available_games():

@@ -141,7 +141,7 @@ class CachedBatchProcessor(BatchProcessor):
         cache_size: int = 100,
     ):
         super().__init__(batch_size, process_fn, timeout)
-        self.cache = {}
+        self.cache: dict[Any, Any] = {}
         self.cache_size = cache_size
 
     async def __call__(self, data: Any):

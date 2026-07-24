@@ -609,7 +609,7 @@ cdef class ActionPile:
             ActionCard.from_str('GG>RRB'),
             ActionCard.from_str('GG>YYRB'),
             ActionCard.from_str('>RYY'),
-            Joker(3),
+            #Joker(3),  # FIXME: this card gnenerates too many moves so we mute it for now
             ActionCard.from_str('>RR'),
             ActionCard.from_str('GGG>BBB'),
             ActionCard.from_str('BB>RRRGG'),

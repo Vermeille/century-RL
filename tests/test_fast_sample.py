@@ -1,6 +1,6 @@
 import sys
 import importlib
-import pyximport
+import pyximport  # type: ignore[import-untyped]
 import torch
 import pytest
 

@@ -158,7 +158,7 @@ class TheGame:
 
         # Deal initial hands
         # (In the real game, it can be 6 or 7 cards depending on the player count.)
-        self.hands = [[] for _ in range(num_players)]
+        self.hands: list[list[int]] = [[] for _ in range(num_players)]
         self.initial_hand_size = 6 if num_players > 3 else 7
         for p in range(num_players):
             for _ in range(self.initial_hand_size):

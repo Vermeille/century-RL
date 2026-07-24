@@ -1,7 +1,7 @@
 """Utilities for computing rewards, returns and scores for game logs."""
 
 from functools import partial
-from typing import Iterable
+from typing import Callable, Iterable
 from boardrl.rl.eval.selfplay import SelfPlayResults
 from boardrl.utils import chunk
 
@@ -97,7 +97,7 @@ def compute_returns(
             if len(history) == 0:
                 continue
 
-            fns = []
+            fns: list[Callable[[list], None]] = []
             if reward_rescale is not None:
                 fns.append(partial(rescale, scale=reward_rescale))
             fns.extend([set_next, set_rewards])

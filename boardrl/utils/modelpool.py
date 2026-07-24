@@ -7,7 +7,7 @@ from boardrl.utils.batchprocessor import BatchProcessor
 
 
 def _recent_models(topk):
-    import psutil
+    import psutil  # type: ignore[import-untyped]
 
     process_start_time = psutil.Process().create_time()
 
@@ -32,7 +32,7 @@ class ModelPool:
 
     def __init__(
         self,
-        base_model: BatchProcessor,
+        base_model: BatchProcessor | None,
         batch_size: int,
         timeout: float,
         reference_model: BatchProcessor | None = None,

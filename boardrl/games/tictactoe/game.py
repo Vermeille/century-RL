@@ -4,7 +4,7 @@ import random
 
 class TicTacToe:
     # Specific
-    def __init__(self, num_players=2):
+    def __init__(self, num_players: int = 2) -> None:
         assert num_players == 2
         self.board: List[int | None] = [None for _ in range(9)]
         self.turn = 0

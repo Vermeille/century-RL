@@ -1,8 +1,9 @@
 import torch
-import crayons
+import crayons  # type: ignore[import-untyped]
+from boardrl.metrics import GameMetrics
 
 
-class Metrics:
+class Metrics(GameMetrics):
     def __init__(self, data):
         self.data = data
 
@@ -21,24 +22,26 @@ class Metrics:
             )
             print()
 
-    def metrics_to_visdom(self, viz, epoch):
+    def metrics(self):
         ratio_complete = sum(" " not in h[0][-1].state for h in self.data) / len(
             self.data
         )
-        viz.push("ratio_complete", ratio_complete, epoch)
         avg_len = sum(len(h) for h in self.data.all_traces()) / (self.data.num_traces())
-        viz.push("avg_len", avg_len, epoch)
-        viz.push("collapse", self.data.collapse(), epoch)
         winning_games = [
             p for players in self.data for p in players if p[-1].current_diff_points > 0
         ]
-        if len(winning_games) > 0:
-            viz.push(
-                "avg_winning_move_probability",
-                sum(
+        winning_probability = (
+            sum(
                     torch.softmax(w[-2].action_distribution, 0)[w[-2].action_idx]
                     for w in winning_games
                 )
-                / len(winning_games),
-                epoch,
-            )
+            / len(winning_games)
+            if winning_games
+            else 0.0
+        )
+        return {
+            "ratio_complete": ratio_complete,
+            "avg_len": avg_len,
+            "collapse": self.data.collapse(),
+            "avg_winning_move_probability": winning_probability,
+        }

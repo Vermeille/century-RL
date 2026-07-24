@@ -1,12 +1,12 @@
 import torch
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore[import-untyped]
 from typing import Tuple, Callable, Awaitable
 
 from boardrl.utils import Game, run_tasks
-import pyximport
+import pyximport  # type: ignore[import-untyped]
 
 pyximport.install()
-from boardrl.cyutils import fast_sample  # noqa: E402
+from boardrl.cyutils import fast_sample  # type: ignore[import-not-found]  # noqa: E402
 
 
 class Record:
@@ -23,9 +23,28 @@ class Record:
         self.truncated = False
         self.player = game.current_player()
         self.round = game.round()
-        for key in ("reference_policy", "reference_value", "reference_max_q"):
-            if key in info:
-                setattr(self, key, info[key])
+        self._training_info = {
+            key: info[key]
+            for key in ("reference_policy", "reference_value", "reference_max_q")
+            if key in info
+        }
+
+    def training_sample(self):
+        """Convert this rollout record without exposing recorder internals."""
+        from boardrl.training.sample import TrainingSample
+
+        return TrainingSample(
+            state=self.state,
+            action_idx=self.action_idx,
+            action_distribution=self.action_distribution,
+            score=float(self.score),
+            reward=float(self.reward),
+            returns=self.returns,
+            next=None,
+            terminal=False,
+            truncated=False,
+            **self._training_info,
+        )
 
 
 class EndState:
@@ -76,10 +95,6 @@ class SelfPlayResults(list):
     # ------------------------------------------------------------------
     # Convenience accessors
     # ------------------------------------------------------------------
-    @property
-    def games(self):  # backward compatibility
-        return self
-
     def only_player(self, players: list[int]):
         return SelfPlayResults(
             [
@@ -227,12 +242,12 @@ def self_play2(
     strategies: list[list[Strategy]],
     max_len: int,
     rotate: bool = True,
-    desc: str = "playing games",
+    desc: str | None = "playing games",
 ):
     n_games = len(strategies)
     data: list[GameTrace | None] = [None] * n_games
 
-    with tqdm(total=n_games, desc=desc) as pbar:
+    with tqdm(total=n_games, desc=desc, disable=desc is None) as pbar:
         pbar.update(0)
 
         async def run_game(idx):

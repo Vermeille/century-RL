@@ -3,7 +3,7 @@ import importlib
 import sys
 from types import SimpleNamespace
 
-import pyximport
+import pyximport  # type: ignore[import-untyped]
 import pytest
 import torch
 

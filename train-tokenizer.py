@@ -1,7 +1,5 @@
-from tokenizers import ByteLevelBPETokenizer, Tokenizer
-from tokenizers.pre_tokenizers import Split
-from tokenizers import Regex
-from tokenizers.trainers import BpeTrainer
+from tokenizers import ByteLevelBPETokenizer, Regex  # type: ignore[import-not-found]
+from tokenizers.pre_tokenizers import Split  # type: ignore[import-not-found]
 
 with open("game.txt", "r") as f:
     games = f.read().replace("\n", "")

@@ -17,7 +17,7 @@ class RockPaperScissors:
         self.turn = 0
         self.moves = ["rock", "paper", "scissors"]
         self.values = [v_rock, v_paper, v_scissors]
-        self._choices = [None, None]
+        self._choices: list[str | None] = [None, None]
 
     # ------------------------------------------------------------------
     # Helpers

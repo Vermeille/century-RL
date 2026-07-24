@@ -1,8 +1,8 @@
-import crayons
-import torch
+import crayons  # type: ignore[import-untyped]
+from boardrl.metrics import GameMetrics
 
 
-class Metrics:
+class Metrics(GameMetrics):
     def __init__(self, data):
         self.data = data
 
@@ -93,60 +93,8 @@ class Metrics:
             "causes": self.stats_cause(),
             "avg_move_summary": self.avg_move_summary(),
             "buy_rank": self.buy_rank(),
+            "collapse": self.data.collapse(),
         }
-
-    def metrics_to_visdom(self, viz, epoch):
-        viz.push("collapse", self.data.collapse(), epoch)
-        metrics = self.metrics()
-        avg_move_summary = metrics.pop("avg_move_summary")
-        viz.visdom(
-            "line",
-            Y=torch.tensor(
-                [[sum(avg_move_summary[k] for k in "AHRV"[: i + 1]) for i in range(4)]]
-            ),
-            X=torch.tensor([[epoch] * 4]),
-            opts=dict(
-                title="avg_move_summary",
-                fillarea=True,
-                legend=["A", "H", "R", "V"],
-                xlabel="epoch",
-                ylabel="freq",
-            ),
-            update="append",
-            win="avg_move_summary",
-        )
-
-        lengths = metrics.pop("prompt_size")
-        viz.visdom(
-            "line",
-            Y=torch.tensor([[lengths[k] for k in ["avg", "min", "max"]]]),
-            X=torch.tensor([[epoch] * 3]),
-            opts=dict(
-                title="prompt_size",
-                legend=["avg", "min", "max"],
-                xlabel="epoch",
-                ylabel="length",
-            ),
-            update="append",
-            win="prompt_size",
-        )
-        for k, v in metrics.items():
-            try:
-                if isinstance(v, dict):
-                    for kk, vv in v.items():
-                        viz.push(
-                            f"{k}.{kk}",
-                            vv,
-                            epoch,
-                        )
-                else:
-                    viz.push(
-                        k,
-                        v,
-                        epoch,
-                    )
-            except Exception as e:
-                print("error when visdoming", k, ":", e)
 
     def print_short_history(self):
         colorized = {

@@ -1,4 +1,7 @@
-class Metrics:
+from boardrl.metrics import GameMetrics
+
+
+class Metrics(GameMetrics):
     def __init__(self, data):
         self.data = data
 
@@ -8,9 +11,8 @@ class Metrics:
                 print([hh.my_points for hh in player[:-1]])
             print("--")
 
-    def metrics_to_visdom(self, viz, epoch):
+    def metrics(self):
         avg_len = sum(len(h) for p in self.data for h in p) / (
             len(self.data) * len(self.data[0])
         )
-        viz.push("avg_len", avg_len, epoch)
-        viz.push("collapse", self.data.collapse(), epoch)
+        return {"avg_len": avg_len, "collapse": self.data.collapse()}

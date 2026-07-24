@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from boardrl.games import games_library
-from boardrl.rl.eval.matchmaker import MatchMaker
+from boardrl.evaluation import Evaluation, Scoreboard
 from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults, pit
 
 
@@ -78,31 +78,20 @@ def _make_game_trace(scores: list[tuple[int, float]]):
     return GameTrace(traces)
 
 
-def test_matchmaker_tracks_win_rates():
-    game_desc = games_library("tictactoe")
-    maker = MatchMaker(game_desc, model_pool=None, discount_factor=1.0)
-    strategies = ["alpha", "beta"]
+def test_scoreboard_tracks_explicit_evaluations():
+    scoreboard = Scoreboard()
+    scoreboard.record(
+        Evaluation(
+            ("alpha", "beta"),
+            SelfPlayResults([_make_game_trace([(0, 1.0), (1, -1.0)])]),
+        )
+    )
+    scoreboard.record(
+        Evaluation(
+            ("alpha", "beta"),
+            SelfPlayResults([_make_game_trace([(0, 0.0), (1, 0.0)])]),
+        )
+    )
 
-    first_game = SelfPlayResults([
-        _make_game_trace([(0, 1.0), (1, -1.0)])
-    ])
-    maker._record_outcomes(strategies, first_game)
-
-    matrix = maker.win_matrix
-    assert matrix["alpha"]["beta"] == pytest.approx(1.0)
-    assert matrix["beta"]["alpha"] == pytest.approx(0.0)
-
-    second_game = SelfPlayResults([
-        _make_game_trace([(0, 0.0), (1, 0.0)])
-    ])
-    maker._record_outcomes(strategies, second_game)
-
-    matrix = maker.win_matrix
-    assert matrix["alpha"]["beta"] == pytest.approx(0.75)
-    assert matrix["beta"]["alpha"] == pytest.approx(0.25)
-
-    stats = maker.head_to_head("alpha", "beta")
-    assert stats.games == 2
-    assert stats.win_rate == pytest.approx(0.75)
-
-    # Elo tracking is no longer supported; only win-rates and head-to-head remain
+    assert scoreboard.win_rate("alpha", "beta") == pytest.approx(0.75)
+    assert scoreboard.win_rate("beta", "alpha") == pytest.approx(0.25)

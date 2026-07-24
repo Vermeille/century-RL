@@ -1,7 +1,8 @@
-import crayons
+import crayons  # type: ignore[import-untyped]
+from boardrl.metrics import GameMetrics
 
 
-class Metrics:
+class Metrics(GameMetrics):
     def __init__(self, data):
         self.data = data
 
@@ -16,9 +17,8 @@ class Metrics:
             )
             print()
 
-    def metrics_to_visdom(self, viz, epoch):
+    def metrics(self):
         ratio_complete = sum(
             " " not in players[0][-1].state for players in self.data
         ) / len(self.data)
-        viz.push("ratio_complete", ratio_complete, epoch)
-        viz.push("collapse", self.data.collapse(), epoch)
+        return {"ratio_complete": ratio_complete, "collapse": self.data.collapse()}

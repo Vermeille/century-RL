@@ -23,6 +23,7 @@ These metrics are aggregated across all players and all games.
 from __future__ import annotations
 
 from typing import List, Tuple
+from boardrl.metrics import GameMetrics, Range
 
 
 def _parse_piles(state: str) -> List[int]:
@@ -50,7 +51,7 @@ def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
         return top - card, top - card == -10
 
 
-class Metrics:
+class Metrics(GameMetrics):
     def __init__(self, data):
         self.data = data
 
@@ -65,12 +66,9 @@ class Metrics:
                 )
             print("--")
 
-    def metrics_to_visdom(self, viz, epoch):
+    def metrics(self):
         # self.data.my_points(0) is discounted so it's not good for logging
         points = [game[0][-1].my_points for game in self.data]
-        viz.push_range("points", points, epoch)
-        # Also plot a min/max band around the mean when the visualizer supports it.
-
         total_cost = 0.0
         total_moves = 0
         lowest_cost_moves = 0
@@ -99,6 +97,9 @@ class Metrics:
         avg_cost = total_cost / total_moves if total_moves else 0.0
         ratio_lowest = lowest_cost_moves / total_moves if total_moves else 0.0
 
-        viz.push("avg_cost", avg_cost, epoch)
-        viz.push("ratio_lowest_cost", ratio_lowest, epoch)
-        viz.push_range("ten_rule_moves", ten_rule_moves, epoch)
+        return {
+            "points": Range(points),
+            "avg_cost": avg_cost,
+            "ratio_lowest_cost": ratio_lowest,
+            "ten_rule_moves": Range(ten_rule_moves),
+        }

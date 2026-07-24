@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from boardrl.utils import BatchProcessor, ModelPool
@@ -20,7 +22,7 @@ class _DummyModel:
         pass
 
 
-def test_modelpool_uses_lru(tmp_path, monkeypatch):
+def test_modelpool_uses_lru(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     loaded: list[str] = []
 
     def fake_load(path: str):

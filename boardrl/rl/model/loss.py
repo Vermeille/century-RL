@@ -1,4 +1,5 @@
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import torch
 import torch.nn.functional as F
@@ -246,9 +247,9 @@ class PolicyGradientLoss:
         self,
         *,
         weight: str = "returns",
-        discount_factor: float = None,
-        normalizer_alpha: float = None,
-        drift: str = None,
+        discount_factor: float | None = None,
+        normalizer_alpha: float | None = None,
+        drift: str | None = None,
         imp_ratio_clip: float = 1.0,
         rectification: float = 0.0,
         strength: float = 1.0,
@@ -269,7 +270,11 @@ class PolicyGradientLoss:
             "gae": weight_gae,
             "normalized_gae": weight_normalized_gae,
         }[weight]
-        self.drift = {
+        drifts: dict[
+            str | None,
+            Callable[[torch.Tensor, torch.Tensor], torch.Tensor] | None,
+        ] = {
+            None: None,
             "importance_sampling": importance_sampling,
             "ppo": (lambda r, A: ppo(r, A, clip_val=imp_ratio_clip, rectification=0)),
             "ppo-rb": (
@@ -278,7 +283,8 @@ class PolicyGradientLoss:
                 )
             ),
             "spo": (lambda r, A: spo(r, A, imp_ratio_clip)),
-        }.get(drift)
+        }
+        self.drift = drifts[drift]
         self.weight = weight
         self.discount_factor = discount_factor
         self.normalizer = None
@@ -547,12 +553,12 @@ class ScheduledPerplexity:
 
         self.entropy = EntropyBonus(init_strength)
 
-        self.ppl_ema = None
+        self.ppl_ema: float | None = None
 
         # Useful for logging.
-        self.last_target_ppl = None
-        self.last_ppl = None
-        self.last_ppl_ema = None
+        self.last_target_ppl: float | None = None
+        self.last_ppl: float | None = None
+        self.last_ppl_ema: float | None = None
         self.last_strength = init_strength
 
     @staticmethod

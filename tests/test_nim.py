@@ -145,13 +145,10 @@ def test_nim_metrics_reports_per_match_choice_probability():
 
     metrics = Metrics(SelfPlayResults([game1, game2]))
     viz = Visualizer("test", "offline", 0)
-    viz.visdom = MagicMock()
+    viz.push = MagicMock()
 
     metrics.metrics_to_visdom(viz, 7)
 
-    line_call = viz.visdom.call_args
-    assert line_call is not None
-    assert line_call.args[0] == "line"
-    assert torch.allclose(line_call.kwargs["Y"], torch.tensor([[0.5, 0.85]]))
-    assert torch.allclose(line_call.kwargs["X"], torch.tensor([[0.0, 1.0]]))
-    assert line_call.kwargs["win"] == "chosen_move_probability_by_match"
+    viz.push.assert_any_call(
+        "chosen_move_probability_by_match", [0.5, pytest.approx(0.85)], 7
+    )

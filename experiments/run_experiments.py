@@ -8,6 +8,8 @@ and saves a single image containing a subplot for each experiment.
 import argparse
 import pathlib
 import sys
+from collections.abc import Callable
+from typing import Any
 
 import matplotlib.pyplot as plt
 
@@ -29,7 +31,12 @@ from boardrl.experiments.model import (
 )
 from boardrl.rl.model.model import Model
 
-EXPERIMENTS = {
+Experiment = Callable[[Any], list[float]]
+ModelFactory = Callable[[], Any]
+ExperimentSpec = tuple[Experiment, list[tuple[str, ModelFactory]]]
+
+
+EXPERIMENTS: dict[str, ExperimentSpec] = {
     "transformer_alphabet": (
         transformer_learns_alphabet_mlm,
         [

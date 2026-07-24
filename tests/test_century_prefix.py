@@ -1,8 +1,8 @@
-import pyximport
+import pyximport  # type: ignore[import-untyped]
 
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 
-from boardrl.games.century.engine import ActionCard
+from boardrl.games.century.engine import ActionCard  # type: ignore[import-not-found]
 
 
 def parse_stock(s: str):

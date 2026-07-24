@@ -98,6 +98,7 @@ class PolicySamplingStrategy:
 
     @torch.no_grad()
     async def __call__(self, g: Game):
+        info: dict[str, object]
         if len(g.moves) == 1:
             info = {"moves": {g.moves[0]: 1.0}} if self.include_moves else {}
             return torch.tensor([1.0]), info

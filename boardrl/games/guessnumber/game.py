@@ -6,7 +6,7 @@ class GuessNumber:
         self,
         max_number: int = 10,
         num_symbols: int = 2,
-        secret: int = None,
+        secret: int | None = None,
         num_players: int = 2,
     ):
         """Two player communication game.

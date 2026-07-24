@@ -1,9 +1,9 @@
 import pstats, cProfile
 
-import pyximport
+import pyximport  # type: ignore[import-untyped]
 
 pyximport.install()
-import engine
+from boardrl.games.century import engine  # type: ignore[import-not-found]
 
 g = engine.Game()
 

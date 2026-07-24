@@ -1,5 +1,0 @@
-# Params: 25.80M
-num_layers: 8
-dim: 512
-num_heads: 16
-head_size: 32

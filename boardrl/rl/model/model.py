@@ -140,11 +140,12 @@ class TransformerBackbone(Backbone):
             num_heads = dim // head_size
         self.head_size = head_size
         self.num_heads = num_heads
+        embedding = nn.Embedding(128, dim, padding_idx=0)
+        embedding.weight.data.normal_(0, 0.1)
         self.embed = nn.Sequential(
-            nn.Embedding(128, dim, padding_idx=0),
+            embedding,
             nn.RMSNorm(dim),
         )
-        self.embed[0].weight.data.normal_(0, 0.1)
         self.encode = Transformer(
             dim,
             num_layers,
@@ -225,6 +226,14 @@ class Model(nn.Module):
     ):
         super().__init__()
         self.maxlen = 2048
+        self._spec = {
+            "dim": dim,
+            "num_layers": num_layers,
+            "head_size": head_size,
+            "num_heads": num_heads,
+            "backbone": backbone,
+            "shared_backbone": shared_backbone,
+        }
         self.backbone_name = backbone
         self.shared_backbone = shared_backbone
         backbone_cls = BACKBONES.get(backbone)
@@ -240,90 +249,9 @@ class Model(nn.Module):
         self.to_pred = PolicyHead(dim)
         self.rewards = ValueHead(dim)
 
-    def _normalize_backbone_state_dict(self, state_dict):
-        has_backbone = any(k.startswith("backbone.") for k in state_dict)
-        has_policy = any(k.startswith("policy_backbone.") for k in state_dict)
-        has_value = any(k.startswith("value_backbone.") for k in state_dict)
-
-        if self.shared_backbone:
-            if has_backbone:
-                return {
-                    k: v
-                    for k, v in state_dict.items()
-                    if not k.startswith(("policy_backbone.", "value_backbone."))
-                }
-
-            old_prefix = "policy_backbone." if has_policy else "value_backbone."
-            if has_policy or has_value:
-                normalized = {}
-                for key, value in state_dict.items():
-                    if key.startswith(old_prefix):
-                        suffix = key[len(old_prefix) :]
-                        normalized[f"backbone.{suffix}"] = value
-                    elif not key.startswith(("policy_backbone.", "value_backbone.")):
-                        normalized[key] = value
-                return normalized
-
-            return state_dict
-
-        if has_policy or has_value:
-            if has_policy and has_value:
-                return {
-                    k: v for k, v in state_dict.items() if not k.startswith("backbone.")
-                }
-
-            old_prefix = "policy_backbone." if has_policy else "value_backbone."
-            normalized = {}
-            for key, value in state_dict.items():
-                if key.startswith(old_prefix):
-                    suffix = key[len(old_prefix) :]
-                    normalized[f"policy_backbone.{suffix}"] = value
-                    normalized[f"value_backbone.{suffix}"] = value.clone()
-                elif not key.startswith(("policy_backbone.", "value_backbone.")):
-                    normalized[key] = value
-            return normalized
-
-        if has_backbone:
-            normalized = {}
-            for key, value in state_dict.items():
-                if key.startswith("backbone."):
-                    suffix = key[len("backbone.") :]
-                    normalized[f"policy_backbone.{suffix}"] = value
-                    normalized[f"value_backbone.{suffix}"] = value.clone()
-                else:
-                    normalized[key] = value
-            return normalized
-
-        return state_dict
-
-    def load_state_dict(self, state_dict, strict: bool = True):
-        expanded = self._normalize_backbone_state_dict(state_dict)
-        if strict:
-            model_state = super().state_dict()
-            model_keys = set(model_state)
-            extra_keys = sorted(set(expanded) - model_keys)
-            if extra_keys:
-                expanded = {k: v for k, v in expanded.items() if k in model_keys}
-                print(f"Dropped {len(extra_keys)} stale checkpoint keys")
-            # Checkpoints created before the learned pooling/scaling heads do
-            # not contain these parameters.  Their defaults are deliberately
-            # chosen to recover the old normalized-sum behavior as closely as
-            # possible, so they can be loaded without invalidating old runs.
-            optional_head_keys = tuple(
-                key
-                for key in model_keys
-                if key.startswith(
-                    (
-                        "to_pred.pool.score.",
-                        "to_pred.action_bias.",
-                        "to_pred.raw_logit_scale",
-                        "rewards.pool.score.",
-                    )
-                )
-            )
-            for key in optional_head_keys:
-                expanded.setdefault(key, model_state[key])
-        return super().load_state_dict(expanded, strict=strict)
+    def spec(self):
+        """Constructor arguments needed to recreate this model."""
+        return dict(self._spec)
 
     def text_encode(self, txts, maxlen):
         maxlen = min(maxlen, max(len(g) for g in txts))
@@ -372,9 +300,11 @@ class Model(nn.Module):
             return out, enc
 
 
-def load_model(model_path):
+def load_model(model_path, name=None):
     ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
-    config = ckpt["config"]["net"]
+    name = name or next(iter(ckpt["models"]))
+    config = ckpt["model_specs"][name]
+    state = ckpt["models"][name]
     model = Model(
         config["dim"],
         config["num_layers"],
@@ -383,13 +313,7 @@ def load_model(model_path):
         backbone=config.get("backbone", "transformer"),
         shared_backbone=config.get("shared_backbone", True),
     )
-    ckpt_state = model._normalize_backbone_state_dict(ckpt["model"])
-    model_state = model.state_dict()
-    extra_keys = sorted(set(ckpt_state) - set(model_state))
-    if extra_keys:
-        ckpt_state = {k: v for k, v in ckpt_state.items() if k in model_state}
-        print(f"Dropped {len(extra_keys)} stale checkpoint keys from {model_path}")
-    print(model.load_state_dict(ckpt_state))
+    model.load_state_dict(state)
     if torch.cuda.is_available():
         model.cuda()
     model.eval()

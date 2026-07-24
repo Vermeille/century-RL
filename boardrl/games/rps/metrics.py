@@ -1,7 +1,8 @@
 import torch
+from boardrl.metrics import GameMetrics
 
 
-class Metrics:
+class Metrics(GameMetrics):
     def __init__(self, data):
         self.data = data
 
@@ -15,9 +16,9 @@ class Metrics:
                 )
             print("--")
 
-    def metrics_to_visdom(self, viz, epoch):
+    def metrics(self):
         totals = {"rock": [], "paper": [], "scissors": []}
-        for game in self.data.only_strategy([0]):
+        for game in self.data:
             for player in game:
                 rec = player[0]
                 probs = torch.softmax(rec.action_distribution, dim=0).tolist()
@@ -30,5 +31,7 @@ class Metrics:
             if totals["scissors"]
             else 0.0,
         ]
-        viz.push("move_probabilities", avg_probs, epoch)
-        viz.push("collapse", self.data.collapse(), epoch)
+        return {
+            "move_probabilities": avg_probs,
+            "collapse": self.data.collapse(),
+        }
