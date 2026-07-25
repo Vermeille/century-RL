@@ -13,6 +13,7 @@ import torch
 
 from boardrl.evaluation import Evaluator
 from boardrl.games import games_library
+from boardrl.games.strategies import Gumbel
 from boardrl.games.thegame.metrics import Metrics
 from boardrl.games.thegame.strategies import LowestCostStrategy
 from boardrl.rl.model import load_model
@@ -25,6 +26,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--games", type=int, default=1_000)
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--temperature", type=float, default=0.02)
+    parser.add_argument(
+        "--temperatures",
+        type=float,
+        nargs="+",
+        help="evaluate every checkpoint at each temperature",
+    )
+    parser.add_argument("--gumbel-evals", type=int)
+    parser.add_argument(
+        "--gumbel-q-scales",
+        type=float,
+        nargs="+",
+        default=[1.0],
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--progress", action="store_true")
     return parser
@@ -88,22 +102,39 @@ def main() -> None:
             progress=args.progress,
         )
     ]
+    temperatures = args.temperatures or [args.temperature]
     for path in args.checkpoints:
         model = load_model(path)
-        player = Inference(
-            model,
-            batch_size=args.batch_size,
-            name=str(path),
-        ).policy(temperature=args.temperature)
-        results.append(
-            evaluate(
-                str(path),
-                player,
-                games=args.games,
-                seed=args.seed,
-                progress=args.progress,
+        inference = Inference(model, batch_size=args.batch_size, name=str(path))
+        for temperature in temperatures:
+            results.append(
+                evaluate(
+                    f"{path} @ temperature={temperature}",
+                    inference.policy(temperature=temperature),
+                    games=args.games,
+                    seed=args.seed,
+                    progress=args.progress,
+                )
             )
-        )
+        if args.gumbel_evals:
+            for q_scale in args.gumbel_q_scales:
+                results.append(
+                    evaluate(
+                        (
+                            f"{path} @ gumbel-evals={args.gumbel_evals},"
+                            f"q-scale={q_scale}"
+                        ),
+                        Gumbel(
+                            inference.processor,
+                            discount_factor=1.0,
+                            num_evals=args.gumbel_evals,
+                            q_scale=q_scale,
+                        ),
+                        games=args.games,
+                        seed=args.seed,
+                        progress=args.progress,
+                    )
+                )
     print(json.dumps(results, indent=2))
 
 

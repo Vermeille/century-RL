@@ -8,6 +8,22 @@ def test_evaluation_defaults_to_reliable_sample_size():
 
     assert args.games == 1_000
     assert args.temperature == 0.02
+    assert args.temperatures is None
+
+
+def test_evaluation_accepts_temperature_sweep():
+    args = build_parser().parse_args(["--temperatures", "0.001", "0.02", "0.1"])
+
+    assert args.temperatures == [0.001, 0.02, 0.1]
+
+
+def test_evaluation_accepts_gumbel_search_sweep():
+    args = build_parser().parse_args(
+        ["--gumbel-evals", "2", "--gumbel-q-scales", "1", "4"]
+    )
+
+    assert args.gumbel_evals == 2
+    assert args.gumbel_q_scales == [1.0, 4.0]
 
 
 def test_score_summary_reports_confidence_interval():
