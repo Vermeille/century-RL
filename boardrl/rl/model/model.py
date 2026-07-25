@@ -5,7 +5,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from boardrl.rl.model.transformer import Transformer
 from boardrl.rl.model.gated_cnn import GatedCNNEncoder
-from boardrl.rl.model.cnn import CNNEncoder
+from boardrl.rl.model.cnn import (
+    CNNEncoder,
+    PatchTransformerCNNEncoder,
+)
 from boardrl.rl.model.utils import zero, init
 
 
@@ -38,78 +41,71 @@ class PolicyValue:
         ]
 
 
-class VariancePreservingAttentionPool(nn.Module):
-    """Learned pooling initialized as ``sum(x) / sqrt(length)``.
-
-    If the token states are independent with equal variance, a weighted sum
-    has variance proportional to ``sum(weights ** 2)``.  Normalizing by that
-    quantity preserves the variance while allowing the head to focus on the
-    useful parts of the input.
-    """
-
-    def __init__(self, dim):
-        super().__init__()
-        # Uniform attention at initialization recovers the existing pool.
-        self.score = zero(nn.Linear(dim, 1, bias=False))
-
-    def forward(self, x, mask):
-        mask = mask.bool()
-        scores = self.score(x).squeeze(-1)
-        scores = scores.masked_fill(~mask, -torch.inf)
-        weights = F.softmax(scores, dim=1)
-
-        weight_norm = weights.square().sum(dim=1, keepdim=True).sqrt()
-        weight_norm = weight_norm.clamp_min(1e-6)
-        pooled = torch.einsum("bl,bld->bd", weights, x)
-        return pooled / weight_norm
-
-
 class ValueHead(nn.Module):
-    def __init__(self, dim, initial_value_scale=1.0):
+    """Pool the encoded state with one fixed learned cross-attention query."""
+
+    def __init__(self, dim, initial_value_scale=1.0, num_heads=4):
         super().__init__()
-        self.pool = VariancePreservingAttentionPool(dim)
-        self.out = nn.Sequential(
-            zero(nn.Linear(dim, 2)),
+        if dim % num_heads:
+            raise ValueError("value-head dimension must divide the head count")
+        self.query = nn.Parameter(torch.zeros(1, 1, dim))
+        self.attention = nn.MultiheadAttention(
+            dim,
+            num_heads,
+            batch_first=True,
         )
+        self.norm = nn.RMSNorm(dim)
+        self.out = zero(nn.Linear(dim, 2))
         self.raw_value_scale = nn.Parameter(
             torch.tensor(math.log(math.expm1(initial_value_scale)))
         )
 
     def forward(self, x, attn_mask):
-        x = self.pool(x, attn_mask)
-        out = self.out(x)
+        query = self.query.expand(len(x), -1, -1)
+        summary, _ = self.attention(
+            query,
+            x,
+            x,
+            key_padding_mask=~attn_mask,
+            need_weights=False,
+        )
+        out = self.out(self.norm(summary[:, 0]))
         value_scale = F.softplus(self.raw_value_scale)
         return value_scale * out
 
 
-class Scale(nn.Module):
+class PolicyHead(nn.Module):
+    """Score action tokens directly; global reasoning belongs to the backbone."""
+
     def __init__(self, dim):
         super().__init__()
-        self.scale = nn.Parameter(torch.ones(dim))
-
-    def forward(self, x):
-        return x * self.scale
-
-
-class PolicyHead(nn.Module):
-    def __init__(self, dim, initial_logit_scale=1.0):
-        super().__init__()
         self.dim = dim
-        self.pool = VariancePreservingAttentionPool(dim)
-        self.mean_proj = nn.Linear(dim, dim)
-        self.pred_proj = nn.Linear(dim, dim)
-        self.action_bias = zero(nn.Linear(dim, 1))
-        self.raw_logit_scale = nn.Parameter(
-            torch.tensor(math.log(math.expm1(initial_logit_scale)))
-        )
+        self.norm = nn.RMSNorm(dim)
+        self.out = init(nn.Linear(dim, 1), var_scale=0.1)
 
-    def forward(self, x, mask):
-        query = self.mean_proj(self.pool(x, mask))
-        keys = self.pred_proj(x)
-        compatibility = torch.einsum("bd,bld->bl", query, keys)
-        compatibility = compatibility / math.sqrt(self.dim)
-        logit_scale = F.softplus(self.raw_logit_scale)
-        return logit_scale * compatibility + self.action_bias(keys).squeeze(-1)
+    def actions(self, x, mask, positions):
+        counts = [len(indices) for indices in positions]
+        max_actions = max(counts, default=0)
+        if max_actions == 0:
+            return [x.new_empty(0) for _ in positions]
+
+        index_matrix = torch.zeros(
+            len(positions),
+            max_actions,
+            dtype=torch.long,
+            device=x.device,
+        )
+        for batch, action_indices in enumerate(positions):
+            if action_indices:
+                action_positions = torch.tensor(action_indices, device=x.device)
+                index_matrix[batch, : len(action_positions)] = action_positions
+
+        features = x.gather(
+            1,
+            index_matrix.unsqueeze(-1).expand(-1, -1, self.dim),
+        )
+        logits = self.out(F.gelu(self.norm(features))).squeeze(-1)
+        return [row[:count] for row, count in zip(logits, counts)]
 
 
 class Backbone(nn.Module):
@@ -206,11 +202,44 @@ class CNNBackbone(Backbone):
         return self.encode(emb, attn_mask).transpose(1, 2)
 
 
+class PatchTransformerCNNBackbone(Backbone):
+    def __init__(
+        self,
+        dim,
+        num_layers,
+        head_size=None,
+        max_len=None,
+        num_heads=None,
+        patch_size=4,
+    ):
+        super().__init__()
+        if head_size is None and num_heads is None:
+            num_heads = 4
+            head_size = dim // num_heads
+        elif head_size is None:
+            head_size = dim // num_heads
+        elif num_heads is None:
+            num_heads = dim // head_size
+        self.embed = init(nn.Embedding(128, dim, padding_idx=0))
+        self.encode = PatchTransformerCNNEncoder(
+            dim=dim,
+            global_layers=num_layers,
+            num_heads=num_heads,
+            head_size=head_size,
+            patch_size=patch_size,
+        )
+
+    def forward(self, tokens, attn_mask):
+        emb = self.embed(tokens).transpose(1, 2)
+        return self.encode(emb, attn_mask).transpose(1, 2)
+
+
 BACKBONES = {
     "transformer": TransformerBackbone,
     "lstm": LSTMBackbone,
     "gated_cnn": GatedCNNBackbone,
     "cnn": CNNBackbone,
+    "patch_transformer_cnn": PatchTransformerCNNBackbone,
 }
 
 
@@ -223,8 +252,10 @@ class Model(nn.Module):
         num_heads: int | None = None,
         backbone: str = "transformer",
         shared_backbone: bool = True,
+        backbone_kwargs: dict | None = None,
     ):
         super().__init__()
+        backbone_kwargs = dict(backbone_kwargs or {})
         self.maxlen = 2048
         self._spec = {
             "dim": dim,
@@ -233,17 +264,30 @@ class Model(nn.Module):
             "num_heads": num_heads,
             "backbone": backbone,
             "shared_backbone": shared_backbone,
+            "backbone_kwargs": backbone_kwargs,
         }
         self.backbone_name = backbone
         self.shared_backbone = shared_backbone
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
-        self.backbone = backbone_cls(dim, num_layers, head_size, self.maxlen, num_heads)
+        self.backbone = backbone_cls(
+            dim,
+            num_layers,
+            head_size,
+            self.maxlen,
+            num_heads,
+            **backbone_kwargs,
+        )
         if not shared_backbone:
             self.policy_backbone = self.backbone
             self.value_backbone = backbone_cls(
-                dim, num_layers, head_size, self.maxlen, num_heads
+                dim,
+                num_layers,
+                head_size,
+                self.maxlen,
+                num_heads,
+                **backbone_kwargs,
             )
             del self.backbone
         self.to_pred = PolicyHead(dim)
@@ -274,18 +318,9 @@ class Model(nn.Module):
             value_enc = self.value_backbone(txt, attn_mask)
         assert enc.shape[:-1] == txt.shape
         assert value_enc.shape[:-1] == txt.shape
-        policy_logits = self.to_pred(enc, attn_mask)
-        value = self.rewards(value_enc, attn_mask)
-
         moves_pos = [[i for i, c in enumerate(game) if c == "@"] for game in games]
-
-        pred = []
-        for i in range(len(games)):
-            if len(moves_pos[i]):
-                logits = policy_logits[i, torch.tensor(moves_pos[i])]
-                pred.append(logits)
-            else:
-                pred.append(policy_logits[i, torch.tensor([], dtype=torch.long)])
+        pred = self.to_pred.actions(enc, attn_mask, moves_pos)
+        value = self.rewards(value_enc, attn_mask)
 
         out = PolicyValue(
             pred,
@@ -312,6 +347,7 @@ def load_model(model_path, name=None):
         config.get("num_heads"),
         backbone=config.get("backbone", "transformer"),
         shared_backbone=config.get("shared_backbone", True),
+        backbone_kwargs=config.get("backbone_kwargs"),
     )
     model.load_state_dict(state)
     if torch.cuda.is_available():

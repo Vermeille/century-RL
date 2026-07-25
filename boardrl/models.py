@@ -35,6 +35,43 @@ def cnn(**overrides):
     return Model(**({"dim": 64, "num_layers": 5, "backbone": "cnn"} | overrides))
 
 
+@architecture("shared-patch")
+def shared_patch(**overrides):
+    return shared_patch_small(**overrides)
+
+
+def shared_patch_model(scale, **overrides):
+    spec = {
+        "backbone": "patch_transformer_cnn",
+        "backbone_kwargs": {"patch_size": 4},
+    } | scale
+    return Model(**(spec | overrides))
+
+
+@architecture("shared-patch-tiny")
+def shared_patch_tiny(**overrides):
+    scale = {"dim": 32, "num_layers": 2, "num_heads": 4, "head_size": 8}
+    return shared_patch_model(scale, **overrides)
+
+
+@architecture("shared-patch-small")
+def shared_patch_small(**overrides):
+    scale = {"dim": 64, "num_layers": 4, "num_heads": 4, "head_size": 16}
+    return shared_patch_model(scale, **overrides)
+
+
+@architecture("shared-patch-medium")
+def shared_patch_medium(**overrides):
+    scale = {"dim": 128, "num_layers": 4, "num_heads": 8, "head_size": 16}
+    return shared_patch_model(scale, **overrides)
+
+
+@architecture("shared-patch-large")
+def shared_patch_large(**overrides):
+    scale = {"dim": 256, "num_layers": 6, "num_heads": 8, "head_size": 32}
+    return shared_patch_model(scale, **overrides)
+
+
 @architecture("cnn-large")
 def cnn_large(**overrides):
     return Model(**({"dim": 64, "num_layers": 8, "backbone": "cnn"} | overrides))
@@ -42,7 +79,9 @@ def cnn_large(**overrides):
 
 @architecture("small")
 def small(**overrides):
-    return Model(**({"dim": 128, "num_layers": 8, "num_heads": 16, "head_size": 8} | overrides))
+    return Model(
+        **({"dim": 128, "num_layers": 8, "num_heads": 16, "head_size": 8} | overrides)
+    )
 
 
 @architecture("extra-small")
@@ -53,12 +92,16 @@ def extra_small(**overrides):
 
 @architecture("medium")
 def medium(**overrides):
-    return Model(**({"dim": 256, "num_layers": 8, "num_heads": 16, "head_size": 16} | overrides))
+    return Model(
+        **({"dim": 256, "num_layers": 8, "num_heads": 16, "head_size": 16} | overrides)
+    )
 
 
 @architecture("large")
 def large(**overrides):
-    return Model(**({"dim": 512, "num_layers": 8, "num_heads": 16, "head_size": 32} | overrides))
+    return Model(
+        **({"dim": 512, "num_layers": 8, "num_heads": 16, "head_size": 32} | overrides)
+    )
 
 
 @architecture("extra-large")
