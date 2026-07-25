@@ -8,9 +8,14 @@ This repository contains a small reinforcement learning framework that supports 
 - `boardrl/rl/model/`: transformer-based policy/value network implementation.
 - `boardrl/training/`: sampling helpers and return calculations.
 - `boardrl/experiments/`: toy tasks used by tests to sanity-check models and transformers.
-- `configs/`: YAML files specifying game choice, network size and training parameters.
+- `boardrl/rollouts.py`: explicit player lineups and batched model inference.
+- `boardrl/training/`: composable rollout processing and sample optimization.
+- `boardrl/checkpoints.py`: named multi-model checkpoint management.
+- `boardrl/evaluation.py`: evaluation results and optional scoreboards.
+- `boardrl/metrics.py`: metric collection and display sinks.
+- `trainers/`: executable training algorithms written as Python.
+- `examples/`: smaller algorithm examples.
 - `tests/`: unit tests for core functionality.
-- `main.py`: entry point for training agents.
 - `run_pit.py`: pits two strategies against each other for evaluation.
 - `pyproject.toml`: Project metadata and dependencies managed by `uv`.
 - `uv.lock`: Locked dependency versions.
@@ -27,9 +32,13 @@ Games are registered under `boardrl/games/__init__.py` using a `GameDesc` object
 
 `boardrl/rl/model/model.py` implements the transformer-based policy/value network. It defines building blocks like pooling layers and a `PolicyValue` container used throughout the training loop.
 
-### Training Loop
+### Training Algorithms
 
-`main.py` defines the `Trainer` which loads a model, runs self-play and optimizes losses using the algorithms specified in the YAML configuration.
+There is no framework-owned training loop or training configuration language.
+Experiments compose `RolloutRunner`, post-processing `Pipeline` steps,
+`Learner`, `MetricLogger`, `Checkpoints`, and `Evaluator` in ordinary Python.
+Opponent selection, reference updates, promotion, and data routing belong to
+the experiment. See `docs/training-library.md`.
 
 ### Web Server
 
@@ -40,10 +49,10 @@ The FastAPI server in `boardrl/serve/serve.py` exposes a simple interface for pl
 Use `pytest` for the test suite:
 
 ```bash
-uv run pytest tests -k "not transformer and not model and not config"
+uv run pytest tests -k "not transformer and not model"
 ```
 
-The `tests/test_transformer.py` and `tests/test_model.py` suites run lengthy training loops and should only be executed when modifying the corresponding modules. `tests/test_fast_sample.py` builds the Cython extension `boardrl/cyutils.pyx`, so a C compiler is required if that file changes. `tests/test_configs.py` runs the training entry point for every configuration and is slow; only run this file when modifying configs or `main.py`.
+The `tests/test_transformer.py` and `tests/test_model.py` suites run lengthy training loops and should only be executed when modifying the corresponding modules. `tests/test_fast_sample.py` builds the Cython extension `boardrl/cyutils.pyx`, so a C compiler is required if that file changes.
 
 When adding new long-running tests, annotate them with `@pytest.mark.slow` so the CI workflow can skip them.
 
@@ -58,7 +67,7 @@ When adding new long-running tests, annotate them with `@pytest.mark.slow` so th
 2. **Train an agent**:
 
    ```bash
-   python main.py configs/<config>.yaml
+   uv run python trainers/coop.py --game thegame --architecture cnn
    ```
 
 3. **Evaluate**:
@@ -79,6 +88,6 @@ We do very well designed OOP. Small classes, polymorphism. We try to avoid ifs t
 
 ## Further Exploration
 
-- Modify the YAML configs to try different algorithms or games.
+- Copy an example and edit its Python loop to try a different algorithm.
 - Study individual game implementations in `boardrl/games/`.
 - `boardrl/games/century/engine.pyx` contains a Cython-based environment for the Century game, which requires a C compiler if modified.

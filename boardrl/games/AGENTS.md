@@ -25,10 +25,10 @@ See [`tictactoe/game.py`](tictactoe/game.py) or
 [`connectfour/game.py`](connectfour/game.py) for reference implementations.
 
 ## 2. Metrics
-Include a `metrics.py` that defines a `Metrics` class. The class should accept
-simulation traces in its constructor and at least implement
-`print_short_history()`. Optional methods like `metrics_to_visdom()` can be
-added for visualisation. Examples can be found in
+Include a `metrics.py` that defines a `Metrics(GameMetrics)` class. It accepts
+simulation traces and returns a nested dictionary from `metrics()`. Implement
+`print_short_history()` when a compact trace display is useful. Console,
+Visdom, and future sinks are supplied automatically. Examples can be found in
 [`connectfour/metrics.py`](connectfour/metrics.py) and
 [`sum/metrics.py`](sum/metrics.py).
 
