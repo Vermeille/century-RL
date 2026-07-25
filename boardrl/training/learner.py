@@ -10,6 +10,7 @@ from typing import ClassVar
 
 import torch
 
+from boardrl.rl.model.loss import Loss
 from boardrl.rl.utils import explained_variance, pearson_corr
 from boardrl.training.sample import TrainingSample
 from boardrl.utils import chunk
@@ -156,7 +157,7 @@ class Learner:
         self,
         model,
         optimizer: torch.optim.Optimizer,
-        losses: Sequence[Callable],
+        losses: Sequence[Loss],
         *,
         batch_size: int,
         device: str | torch.device,
@@ -179,6 +180,22 @@ class Learner:
         # Keep the reference across train() calls so changing rollout sizes
         # does not change the intended update magnitude.
         self.base_batches = None
+
+    def state_dict(self):
+        return {
+            "base_batches": self.base_batches,
+            "losses": [loss.state_dict() for loss in self.losses],
+        }
+
+    def load_state_dict(self, state):
+        loss_states = state["losses"]
+        if len(loss_states) != len(self.losses):
+            raise ValueError(
+                "checkpoint loss count does not match the configured learner"
+            )
+        self.base_batches = state["base_batches"]
+        for loss, loss_state in zip(self.losses, loss_states):
+            loss.load_state_dict(loss_state)
 
     def train(self, samples: Sequence[TrainingSample], *, progress=0.0) -> TrainResult:
         if not samples:

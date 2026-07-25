@@ -139,6 +139,27 @@ def test_scheduled_perplexity_preserves_entropy_gradient():
     assert not torch.allclose(logits.grad, torch.zeros_like(logits.grad))
 
 
+def test_scheduled_perplexity_state_round_trip():
+    saved = ScheduledPerplexity(
+        start=0.5,
+        init_strength=0.1,
+        ppl_beta=0.0,
+    )
+    saved.update_strength(measured_ppl=0.0, target_ppl=0.5)
+    saved.last_target_ppl = 0.5
+    saved.last_ppl = 0.0
+
+    restored = ScheduledPerplexity(start=0.5, init_strength=0.1)
+    restored.load_state_dict(saved.state_dict())
+
+    assert restored.entropy.strength == saved.entropy.strength
+    assert restored.ppl_ema == saved.ppl_ema
+    assert restored.last_target_ppl == saved.last_target_ppl
+    assert restored.last_ppl == saved.last_ppl
+    assert restored.last_ppl_ema == saved.last_ppl_ema
+    assert restored.last_strength == saved.last_strength
+
+
 def test_kl_regularizer_matches_manual():
     logits = torch.tensor([0.5, -0.5], requires_grad=True)
     reference_logits = torch.tensor([-0.25, 0.25])
@@ -278,6 +299,20 @@ def test_adaptive_kl_has_fixed_target_and_can_freeze_controller():
     assert torch.isfinite(logits.grad).all()
 
 
+def test_adaptive_kl_state_round_trip():
+    saved = AdaptiveKLPenalty(target=0.01, init_strength=0.1)
+    saved.update_strength(measured_kl=0.5)
+    saved.last_kl = 0.5
+
+    restored = AdaptiveKLPenalty(target=0.01, init_strength=0.1)
+    restored.load_state_dict(saved.state_dict())
+
+    assert restored.kl.strength == saved.kl.strength
+    assert restored.last_target_kl == saved.last_target_kl
+    assert restored.last_kl == saved.last_kl
+    assert restored.last_strength == saved.last_strength
+
+
 def test_vectorized_regularizers_have_finite_gradients_with_padding():
     pred_policy = [
         torch.tensor([0.5, -0.5], requires_grad=True),
@@ -317,6 +352,28 @@ def test_policy_gradient_loss_with_normalized_gae():
     loss = policy([logits], pred_value, sample, training_state={}).objective
     expected = F.cross_entropy(logits, sample.action_idx[0], label_smoothing=0.002)
     assert torch.allclose(loss, expected)
+
+
+def test_policy_gradient_normalizer_state_round_trip():
+    saved = PolicyGradientLoss(weight="returns", normalizer_alpha=0.9)
+    saved.normalizer.update(torch.tensor([1.0, 2.0, 3.0, 4.0]))
+
+    restored = PolicyGradientLoss(weight="returns", normalizer_alpha=0.9)
+    restored.load_state_dict(saved.state_dict())
+
+    assert (
+        restored.normalizer.running_mean.iter
+        == saved.normalizer.running_mean.iter
+    )
+    assert restored.normalizer.running_var.iter == saved.normalizer.running_var.iter
+    assert torch.equal(
+        restored.normalizer.running_mean.running,
+        saved.normalizer.running_mean.running,
+    )
+    assert torch.equal(
+        restored.normalizer.running_var.running,
+        saved.normalizer.running_var.running,
+    )
 
 
 def test_bootstrap_value_mse_loss_targets_td_lambda_mean():

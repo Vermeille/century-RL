@@ -15,8 +15,19 @@ class LossResult:
     metrics: dict[str, float | torch.Tensor] = field(default_factory=dict)
 
 
+class Loss:
+    """Optimization objective with optional mutable training state."""
+
+    def state_dict(self):
+        return {}
+
+    def load_state_dict(self, state):
+        if state:
+            raise ValueError(f"{type(self).__name__} has no mutable state")
+
+
 @loss_from_string.register("imitation_ce_loss")
-class ImitationCELoss:
+class ImitationCELoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
@@ -33,7 +44,7 @@ class ImitationCELoss:
 
 
 @loss_from_string.register("ce_loss")
-class CELoss:
+class CELoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
@@ -50,7 +61,7 @@ class CELoss:
 
 
 @loss_from_string.register("imitation_jeffreys_loss")
-class ImitationJeffreysLoss:
+class ImitationJeffreysLoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
@@ -67,7 +78,7 @@ class ImitationJeffreysLoss:
 
 
 @loss_from_string.register("imitation_js_loss")
-class ImitationJSLoss:
+class ImitationJSLoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
@@ -84,7 +95,7 @@ class ImitationJSLoss:
 
 
 @loss_from_string.register("imitation_mse_loss")
-class ImitationMSELoss:
+class ImitationMSELoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
@@ -101,7 +112,7 @@ class ImitationMSELoss:
 
 
 @loss_from_string.register("imitation_kl_loss")
-class ImitationKLLoss:
+class ImitationKLLoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
@@ -123,7 +134,7 @@ class ImitationKLLoss:
 
 
 @loss_from_string.register("imitation_reverse_kl_loss")
-class ImitationReverseKLLoss:
+class ImitationReverseKLLoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
@@ -181,6 +192,16 @@ class RunningStat:
     def __call__(self):
         return self.running / (1 - self.beta**self.iter)
 
+    def state_dict(self):
+        return {
+            "running": self.running,
+            "iter": self.iter,
+        }
+
+    def load_state_dict(self, state):
+        self.running = state["running"]
+        self.iter = state["iter"]
+
 
 class RunningNormalizer:
     def __init__(self, beta):
@@ -194,6 +215,16 @@ class RunningNormalizer:
 
     def __call__(self, x):
         return (x - self.running_mean()) / (math.sqrt(self.running_var()) + 0.0001)
+
+    def state_dict(self):
+        return {
+            "mean": self.running_mean.state_dict(),
+            "var": self.running_var.state_dict(),
+        }
+
+    def load_state_dict(self, state):
+        self.running_mean.load_state_dict(state["mean"])
+        self.running_var.load_state_dict(state["var"])
 
 
 @torch.jit.script
@@ -232,7 +263,7 @@ def spo(r, A, clip: float):
 
 
 @loss_from_string.register("policy_gradient_loss")
-class PolicyGradientLoss:
+class PolicyGradientLoss(Loss):
     needs_reference_policy_value = False
 
     @property
@@ -300,6 +331,23 @@ class PolicyGradientLoss:
         self.rectification = rectification
         self.strength = strength
 
+    def state_dict(self):
+        return {
+            "normalizer": (
+                None if self.normalizer is None else self.normalizer.state_dict()
+            )
+        }
+
+    def load_state_dict(self, state):
+        normalizer_state = state["normalizer"]
+        if self.normalizer is None:
+            if normalizer_state is not None:
+                raise ValueError("checkpoint expects a policy weight normalizer")
+            return
+        if normalizer_state is None:
+            raise ValueError("checkpoint is missing the policy weight normalizer")
+        self.normalizer.load_state_dict(normalizer_state)
+
     def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_idx)
 
@@ -343,7 +391,7 @@ class PolicyGradientLoss:
 
 
 @loss_from_string.register("kl")
-class KLPenalty:
+class KLPenalty(Loss):
     needs_reference_policy_value = True
     supports_off_policy = True
     supports_partial_trajectories = True
@@ -380,7 +428,7 @@ class KLPenalty:
 
 
 @loss_from_string.register("adaptive_kl")
-class AdaptiveKLPenalty:
+class AdaptiveKLPenalty(Loss):
     """Adapt KL penalty strength to keep KL below a fixed target.
 
     The controller increases the penalty when the measured KL is above the
@@ -417,6 +465,20 @@ class AdaptiveKLPenalty:
         self.last_target_kl = target
         self.last_kl = None
         self.last_strength = init_strength
+
+    def state_dict(self):
+        return {
+            "strength": self.kl.strength,
+            "last_target_kl": self.last_target_kl,
+            "last_kl": self.last_kl,
+            "last_strength": self.last_strength,
+        }
+
+    def load_state_dict(self, state):
+        self.kl.strength = state["strength"]
+        self.last_target_kl = state["last_target_kl"]
+        self.last_kl = state["last_kl"]
+        self.last_strength = state["last_strength"]
 
     def update_strength(self, measured_kl: float):
         error = measured_kl - self.target
@@ -455,7 +517,7 @@ class AdaptiveKLPenalty:
 
 
 @loss_from_string.register("z_loss")
-class ZLoss:
+class ZLoss(Loss):
     needs_reference_policy_value = False
     supports_off_policy = True
     supports_partial_trajectories = True
@@ -469,7 +531,7 @@ class ZLoss:
 
 
 @loss_from_string.register("entropy_bonus")
-class EntropyBonus:
+class EntropyBonus(Loss):
     needs_reference_policy_value = False
     supports_off_policy = True
     supports_partial_trajectories = True
@@ -490,7 +552,7 @@ class EntropyBonus:
 
 
 @loss_from_string.register("linear_entropy_bonus")
-class LinearEntropyBonus:
+class LinearEntropyBonus(Loss):
     needs_reference_policy_value = False
     supports_off_policy = True
     supports_partial_trajectories = True
@@ -514,7 +576,7 @@ class LinearEntropyBonus:
 
 
 @loss_from_string.register("scheduled_perplexity")
-class ScheduledPerplexity:
+class ScheduledPerplexity(Loss):
     needs_reference_policy_value = False
     supports_off_policy = True
     supports_partial_trajectories = True
@@ -560,6 +622,24 @@ class ScheduledPerplexity:
         self.last_ppl: float | None = None
         self.last_ppl_ema: float | None = None
         self.last_strength = init_strength
+
+    def state_dict(self):
+        return {
+            "strength": self.entropy.strength,
+            "ppl_ema": self.ppl_ema,
+            "last_target_ppl": self.last_target_ppl,
+            "last_ppl": self.last_ppl,
+            "last_ppl_ema": self.last_ppl_ema,
+            "last_strength": self.last_strength,
+        }
+
+    def load_state_dict(self, state):
+        self.entropy.strength = state["strength"]
+        self.ppl_ema = state["ppl_ema"]
+        self.last_target_ppl = state["last_target_ppl"]
+        self.last_ppl = state["last_ppl"]
+        self.last_ppl_ema = state["last_ppl_ema"]
+        self.last_strength = state["last_strength"]
 
     @staticmethod
     def normalized_perplexity(policy):
@@ -680,7 +760,7 @@ class ScheduledPerplexity:
 
 
 @loss_from_string.register("reverse_entropy_bonus")
-class ReverseEntropyBonus:
+class ReverseEntropyBonus(Loss):
     needs_reference_policy_value = False
     supports_off_policy = True
     supports_partial_trajectories = True
@@ -696,7 +776,7 @@ class ReverseEntropyBonus:
 
 
 @loss_from_string.register("value_mse_loss")
-class ValueMSELoss:
+class ValueMSELoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = False
     needs_reference_policy_value = False
@@ -710,7 +790,7 @@ class ValueMSELoss:
 
 
 @loss_from_string.register("value_log_prob")
-class ValueLogProb:
+class ValueLogProb(Loss):
     supports_off_policy = True
     supports_partial_trajectories = False
     needs_reference_policy_value = False
@@ -724,7 +804,7 @@ class ValueLogProb:
 
 
 @loss_from_string.register("bootstrap_mse_loss")
-class BootstrapMSELoss:
+class BootstrapMSELoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = True
@@ -748,7 +828,7 @@ class BootstrapMSELoss:
 
 
 @loss_from_string.register("bootstrap_value_mse_loss")
-class BootstrapValueMSELoss:
+class BootstrapValueMSELoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = True
@@ -763,7 +843,7 @@ class BootstrapValueMSELoss:
 
 
 @loss_from_string.register("q_mse_loss")
-class QMSELoss:
+class QMSELoss(Loss):
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = True

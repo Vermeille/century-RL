@@ -33,9 +33,18 @@ class Checkpoints:
             raise LookupError("no checkpoints are available")
         return rng.choice(paths)
 
-    def save(self, step: int, models, *, optimizers=None, metadata=None) -> Path:
+    def save(
+        self,
+        step: int,
+        models,
+        *,
+        optimizers=None,
+        states=None,
+        metadata=None,
+    ) -> Path:
         self.directory.mkdir(parents=True, exist_ok=True)
         optimizer_map = {} if optimizers is None else optimizers
+        state_map = {} if states is None else states
         payload = {
             "step": step,
             "models": {name: model.state_dict() for name, model in models.items()},
@@ -46,6 +55,10 @@ class Checkpoints:
                 name: optimizer.state_dict()
                 for name, optimizer in optimizer_map.items()
             },
+            "states": {
+                name: stateful.state_dict()
+                for name, stateful in state_map.items()
+            },
             "metadata": dict(metadata or {}),
         }
         path = self.directory / f"{self.prefix}-{step}.pth"
@@ -53,7 +66,15 @@ class Checkpoints:
         self._prune()
         return path
 
-    def load(self, path=None, *, models=None, optimizers=None, map_location="cpu"):
+    def load(
+        self,
+        path=None,
+        *,
+        models=None,
+        optimizers=None,
+        states=None,
+        map_location="cpu",
+    ):
         path = Path(path) if path is not None else self.latest
         if path is None:
             raise LookupError("no checkpoint is available")
@@ -62,6 +83,13 @@ class Checkpoints:
             model.load_state_dict(payload["models"][name])
         for name, optimizer in (optimizers or {}).items():
             optimizer.load_state_dict(payload["optimizers"][name])
+        saved_states = payload.get("states", {})
+        for name, stateful in (states or {}).items():
+            if name not in saved_states:
+                raise KeyError(
+                    f"checkpoint {path} does not contain required state {name!r}"
+                )
+            stateful.load_state_dict(saved_states[name])
         return payload
 
     def _prune(self):

@@ -1,12 +1,13 @@
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from boardrl.checkpoints import Checkpoints
 from boardrl.games import games_library
 from boardrl.games.strategies import RandomStrategy
 from boardrl.models import toy
-from boardrl.rl.model.loss import ImitationCELoss
+from boardrl.rl.model.loss import ImitationCELoss, ScheduledPerplexity
 from boardrl.rl.model import PolicyValue, load_model
 from boardrl.rollouts import RolloutRunner
 from boardrl.training import (
@@ -121,6 +122,41 @@ def test_checkpoints_support_multiple_models(tmp_path):
         assert torch.equal(expected, restored)
 
 
+def test_checkpoints_restore_training_state(tmp_path):
+    class State:
+        def __init__(self, value):
+            self.value = value
+
+        def state_dict(self):
+            return {"value": self.value}
+
+        def load_state_dict(self, state):
+            self.value = state["value"]
+
+    model = toy()
+    saved = State(42)
+    restored = State(0)
+    checkpoints = Checkpoints(tmp_path)
+
+    path = checkpoints.save(1, {"current": model}, states={"controller": saved})
+    checkpoints.load(path, states={"controller": restored})
+
+    assert restored.value == 42
+
+
+def test_checkpoint_rejects_resume_without_required_training_state(tmp_path):
+    class State:
+        def load_state_dict(self, state):
+            pass
+
+    model = toy()
+    checkpoints = Checkpoints(tmp_path)
+    path = checkpoints.save(1, {"current": model})
+
+    with pytest.raises(KeyError, match="required state 'controller'"):
+        checkpoints.load(path, states={"controller": State()})
+
+
 def test_checkpoint_can_be_loaded_as_a_rollout_model(tmp_path):
     model = toy()
     path = Checkpoints(tmp_path).save(1, {"current": model})
@@ -175,6 +211,38 @@ def test_normalized_learner_handles_partial_batch():
 
     assert result.samples == 1
     assert result.batches == 1
+
+
+def test_learner_restores_its_losses_and_batch_baseline():
+    model = toy()
+    saved_loss = ScheduledPerplexity(start=0.5, init_strength=0.1, ppl_beta=0.0)
+    saved = Learner(
+        model,
+        torch.optim.AdamW(model.parameters()),
+        [saved_loss],
+        batch_size=4,
+        device="cpu",
+        normalize_lr=True,
+    )
+    saved.base_batches = 17
+    saved_loss.update_strength(measured_ppl=0.0, target_ppl=0.5)
+
+    restored_model = toy()
+    restored_loss = ScheduledPerplexity(start=0.5, init_strength=0.1)
+    restored = Learner(
+        restored_model,
+        torch.optim.AdamW(restored_model.parameters()),
+        [restored_loss],
+        batch_size=4,
+        device="cpu",
+        normalize_lr=True,
+    )
+
+    restored.load_state_dict(saved.state_dict())
+
+    assert restored.base_batches == 17
+    assert restored_loss.entropy.strength == saved_loss.entropy.strength
+    assert restored_loss.ppl_ema == saved_loss.ppl_ema
 
 
 def test_lr_equalizer_only_scales_minibatch_updates():

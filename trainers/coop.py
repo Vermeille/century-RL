@@ -224,6 +224,7 @@ def run(args):
             args.resume,
             models={"current": model},
             optimizers={"current": optimizer},
+            states={"learner": learner},
             map_location=args.device,
         )
         start = state["step"]
@@ -288,16 +289,17 @@ def run(args):
             metrics.game(completed, game.make_metrics(games))
 
         if completed % args.save_every == 0:
-            save(checkpoints, completed, model, optimizer, args)
+            save(checkpoints, completed, model, optimizer, learner, args)
 
-    return save(checkpoints, args.steps, model, optimizer, args)
+    return save(checkpoints, args.steps, model, optimizer, learner, args)
 
 
-def save(checkpoints, step, model, optimizer, args):
+def save(checkpoints, step, model, optimizer, learner, args):
     return checkpoints.save(
         step,
         {"current": model},
         optimizers={"current": optimizer},
+        states={"learner": learner},
         metadata={
             "trainer": "coop",
             "game": args.game,
