@@ -1,9 +1,8 @@
-"""Cooperative PPO with TD(lambda), formerly the TDMSE experiment."""
+"""Supervised strategy-fit diagnostic for model architectures."""
 
 from __future__ import annotations
 
 import argparse
-import copy
 import random
 from pathlib import Path
 
@@ -22,7 +21,7 @@ from boardrl import (
 )
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
-from boardrl.models import architectures, copy_weights, make
+from boardrl.models import architectures, make
 from boardrl.rl.model.loss import (
     CELoss,
 )
@@ -32,11 +31,16 @@ from boardrl.training import (
     LinearWarmupDecay,
     Pipeline,
     PolicyMetrics,
-    ReferenceTargets,
     ToSamples,
-    ValueMetrics,
 )
 from boardrl.utils.visualizer import OfflineVisualizer, VisdomVisualizer
+
+
+def positive_int(value):
+    value = int(value)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return value
 
 
 def build_parser():
@@ -58,6 +62,11 @@ def build_parser():
     )
     parser.add_argument("--steps", type=int, default=2_000)
     parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument(
+        "--patch-size",
+        type=positive_int,
+        help="override shared-patch compression width",
+    )
     parser.add_argument("--strategy")
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
@@ -106,7 +115,16 @@ def seed_everything(seed):
     init_seed(seed)
 
 
-def make_learner(model, game, args):
+class AccuracyMetrics:
+    def __call__(self, policy, value, batch):
+        correct = sum(
+            logits.argmax().item() == action.item()
+            for logits, action in zip(policy, batch.action_idx)
+        )
+        return {"accuracy": correct / len(policy)}
+
+
+def make_learner(model, args):
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
@@ -121,8 +139,10 @@ def make_learner(model, game, args):
         device=args.device,
         epochs=args.epochs,
         gradient_clip=args.gradient_clip,
-        augmentations=game.augmentations,
-        batch_metrics=[PolicyMetrics(), ValueMetrics()],
+        # Shuffling destroys lowest_cost's deterministic first-action tie break,
+        # making exact supervised labels impossible to recover.
+        augmentations=(),
+        batch_metrics=[PolicyMetrics(), AccuracyMetrics()],
         normalize_lr=True,
     )
     return learner, optimizer
@@ -131,15 +151,19 @@ def make_learner(model, game, args):
 def run(args):
     seed_everything(args.seed)
     game = games_library(args.game)
-    model = make(args.architecture).to(args.device)
+    model_overrides = (
+        {"backbone_kwargs": {"patch_size": args.patch_size}}
+        if args.patch_size is not None
+        else {}
+    )
+    model = make(args.architecture, **model_overrides).to(args.device)
     if args.initialize_from:
         Checkpoints(args.initialize_from.parent).load(
             args.initialize_from,
             models={"current": model},
             map_location=args.device,
         )
-    reference = copy.deepcopy(model).eval()
-    learner, optimizer = make_learner(model, game, args)
+    learner, optimizer = make_learner(model, args)
     schedule = LinearWarmupDecay(
         optimizer,
         steps=args.steps,
@@ -147,7 +171,7 @@ def run(args):
         min_scale=args.min_lr_scale,
     )
     checkpoint_dir = (
-        args.checkpoint_root / "coop" / args.game / args.architecture / args.tag
+        args.checkpoint_root / "imitate" / args.game / args.architecture / args.tag
     )
     checkpoints = Checkpoints(checkpoint_dir, prefix="step")
 
@@ -170,7 +194,6 @@ def run(args):
             map_location=args.device,
         )
         start = state["step"]
-        copy_weights(reference, model)
 
     inference = Inference(model, batch_size=args.batch_size)
     rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
@@ -179,13 +202,6 @@ def run(args):
     prepare = Pipeline(
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),
-        ReferenceTargets(
-            reference,
-            batch_size=args.batch_size,
-            discount=args.discount,
-            trace_decay=args.trace_decay,
-            reuse_rollout_predictions=True,
-        ),
     )
 
     for step in range(start, args.steps):
@@ -220,11 +236,10 @@ def run(args):
                 rotate=True,
             )
 
-        copy_weights(reference, model)
         result = learner.train(prepare(games), progress=step / args.steps)
         completed = step + 1
 
-        if completed % 5 == 0:
+        if completed % 1 == 0:
             metrics.log(
                 completed,
                 rollout=rollout_metrics(games),
@@ -244,7 +259,7 @@ def save(checkpoints, step, model, optimizer, args):
         {"current": model},
         optimizers={"current": optimizer},
         metadata={
-            "trainer": "coop",
+            "trainer": "imitate",
             "game": args.game,
             "architecture": args.architecture,
         },

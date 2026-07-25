@@ -15,12 +15,39 @@ class OfflineVisualizer:
 
 
 def test_coop_cli_selects_game_and_architecture():
-    args = build_parser().parse_args(
-        ["--game", "tictactoe", "--architecture", "toy"]
-    )
+    args = build_parser().parse_args(["--game", "tictactoe", "--architecture", "toy"])
 
     assert args.game == "tictactoe"
     assert args.architecture == "toy"
+
+
+def test_coop_cli_accepts_shared_patch_compression_width():
+    args = build_parser().parse_args(
+        [
+            "--architecture",
+            "shared-patch-tiny",
+            "--patch-size",
+            "8",
+        ]
+    )
+
+    assert args.patch_size == 8
+
+
+def test_coop_cli_accepts_separate_schedule_horizon():
+    args = build_parser().parse_args(["--steps", "20", "--schedule-steps", "10"])
+
+    assert args.steps == 20
+    assert args.schedule_steps == 10
+
+
+def test_coop_cli_separates_inference_and_learner_batch_sizes():
+    args = build_parser().parse_args(
+        ["--inference-batch-size", "256", "--learner-batch-size", "1024"]
+    )
+
+    assert args.inference_batch_size == 256
+    assert args.learner_batch_size == 1024
 
 
 def test_coop_resume_and_initialize_are_mutually_exclusive():
@@ -64,5 +91,5 @@ def test_coop_zero_step_smoke(
     run_info = path.parent / "run.txt"
     assert run_info.exists()
     assert '"game": "tictactoe"' in run_info.read_text()
-    assert "Cooperative PPO with TD(lambda)" in run_info.read_text()
+    assert "Cooperative PPO training from scratch" in run_info.read_text()
     assert "run" in visualizer.text

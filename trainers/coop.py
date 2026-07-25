@@ -1,4 +1,4 @@
-"""Cooperative PPO with TD(lambda), formerly the TDMSE experiment."""
+"""Cooperative PPO training from scratch."""
 
 from __future__ import annotations
 
@@ -42,6 +42,13 @@ from boardrl.training import (
 from boardrl.utils.visualizer import OfflineVisualizer, VisdomVisualizer
 
 
+def positive_int(value):
+    value = int(value)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return value
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -60,7 +67,28 @@ def build_parser():
         "--device", default="cuda" if torch.cuda.is_available() else "cpu"
     )
     parser.add_argument("--steps", type=int, default=2_000)
-    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument(
+        "--schedule-steps",
+        type=positive_int,
+        help="anneal learning rate and exploration over this many steps, then hold",
+    )
+    parser.add_argument(
+        "--inference-batch-size",
+        type=positive_int,
+        default=512,
+        help="maximum batch for live rollout and evaluation inference",
+    )
+    parser.add_argument(
+        "--learner-batch-size",
+        type=positive_int,
+        default=512,
+        help="batch size for reference targets and PPO updates",
+    )
+    parser.add_argument(
+        "--patch-size",
+        type=positive_int,
+        help="override shared-patch compression width",
+    )
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
     parser.add_argument("--evaluation-every", type=int, default=25)
@@ -140,7 +168,7 @@ def make_learner(model, game, args):
             ),
             BootstrapValueMSELoss(strength=args.value_strength),
         ],
-        batch_size=args.batch_size,
+        batch_size=args.learner_batch_size,
         device=args.device,
         epochs=args.epochs,
         gradient_clip=args.gradient_clip,
@@ -154,7 +182,12 @@ def make_learner(model, game, args):
 def run(args):
     seed_everything(args.seed)
     game = games_library(args.game)
-    model = make(args.architecture).to(args.device)
+    model_overrides = (
+        {"backbone_kwargs": {"patch_size": args.patch_size}}
+        if args.patch_size is not None
+        else {}
+    )
+    model = make(args.architecture, **model_overrides).to(args.device)
     if args.initialize_from:
         Checkpoints(args.initialize_from.parent).load(
             args.initialize_from,
@@ -163,9 +196,10 @@ def run(args):
         )
     reference = copy.deepcopy(model).eval()
     learner, optimizer = make_learner(model, game, args)
+    schedule_steps = args.schedule_steps or args.steps
     schedule = LinearWarmupDecay(
         optimizer,
-        steps=args.steps,
+        steps=schedule_steps,
         warmup=args.warmup,
         min_scale=args.min_lr_scale,
     )
@@ -195,7 +229,7 @@ def run(args):
         start = state["step"]
         copy_weights(reference, model)
 
-    inference = Inference(model, batch_size=args.batch_size)
+    inference = Inference(model, batch_size=args.inference_batch_size)
     rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
     evaluator = Evaluator(game.make_game, progress=not args.no_progress)
     metrics = MetricLogger(Console(), visdom)
@@ -204,7 +238,7 @@ def run(args):
         ToSamples(),
         ReferenceTargets(
             reference,
-            batch_size=args.batch_size,
+            batch_size=args.learner_batch_size,
             discount=args.discount,
             trace_decay=args.trace_decay,
             reuse_rollout_predictions=True,
@@ -213,6 +247,7 @@ def run(args):
 
     for step in range(start, args.steps):
         schedule.step(step)
+        schedule_progress = min(step / schedule_steps, 1.0)
 
         if step % args.evaluation_every == 0:
             with inference.evaluating():
@@ -241,7 +276,7 @@ def run(args):
             )
 
         copy_weights(reference, model)
-        result = learner.train(prepare(games), progress=step / args.steps)
+        result = learner.train(prepare(games), progress=schedule_progress)
         completed = step + 1
 
         if completed % 5 == 0:
