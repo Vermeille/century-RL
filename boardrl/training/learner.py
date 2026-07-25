@@ -90,20 +90,36 @@ class Updates:
     def start(self):
         pass
 
+    def begin_epoch(self, num_batches):
+        pass
+
     def finish(self):
         return {}
 
 
 class BatchUpdates(Updates, reusable=True):
+    def __init__(self, learner, samples):
+        super().__init__(learner, samples)
+        self.lr_scale = 1.0
+
     @property
     def epochs(self):
         return self.learner.epochs
+
+    def begin_epoch(self, num_batches):
+        if self.learner.base_batches is None or not self.learner.normalize_lr:
+            self.learner.base_batches = num_batches
+        self.lr_scale = (
+            self.learner.base_batches / num_batches
+            if self.learner.normalize_lr
+            else 1.0
+        )
 
     def begin_batch(self):
         self.learner.optimizer.zero_grad(set_to_none=True)
 
     def objective(self, objective, batch):
-        return objective
+        return objective * self.lr_scale
 
     def end_batch(self):
         return {"gradient_norm": self.learner._finish_batch()}
@@ -160,6 +176,8 @@ class Learner:
         self.augmentations = tuple(augmentations)
         self.batch_metrics = tuple(batch_metrics)
         self.normalize_lr = normalize_lr
+        # Keep the reference across train() calls so changing rollout sizes
+        # does not change the intended update magnitude.
         self.base_batches = None
 
     def train(self, samples: Sequence[TrainingSample], *, progress=0.0) -> TrainResult:
@@ -181,9 +199,8 @@ class Learner:
             random.shuffle(epoch_samples)
 
             num_batches = math.ceil(len(epoch_samples) / self.batch_size)
+            updates.begin_epoch(num_batches)
             for raw_batch in chunk(epoch_samples, self.batch_size):
-                if self.base_batches is None or not self.normalize_lr:
-                    self.base_batches = num_batches
                 updates.begin_batch()
                 batch = TrainingSample.collate(raw_batch).to(
                     self.device, non_blocking=True
@@ -195,7 +212,6 @@ class Learner:
                     for loss in self.losses
                 ]
                 objective = sum(result.objective for _, result in results)
-                objective *= self.base_batches / num_batches
                 updates.objective(objective, raw_batch).backward()
 
                 with torch.no_grad():

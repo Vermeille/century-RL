@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import torch
 
 from boardrl.checkpoints import Checkpoints
@@ -5,9 +7,19 @@ from boardrl.games import games_library
 from boardrl.games.strategies import RandomStrategy
 from boardrl.models import toy
 from boardrl.rl.model.loss import ImitationCELoss
-from boardrl.rl.model import load_model
+from boardrl.rl.model import PolicyValue, load_model
 from boardrl.rollouts import RolloutRunner
-from boardrl.training import ComputeReturns, Learner, Pipeline, Select, ToSamples, TrainingSample
+from boardrl.training import (
+    ComputeReturns,
+    DoubleQTargets,
+    Learner,
+    Pipeline,
+    ReplayBuffer,
+    Select,
+    ToSamples,
+    TrainingSample,
+)
+from boardrl.training.learner import BatchUpdates, RolloutUpdate
 
 
 def test_rollout_pipeline_is_composable():
@@ -38,6 +50,50 @@ def test_rollout_factory_owns_matchmaking():
 
     assert calls == [0, 1, 2]
     assert len(results) == 3
+
+
+def test_replay_buffer_retains_old_transitions_with_a_fixed_capacity():
+    replay = ReplayBuffer(capacity=3, samples_per_update=3)
+    old = [TrainingSample(state=f"old-{i}") for i in range(3)]
+    new = TrainingSample(state="new")
+
+    replay(old)
+    sampled = replay([new])
+
+    assert len(replay.samples) == 3
+    assert old[0] not in replay.samples
+    assert set(sampled) == set(replay.samples)
+
+
+def test_double_q_targets_select_online_action_and_evaluate_with_target():
+    class FixedQ(torch.nn.Module):
+        def __init__(self, policy, value):
+            super().__init__()
+            self.policy = torch.tensor(policy)
+            self.value = torch.tensor(value)
+
+        def forward(self, states):
+            batch = len(states)
+            return PolicyValue(
+                [self.policy.clone() for _ in states],
+                torch.distributions.Normal(
+                    self.value.repeat(batch),
+                    torch.ones(batch),
+                ),
+            )
+
+    online = FixedQ([0.0, 2.0], 0.0)
+    target = FixedQ([5.0, 1.0], 10.0)
+    nonterminal = TrainingSample(
+        next=SimpleNamespace(terminal=False, state="next\n@a\n@b")
+    )
+    terminal = TrainingSample(next=SimpleNamespace(terminal=True))
+
+    DoubleQTargets(online, target, batch_size=8)([nonterminal, terminal])
+
+    # Online selects action 1. Its target-network Q is 10 + (1 - mean(5, 1)) = 8.
+    assert nonterminal.next_reference_max_q == 8.0
+    assert terminal.next_reference_max_q == 0.0
 
 
 def test_checkpoints_support_multiple_models(tmp_path):
@@ -119,3 +175,25 @@ def test_normalized_learner_handles_partial_batch():
 
     assert result.samples == 1
     assert result.batches == 1
+
+
+def test_lr_equalizer_only_scales_minibatch_updates():
+    learner = SimpleNamespace(
+        base_batches=None,
+        normalize_lr=True,
+        epochs=1,
+    )
+    updates = BatchUpdates(learner, [object()])
+
+    updates.begin_epoch(4)
+    assert updates.objective(torch.tensor(1.0), []) == 1.0
+
+    updates.begin_epoch(2)
+    assert updates.objective(torch.tensor(1.0), []) == 2.0
+
+    rollout = RolloutUpdate(
+        SimpleNamespace(normalize_lr=True),
+        [object(), object(), object(), object()],
+    )
+    rollout.begin_epoch(2)
+    assert rollout.objective(torch.tensor(1.0), [object(), object()]) == 0.5

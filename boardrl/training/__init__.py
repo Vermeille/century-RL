@@ -1,7 +1,10 @@
 from .sample import TrainingSample, collate
 from .postprocess import (
     ComputeReturns,
+    DoubleQTargets,
+    DropFields,
     Pipeline,
+    ReplayBuffer,
     ReferenceTargets,
     Select,
     ToSamples,
@@ -17,10 +20,13 @@ from .learner import (
 
 __all__ = [
     "ComputeReturns",
+    "DoubleQTargets",
+    "DropFields",
     "Learner",
     "LinearWarmupDecay",
     "PolicyMetrics",
     "Pipeline",
+    "ReplayBuffer",
     "ReferenceTargets",
     "Select",
     "ToSamples",

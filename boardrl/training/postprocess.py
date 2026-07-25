@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable
+import random
 from typing import Any
+
+import torch
 
 from boardrl.rl.eval.selfplay import SelfPlayResults
 from boardrl.training.returns import annotate_with_model, compute_returns
 from boardrl.training.sample import TrainingSample
+from boardrl.utils import chunk
 
 
 Processor = Callable[[Any], Any]
@@ -82,6 +87,19 @@ class ToSamples:
         return samples
 
 
+class DropFields:
+    """Remove rollout-only annotations that a learner does not consume."""
+
+    def __init__(self, *fields: str):
+        self.fields = fields
+
+    def __call__(self, samples: list[TrainingSample]) -> list[TrainingSample]:
+        for sample in samples:
+            for field in self.fields:
+                sample.__dict__.pop(field, None)
+        return samples
+
+
 class ReferenceTargets:
     """Add values, advantages, GAE and TD(lambda) targets from a model."""
 
@@ -111,6 +129,63 @@ class ReferenceTargets:
                 use_cached_rollout=self.reuse_rollout_predictions,
             )
         return samples
+
+
+class ReplayBuffer:
+    """Retain transitions and return a uniformly sampled training batch."""
+
+    def __init__(self, capacity: int, samples_per_update: int):
+        if capacity <= 0:
+            raise ValueError("capacity must be positive")
+        if samples_per_update <= 0:
+            raise ValueError("samples_per_update must be positive")
+        self.samples = deque(maxlen=capacity)
+        self.samples_per_update = samples_per_update
+
+    def __call__(self, samples: list[TrainingSample]) -> list[TrainingSample]:
+        self.samples.extend(samples)
+        count = min(len(self.samples), self.samples_per_update)
+        return random.sample(list(self.samples), count)
+
+
+class DoubleQTargets:
+    """Compute Double-DQN bootstrap values for sampled transitions."""
+
+    def __init__(self, online_model, target_model, *, batch_size: int):
+        self.online_model = online_model
+        self.target_model = target_model
+        self.batch_size = batch_size
+
+    def __call__(self, samples: list[TrainingSample]) -> list[TrainingSample]:
+        pending = [sample for sample in samples if not sample.next.terminal]
+        for sample in samples:
+            if sample.next.terminal:
+                sample.next_reference_max_q = 0.0
+
+        if not pending:
+            return samples
+
+        states = [sample.next.state for sample in pending]
+        online_training = self.online_model.training
+        self.online_model.eval()
+        self.target_model.eval()
+        try:
+            with torch.no_grad():
+                online = self._evaluate(self.online_model, states)
+                target = self._evaluate(self.target_model, states)
+        finally:
+            self.online_model.train(online_training)
+
+        for sample, online_pred, target_pred in zip(pending, online, target):
+            action = online_pred.q_value()[0].argmax()
+            sample.next_reference_max_q = target_pred.q_value()[0][action].item()
+        return samples
+
+    def _evaluate(self, model, states):
+        predictions = []
+        for batch in chunk(states, self.batch_size):
+            predictions.extend(model(batch).unbatched())
+        return predictions
 
 
 def samples_from(games: SelfPlayResults) -> list[TrainingSample]:
