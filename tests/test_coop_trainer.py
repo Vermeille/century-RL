@@ -21,17 +21,10 @@ def test_coop_cli_selects_game_and_architecture():
     assert args.architecture == "toy"
 
 
-def test_coop_cli_accepts_shared_patch_compression_width():
-    args = build_parser().parse_args(
-        [
-            "--architecture",
-            "shared-patch-tiny",
-            "--patch-size",
-            "8",
-        ]
-    )
+def test_coop_cli_selects_model_scale_and_patch_size_together():
+    args = build_parser().parse_args(["--architecture", "patchformer-tiny-p8"])
 
-    assert args.patch_size == 8
+    assert args.architecture == "patchformer-tiny-p8"
 
 
 def test_coop_cli_accepts_separate_schedule_horizon():

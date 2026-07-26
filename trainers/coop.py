@@ -49,6 +49,13 @@ def positive_int(value):
     return value
 
 
+def positive_float(value):
+    value = float(value)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return value
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -73,6 +80,12 @@ def build_parser():
         help="anneal learning rate and exploration over this many steps, then hold",
     )
     parser.add_argument(
+        "--perplexity-curve",
+        type=positive_float,
+        default=1.0,
+        help="power applied to exploration schedule progress (<1 anneals earlier)",
+    )
+    parser.add_argument(
         "--inference-batch-size",
         type=positive_int,
         default=512,
@@ -84,11 +97,6 @@ def build_parser():
         default=512,
         help="batch size for reference targets and PPO updates",
     )
-    parser.add_argument(
-        "--patch-size",
-        type=positive_int,
-        help="override shared-patch compression width",
-    )
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
     parser.add_argument("--evaluation-every", type=int, default=25)
@@ -96,6 +104,8 @@ def build_parser():
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
     parser.add_argument("--adam-beta1", type=float, default=0.5)
+    parser.add_argument("--adam-beta2", type=float, default=0.999)
+    parser.add_argument("--adam-eps", type=float, default=1e-8)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--gradient-clip", type=float)
     parser.add_argument("--discount", type=float, default=1.0)
@@ -141,7 +151,8 @@ def make_learner(model, game, args):
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
-        betas=(args.adam_beta1, 0.999),
+        betas=(args.adam_beta1, args.adam_beta2),
+        eps=args.adam_eps,
         weight_decay=args.weight_decay,
     )
     learner = Learner(
@@ -183,12 +194,7 @@ def make_learner(model, game, args):
 def run(args):
     seed_everything(args.seed)
     game = games_library(args.game)
-    model_overrides = (
-        {"backbone_kwargs": {"patch_size": args.patch_size}}
-        if args.patch_size is not None
-        else {}
-    )
-    model = make(args.architecture, **model_overrides).to(args.device)
+    model = make(args.architecture).to(args.device)
     if args.initialize_from:
         Checkpoints(args.initialize_from.parent).load(
             args.initialize_from,
@@ -249,7 +255,7 @@ def run(args):
 
     for step in range(start, args.steps):
         schedule.step(step)
-        schedule_progress = min(step / schedule_steps, 1.0)
+        schedule_progress = min(step / schedule_steps, 1.0) ** args.perplexity_curve
 
         if step % args.evaluation_every == 0:
             with inference.evaluating():

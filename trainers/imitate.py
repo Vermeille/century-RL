@@ -36,13 +36,6 @@ from boardrl.training import (
 from boardrl.utils.visualizer import OfflineVisualizer, VisdomVisualizer
 
 
-def positive_int(value):
-    value = int(value)
-    if value <= 0:
-        raise argparse.ArgumentTypeError("must be positive")
-    return value
-
-
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -62,11 +55,6 @@ def build_parser():
     )
     parser.add_argument("--steps", type=int, default=2_000)
     parser.add_argument("--batch-size", type=int, default=256)
-    parser.add_argument(
-        "--patch-size",
-        type=positive_int,
-        help="override shared-patch compression width",
-    )
     parser.add_argument("--strategy")
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
@@ -151,12 +139,7 @@ def make_learner(model, args):
 def run(args):
     seed_everything(args.seed)
     game = games_library(args.game)
-    model_overrides = (
-        {"backbone_kwargs": {"patch_size": args.patch_size}}
-        if args.patch_size is not None
-        else {}
-    )
-    model = make(args.architecture, **model_overrides).to(args.device)
+    model = make(args.architecture).to(args.device)
     if args.initialize_from:
         Checkpoints(args.initialize_from.parent).load(
             args.initialize_from,
