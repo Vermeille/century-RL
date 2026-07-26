@@ -43,6 +43,15 @@ def test_coop_cli_separates_inference_and_learner_batch_sizes():
     assert args.learner_batch_size == 1024
 
 
+def test_coop_cli_configures_bounded_best_checkpoints():
+    args = build_parser().parse_args(
+        ["--keep-checkpoints", "1", "--save-best"]
+    )
+
+    assert args.keep_checkpoints == 1
+    assert args.save_best
+
+
 def test_coop_resume_and_initialize_are_mutually_exclusive():
     parser = build_parser()
 

@@ -19,7 +19,7 @@ A successful recipe must satisfy all of the following:
 ```bash
 uv run python evaluate_thegame.py \
   --games 1000 \
-  checkpoints/coop/thegame,mode=strict/shared-patch-small/<tag>/<checkpoint>.pth
+  checkpoints/coop/thegame,mode=strict/patchformer-small-p4/<tag>/<checkpoint>.pth
 ```
 
 The evaluator resets every RNG before each policy, so the model and baseline
@@ -55,11 +55,11 @@ action readout:
 | multiscale dilated CNN + cross-attention | 67.6% at step 50 | pooling is not the main remaining gap |
 | patch transformer with no local CNN | about 13% | every `@` query is the same raw embedding |
 | two-layer CNN + patch-transformer head | 81.9% at step 50 | two local layers are enough |
-| shared patch-transformer backbone + small cross head | **87.0% at step 50** | strong, but the head still performs global retrieval |
+| patchformer backbone + small cross head | **87.0% at step 50** | strong, but the head still performs global retrieval |
 
 That final cross-attention result did not fully isolate the backbone: both the
 policy head and the value head still had learned global pooling. The cleaned
-`shared-patch` architecture now has three explicit roles:
+patchformer architecture now has three explicit roles:
 
 1. two local CNN layers bind each `@` marker to its card and pile text;
 2. learned stride-four patches and the global transformer layers provide
@@ -88,16 +88,17 @@ only global reasoning capacity:
 
 | Preset | Width | Global layers | Parameters |
 | --- | ---: | ---: | ---: |
-| `shared-patch-tiny` | 32 | 2 | 64k |
-| `shared-patch-small` / `shared-patch` | 64 | 4 | 387k |
-| `shared-patch-medium` | 128 | 4 | 1.52M |
-| `shared-patch-large` | 256 | 6 | 8.26M |
+| `patchformer-tiny-p*` | 32 | 2 | 64k |
+| `patchformer-small-p*` | 64 | 4 | 387k |
+| `patchformer-medium-p*` | 128 | 4 | 1.52M |
+| `patchformer-large-p*` | 256 | 6 | 8.26M |
 
-All presets default to four-character patches. `--patch-size 8` or
-`--patch-size 16` further reduces transformer sequence length for long
-observations. The local stream and exact action positions remain
-full-resolution; only the shared global stream is compressed. Checkpoints save
-the selected patch size in the model specification.
+Every scale is registered with patch widths 4, 8, and 16, for example
+`patchformer-small-p4`, `patchformer-small-p8`, and
+`patchformer-small-p16`. The local stream and exact action positions remain
+full-resolution; only the shared global stream is compressed. Because patch
+width changes topology and checkpoint compatibility, it is part of the
+architecture name rather than a trainer option.
 
 The strongest historical shared-backbone PPO control used the now-legacy
 cross-attention readout:
@@ -105,7 +106,7 @@ cross-attention readout:
 ```bash
 uv run python trainers/coop.py \
   --device cuda \
-  --architecture shared-patch-small \
+  --architecture patchformer-small-p4 \
   --game thegame,mode=strict \
   --steps 800 \
   --rollout-games 256 \
@@ -143,15 +144,15 @@ diagnostic.
 | Monte-Carlo PPO | `lambda=1`, one epoch, scheduled exploration | 76.37 |
 | exploit diagnostic | fresh optimizer from the 76-point checkpoint | 78.25 |
 | gentle exploit diagnostic | initialized from the prior diagnostic | 78.54 |
-| shared patch, slow 2,000-step schedule | stopped at step 450 after plateau | 58.75 |
-| shared patch, 800-step schedule | same PPO, faster exploration/LR annealing | 72.18 |
+| patchformer, slow 2,000-step schedule | stopped at step 450 after plateau | 58.75 |
+| patchformer, 800-step schedule | same PPO, faster exploration/LR annealing | 72.18 |
 
 The two fine-tunes are diagnostics, not candidate recipes. Both regressed with
 continued updates. They show that the network can represent a near-baseline
 policy, while also showing that selecting a lucky fine-tuning checkpoint is not
 a robust from-scratch recipe.
 
-The 800-step schedule established that the original shared-patch result was
+The 800-step schedule established that the original patch-transformer result was
 partly an optimization artifact. On the same 256 seeded decks, step 400 of the
 slow schedule scored 58.75, while the faster schedule reached 72.81 at step
 625. This was still below `lowest_cost` at 81.12. Continuing to force
@@ -178,13 +179,13 @@ condition differed from current strict mode.
 
 ## Final from-scratch recipe
 
-The cleaned local encoder, shared patch-transformer backbone, token-local
+The cleaned local encoder, patchformer backbone, token-local
 policy head, and learned-query critic reached the target with ordinary PPO:
 
 ```bash
 uv run python trainers/coop.py \
   --device cuda \
-  --architecture shared-patch-small \
+  --architecture patchformer-small-p4 \
   --game thegame,mode=strict \
   --steps 1000 \
   --schedule-steps 500 \
@@ -230,7 +231,7 @@ horizon while keeping the same fixed evaluation protocol.
 
 ## Efficiency controls
 
-The 64k `shared-patch-tiny` preset was trained with the final recipe as a
+The 64k `patchformer-tiny-p4` preset was trained with the final recipe as a
 one-variable scaling control. It ran more updates per hour but plateaued around
 67--70 monitoring points from steps 375 through 750. It was stopped at step
 765. Width 32 is therefore below the useful capacity threshold for this task
@@ -265,7 +266,7 @@ The resulting faster from-scratch recipe is:
 ```bash
 uv run python trainers/coop.py \
   --device cuda \
-  --architecture shared-patch-small \
+  --architecture patchformer-small-p4 \
   --game thegame,mode=strict \
   --steps 500 \
   --schedule-steps 250 \

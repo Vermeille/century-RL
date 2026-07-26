@@ -101,6 +101,16 @@ def build_parser():
     parser.add_argument("--evaluation-games", type=int, default=256)
     parser.add_argument("--evaluation-every", type=int, default=25)
     parser.add_argument("--save-every", type=int, default=25)
+    parser.add_argument(
+        "--keep-checkpoints",
+        type=positive_int,
+        help="retain only this many latest periodic checkpoints",
+    )
+    parser.add_argument(
+        "--save-best",
+        action="store_true",
+        help="retain the checkpoint with the highest evaluation points",
+    )
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
     parser.add_argument("--adam-beta1", type=float, default=0.5)
@@ -213,7 +223,13 @@ def run(args):
     checkpoint_dir = (
         args.checkpoint_root / "coop" / args.game / args.architecture / args.tag
     )
-    checkpoints = Checkpoints(checkpoint_dir, prefix="step")
+    checkpoints = Checkpoints(
+        checkpoint_dir,
+        prefix="step",
+        keep=args.keep_checkpoints,
+    )
+    best_checkpoints = Checkpoints(checkpoint_dir, prefix="best", keep=1)
+    best_score = float("-inf")
 
     visualizer = (
         VisdomVisualizer(args.tag, args.visdom_url, args.visdom_port)
@@ -236,6 +252,9 @@ def run(args):
         )
         start = state["step"]
         copy_weights(reference, model)
+        if args.save_best and best_checkpoints.latest:
+            best_state = best_checkpoints.load(map_location="cpu")
+            best_score = best_state["metadata"]["evaluation_points"]
 
     inference = Inference(model, batch_size=args.inference_batch_size)
     rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
@@ -273,6 +292,18 @@ def run(args):
                     "points": Range(evaluation.rollouts.my_points(0)),
                 },
             )
+            score = evaluation.avg_points()
+            if args.save_best and score > best_score:
+                best_score = score
+                save(
+                    best_checkpoints,
+                    step,
+                    model,
+                    optimizer,
+                    learner,
+                    args,
+                    evaluation_points=score,
+                )
 
         with inference.evaluating():
             player = inference.policy()
@@ -298,10 +329,46 @@ def run(args):
         if completed % args.save_every == 0:
             save(checkpoints, completed, model, optimizer, learner, args)
 
-    return save(checkpoints, args.steps, model, optimizer, learner, args)
+    final_path = save(checkpoints, args.steps, model, optimizer, learner, args)
+    if args.save_best:
+        with inference.evaluating():
+            player = inference.policy(temperature=args.eval_temperature)
+            evaluation = evaluator.compare(
+                [player, player],
+                names=["current", "current"],
+                games=args.evaluation_games,
+                max_steps=800,
+            )
+        metrics.log(
+            args.steps,
+            evaluation={
+                "win_rate": evaluation.win_rate(),
+                "points": Range(evaluation.rollouts.my_points(0)),
+            },
+        )
+        score = evaluation.avg_points()
+        if score > best_score:
+            save(
+                best_checkpoints,
+                args.steps,
+                model,
+                optimizer,
+                learner,
+                args,
+                evaluation_points=score,
+            )
+    return final_path
 
 
-def save(checkpoints, step, model, optimizer, learner, args):
+def save(
+    checkpoints,
+    step,
+    model,
+    optimizer,
+    learner,
+    args,
+    **metadata,
+):
     return checkpoints.save(
         step,
         {"current": model},
@@ -311,6 +378,7 @@ def save(checkpoints, step, model, optimizer, learner, args):
             "trainer": "coop",
             "game": args.game,
             "architecture": args.architecture,
+            **metadata,
         },
     )
 
