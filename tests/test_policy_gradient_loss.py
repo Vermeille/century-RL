@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn.functional as F
 from types import SimpleNamespace
@@ -352,6 +354,28 @@ def test_policy_gradient_loss_with_normalized_gae():
     loss = policy([logits], pred_value, sample, training_state={}).objective
     expected = F.cross_entropy(logits, sample.action_idx[0], label_smoothing=0.002)
     assert torch.allclose(loss, expected)
+
+
+def test_ppo_reports_importance_ratio_and_clip_fraction():
+    pred_policy = [
+        torch.tensor([math.log(4.0), 0.0]),
+        torch.tensor([0.0, math.log(4.0)]),
+    ]
+    sample = SimpleNamespace(
+        action_idx=torch.tensor([0, 0]),
+        normalized_gae=torch.tensor([1.0, -1.0]),
+        action_distribution=[torch.zeros(2), torch.zeros(2)],
+    )
+    pred_value = SimpleNamespace(mean=torch.zeros(2))
+
+    result = PolicyGradientLoss(
+        weight="normalized_gae",
+        drift="ppo",
+        imp_ratio_clip=0.2,
+    )(pred_policy, pred_value, sample, training_state={})
+
+    assert torch.allclose(result.metrics["importance_ratio"], torch.tensor(1.0))
+    assert torch.allclose(result.metrics["clip_fraction"], torch.tensor(1.0))
 
 
 def test_policy_gradient_normalizer_state_round_trip():

@@ -106,6 +106,7 @@ def build_parser():
     parser.add_argument("--value-strength", type=float, default=1.0)
     parser.add_argument("--kl-target", type=float, default=0.003)
     parser.add_argument("--kl-strength", type=float, default=1.0)
+    parser.add_argument("--ppo-clip", type=float, default=0.2)
     parser.add_argument("--eval-temperature", type=float, default=0.05)
     parser.add_argument("--warmup", type=int, default=15)
     parser.add_argument("--min-lr-scale", type=float, default=0.3)
@@ -150,7 +151,7 @@ def make_learner(model, game, args):
             PolicyGradientLoss(
                 weight="normalized_gae",
                 drift="ppo",
-                imp_ratio_clip=0.2,
+                imp_ratio_clip=args.ppo_clip,
             ),
             ScheduledPerplexity(
                 start=args.perplexity_start,

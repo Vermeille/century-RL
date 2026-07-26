@@ -316,6 +316,7 @@ class PolicyGradientLoss(Loss):
             "spo": (lambda r, A: spo(r, A, imp_ratio_clip)),
         }
         self.drift = drifts[drift]
+        self.drift_name = drift
         self.weight = weight
         self.discount_factor = discount_factor
         self.normalizer = None
@@ -350,6 +351,7 @@ class PolicyGradientLoss(Loss):
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_idx)
+        metrics = {}
 
         with torch.no_grad():
             weight = self.weight_fn(sample, self.discount_factor)
@@ -380,13 +382,20 @@ class PolicyGradientLoss(Loss):
                     .squeeze(1)
                 )
                 imp_ratio = torch.exp(top - bottom)
+                metrics["importance_ratio"] = imp_ratio.mean()
+                if self.drift_name in {"ppo", "ppo-rb"}:
+                    clipped = ((weight > 0) & (imp_ratio > 1 + self.imp_ratio_clip)) | (
+                        (weight < 0) & (imp_ratio < 1 - self.imp_ratio_clip)
+                    )
+                    metrics["clip_fraction"] = clipped.float().mean()
                 weight = self.drift(imp_ratio, weight)
 
         return LossResult(
             self.strength
             * torch.mean(
                 weight * F.cross_entropy(padded, sample.action_idx, reduction="none")
-            )
+            ),
+            metrics,
         )
 
 

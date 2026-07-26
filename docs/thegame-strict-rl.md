@@ -245,13 +245,71 @@ shrank as trajectories grew longer. The best 256-game monitoring result
 through step 475 was 78.38, below the original recipe at equal interaction
 count.
 
-The likely cause is the unit of PPO's trust region. The reference policy is
-frozen once per outer rollout, and the adaptive KL controller holds the entire
-outer update near its 0.003 target. Doubling rollout size gives more minibatches
-inside that same KL budget. Halving outer updates therefore reduces the total
-number of allowed policy displacements even though samples and optimizer
-minibatches are preserved. The next controlled test is the same doubled-rollout
-recipe with KL target 0.006. It has not been started.
+The cause was the unit of PPO's trust region. The reference policy is frozen
+once per outer rollout, and the adaptive KL controller holds the entire outer
+update near its target. Doubling rollout size gives more minibatches inside
+that same KL budget. Halving outer updates therefore reduces the total number
+of allowed policy displacements even though samples and optimizer minibatches
+are preserved.
+
+Two controls isolated the adaptive controller's behavior. Raising the target
+from 0.003 to 0.006 while retaining an initial strength of 1.0 did nothing:
+the initial strength is also the controller's lower bound, so it could not
+relax the penalty. Lowering the initial strength to 0.5 while retaining the
+0.003 target only changed the transient; the controller raised the coefficient
+toward the same equilibrium. Raising the target and lowering the floor together
+was the effective intervention.
+
+The resulting faster from-scratch recipe is:
+
+```bash
+uv run python trainers/coop.py \
+  --device cuda \
+  --architecture shared-patch-small \
+  --game thegame,mode=strict \
+  --steps 500 \
+  --schedule-steps 250 \
+  --rollout-games 512 \
+  --evaluation-games 256 \
+  --evaluation-every 25 \
+  --save-every 25 \
+  --inference-batch-size 1024 \
+  --learner-batch-size 512 \
+  --learning-rate 0.0003 \
+  --adam-beta1 0.5 \
+  --epochs 1 \
+  --discount 1.0 \
+  --trace-decay 1.0 \
+  --perplexity-start 0.8 \
+  --perplexity-end 0.10 \
+  --entropy-strength 0.1 \
+  --value-strength 1.0 \
+  --kl-target 0.006 \
+  --kl-strength 0.5 \
+  --eval-temperature 0.02 \
+  --warmup 8 \
+  --min-lr-scale 1.0 \
+  --seed 0 \
+  --tag strict-small-rollout512-kl006-strength05-s0 \
+  --visdom-url https://visdom.vermeille.fr \
+  --visdom-port 443 \
+  --no-progress
+```
+
+On the fixed 1,000-game seed-123 evaluation, the final step-500 checkpoint
+scored **81.770** (95% CI 81.172--82.368), compared with **81.236** (95% CI
+80.511--81.961) for `lowest_cost`. Step 475 scored 81.939, but the final
+checkpoint is the recipe result so no favorable checkpoint selection is
+required. Monitoring first crossed 80 at step 275 and the larger evaluation
+gave step 325 a mean of 80.400. Wall-clock time to the first monitored
+80-point checkpoint fell from about 3 hours 20 minutes to about 3 hours,
+although equal total interaction and learner work meant the complete runs
+still took roughly the same five and a half hours.
+
+`PolicyGradientLoss` now reports the mean importance ratio and the fraction of
+samples whose PPO surrogate is clipped. `coop.py` exposes the clipping radius
+as `--ppo-clip`, making the next rollout-scaling control observable rather than
+guesswork.
 
 The doubled-rollout run was interrupted after step 490, then resumed from its
 step-475 checkpoint. This exposed a checkpoint bug: model and optimizer state
