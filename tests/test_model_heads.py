@@ -1,6 +1,6 @@
 import torch
 
-from boardrl.models import make
+from boardrl.models import architectures, make
 from boardrl.rl.model.model import Model
 from boardrl.rl.model.transformer import Transformer
 
@@ -68,10 +68,10 @@ def test_heads_handle_variable_action_counts():
     assert model.rewards.attention.in_proj_weight.grad is not None
 
 
-def test_shared_patch_backbone_trains_local_and_global_paths():
+def test_patchformer_backbone_trains_local_and_global_paths():
     torch.manual_seed(0)
     model = make(
-        "shared-patch",
+        "patchformer-small-p4",
         dim=16,
         num_heads=4,
         head_size=4,
@@ -94,12 +94,12 @@ def test_shared_patch_backbone_trains_local_and_global_paths():
     )
 
 
-def test_shared_patch_scales_increase_capacity_monotonically():
+def test_patchformer_scales_increase_capacity_monotonically():
     names = [
-        "shared-patch-tiny",
-        "shared-patch-small",
-        "shared-patch-medium",
-        "shared-patch-large",
+        "patchformer-tiny-p4",
+        "patchformer-small-p4",
+        "patchformer-medium-p4",
+        "patchformer-large-p4",
     ]
     models = [make(name) for name in names]
     parameter_counts = [
@@ -121,11 +121,18 @@ def test_shared_patch_scales_increase_capacity_monotonically():
     ] == [2, 4, 4, 6]
 
 
-def test_shared_patch_compression_width_is_checkpointed():
-    model = make(
-        "shared-patch-small",
-        backbone_kwargs={"patch_size": 8},
-    )
+def test_model_architectures_cover_scale_and_patch_size_product():
+    expected = {
+        f"patchformer-{scale}-p{patch_size}"
+        for scale in ("tiny", "small", "medium", "large")
+        for patch_size in (4, 8, 16)
+    }
+
+    assert expected <= architectures.keys()
+
+
+def test_patchformer_compression_width_is_checkpointed():
+    model = make("patchformer-small-p8")
 
     assert model.spec()["backbone_kwargs"] == {"patch_size": 8}
     assert model.backbone.encode.patch_size == 8

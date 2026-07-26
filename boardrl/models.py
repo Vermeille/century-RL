@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Callable
+from functools import partial
 
 import torch
 
@@ -35,41 +36,29 @@ def cnn(**overrides):
     return Model(**({"dim": 64, "num_layers": 5, "backbone": "cnn"} | overrides))
 
 
-@architecture("shared-patch")
-def shared_patch(**overrides):
-    return shared_patch_small(**overrides)
-
-
-def shared_patch_model(scale, **overrides):
+def patch_model(scale, patch_size, **overrides):
     spec = {
         "backbone": "patch_transformer_cnn",
-        "backbone_kwargs": {"patch_size": 4},
+        "backbone_kwargs": {"patch_size": patch_size},
     } | scale
     return Model(**(spec | overrides))
 
 
-@architecture("shared-patch-tiny")
-def shared_patch_tiny(**overrides):
-    scale = {"dim": 32, "num_layers": 2, "num_heads": 4, "head_size": 8}
-    return shared_patch_model(scale, **overrides)
+MODEL_SCALES = {
+    "tiny": {"dim": 32, "num_layers": 2, "num_heads": 4, "head_size": 8},
+    "small": {"dim": 64, "num_layers": 4, "num_heads": 4, "head_size": 16},
+    "medium": {"dim": 128, "num_layers": 4, "num_heads": 8, "head_size": 16},
+    "large": {"dim": 256, "num_layers": 6, "num_heads": 8, "head_size": 32},
+}
+PATCH_SIZES = (4, 8, 16)
 
-
-@architecture("shared-patch-small")
-def shared_patch_small(**overrides):
-    scale = {"dim": 64, "num_layers": 4, "num_heads": 4, "head_size": 16}
-    return shared_patch_model(scale, **overrides)
-
-
-@architecture("shared-patch-medium")
-def shared_patch_medium(**overrides):
-    scale = {"dim": 128, "num_layers": 4, "num_heads": 8, "head_size": 16}
-    return shared_patch_model(scale, **overrides)
-
-
-@architecture("shared-patch-large")
-def shared_patch_large(**overrides):
-    scale = {"dim": 256, "num_layers": 6, "num_heads": 8, "head_size": 32}
-    return shared_patch_model(scale, **overrides)
+for scale_name, scale in MODEL_SCALES.items():
+    for patch_size in PATCH_SIZES:
+        architectures[f"patchformer-{scale_name}-p{patch_size}"] = partial(
+            patch_model,
+            scale,
+            patch_size,
+        )
 
 
 @architecture("cnn-large")
