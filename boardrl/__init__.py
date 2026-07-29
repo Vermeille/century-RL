@@ -2,7 +2,7 @@
 
 from .checkpoints import Checkpoints
 from .evaluation import Evaluation, Evaluator, Scoreboard
-from .metrics import Console, GameMetrics, MetricLogger, Range, Visdom
+from .metrics import Console, GameMetrics, MetricLogger, Range, Visdom, Wandb, make_wandb
 from .rollouts import Inference, RolloutRunner
 from .run import RunInfo
 
@@ -19,4 +19,6 @@ __all__ = [
     "RunInfo",
     "Scoreboard",
     "Visdom",
+    "Wandb",
+    "make_wandb",
 ]

@@ -15,6 +15,7 @@ from boardrl import (
     Evaluator,
     Inference,
     MetricLogger,
+    make_wandb,
     Range,
     RolloutRunner,
     RunInfo,
@@ -88,6 +89,9 @@ def build_parser():
     parser.add_argument("--tag", default="coop")
     parser.add_argument("--visdom-url")
     parser.add_argument("--visdom-port")
+    parser.add_argument("--wandb", action="store_true")
+    parser.add_argument("--wandb-entity")
+    parser.add_argument("--wandb-name")
     return parser
 
 
@@ -136,6 +140,20 @@ def make_learner(model, args):
 
 
 def run(args):
+    wandb_sink = make_wandb(
+        project=args.game if args.wandb else None,
+        entity=args.wandb_entity,
+        name=args.wandb_name,
+        config=vars(args),
+    )
+    try:
+        return _run(args, wandb_sink)
+    finally:
+        if wandb_sink is not None:
+            wandb_sink.finish()
+
+
+def _run(args, wandb_sink):
     seed_everything(args.seed)
     game = games_library(args.game)
     model = make(args.architecture).to(args.device)
@@ -180,7 +198,10 @@ def run(args):
     inference = Inference(model, batch_size=args.batch_size)
     rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
     evaluator = Evaluator(game.make_game, progress=not args.no_progress)
-    metrics = MetricLogger(Console(), visdom)
+    sinks = [Console(), visdom]
+    if wandb_sink is not None:
+        sinks.append(wandb_sink)
+    metrics = MetricLogger(*sinks)
     prepare = Pipeline(
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),

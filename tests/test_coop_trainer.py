@@ -52,6 +52,12 @@ def test_coop_cli_configures_bounded_best_checkpoints():
     assert args.save_best
 
 
+def test_coop_cli_enables_wandb():
+    args = build_parser().parse_args(["--wandb"])
+
+    assert args.wandb
+
+
 def test_coop_resume_and_initialize_are_mutually_exclusive():
     parser = build_parser()
 
