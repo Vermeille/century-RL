@@ -17,12 +17,26 @@ statistics:
     card exactly ten higher (descending piles) or ten lower (ascending piles)
     than the current pile value; such a move has an effective cost of ``-10``.
 
-These metrics are aggregated across all players and all games.
+``plays_before_x``
+    The distribution of cards played on turns explicitly ended with ``x``.
+
+``message_information``
+    How strongly the policy over message symbols depends on the state. It is
+    zero for both a constant one-hot message and state-independent uniform
+    noise, and approaches one for a balanced, state-specific protocol.
+
+These metrics are aggregated across all players and all games. Metrics that
+do not apply to the selected game mode are omitted.
 """
 
 from __future__ import annotations
 
+import math
 from typing import List, Tuple
+
+import torch
+
+from boardrl.games.thegame.game import MESSAGE_MOVES
 from boardrl.metrics import GameMetrics, Range
 
 
@@ -37,6 +51,16 @@ def _parse_piles(state: str) -> List[int]:
     raise ValueError("Could not find pile information in state string")
 
 
+def _parse_action(state: str) -> int:
+    """Extract the number of cards already played on the current turn."""
+
+    for line in state.splitlines():
+        if line.startswith("Round:"):
+            # Format: ``Round: 0, Action: 2``
+            return int(line.rsplit("Action:", 1)[1].strip())
+    raise ValueError("Could not find action information in state string")
+
+
 def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
     """Return ``(cost, ten_rule_used)`` for a move."""
 
@@ -49,6 +73,30 @@ def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
         return card - top, card - top == -10
     else:  # descending piles
         return top - card, top - card == -10
+
+
+def _message_information(logits: list[torch.Tensor]) -> float:
+    """Summarize how message policies vary across observed states.
+
+    The normalized information is the Jensen-Shannon divergence of the
+    per-state policies divided by the maximum entropy of the vocabulary. It is
+    zero when every state has the same distribution, whether that distribution
+    is one-hot or uniform, and approaches one for balanced, state-specific
+    one-hot messages.
+    """
+
+    policies = torch.softmax(torch.stack(logits), dim=1)
+    log_policies = policies.clamp_min(torch.finfo(policies.dtype).tiny).log()
+    conditional_entropy = -(policies * log_policies).sum(dim=1).mean()
+
+    marginal = policies.mean(dim=0)
+    marginal_entropy = -(
+        marginal * marginal.clamp_min(torch.finfo(marginal.dtype).tiny).log()
+    ).sum()
+
+    information = (marginal_entropy - conditional_entropy).clamp_min(0.0)
+    max_information = math.log(policies.shape[1])
+    return (information / max_information).item()
 
 
 class Metrics(GameMetrics):
@@ -73,6 +121,8 @@ class Metrics(GameMetrics):
         total_moves = 0
         lowest_cost_moves = 0
         ten_rule_moves = []
+        plays_before_x = []
+        message_logits = []
 
         for game in self.data:
             for player in game:
@@ -94,12 +144,33 @@ class Metrics(GameMetrics):
                     if ten_flags[rec.action_idx]:
                         ten_rule_moves[-1] += 1
 
+                    chosen_move = rec.moves[rec.action_idx]
+                    if chosen_move == "x":
+                        plays_before_x.append(_parse_action(rec.state))
+
+                    message_indices = [
+                        i for i, move in enumerate(rec.moves) if move in MESSAGE_MOVES
+                    ]
+                    if message_indices:
+                        # Compare message content distributions conditional on
+                        # choosing a message. This avoids conflating the learned
+                        # vocabulary with the decision to keep playing cards.
+                        distribution = torch.as_tensor(
+                            rec.action_distribution
+                        ).detach()
+                        message_logits.append(distribution[message_indices].float())
+
         avg_cost = total_cost / total_moves if total_moves else 0.0
         ratio_lowest = lowest_cost_moves / total_moves if total_moves else 0.0
 
-        return {
+        metrics = {
             "points": Range(points),
             "avg_cost": avg_cost,
             "ratio_lowest_cost": ratio_lowest,
             "ten_rule_moves": Range(ten_rule_moves),
         }
+        if plays_before_x:
+            metrics["plays_before_x"] = Range(plays_before_x)
+        if message_logits:
+            metrics["message_information"] = _message_information(message_logits)
+        return metrics

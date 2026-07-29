@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+import torch
+
+from boardrl.games.thegame.game import MESSAGE_MOVES
 from boardrl.games.thegame.metrics import Metrics
 
 
@@ -12,8 +16,32 @@ class DummyResults(list):
         return 1
 
 
-def _record(state, moves, action_idx):
-    return SimpleNamespace(state=state, moves=moves, action_idx=action_idx, final=False)
+def _record(state, moves, action_idx, action_distribution=None):
+    if action_distribution is None:
+        action_distribution = torch.zeros(len(moves))
+    return SimpleNamespace(
+        state=state,
+        moves=moves,
+        action_idx=action_idx,
+        action_distribution=action_distribution,
+        final=False,
+    )
+
+
+def _state(action):
+    return "\n".join(
+        [
+            f"Round: 0, Action: {action}",
+            "Piles: 1 1 100 100",
+            "Cards: 20",
+            "Hand: 10 20",
+        ]
+    )
+
+
+def _metrics_for(records):
+    end = SimpleNamespace(final=True, my_points=50)
+    return Metrics(DummyResults([[records + [end]]])).metrics()
 
 
 def test_thegame_metrics_to_visdom():
@@ -68,3 +96,38 @@ def test_thegame_metrics_self_play_runs():
     viz = SimpleNamespace(push=MagicMock(), push_range=MagicMock())
     metrics.metrics_to_visdom(viz, 0)
     assert viz.push.call_count > 0
+
+
+def test_plays_before_x_is_a_range():
+    records = [_record(_state(action), ["x"], 0) for action in range(2, 22)]
+
+    plays_before_x = _metrics_for(records)["plays_before_x"]
+
+    assert list(plays_before_x.values) == list(range(2, 22))
+
+
+def test_message_information_detects_state_dependent_one_hot_protocol():
+    records = []
+    for message_idx in range(len(MESSAGE_MOVES)):
+        logits = torch.full((len(MESSAGE_MOVES),), -20.0)
+        logits[message_idx] = 20.0
+        records.append(_record(_state(2), MESSAGE_MOVES, message_idx, logits))
+
+    information = _metrics_for(records)["message_information"]
+
+    assert information == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    "logits",
+    [
+        torch.tensor([20.0] + [-20.0] * 9),
+        torch.zeros(10),
+    ],
+)
+def test_message_information_detects_state_independent_policies(logits):
+    records = [_record(_state(2), MESSAGE_MOVES, 0, logits) for _ in range(10)]
+
+    information = _metrics_for(records)["message_information"]
+
+    assert information == pytest.approx(0.0, abs=1e-6)
