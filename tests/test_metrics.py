@@ -35,10 +35,10 @@ def test_trackio_sink_normalizes_training_metrics() -> None:
     assert run.logs == [
         (
             {
-                "train.loss": 0.25,
-                "rollout.win_rate.0": 0.5,
-                "rollout.win_rate.1": 0.75,
-                "game.points": 12.0,
+                "train/loss": 0.25,
+                "rollout/win_rate/0": 0.5,
+                "rollout/win_rate/1": 0.75,
+                "game/points": 12.0,
             },
             12,
         )

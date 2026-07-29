@@ -75,9 +75,12 @@ def _(value):
 
 def _flatten_trackio(values: Mapping):
     for name, value in _flatten(values):
+        # Trackio's Vega line plots interpret dots in field names as nested
+        # accessors. Use its slash-separated metric paths for flat rows.
+        name = name.replace(".", "/")
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
             for index, child in enumerate(value):
-                yield f"{name}.{index}", _trackio_value(child)
+                yield f"{name}/{index}", _trackio_value(child)
         else:
             yield name, _trackio_value(value)
 
