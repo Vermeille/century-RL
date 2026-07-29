@@ -91,13 +91,14 @@ def test_annotate_with_model_can_use_cached_rollout_references():
         [first, second],
         bs=2,
         gamma=1.0,
-        lmbda=1.0,
+        gae_lambda=0.5,
+        value_lambda=1.0,
         use_cached_rollout=True,
     )
 
     assert first.td_lambda == 3.0
     assert second.td_lambda == 2.0
-    assert first.gae == 2.75
+    assert first.gae == 2.0
     assert second.gae == 1.5
     assert end.reference_value == 0
 
@@ -128,7 +129,14 @@ def test_annotate_with_model_bootstraps_truncated_endpoint():
         state="s0", reward=1.0, next=last, terminal=False, truncated=False
     )
 
-    annotate_with_model(Model(), [first, last], bs=2, gamma=1.0, lmbda=1.0)
+    annotate_with_model(
+        Model(),
+        [first, last],
+        bs=2,
+        gamma=1.0,
+        gae_lambda=1.0,
+        value_lambda=1.0,
+    )
 
     assert end.reference_value == 12.0
     assert end.td_lambda == 12.0

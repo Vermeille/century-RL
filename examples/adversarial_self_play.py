@@ -33,7 +33,13 @@ learner = Learner(
 prepare = Pipeline(
     ComputeReturns(1.0),
     ToSamples(),
-    ReferenceTargets(reference, batch_size=64, discount=1.0, trace_decay=1.0),
+    ReferenceTargets(
+        reference,
+        batch_size=64,
+        discount=1.0,
+        gae_lambda=1.0,
+        value_lambda=1.0,
+    ),
 )
 
 for step in range(8_000):

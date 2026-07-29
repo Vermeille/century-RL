@@ -101,7 +101,7 @@ class DropFields:
 
 
 class ReferenceTargets:
-    """Add values, advantages, GAE and TD(lambda) targets from a model."""
+    """Add values, GAE advantages, and TD(lambda) value targets from a model."""
 
     def __init__(
         self,
@@ -109,13 +109,15 @@ class ReferenceTargets:
         *,
         batch_size: int,
         discount: float,
-        trace_decay: float,
+        gae_lambda: float,
+        value_lambda: float,
         reuse_rollout_predictions: bool = False,
     ):
         self.model = model
         self.batch_size = batch_size
         self.discount = discount
-        self.trace_decay = trace_decay
+        self.gae_lambda = gae_lambda
+        self.value_lambda = value_lambda
         self.reuse_rollout_predictions = reuse_rollout_predictions
 
     def __call__(self, samples: list[TrainingSample]) -> list[TrainingSample]:
@@ -125,7 +127,8 @@ class ReferenceTargets:
                 samples,
                 self.batch_size,
                 self.discount,
-                self.trace_decay,
+                self.gae_lambda,
+                self.value_lambda,
                 use_cached_rollout=self.reuse_rollout_predictions,
             )
         return samples

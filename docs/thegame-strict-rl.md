@@ -119,7 +119,8 @@ uv run python trainers/coop.py \
   --adam-beta1 0.5 \
   --epochs 1 \
   --discount 1.0 \
-  --trace-decay 1.0 \
+  --gae-lambda 1.0 \
+  --value-lambda 1.0 \
   --perplexity-start 0.8 \
   --perplexity-end 0.05 \
   --entropy-strength 0.1 \
@@ -199,7 +200,8 @@ uv run python trainers/coop.py \
   --adam-beta1 0.5 \
   --epochs 1 \
   --discount 1.0 \
-  --trace-decay 1.0 \
+  --gae-lambda 1.0 \
+  --value-lambda 1.0 \
   --perplexity-start 0.8 \
   --perplexity-end 0.10 \
   --entropy-strength 0.1 \
@@ -280,7 +282,8 @@ uv run python trainers/coop.py \
   --adam-beta1 0.5 \
   --epochs 1 \
   --discount 1.0 \
-  --trace-decay 1.0 \
+  --gae-lambda 1.0 \
+  --value-lambda 1.0 \
   --perplexity-start 0.8 \
   --perplexity-end 0.10 \
   --entropy-strength 0.1 \

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fastest validated from-scratch strict-mode recipe.
+# Best from-scratch The Game recipe. Command-line arguments may override the
+# strict-mode defaults, allowing sweep launchers to reuse this exact recipe.
 # step 325: 80.400 points on 1,000 games (seed 123)
 #           80.212 points on 1,000 games (seed 456)
 uv run python trainers/coop.py \
@@ -23,7 +24,8 @@ uv run python trainers/coop.py \
   --adam-eps 1e-8 \
   --epochs 1 \
   --discount 1.0 \
-  --trace-decay 1.0 \
+  --gae-lambda 0.99 \
+  --value-lambda 1.0 \
   --perplexity-start 0.8 \
   --perplexity-end 0.10 \
   --entropy-strength 0.1 \

@@ -66,7 +66,6 @@ def build_parser():
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--gradient-clip", type=float)
     parser.add_argument("--discount", type=float, default=1.0)
-    parser.add_argument("--trace-decay", type=float, default=1.0)
     parser.add_argument("--perplexity-start", type=float, default=0.8)
     parser.add_argument("--perplexity-end", type=float, default=0.05)
     parser.add_argument("--entropy-strength", type=float, default=0.1)

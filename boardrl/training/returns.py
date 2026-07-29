@@ -110,7 +110,16 @@ def compute_returns(
                 fn(history)
 
 
-def annotate_with_model(model, trainset, bs, gamma, lmbda, *, use_cached_rollout=False):
+def annotate_with_model(
+    model,
+    trainset,
+    bs,
+    gamma,
+    gae_lambda,
+    value_lambda,
+    *,
+    use_cached_rollout=False,
+):
     with torch.no_grad():
 
         def is_terminal(sample):
@@ -180,7 +189,7 @@ def annotate_with_model(model, trainset, bs, gamma, lmbda, *, use_cached_rollout
         def compute_gae(s):
             if hasattr(s, "gae"):
                 return s.gae
-            s.gae = s.advantage + lmbda * gamma * compute_gae(s.next)
+            s.gae = s.advantage + gae_lambda * gamma * compute_gae(s.next)
             return s.gae
 
         def compute_td_lambda(s):
@@ -188,8 +197,8 @@ def annotate_with_model(model, trainset, bs, gamma, lmbda, *, use_cached_rollout
                 return s.td_lambda
             s.td_lambda = (
                 s.reward
-                + gamma * (1 - lmbda) * s.next_reference_value
-                + gamma * lmbda * compute_td_lambda(s.next)
+                + gamma * (1 - value_lambda) * s.next_reference_value
+                + gamma * value_lambda * compute_td_lambda(s.next)
             )
             return s.td_lambda
 

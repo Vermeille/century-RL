@@ -119,7 +119,18 @@ def build_parser():
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--gradient-clip", type=float)
     parser.add_argument("--discount", type=float, default=1.0)
-    parser.add_argument("--trace-decay", type=float, default=1.0)
+    parser.add_argument(
+        "--gae-lambda",
+        type=float,
+        default=1.0,
+        help="trace decay for generalized advantage estimation",
+    )
+    parser.add_argument(
+        "--value-lambda",
+        type=float,
+        default=1.0,
+        help="trace decay for critic targets (1 uses pure Monte Carlo returns)",
+    )
     parser.add_argument("--perplexity-start", type=float, default=0.8)
     parser.add_argument("--perplexity-end", type=float, default=0.05)
     parser.add_argument("--entropy-strength", type=float, default=0.1)
@@ -178,7 +189,7 @@ def make_learner(model, game, args):
                 start=args.perplexity_start,
                 end=args.perplexity_end,
                 init_strength=args.entropy_strength,
-                baseline_ratio=0.2,
+                baseline_ratio=0.05,
                 adaptation_rate=0.005,
                 ppl_beta=0.99,
                 deadband=0.02,
@@ -267,7 +278,8 @@ def run(args):
             reference,
             batch_size=args.learner_batch_size,
             discount=args.discount,
-            trace_decay=args.trace_decay,
+            gae_lambda=args.gae_lambda,
+            value_lambda=args.value_lambda,
             reuse_rollout_predictions=True,
         ),
     )
