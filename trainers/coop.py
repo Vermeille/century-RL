@@ -16,7 +16,7 @@ from boardrl import (
     Evaluator,
     Inference,
     MetricLogger,
-    make_wandb,
+    make_trackio,
     Range,
     RolloutRunner,
     RunInfo,
@@ -40,7 +40,7 @@ from boardrl.training import (
     ToSamples,
     ValueMetrics,
 )
-from boardrl.utils.visualizer import OfflineVisualizer, VisdomVisualizer
+from boardrl.utils.visualizer import OfflineVisualizer
 
 
 def positive_int(value):
@@ -153,11 +153,8 @@ def build_parser():
     )
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--tag", default="coop")
-    parser.add_argument("--visdom-url")
-    parser.add_argument("--visdom-port")
-    parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--wandb-entity")
-    parser.add_argument("--wandb-name")
+    parser.add_argument("--trackio", action="store_true")
+    parser.add_argument("--trackio-name")
     return parser
 
 
@@ -217,20 +214,19 @@ def make_learner(model, game, args):
 
 
 def run(args):
-    wandb_sink = make_wandb(
-        project=args.game if args.wandb else None,
-        entity=args.wandb_entity,
-        name=args.wandb_name,
+    trackio_sink = make_trackio(
+        project=args.game if args.trackio else None,
+        name=args.trackio_name,
         config=vars(args),
     )
     try:
-        return _run(args, wandb_sink)
+        return _run(args, trackio_sink)
     finally:
-        if wandb_sink is not None:
-            wandb_sink.finish()
+        if trackio_sink is not None:
+            trackio_sink.finish()
 
 
-def _run(args, wandb_sink):
+def _run(args, trackio_sink):
     seed_everything(args.seed)
     game = games_library(args.game)
     model = make(args.architecture).to(args.device)
@@ -260,11 +256,7 @@ def _run(args, wandb_sink):
     best_checkpoints = Checkpoints(checkpoint_dir, prefix="best", keep=1)
     best_score = float("-inf")
 
-    visualizer = (
-        VisdomVisualizer(args.tag, args.visdom_url, args.visdom_port)
-        if args.visdom_url
-        else OfflineVisualizer()
-    )
+    visualizer = OfflineVisualizer()
     visdom = Visdom(visualizer)
     run_info = RunInfo.capture(args, __file__)
     run_info.publish(visdom)
@@ -289,8 +281,8 @@ def _run(args, wandb_sink):
     rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
     evaluator = Evaluator(game.make_game, progress=not args.no_progress)
     sinks = [Console(), visdom]
-    if wandb_sink is not None:
-        sinks.append(wandb_sink)
+    if trackio_sink is not None:
+        sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
     prepare = Pipeline(
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),

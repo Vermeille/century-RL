@@ -8,7 +8,6 @@ dependencies = [
     "torch",
     "tqdm",
     "cython",
-    "visdom",
     "fastapi[standard]",
     "natsort",
     "crayons",
@@ -22,7 +21,7 @@ dependencies = [
 dev = ["mypy"]
 
 [project.optional-dependencies]
-wandb = ["wandb"]
+trackio = ["trackio"]
 
 [build-system]
 requires = ["setuptools", "wheel", "Cython"]

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import torch
 
-from boardrl.metrics import Range, Wandb, make_wandb
+from boardrl.metrics import Range, Trackio, make_trackio
 
 
 class RunRecorder:
@@ -19,9 +19,9 @@ class RunRecorder:
         self.finished = True
 
 
-def test_wandb_sink_normalizes_training_metrics() -> None:
+def test_trackio_sink_normalizes_training_metrics() -> None:
     run = RunRecorder()
-    sink = Wandb(run)
+    sink = Trackio(run)
 
     sink.log(
         12,
@@ -45,29 +45,28 @@ def test_wandb_sink_normalizes_training_metrics() -> None:
     ]
 
 
-def test_wandb_sink_finishes_run() -> None:
+def test_trackio_sink_finishes_run() -> None:
     run = RunRecorder()
 
-    Wandb(run).finish()
+    Trackio(run).finish()
 
     assert run.finished
 
 
-def test_make_wandb_is_opt_in() -> None:
-    assert make_wandb(project=None) is None
+def test_make_trackio_is_opt_in() -> None:
+    assert make_trackio(project=None) is None
 
 
-def test_make_wandb_passes_run_configuration(monkeypatch, tmp_path: Path) -> None:
+def test_make_trackio_passes_run_configuration(monkeypatch, tmp_path: Path) -> None:
     run = RunRecorder()
     calls = []
-    fake_wandb = SimpleNamespace(
+    fake_trackio = SimpleNamespace(
         init=lambda **kwargs: (calls.append(kwargs) or run)
     )
-    monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
+    monkeypatch.setitem(sys.modules, "trackio", fake_trackio)
 
-    sink = make_wandb(
+    sink = make_trackio(
         project="century",
-        entity="team",
         name="trial",
         config={"checkpoint_root": tmp_path},
     )
@@ -76,9 +75,7 @@ def test_make_wandb_passes_run_configuration(monkeypatch, tmp_path: Path) -> Non
     assert calls == [
         {
             "project": "century",
-            "mode": "online",
             "config": {"checkpoint_root": str(tmp_path)},
-            "entity": "team",
             "name": "trial",
         }
     ]

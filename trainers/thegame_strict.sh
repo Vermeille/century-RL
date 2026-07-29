@@ -38,7 +38,5 @@ uv run python trainers/coop.py \
   --min-lr-scale 1.0 \
   --seed 0 \
   --tag strict-fast \
-  --visdom-url https://visdom.vermeille.fr \
-  --visdom-port 443 \
   --no-progress \
   "$@"

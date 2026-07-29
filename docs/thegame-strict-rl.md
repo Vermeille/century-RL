@@ -213,8 +213,6 @@ uv run python trainers/coop.py \
   --min-lr-scale 1.0 \
   --seed 0 \
   --tag strict-small-query-entropy-sched500-s0 \
-  --visdom-url https://visdom.vermeille.fr \
-  --visdom-port 443 \
   --no-progress
 ```
 
@@ -295,8 +293,6 @@ uv run python trainers/coop.py \
   --min-lr-scale 1.0 \
   --seed 0 \
   --tag strict-small-rollout512-kl006-strength05-s0 \
-  --visdom-url https://visdom.vermeille.fr \
-  --visdom-port 443 \
   --no-progress
 ```
 

@@ -8,7 +8,7 @@ Python program which composes five independent mechanisms:
 - `Pipeline` composes return calculation, filtering, sample conversion, model
   targets, and arbitrary user functions.
 - `Learner` performs optimization on prepared samples and returns metrics.
-- `MetricLogger` sends the same nested values to the console, Visdom, or custom
+- `MetricLogger` sends the same nested values to the console, Trackio, or custom
   sinks. Games implement `GameMetrics.metrics()` once; sink support is automatic.
 - `Checkpoints` saves and restores named models, optimizers, and stateful
   training objects. `Learner.state_dict()` includes both its batch

@@ -52,10 +52,10 @@ def test_coop_cli_configures_bounded_best_checkpoints():
     assert args.save_best
 
 
-def test_coop_cli_enables_wandb():
-    args = build_parser().parse_args(["--wandb"])
+def test_coop_cli_enables_trackio():
+    args = build_parser().parse_args(["--trackio"])
 
-    assert args.wandb
+    assert args.trackio
 
 
 def test_coop_resume_and_initialize_are_mutually_exclusive():

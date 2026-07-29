@@ -15,7 +15,7 @@ from boardrl import (
     Evaluator,
     Inference,
     MetricLogger,
-    make_wandb,
+    make_trackio,
     Range,
     RolloutRunner,
     RunInfo,
@@ -34,7 +34,7 @@ from boardrl.training import (
     PolicyMetrics,
     ToSamples,
 )
-from boardrl.utils.visualizer import OfflineVisualizer, VisdomVisualizer
+from boardrl.utils.visualizer import OfflineVisualizer
 
 
 def build_parser():
@@ -87,11 +87,16 @@ def build_parser():
     )
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--tag", default="coop")
-    parser.add_argument("--visdom-url")
-    parser.add_argument("--visdom-port")
-    parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--wandb-entity")
-    parser.add_argument("--wandb-name")
+    parser.add_argument("--trackio", action="store_true")
+    parser.add_argument("--trackio-name")
+    parser.add_argument(
+        "--pretrain",
+        action="store_true",
+        help=(
+            "export a separate checkpoint with the trained backbone and freshly "
+            "initialized policy and value heads"
+        ),
+    )
     return parser
 
 
@@ -140,20 +145,19 @@ def make_learner(model, args):
 
 
 def run(args):
-    wandb_sink = make_wandb(
-        project=args.game if args.wandb else None,
-        entity=args.wandb_entity,
-        name=args.wandb_name,
+    trackio_sink = make_trackio(
+        project=args.game if args.trackio else None,
+        name=args.trackio_name,
         config=vars(args),
     )
     try:
-        return _run(args, wandb_sink)
+        return _run(args, trackio_sink)
     finally:
-        if wandb_sink is not None:
-            wandb_sink.finish()
+        if trackio_sink is not None:
+            trackio_sink.finish()
 
 
-def _run(args, wandb_sink):
+def _run(args, trackio_sink):
     seed_everything(args.seed)
     game = games_library(args.game)
     model = make(args.architecture).to(args.device)
@@ -175,11 +179,7 @@ def _run(args, wandb_sink):
     )
     checkpoints = Checkpoints(checkpoint_dir, prefix="step")
 
-    visualizer = (
-        VisdomVisualizer(args.tag, args.visdom_url, args.visdom_port)
-        if args.visdom_url
-        else OfflineVisualizer()
-    )
+    visualizer = OfflineVisualizer()
     visdom = Visdom(visualizer)
     run_info = RunInfo.capture(args, __file__)
     run_info.publish(visdom)
@@ -199,8 +199,8 @@ def _run(args, wandb_sink):
     rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
     evaluator = Evaluator(game.make_game, progress=not args.no_progress)
     sinks = [Console(), visdom]
-    if wandb_sink is not None:
-        sinks.append(wandb_sink)
+    if trackio_sink is not None:
+        sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
     prepare = Pipeline(
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
@@ -253,18 +253,32 @@ def _run(args, wandb_sink):
         if completed % args.save_every == 0:
             save(checkpoints, completed, model, optimizer, args)
 
-    return save(checkpoints, args.steps, model, optimizer, args)
+    trained_path = save(checkpoints, args.steps, model, optimizer, args)
+    if not args.pretrain:
+        return trained_path
+
+    model.reinit_heads()
+    pretrain_checkpoints = Checkpoints(checkpoint_dir, prefix="pretrain")
+    return save(
+        pretrain_checkpoints,
+        args.steps,
+        model,
+        optimizer=None,
+        args=args,
+        pretrain=True,
+    )
 
 
-def save(checkpoints, step, model, optimizer, args):
+def save(checkpoints, step, model, optimizer, args, *, pretrain=False):
     return checkpoints.save(
         step,
         {"current": model},
-        optimizers={"current": optimizer},
+        optimizers={"current": optimizer} if optimizer is not None else None,
         metadata={
             "trainer": "imitate",
             "game": args.game,
             "architecture": args.architecture,
+            "pretrain": pretrain,
         },
     )
 

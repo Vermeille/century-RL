@@ -71,76 +71,72 @@ class Visdom:
 
 
 @singledispatch
-def _wandb_value(value):
+def _trackio_value(value):
     return value
 
 
-@_wandb_value.register(Range)
+@_trackio_value.register(Range)
 def _(value):
     # Keep the scalar behavior used by Console while leaving histogram support
     # available for a future visualization-specific sink.
-    return _wandb_value(_console_value(value))
+    return _trackio_value(_console_value(value))
 
 
-@_wandb_value.register(torch.Tensor)
+@_trackio_value.register(torch.Tensor)
 def _(value):
     value = value.detach().cpu()
     return value.item() if value.numel() == 1 else value.tolist()
 
 
-def _flatten_wandb(values: Mapping):
+def _flatten_trackio(values: Mapping):
     for name, value in _flatten(values):
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
             for index, child in enumerate(value):
-                yield f"{name}.{index}", _wandb_value(child)
+                yield f"{name}.{index}", _trackio_value(child)
         else:
-            yield name, _wandb_value(value)
+            yield name, _trackio_value(value)
 
 
-class Wandb:
-    """Adapter for a W&B run using the common metric sink interface."""
+class Trackio:
+    """Adapter for a Trackio run using the common metric sink interface."""
 
     def __init__(self, run):
         self.run = run
 
     def log(self, step: int, values: Mapping[str, object]) -> None:
-        self.run.log(dict(_flatten_wandb(values)), step=step)
+        self.run.log(dict(_flatten_trackio(values)), step=step)
 
     def finish(self) -> None:
         self.run.finish()
 
 
-def make_wandb(
+def make_trackio(
     *,
     project: str | None,
-    entity: str | None = None,
     name: str | None = None,
     config: Mapping[str, object] | None = None,
-) -> Wandb | None:
-    """Create a W&B sink only when a project was explicitly requested."""
+) -> Trackio | None:
+    """Create a Trackio sink only when a project was explicitly requested."""
     if project is None:
         return None
 
     try:
-        import wandb
+        import trackio
     except ImportError as exc:
         raise RuntimeError(
-            "W&B logging requires the optional dependency; run `uv sync --extra wandb`"
+            "Trackio logging requires the optional dependency; run `uv sync --extra trackio`"
         ) from exc
 
     kwargs = {
         "project": project,
-        "mode": "online",
         "config": {
             key: str(value) if isinstance(value, Path) else value
             for key, value in (config or {}).items()
         },
     }
-    if entity is not None:
-        kwargs["entity"] = entity
     if name is not None:
         kwargs["name"] = name
-    return Wandb(wandb.init(**kwargs))
+    return Trackio(trackio.init(**kwargs))
 
 
 class MetricLogger:
