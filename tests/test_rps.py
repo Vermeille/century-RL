@@ -1,12 +1,10 @@
 import pytest
 import torch
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 from boardrl.games.rps.game import RockPaperScissors
 from boardrl.games.rps.metrics import Metrics
 from boardrl.rl.eval.selfplay import PlayerTrace, GameTrace, SelfPlayResults
-from boardrl.utils import Visualizer
 
 
 def make_results():
@@ -61,9 +59,7 @@ def test_hidden_decisions():
 def test_metrics_probabilities():
     res = make_results()
     metrics = Metrics(res)
-    viz = Visualizer("test", "offline", 0)
-    spy = MagicMock(wraps=viz.push)
-    viz.push = spy
-    metrics.metrics_to_visdom(viz, 0)
-    prob_call = next(c for c in spy.call_args_list if c[0][0] == "move_probabilities")
-    assert prob_call[0][1] == pytest.approx([0.25, 0.4, 0.35], abs=1e-6)
+
+    assert metrics.metrics()["move_probabilities"] == pytest.approx(
+        [0.25, 0.4, 0.35], abs=1e-6
+    )

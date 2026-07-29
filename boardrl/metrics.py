@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import singledispatch
-from html import escape
 from pathlib import Path
 
 import torch
@@ -54,20 +53,6 @@ class Console:
                 value = value.detach().item()
             rendered.append(f"{name}={value}")
         print(f"step {step}: " + "  ".join(rendered))
-
-
-class Visdom:
-    """Adapter for the existing Visdom/offline visualizer."""
-
-    def __init__(self, visualizer):
-        self.visualizer = visualizer
-
-    def log(self, step: int, values: Mapping[str, object]) -> None:
-        for name, value in _flatten(values):
-            _push_visdom(value, self.visualizer, name, step)
-
-    def text(self, name: str, value: str) -> None:
-        self.visualizer.html(name, f"<pre>{escape(value)}</pre>")
 
 
 @singledispatch
@@ -156,20 +141,7 @@ class MetricLogger:
 
 
 class GameMetrics:
-    """A game only supplies values; every sink gets display support for free."""
-
-    def metrics_to_visdom(self, visualizer, step):
-        Visdom(visualizer).log(step, self.metrics())
-
-
-@singledispatch
-def _push_visdom(value, visualizer, name, step):
-    visualizer.push(name, value, step)
-
-
-@_push_visdom.register(Range)
-def _(value, visualizer, name, step):
-    visualizer.push_range(name, list(value.values), step)
+    """A game supplies metric values to the experiment's configured sinks."""
 
 
 def rollout_metrics(results) -> dict[str, object]:

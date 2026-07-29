@@ -8,9 +8,8 @@ class Metrics:
                 print([record.moves[record.action_idx] for record in player[:-1]])
             print("--")
 
-    def metrics_to_visdom(self, viz, epoch):
+    def metrics(self):
         avg_len = sum(len(history) for game in self.data for history in game) / (
             len(self.data) * self.data.num_players()
         )
-        viz.push("avg_len", avg_len, epoch)
-        viz.push("collapse", self.data.collapse(), epoch)
+        return {"avg_len": avg_len, "collapse": self.data.collapse()}

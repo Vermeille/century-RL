@@ -4,4 +4,4 @@ Seven-column, six-row board. Players drop coloured discs into columns trying to 
 
 ## Metrics
 - `print_short_history()` prints move sequences for each player and shows the final coloured board and score.
-- `metrics_to_visdom()` tracks the ratio of finished boards, average trace length, collapse, and the average probability of the chosen move in winning games.
+- `metrics()` tracks the ratio of finished boards, average trace length, collapse, and the average probability of the chosen move in winning games.

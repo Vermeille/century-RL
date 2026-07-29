@@ -1,6 +1,4 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
-
 import pytest
 import torch
 
@@ -44,7 +42,7 @@ def _metrics_for(records):
     return Metrics(DummyResults([[records + [end]]])).metrics()
 
 
-def test_thegame_metrics_to_visdom():
+def test_thegame_metrics():
     # First move uses the 10 rule and is the lowest cost option
     state1 = "\n".join(
         [
@@ -73,13 +71,12 @@ def test_thegame_metrics_to_visdom():
     game = [player]
     results = DummyResults([game])
     metrics = Metrics(results)
-    viz = SimpleNamespace(push=MagicMock(), push_range=MagicMock())
-    metrics.metrics_to_visdom(viz, 0)
+    values = metrics.metrics()
 
-    viz.push.assert_any_call("avg_cost", 10.0, 0)
-    viz.push.assert_any_call("ratio_lowest_cost", 0.5, 0)
-    viz.push_range.assert_any_call("points", [50], 0)
-    viz.push_range.assert_any_call("ten_rule_moves", [1], 0)
+    assert values["avg_cost"] == 10.0
+    assert values["ratio_lowest_cost"] == 0.5
+    assert list(values["points"].values) == [50]
+    assert list(values["ten_rule_moves"].values) == [1]
 
 
 def test_thegame_metrics_self_play_runs():
@@ -93,9 +90,7 @@ def test_thegame_metrics_self_play_runs():
         make_game, [strat, strat], n_games=1, max_len=10, rotate=False, desc=""
     )
     metrics = Metrics(results)
-    viz = SimpleNamespace(push=MagicMock(), push_range=MagicMock())
-    metrics.metrics_to_visdom(viz, 0)
-    assert viz.push.call_count > 0
+    assert metrics.metrics()
 
 
 def test_plays_before_x_is_a_range():

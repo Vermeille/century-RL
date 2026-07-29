@@ -8,7 +8,6 @@ from .metrics import (
     MetricLogger,
     Range,
     Trackio,
-    Visdom,
     make_trackio,
 )
 from .rollouts import Inference, RolloutRunner
@@ -26,7 +25,6 @@ __all__ = [
     "RolloutRunner",
     "RunInfo",
     "Scoreboard",
-    "Visdom",
     "Trackio",
     "make_trackio",
 ]

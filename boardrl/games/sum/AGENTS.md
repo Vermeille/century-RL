@@ -4,4 +4,4 @@ Toy game where two digits `a` and `b` are shown each round. A player guesses a d
 
 ## Metrics
 - `print_short_history()` lists point totals accumulated by each player during play.
-- `metrics_to_visdom()` records average trace length and a collapse value.
+- `metrics()` records average trace length and a collapse value.

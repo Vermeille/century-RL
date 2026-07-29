@@ -11,7 +11,6 @@ import torch
 from boardrl import (
     Checkpoints,
     Console,
-    Visdom,
     Evaluator,
     Inference,
     MetricLogger,
@@ -34,7 +33,6 @@ from boardrl.training import (
     PolicyMetrics,
     ToSamples,
 )
-from boardrl.utils.visualizer import OfflineVisualizer
 
 
 def build_parser():
@@ -179,10 +177,7 @@ def _run(args, trackio_sink):
     )
     checkpoints = Checkpoints(checkpoint_dir, prefix="step")
 
-    visualizer = OfflineVisualizer()
-    visdom = Visdom(visualizer)
     run_info = RunInfo.capture(args, __file__)
-    run_info.publish(visdom)
     run_info.save(checkpoint_dir)
 
     start = 0
@@ -198,7 +193,7 @@ def _run(args, trackio_sink):
     inference = Inference(model, batch_size=args.batch_size)
     rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
     evaluator = Evaluator(game.make_game, progress=not args.no_progress)
-    sinks = [Console(), visdom]
+    sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)

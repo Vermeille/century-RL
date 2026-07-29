@@ -1,13 +1,11 @@
 import pytest
 import torch
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 from boardrl.games import games_library
 from boardrl.games.nim.game import Nim
 from boardrl.games.nim.metrics import Metrics
 from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults
-from boardrl.utils import Visualizer
 
 
 def test_nim_registered_with_arguments():
@@ -144,11 +142,8 @@ def test_nim_metrics_reports_per_match_choice_probability():
     ])
 
     metrics = Metrics(SelfPlayResults([game1, game2]))
-    viz = Visualizer("test", "offline", 0)
-    viz.push = MagicMock()
 
-    metrics.metrics_to_visdom(viz, 7)
-
-    viz.push.assert_any_call(
-        "chosen_move_probability_by_match", [0.5, pytest.approx(0.85)], 7
-    )
+    assert metrics.metrics()["chosen_move_probability_by_match"] == [
+        0.5,
+        pytest.approx(0.85),
+    ]

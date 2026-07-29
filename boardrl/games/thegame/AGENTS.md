@@ -4,7 +4,7 @@ Simplified implementation of *The Game*. Four piles exist: two ascending startin
 
 ## Metrics
 - `print_short_history()` lists the sequence of moves taken by each player.
-- `metrics_to_visdom()` reports average points along with:
+- `metrics()` reports average points along with:
   - `avg_cost`: average cost of played moves;
   - `ratio_lowest_cost`: fraction of times the lowest-cost move was chosen;
   - `ten_rule_moves`: frequency of using the special 10-rule;

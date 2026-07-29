@@ -4,8 +4,6 @@ import pytest
 
 from boardrl.rl.eval.selfplay import PlayerTrace, GameTrace, SelfPlayResults
 from boardrl.games.tictactoe.metrics import Metrics
-from boardrl.utils import Visualizer
-from unittest.mock import MagicMock
 
 
 def make_results(seqs, moves=None):
@@ -57,14 +55,10 @@ def test_collapse_padding():
 def test_metrics_pushes_collapse():
     res = make_results([[0, 1]])
     metrics = Metrics(res)
-    viz = Visualizer("test", "offline", 0)
-    spy = MagicMock(wraps=viz.push)
-    viz.push = spy
-    metrics.metrics_to_visdom(viz, 0)
-    spy.assert_any_call("collapse", [1.0, 1.0], 0)
+
+    assert metrics.metrics()["collapse"] == [1.0, 1.0]
 
 
 def test_collapse_uses_action_strings():
     res = make_results([[0, 1], [0, 1]], moves=[["a", "b"], ["c", "d"]])
     assert res.collapse() == pytest.approx([0.0, 0.0], abs=1e-6)
-

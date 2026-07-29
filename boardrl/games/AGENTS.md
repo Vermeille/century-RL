@@ -28,7 +28,7 @@ See [`tictactoe/game.py`](tictactoe/game.py) or
 Include a `metrics.py` that defines a `Metrics(GameMetrics)` class. It accepts
 simulation traces and returns a nested dictionary from `metrics()`. Implement
 `print_short_history()` when a compact trace display is useful. Console,
-Visdom, and future sinks are supplied automatically. Examples can be found in
+Trackio, and future sinks are supplied automatically. Examples can be found in
 [`connectfour/metrics.py`](connectfour/metrics.py) and
 [`sum/metrics.py`](sum/metrics.py).
 
