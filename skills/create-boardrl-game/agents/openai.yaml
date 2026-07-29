@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create BoardRL Game"
+  short_description: "Add and validate a new BoardRL game"
+  default_prompt: "Use $create-boardrl-game to add a new game to this BoardRL repository."
