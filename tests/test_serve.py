@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 from boardrl.serve import serve
 from boardrl.serve.serve import Strategies
+from boardrl.utils import ModelPool
 
 
 def run_static_renderer_check(script: str):
@@ -63,6 +64,34 @@ def test_populate_strategies_finds_model(tmp_path):
         for name in s.strategies
     )
     assert "random" in s.strategies
+
+
+def test_populate_strategies_finds_nested_checkpoint_model(tmp_path, monkeypatch):
+    nested_model = (
+        tmp_path
+        / "checkpoints"
+        / "coop"
+        / "thegame,mode=free"
+        / "patchformer-small-p4"
+        / "best-450.pth"
+    )
+    nested_model.parent.mkdir(parents=True)
+    nested_model.touch()
+    monkeypatch.chdir(tmp_path)
+
+    s = Strategies(game_name="thegame")
+
+    encoded_model = str(nested_model.relative_to(tmp_path)).replace(",", "%2C").replace(
+        "=", "%3D"
+    )
+    strategy_name = f"policy_sampling,model={encoded_model}"
+    assert strategy_name in s.strategies
+
+    loaded_paths = []
+    s.pool = ModelPool(None, 1, 0)
+    s.pool._load = lambda model_path: loaded_paths.append(model_path) or object()
+    s.get_strategy(strategy_name)
+    assert loaded_paths == [str(nested_model.relative_to(tmp_path))]
 
 
 def test_get_strategy_caching_and_invalid():

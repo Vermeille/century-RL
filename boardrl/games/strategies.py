@@ -1,5 +1,6 @@
 import torch
 from inspect import signature
+from urllib.parse import unquote
 
 from boardrl.utils import Game, ModelPool, RegisterByName
 
@@ -15,7 +16,7 @@ def get_model(arg_str, default, provided_arg):
     """
 
     assert isinstance(provided_arg, ModelPool)
-    return provided_arg(arg_str)
+    return provided_arg(unquote(arg_str))
 
 
 strategy_from_string = RegisterByName(arg_readers={"model": get_model})

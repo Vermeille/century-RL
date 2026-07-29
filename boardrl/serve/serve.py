@@ -1,8 +1,8 @@
 import argparse
 import copy
-import os
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import torch
 from natsort import natsorted
@@ -159,16 +159,17 @@ class Strategies:
 
     def populate_strategies(self):
         strategies = []
-        # find all .pth files in all directories
-        for root, dirs, files in os.walk("."):
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
-            for file in files:
-                if file.endswith(".pth"):
-                    model_path = os.path.join(root, file)
-                    if not self.model_matches_game(model_path):
-                        continue
-                    # strategies.append(f"argmax:{os.path.join(root, file)}")
-                    strategies.append(f"policy_sampling,model={model_path}")
+        # Checkpoint runs store their weights several directories below the
+        # repository's ``checkpoints`` directory, so search recursively.
+        for model_path in Path(".").rglob("*.pth"):
+            if not self.model_matches_game(model_path):
+                continue
+            # strategies.append(f"argmax:{model_path}")
+            # Strategy descriptions use commas as argument separators, while
+            # checkpoint run directories may themselves contain commas.
+            strategies.append(
+                f"policy_sampling,model={quote(str(model_path), safe='/')}"
+            )
 
         strategies = natsorted(strategies)
         strategies += [
@@ -185,7 +186,12 @@ class Strategies:
         parts = path.parts
         checkpoint_dirs = [part for part in parts if part.endswith("-ckpt")]
         if not checkpoint_dirs:
-            return path.name.startswith(f"{self.game_name}-")
+            return any(
+                part == self.game_name
+                or part.startswith(f"{self.game_name}-")
+                or part.startswith(f"{self.game_name},")
+                for part in parts
+            )
         return f"{self.game_name}-ckpt" in checkpoint_dirs
 
     def get_strategy(self, name):
