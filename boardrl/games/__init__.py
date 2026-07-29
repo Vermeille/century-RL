@@ -19,12 +19,14 @@ class GameDesc:
         augmentations=(),
         *,
         reward_rescale: float,
+        coop: bool = False,
     ):
         self.make_game = game_class
         self.strategy_from_string = strategy_from_string
         self.make_metrics = metrics_class
         self.augmentations = tuple(augmentations)
         self.reward_rescale = reward_rescale
+        self.coop = coop
 
 
 games_library = RegisterByName()
@@ -120,6 +122,7 @@ class TheGame(GameDesc):
             Metrics,
             augmentations=(shuffle_actions, shuffle_hand),
             reward_rescale=0.01,
+            coop=True,
         )
 
 
@@ -134,6 +137,7 @@ class GuessNumber(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=0.1,
+            coop=True,
         )
 
 
@@ -180,6 +184,7 @@ class Take5(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=1.0,
         )
 
 
@@ -193,4 +198,5 @@ class SkullKing(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
+            reward_rescale=1.0,
         )

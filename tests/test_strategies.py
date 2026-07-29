@@ -113,3 +113,11 @@ def test_policy_sampling_epsilon_uses_dirichlet_noise(monkeypatch):
 )
 def test_game_descriptor_reward_rescale(game_name, expected_scale):
     assert games_library(game_name).reward_rescale == expected_scale
+
+
+@pytest.mark.parametrize(
+    "game_name,expected_coop",
+    [("thegame", True), ("guessnumber", True), ("tictactoe", False)],
+)
+def test_game_descriptor_coop(game_name, expected_coop):
+    assert games_library(game_name).coop is expected_coop
