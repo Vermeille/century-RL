@@ -60,6 +60,17 @@ class ValueHead(nn.Module):
             torch.tensor(math.log(math.expm1(initial_value_scale)))
         )
 
+    def reinit(self):
+        with torch.no_grad():
+            self.query.zero_()
+            self.attention._reset_parameters()
+            self.attention.out_proj.reset_parameters()
+            self.norm.reset_parameters()
+            zero(self.out)
+            self.raw_value_scale.fill_(
+                math.log(math.expm1(self.initial_value_scale))
+            )
+
     def forward(self, x, attn_mask):
         query = self.query.expand(len(x), -1, -1)
         summary, _ = self.attention(
@@ -82,6 +93,10 @@ class PolicyHead(nn.Module):
         self.dim = dim
         self.norm = nn.RMSNorm(dim)
         self.out = init(nn.Linear(dim, 1), var_scale=0.1)
+
+    def reinit(self):
+        self.norm.reset_parameters()
+        init(self.out, var_scale=0.1)
 
     def actions(self, x, mask, positions):
         counts = [len(indices) for indices in positions]
@@ -296,6 +311,10 @@ class Model(nn.Module):
     def spec(self):
         """Constructor arguments needed to recreate this model."""
         return dict(self._spec)
+
+    def reinit_heads(self):
+        self.to_pred.reinit()
+        self.rewards.reinit()
 
     def text_encode(self, txts, maxlen):
         maxlen = min(maxlen, max(len(g) for g in txts))
