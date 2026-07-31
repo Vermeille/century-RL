@@ -6,15 +6,15 @@ from boardrl.rl.model.utils import init
 
 
 class Canon(nn.Conv1d):
-    def __init__(self, dim, kernel_size=4):
+    def __init__(self, dim, kernel_size=5):
         super().__init__(dim, dim, kernel_size, groups=dim, bias=False)
         self.kernel_size = kernel_size
         with torch.no_grad():
             self.weight.zero_()
-            self.weight[:, :, -1] = 1
+            self.weight[:, :, kernel_size // 2 + 1] = 1
 
     def forward(self, x):
-        x = F.pad(x.transpose(1, 2), (self.kernel_size - 1, 0))
+        x = F.pad(x.transpose(1, 2), (self.kernel_size // 2, self.kernel_size // 2))
         return super().forward(x).transpose(1, 2)
 
 
