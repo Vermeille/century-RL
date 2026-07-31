@@ -102,6 +102,7 @@ def make_trackio(
     *,
     project: str | None,
     name: str | None = None,
+    server_url: str | None = None,
     config: Mapping[str, object] | None = None,
 ) -> Trackio | None:
     """Create a Trackio sink only when a project was explicitly requested."""
@@ -124,6 +125,8 @@ def make_trackio(
     }
     if name is not None:
         kwargs["name"] = name
+    if server_url is not None:
+        kwargs["server_url"] = server_url
     return Trackio(trackio.init(**kwargs))
 
 
