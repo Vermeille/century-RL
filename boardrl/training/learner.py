@@ -27,6 +27,34 @@ def _float(value) -> float:
     return value.detach().item() if torch.is_tensor(value) else float(value)
 
 
+def normalized_nucleus_size(
+    probs: torch.Tensor,
+    threshold: float = 0.95,
+) -> torch.Tensor:
+    """
+    Return the normalized number of actions needed to reach ``threshold``.
+
+    ``probs`` may have any leading dimensions and must contain normalized
+    probabilities along its last dimension. A deterministic distribution is
+    mapped to 0, while a distribution requiring the largest possible nucleus
+    for the threshold is mapped to 1.
+    """
+    n = probs.shape[-1]
+
+    sorted_probs = probs.sort(dim=-1, descending=True).values
+    cumulative = sorted_probs.cumsum(dim=-1)
+
+    # Nombre minimal d'actions pour dépasser le seuil.
+    k = (cumulative < threshold).sum(dim=-1) + 1
+
+    max_k = min(n, math.ceil(threshold * n))
+
+    if max_k <= 1:
+        return torch.zeros_like(k, dtype=probs.dtype)
+
+    return (k.to(probs.dtype) - 1) / (max_k - 1)
+
+
 @dataclass(frozen=True)
 class TrainResult:
     metrics: dict[str, float]
@@ -37,14 +65,35 @@ class TrainResult:
 class PolicyMetrics:
     """Prediction metrics that work for RL and imitation datasets."""
 
+    def __init__(self, nucleus_threshold: float = 0.95):
+        self.nucleus_threshold = nucleus_threshold
+
     def __call__(self, policy, value, batch):
-        perplexity = sum(
-            torch.exp(
-                torch.sum(-torch.softmax(logits, 0) * torch.log_softmax(logits, 0))
-            ).item()
-            for logits in policy
-        ) / len(policy)
-        return {"perplexity": perplexity}
+        probabilities = [torch.softmax(logits, dim=0) for logits in policy]
+        entropies = torch.stack(
+            [
+                torch.sum(
+                    -probs * torch.log_softmax(logits, dim=0)
+                )
+                for logits, probs in zip(policy, probabilities)
+            ]
+        )
+        nucleus_sizes = torch.stack(
+            [
+                normalized_nucleus_size(probs, self.nucleus_threshold)
+                for probs in probabilities
+            ]
+        )
+        # Keep the reduction on-device. Calling item() for every policy used to
+        # force one CUDA synchronization per sample; Averages converts this
+        # single batch result to a float once.
+        return {
+            "perplexity": entropies.exp().mean(),
+            (
+                "normalized_nucleus_size_threshold_"
+                f"{self.nucleus_threshold:g}".replace(".", "_")
+            ): nucleus_sizes.mean(),
+        }
 
 
 class ValueMetrics:
@@ -102,10 +151,16 @@ class BatchUpdates(Updates, reusable=True):
     def __init__(self, learner, samples):
         super().__init__(learner, samples)
         self.lr_scale = 1.0
+        self.unscaled_lrs = None
 
     @property
     def epochs(self):
         return self.learner.epochs
+
+    def start(self):
+        self.unscaled_lrs = [
+            group["lr"] for group in self.learner.optimizer.param_groups
+        ]
 
     def begin_epoch(self, num_batches):
         if self.learner.base_batches is None or not self.learner.normalize_lr:
@@ -115,15 +170,28 @@ class BatchUpdates(Updates, reusable=True):
             if self.learner.normalize_lr
             else 1.0
         )
+        for lr, group in zip(
+            self.unscaled_lrs,
+            self.learner.optimizer.param_groups,
+        ):
+            group["lr"] = lr * self.lr_scale
 
     def begin_batch(self):
         self.learner.optimizer.zero_grad(set_to_none=True)
 
     def objective(self, objective, batch):
-        return objective * self.lr_scale
+        return objective
 
     def end_batch(self):
         return {"gradient_norm": self.learner._finish_batch()}
+
+    def finish(self):
+        for lr, group in zip(
+            self.unscaled_lrs,
+            self.learner.optimizer.param_groups,
+        ):
+            group["lr"] = lr
+        return {"lr_scale": self.lr_scale}
 
 
 class RolloutUpdate(Updates, reusable=False):
@@ -244,6 +312,7 @@ class Learner:
                 seen += len(raw_batch)
 
         metrics.add(updates.finish())
+        metrics.add({"lr": self.optimizer.param_groups[0]["lr"]})
         return TrainResult(metrics.result(), seen, batches)
 
     def _finish_batch(self):
@@ -281,7 +350,7 @@ class LinearWarmupDecay:
             decay_steps = max(self.steps - self.warmup, 1)
             progress = (step - self.warmup) / decay_steps
             scale = self.min_scale + (1 - self.min_scale) * (1 - progress)
-        scale = max(scale, self.min_scale if step <= self.steps else 0.0)
+            scale = max(scale, self.min_scale)
         for initial_lr, group in zip(self.initial_lrs, self.optimizer.param_groups):
             group["lr"] = initial_lr * scale
         return self.optimizer.param_groups[0]["lr"]

@@ -30,8 +30,12 @@ def test_lr_schedule_supports_explicit_warmup_and_floor():
     _, optimizer = make_schedule(initial_lr=2.0, iterations=100)
     schedule = LinearWarmupDecay(optimizer, steps=100, warmup=10, min_scale=0.1)
 
+    assert schedule.step(0) == 0.0
+
     assert schedule.step(5) == 1.0
 
     assert schedule.step(10) == 2.0
 
     assert schedule.step(100) == 0.2
+
+    assert schedule.step(150) == 0.2

@@ -20,7 +20,12 @@ from boardrl.training import (
     ToSamples,
     TrainingSample,
 )
-from boardrl.training.learner import BatchUpdates, RolloutUpdate
+from boardrl.training.learner import (
+    BatchUpdates,
+    PolicyMetrics,
+    RolloutUpdate,
+    normalized_nucleus_size,
+)
 
 
 def test_rollout_pipeline_is_composable():
@@ -211,6 +216,70 @@ def test_normalized_learner_handles_partial_batch():
 
     assert result.samples == 1
     assert result.batches == 1
+    assert result.metrics["lr"] == pytest.approx(1e-4)
+
+
+def test_learner_reports_optimizer_learning_rate():
+    model = toy()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+    optimizer.param_groups[0]["lr"] = 2e-4
+    learner = Learner(
+        model,
+        optimizer,
+        [ImitationCELoss()],
+        batch_size=1,
+        device="cpu",
+    )
+    sample = TrainingSample(
+        state="board\n@left\n@right",
+        action_idx=0,
+        action_distribution=torch.tensor([2.0, -1.0]),
+        next=None,
+    )
+
+    result = learner.train([sample])
+
+    assert result.metrics["lr"] == pytest.approx(2e-4)
+
+
+def test_policy_metrics_average_per_sample_perplexity_on_device():
+    policy = [torch.tensor([0.0, 0.0]), torch.tensor([0.0, 1.0, 2.0])]
+
+    result = PolicyMetrics()(policy, value=None, batch=None)
+    expected = torch.stack(
+        [
+            (-(logits.softmax(0) * logits.log_softmax(0)).sum()).exp()
+            for logits in policy
+        ]
+    ).mean()
+
+    assert torch.is_tensor(result["perplexity"])
+    assert torch.allclose(result["perplexity"], expected)
+
+
+def test_normalized_nucleus_size_maps_deterministic_and_uniform_policies():
+    probs = torch.tensor(
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.25, 0.25, 0.25, 0.25],
+        ]
+    )
+
+    result = normalized_nucleus_size(probs)
+
+    assert torch.allclose(result, torch.tensor([0.0, 1.0]))
+
+
+def test_policy_metrics_reports_normalized_nucleus_size():
+    policy = [torch.tensor([10.0, 0.0, 0.0]), torch.zeros(2)]
+
+    result = PolicyMetrics()(policy, value=None, batch=None)
+
+    assert torch.allclose(
+        result["normalized_nucleus_size_threshold_0_95"],
+        torch.tensor(0.5),
+        atol=1e-4,
+    )
 
 
 def test_learner_restores_its_losses_and_batch_baseline():
@@ -246,18 +315,28 @@ def test_learner_restores_its_losses_and_batch_baseline():
 
 
 def test_lr_equalizer_only_scales_minibatch_updates():
+    parameter = torch.nn.Parameter(torch.tensor(0.0))
+    optimizer = torch.optim.AdamW([parameter], lr=0.01)
     learner = SimpleNamespace(
         base_batches=None,
         normalize_lr=True,
         epochs=1,
+        optimizer=optimizer,
     )
     updates = BatchUpdates(learner, [object()])
 
+    updates.start()
     updates.begin_epoch(4)
     assert updates.objective(torch.tensor(1.0), []) == 1.0
+    assert optimizer.param_groups[0]["lr"] == 0.01
 
     updates.begin_epoch(2)
-    assert updates.objective(torch.tensor(1.0), []) == 2.0
+    assert updates.objective(torch.tensor(1.0), []) == 1.0
+    assert optimizer.param_groups[0]["lr"] == 0.02
+
+    metrics = updates.finish()
+    assert optimizer.param_groups[0]["lr"] == 0.01
+    assert metrics == {"lr_scale": 2.0}
 
     rollout = RolloutUpdate(
         SimpleNamespace(normalize_lr=True),

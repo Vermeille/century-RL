@@ -16,6 +16,7 @@ from .learner import (
     PolicyMetrics,
     TrainResult,
     ValueMetrics,
+    normalized_nucleus_size,
 )
 
 __all__ = [
@@ -34,5 +35,6 @@ __all__ = [
     "TrainResult",
     "ValueMetrics",
     "collate",
+    "normalized_nucleus_size",
     "samples_from",
 ]
