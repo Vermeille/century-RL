@@ -18,9 +18,5 @@ fi
 for mode in "${modes[@]}"; do
   trainers/thegame_strict.sh \
     --game "thegame,mode=${mode}" \
-    --steps 500 \
-    --evaluation-games 512 \
-    --keep-checkpoints 1 \
-    --save-best \
     --tag "thegame_${mode}"
 done
