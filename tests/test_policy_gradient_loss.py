@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from boardrl.rl.model.loss import (
     PolicyGradientLoss,
     EntropyBonus,
+    ReverseEntropyBonus,
+    SupportFloorPenalty,
     LinearEntropyBonus,
     ScheduledPerplexity,
     KLPenalty,
@@ -44,6 +46,100 @@ def test_entropy_regularizer_drives_uniform_policy():
         opt.step()
     probs = logits.softmax(dim=0)
     assert torch.allclose(probs, torch.full_like(probs, 1 / probs.numel()), atol=1e-3)
+
+
+def test_reverse_entropy_is_mean_reverse_kl_from_uniform():
+    pred_policy = [
+        torch.tensor([0.0, 2.0]),
+        torch.tensor([-1.0, 0.0, 1.0]),
+    ]
+    sample = SimpleNamespace(action_idx=torch.tensor([0, 0]))
+    pred_value = SimpleNamespace(mean=torch.zeros(2))
+
+    objective = ReverseEntropyBonus(strength=0.3)(
+        pred_policy, pred_value, sample, training_state={}
+    ).objective
+    expected = torch.stack(
+        [
+            -logits.log_softmax(0).mean() - math.log(logits.numel())
+            for logits in pred_policy
+        ]
+    ).mean()
+
+    assert torch.allclose(objective, 0.3 * expected)
+
+
+def test_reverse_entropy_keeps_recovery_gradient_for_forgotten_action():
+    logits = torch.tensor([0.0, -30.0], requires_grad=True)
+    sample = SimpleNamespace(action_idx=torch.tensor([0]))
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+
+    objective = ReverseEntropyBonus(strength=1.0)(
+        [logits], pred_value, sample, training_state={}
+    ).objective
+    objective.backward()
+
+    assert torch.allclose(logits.grad[1], torch.tensor(-0.5))
+
+
+def test_support_floor_is_inactive_above_the_probability_floor():
+    logits = torch.zeros(2, requires_grad=True)
+    sample = SimpleNamespace(action_idx=torch.tensor([0]))
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+
+    result = SupportFloorPenalty(floor_mass=0.01, strength=0.001)(
+        [logits], pred_value, sample, training_state={}
+    )
+    result.objective.backward()
+
+    assert result.objective == 0.0
+    assert result.metrics["violation_fraction"] == 0.0
+    assert torch.equal(logits.grad, torch.zeros_like(logits))
+
+
+def test_support_floor_recovers_a_forgotten_action():
+    logits = torch.tensor([0.0, -30.0], requires_grad=True)
+    sample = SimpleNamespace(action_idx=torch.tensor([0]))
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+
+    result = SupportFloorPenalty(floor_mass=0.01, strength=0.001)(
+        [logits], pred_value, sample, training_state={}
+    )
+    result.objective.backward()
+
+    assert result.objective > 0.0
+    assert result.metrics["violation_fraction"] == 0.5
+    assert logits.grad[1] < -0.0004
+    assert torch.isfinite(logits.grad).all()
+
+
+def test_support_floor_handles_variable_legal_action_counts():
+    policies = [
+        torch.zeros(2, requires_grad=True),
+        torch.tensor([0.0, -30.0, -30.0], requires_grad=True),
+    ]
+    sample = SimpleNamespace(action_idx=torch.tensor([0, 0]))
+    pred_value = SimpleNamespace(mean=torch.zeros(2))
+
+    result = SupportFloorPenalty(floor_mass=0.01, strength=0.001)(
+        policies, pred_value, sample, training_state={}
+    )
+    result.objective.backward()
+
+    assert torch.isfinite(result.objective)
+    assert result.metrics["violation_fraction"] == torch.tensor(1 / 3)
+    assert torch.equal(policies[0].grad, torch.zeros_like(policies[0]))
+    assert (policies[1].grad[1:] < 0).all()
+
+
+def test_scheduled_perplexity_can_use_reverse_entropy():
+    loss = ScheduledPerplexity(
+        start=0.5,
+        init_strength=0.1,
+        regularizer_factory=ReverseEntropyBonus,
+    )
+
+    assert type(loss.regularizer) is ReverseEntropyBonus
 
 
 def test_linear_entropy_bonus_interpolates_strength():
@@ -101,6 +197,20 @@ def test_scheduled_perplexity_deadband_relaxes_toward_baseline():
 
     assert loss.entropy.strength < loss.init_strength
     assert loss.entropy.strength > loss.baseline_strength
+
+
+def test_scheduled_perplexity_can_relax_entropy_strength_to_zero():
+    loss = ScheduledPerplexity(
+        start=0.5,
+        init_strength=0.1,
+        baseline_ratio=0.0,
+        ppl_beta=0.0,
+    )
+
+    for _ in range(10_000):
+        loss.update_strength(measured_ppl=1.0, target_ppl=0.0)
+
+    assert loss.entropy.strength < 1e-3
 
 
 def test_scheduled_perplexity_can_freeze_controller_during_evaluation():

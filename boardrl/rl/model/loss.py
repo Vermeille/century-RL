@@ -495,7 +495,7 @@ class AdaptiveKLPenalty(Loss):
 
         if error > self.deadband:
             # The policy is outside its KL budget.
-            strength += self.adaptation_rate * self.init_strength * error
+            strength += self.adaptation_rate * error
         else:
             # Recover from an earlier increase, but never below the base
             # strength used to initialize the controller.
@@ -560,6 +560,50 @@ class EntropyBonus(Loss):
         return LossResult(self.strength * terms.sum() / len(sample.action_idx))
 
 
+@loss_from_string.register("support_floor")
+class SupportFloorPenalty(Loss):
+    """Keep every legal action above a small probability floor.
+
+    Unlike Shannon entropy, the log-probability hinge keeps a finite recovery
+    gradient for actions whose probability has effectively collapsed to zero.
+    It becomes exactly inactive once every legal action reaches
+    ``floor_mass / number_of_legal_actions``, so it does not continuously pull
+    a sufficiently supported policy toward uniformity.
+    """
+
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(self, floor_mass: float = 0.01, strength: float = 0.001):
+        if not 0.0 < floor_mass < 1.0:
+            raise ValueError("support floor mass must be between zero and one")
+        if strength <= 0.0:
+            raise ValueError("support floor strength must be positive")
+        self.floor_mass = floor_mass
+        self.strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        padded = pack_cached(pred_policy, training_state, "pred_policy")
+        mask = torch.isfinite(padded)
+        action_counts = mask.sum(dim=1)
+        log_probs = F.log_softmax(padded, dim=1)
+        target_log_probs = math.log(self.floor_mass) - action_counts.float().log()
+        shortfall = torch.where(
+            mask,
+            (target_log_probs[:, None] - log_probs).clamp_min(0.0),
+            torch.zeros_like(log_probs),
+        )
+        per_state = shortfall.sum(dim=1) / action_counts
+        violation_fraction = (
+            ((shortfall > 0.0).sum(dim=1) / action_counts).float().mean()
+        )
+        return LossResult(
+            self.strength * per_state.mean(),
+            metrics={"violation_fraction": violation_fraction},
+        )
+
+
 @loss_from_string.register("linear_entropy_bonus")
 class LinearEntropyBonus(Loss):
     needs_reference_policy_value = False
@@ -577,9 +621,7 @@ class LinearEntropyBonus(Loss):
     def __call__(self, pred_policy, pred_value, sample, training_state):
         progress = training_state["progress"]
         strength = self.strength(progress)
-        result = EntropyBonus(strength)(
-            pred_policy, pred_value, sample, training_state
-        )
+        result = EntropyBonus(strength)(pred_policy, pred_value, sample, training_state)
         result.metrics["strength"] = strength
         return result
 
@@ -599,11 +641,12 @@ class ScheduledPerplexity(Loss):
         adaptation_rate: float = 0.05,
         ppl_beta: float = 0.99,
         deadband: float = 0.02,
+        regularizer_factory: Callable[[float], Loss] = EntropyBonus,
     ):
         assert start >= 0.0
         assert end >= 0.0
         assert init_strength > 0.0
-        assert 0.0 < baseline_ratio <= 1.0
+        assert 0.0 <= baseline_ratio <= 1.0
         assert adaptation_rate > 0.0
         assert 0.0 <= ppl_beta < 1.0
         assert deadband >= 0.0
@@ -622,7 +665,10 @@ class ScheduledPerplexity(Loss):
         self.ppl_beta = ppl_beta
         self.deadband = deadband
 
-        self.entropy = EntropyBonus(init_strength)
+        self.regularizer = regularizer_factory(init_strength)
+        # Compatibility for checkpoints and callers written before the
+        # exploration regularizer became configurable.
+        self.entropy = self.regularizer
 
         self.ppl_ema: float | None = None
 
@@ -634,7 +680,7 @@ class ScheduledPerplexity(Loss):
 
     def state_dict(self):
         return {
-            "strength": self.entropy.strength,
+            "strength": self.regularizer.strength,
             "ppl_ema": self.ppl_ema,
             "last_target_ppl": self.last_target_ppl,
             "last_ppl": self.last_ppl,
@@ -643,7 +689,7 @@ class ScheduledPerplexity(Loss):
         }
 
     def load_state_dict(self, state):
-        self.entropy.strength = state["strength"]
+        self.regularizer.strength = state["strength"]
         self.ppl_ema = state["ppl_ema"]
         self.last_target_ppl = state["last_target_ppl"]
         self.last_ppl = state["last_ppl"]
@@ -651,7 +697,38 @@ class ScheduledPerplexity(Loss):
         self.last_strength = state["last_strength"]
 
     @staticmethod
-    def normalized_perplexity(policy):
+    def perplexity(policy, training_state=None):
+        """
+        policy: iterable of 1D logits tensors, one per state.
+                Each tensor should already contain only legal-action logits.
+
+        Returns raw effective action count ``exp(entropy)``:
+
+            1 = deterministic
+            n = uniform over ``n`` legal actions
+        """
+
+        state = {} if training_state is None else training_state
+        padded = pack_cached(policy, state, "pred_policy").float()
+        mask = torch.isfinite(padded)
+        action_counts = mask.sum(dim=1)
+        logp = F.log_softmax(padded, dim=1)
+        safe_logp = torch.where(mask, logp, torch.zeros_like(logp))
+        probabilities = torch.where(mask, safe_logp.exp(), torch.zeros_like(logp))
+        entropy = -(probabilities * safe_logp).sum(dim=1)
+        normalized = entropy.exp()
+        values = normalized[action_counts > 1]
+
+        if values.numel() == 0:
+            # Degenerate batch: no state with >1 legal action.
+            # Return a tensor on a reasonable device.
+            first = next(iter(policy))
+            return first.new_tensor(0.0)
+
+        return values.mean()
+
+    @staticmethod
+    def normalized_perplexity(policy, training_state=None):
         """
         policy: iterable of 1D logits tensors, one per state.
                 Each tensor should already contain only legal-action logits.
@@ -662,31 +739,24 @@ class ScheduledPerplexity(Loss):
             1 = uniform over legal actions
         """
 
-        vals = []
+        state = {} if training_state is None else training_state
+        padded = pack_cached(policy, state, "pred_policy").float()
+        mask = torch.isfinite(padded)
+        action_counts = mask.sum(dim=1)
+        logp = F.log_softmax(padded, dim=1)
+        safe_logp = torch.where(mask, logp, torch.zeros_like(logp))
+        probabilities = torch.where(mask, safe_logp.exp(), torch.zeros_like(logp))
+        entropy = -(probabilities * safe_logp).sum(dim=1)
+        normalized = (entropy.exp() - 1.0) / (action_counts - 1).clamp_min(1)
+        values = normalized[action_counts > 1]
 
-        for logits in policy:
-            n = logits.numel()
-            if n <= 1:
-                continue
-
-            # Use float32 for stable entropy math, while preserving device.
-            logits = logits.float()
-
-            logp = torch.log_softmax(logits, dim=0)
-            p = logp.exp()
-            entropy = -(p * logp).sum()
-
-            ppl = entropy.exp()
-            norm_ppl = (ppl - 1.0) / (n - 1.0)
-            vals.append(norm_ppl)
-
-        if not vals:
+        if values.numel() == 0:
             # Degenerate batch: no state with >1 legal action.
             # Return a tensor on a reasonable device.
             first = next(iter(policy))
             return first.new_tensor(0.0)
 
-        return torch.stack(vals).mean()
+        return values.mean()
 
     def target_ppl(self, progress: float) -> float:
         assert 0.0 <= progress <= 1.0
@@ -710,7 +780,7 @@ class ScheduledPerplexity(Loss):
                 self.ppl_beta * self.ppl_ema + (1.0 - self.ppl_beta) * measured_ppl
             )
 
-        strength = self.entropy.strength
+        strength = self.regularizer.strength
 
         error = target_ppl - self.ppl_ema
 
@@ -726,12 +796,12 @@ class ScheduledPerplexity(Loss):
             #
             # Relax gently toward the nonzero baseline.
             # Downward motion is intentionally slower than upward correction.
-            relax_rate = 0.1 * self.adaptation_rate
+            relax_rate = 0.5 * self.adaptation_rate
             strength += relax_rate * (self.baseline_strength - strength)
 
         strength = max(self.min_strength, min(self.max_strength, strength))
 
-        self.entropy.strength = strength
+        self.regularizer.strength = strength
 
         self.last_strength = strength
         self.last_ppl_ema = self.ppl_ema
@@ -740,7 +810,7 @@ class ScheduledPerplexity(Loss):
         progress = training_state["progress"]
         target = self.target_ppl(progress)
 
-        ppl_tensor = self.normalized_perplexity(pred_policy)
+        ppl_tensor = self.perplexity(pred_policy, training_state)
         ppl = ppl_tensor.detach().item()
 
         # Optional escape hatch: useful if this loss is called during eval/logging.
@@ -755,7 +825,7 @@ class ScheduledPerplexity(Loss):
         self.last_target_ppl = target
         self.last_ppl = ppl
 
-        e = self.entropy(pred_policy, pred_value, sample, training_state)
+        e = self.regularizer(pred_policy, pred_value, sample, training_state)
         ppl_ema = self.ppl_ema if self.ppl_ema is not None else ppl
         return LossResult(
             e.objective,
@@ -763,7 +833,7 @@ class ScheduledPerplexity(Loss):
                 "perplexity": ppl,
                 "target": target,
                 "ema": ppl_ema,
-                "strength": self.entropy.strength,
+                "strength": self.regularizer.strength,
             },
         )
 
@@ -778,10 +848,19 @@ class ReverseEntropyBonus(Loss):
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
-        s = self.strength / len(sample.action_idx)
-        return LossResult(
-            -s * sum(F.log_softmax(logit, dim=0).sum() for logit in pred_policy)
-        )
+        padded = pack_cached(pred_policy, training_state, "pred_policy")
+        mask = torch.isfinite(padded)
+        action_counts = mask.sum(dim=1)
+        log_probs = F.log_softmax(padded, dim=1)
+        safe_log_probs = torch.where(mask, log_probs, torch.zeros_like(log_probs))
+
+        # KL(U || policy) = -mean_a(log p(a)) - log(number of legal actions).
+        # Averaging within each state avoids making the effective strength
+        # proportional to its branching factor. The constant makes the loss
+        # zero at uniform and does not affect its gradient.
+        reverse_kl = -safe_log_probs.sum(dim=1) / action_counts
+        reverse_kl = reverse_kl - action_counts.log()
+        return LossResult(self.strength * reverse_kl.mean())
 
 
 @loss_from_string.register("value_mse_loss")
@@ -846,9 +925,7 @@ class BootstrapValueMSELoss(Loss):
         self.strength = strength
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
-        return LossResult(
-            self.strength * F.mse_loss(pred_value.mean, sample.td_lambda)
-        )
+        return LossResult(self.strength * F.mse_loss(pred_value.mean, sample.td_lambda))
 
 
 @loss_from_string.register("q_mse_loss")
