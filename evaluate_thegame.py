@@ -1,4 +1,4 @@
-"""Evaluate strict-mode The Game policies under one reproducible protocol."""
+"""Evaluate The Game policies under one reproducible protocol."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from boardrl.rollouts import Inference
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("checkpoints", type=Path, nargs="*")
+    parser.add_argument("--game", default="thegame,mode=strict")
     parser.add_argument("--games", type=int, default=1_000)
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--temperature", type=float, default=0.02)
@@ -70,9 +71,16 @@ def score_summary(values) -> dict[str, float | int | list[float]]:
     }
 
 
-def evaluate(name, player, *, games: int, seed: int, progress: bool) -> dict:
+def evaluate(
+    name,
+    player,
+    *,
+    game,
+    games: int,
+    seed: int,
+    progress: bool,
+) -> dict:
     seed_everything(seed)
-    game = games_library("thegame,mode=strict")
     evaluation = Evaluator(game.make_game, progress=progress).compare(
         [player, player],
         names=[name, name],
@@ -93,10 +101,12 @@ def evaluate(name, player, *, games: int, seed: int, progress: bool) -> dict:
 
 def main() -> None:
     args = build_parser().parse_args()
+    game = games_library(args.game)
     results = [
         evaluate(
             "lowest_cost",
             LowestCostStrategy(),
+            game=game,
             games=args.games,
             seed=args.seed,
             progress=args.progress,
@@ -111,6 +121,7 @@ def main() -> None:
                 evaluate(
                     f"{path} @ temperature={temperature}",
                     inference.policy(temperature=temperature),
+                    game=game,
                     games=args.games,
                     seed=args.seed,
                     progress=args.progress,
@@ -130,6 +141,7 @@ def main() -> None:
                             num_evals=args.gumbel_evals,
                             q_scale=q_scale,
                         ),
+                        game=game,
                         games=args.games,
                         seed=args.seed,
                         progress=args.progress,

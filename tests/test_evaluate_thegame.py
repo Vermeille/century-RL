@@ -6,6 +6,7 @@ from evaluate_thegame import build_parser, score_summary
 def test_evaluation_defaults_to_reliable_sample_size():
     args = build_parser().parse_args([])
 
+    assert args.game == "thegame,mode=strict"
     assert args.games == 1_000
     assert args.temperature == 0.02
     assert args.temperatures is None
