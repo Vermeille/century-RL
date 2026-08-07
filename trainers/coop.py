@@ -26,8 +26,11 @@ from boardrl.models import architectures, copy_weights, make
 from boardrl.rl.model.loss import (
     AdaptiveKLPenalty,
     BootstrapValueMSELoss,
+    EntropyBonus,
     PolicyGradientLoss,
+    ReverseEntropyBonus,
     ScheduledPerplexity,
+    SupportFloorPenalty,
 )
 from boardrl.training import (
     ComputeReturns,
@@ -55,6 +58,14 @@ def positive_float(value):
     return value
 
 
+exploration_regularizers = {
+    "entropy": EntropyBonus,
+    "reverse-kl": ReverseEntropyBonus,
+}
+
+NUCLEUS_THRESHOLD = 0.95
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -76,7 +87,15 @@ def build_parser():
     parser.add_argument(
         "--schedule-steps",
         type=positive_int,
-        help="anneal learning rate and exploration over this many steps, then hold",
+        help=(
+            "anneal exploration over this many steps, then hold; also used for "
+            "learning rate unless --lr-schedule-steps is provided"
+        ),
+    )
+    parser.add_argument(
+        "--lr-schedule-steps",
+        type=positive_int,
+        help="anneal learning rate over this many steps independently of exploration",
     )
     parser.add_argument(
         "--perplexity-curve",
@@ -130,9 +149,35 @@ def build_parser():
         default=1.0,
         help="trace decay for critic targets (1 uses pure Monte Carlo returns)",
     )
-    parser.add_argument("--perplexity-start", type=float, default=0.8)
-    parser.add_argument("--perplexity-end", type=float, default=0.05)
+    parser.add_argument("--perplexity-start", type=float, default=2.0)
+    parser.add_argument("--perplexity-end", type=float, default=1.05)
     parser.add_argument("--entropy-strength", type=float, default=0.1)
+    parser.add_argument(
+        "--exploration-regularizer",
+        choices=sorted(exploration_regularizers),
+        default="entropy",
+        help="regularizer controlled by the scheduled-perplexity thermostat",
+    )
+    parser.add_argument(
+        "--entropy-baseline-ratio",
+        type=float,
+        default=0.05,
+        help="fraction of initial entropy strength retained after annealing",
+    )
+    parser.add_argument(
+        "--support-floor-mass",
+        type=float,
+        help=(
+            "minimum total probability mass reserved across legal actions; "
+            "disabled when omitted"
+        ),
+    )
+    parser.add_argument(
+        "--support-strength",
+        type=float,
+        default=0.001,
+        help="strength of the selective log-probability support barrier",
+    )
     parser.add_argument("--value-strength", type=float, default=1.0)
     parser.add_argument("--kl-target", type=float, default=0.003)
     parser.add_argument("--kl-strength", type=float, default=1.0)
@@ -152,7 +197,7 @@ def build_parser():
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--tag", default="coop")
     parser.add_argument("--trackio", action="store_true")
-    parser.add_argument("--trackio-name")
+    parser.add_argument("--trackio-url")
     return parser
 
 
@@ -167,6 +212,12 @@ def seed_everything(seed):
     init_seed(seed)
 
 
+def resolve_schedule_steps(args):
+    exploration_steps = args.schedule_steps or args.steps
+    lr_steps = args.lr_schedule_steps or exploration_steps
+    return lr_steps, exploration_steps
+
+
 def make_learner(model, game, args):
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -175,46 +226,75 @@ def make_learner(model, game, args):
         eps=args.adam_eps,
         weight_decay=args.weight_decay,
     )
-    learner = Learner(
-        model,
-        optimizer,
+    losses = [
+        PolicyGradientLoss(
+            weight="normalized_gae",
+            drift="ppo",
+            imp_ratio_clip=args.ppo_clip,
+        ),
+        ScheduledPerplexity(
+            start=args.perplexity_start,
+            end=args.perplexity_end,
+            init_strength=args.entropy_strength,
+            baseline_ratio=args.entropy_baseline_ratio,
+            adaptation_rate=0.02,
+            ppl_beta=0.98,
+            deadband=0.02,
+            regularizer_factory=exploration_regularizers[args.exploration_regularizer],
+        ),
+    ]
+    if args.support_floor_mass is not None:
+        losses.append(
+            SupportFloorPenalty(
+                floor_mass=args.support_floor_mass,
+                strength=args.support_strength,
+            )
+        )
+    losses.extend(
         [
-            PolicyGradientLoss(
-                weight="normalized_gae",
-                drift="ppo",
-                imp_ratio_clip=args.ppo_clip,
-            ),
-            ScheduledPerplexity(
-                start=args.perplexity_start,
-                end=args.perplexity_end,
-                init_strength=args.entropy_strength,
-                baseline_ratio=0.05,
-                adaptation_rate=0.005,
-                ppl_beta=0.99,
-                deadband=0.02,
-            ),
             AdaptiveKLPenalty(
                 target=args.kl_target,
                 init_strength=args.kl_strength,
                 deadband=0.001,
             ),
             BootstrapValueMSELoss(strength=args.value_strength),
-        ],
+        ]
+    )
+    learner = Learner(
+        model,
+        optimizer,
+        losses,
         batch_size=args.learner_batch_size,
         device=args.device,
         epochs=args.epochs,
         gradient_clip=args.gradient_clip,
         augmentations=game.augmentations,
-        batch_metrics=[PolicyMetrics(), ValueMetrics()],
+        batch_metrics=[
+            PolicyMetrics(nucleus_threshold=NUCLEUS_THRESHOLD),
+            ValueMetrics(),
+        ],
         normalize_lr=True,
     )
     return learner, optimizer
 
 
+def apply_optimizer_hyperparameters(optimizer, args):
+    """Keep restored Adam state while making the CLI recipe authoritative."""
+
+    for group in optimizer.param_groups:
+        group.update(
+            lr=args.learning_rate,
+            betas=(args.adam_beta1, args.adam_beta2),
+            eps=args.adam_eps,
+            weight_decay=args.weight_decay,
+        )
+
+
 def run(args):
     trackio_sink = make_trackio(
         project=args.game if args.trackio else None,
-        name=args.trackio_name,
+        name=args.tag,
+        server_url=args.trackio_url,
         config=vars(args),
     )
     try:
@@ -236,10 +316,10 @@ def _run(args, trackio_sink):
         )
     reference = copy.deepcopy(model).eval()
     learner, optimizer = make_learner(model, game, args)
-    schedule_steps = args.schedule_steps or args.steps
+    lr_schedule_steps, exploration_schedule_steps = resolve_schedule_steps(args)
     schedule = LinearWarmupDecay(
         optimizer,
-        steps=schedule_steps,
+        steps=lr_schedule_steps,
         warmup=args.warmup,
         min_scale=args.min_lr_scale,
     )
@@ -254,7 +334,22 @@ def _run(args, trackio_sink):
     best_checkpoints = Checkpoints(checkpoint_dir, prefix="best", keep=1)
     best_score = float("-inf")
 
-    run_info = RunInfo.capture(args, __file__)
+    repo_root = Path(__file__).resolve().parents[1]
+    run_info = RunInfo.capture(
+        args,
+        __file__,
+        additional_sources=(
+            repo_root / "boardrl/models.py",
+            repo_root / "boardrl/rl/model/cnn.py",
+            repo_root / "boardrl/rl/model/loss.py",
+            repo_root / "boardrl/rl/model/model.py",
+            repo_root / "boardrl/rl/model/transformer.py",
+            repo_root / "boardrl/games/strategies.py",
+            repo_root / "boardrl/games/thegame/game.py",
+            repo_root / "boardrl/training/learner.py",
+            repo_root / "boardrl/training/returns.py",
+        ),
+    )
     run_info.save(checkpoint_dir)
 
     start = 0
@@ -266,6 +361,7 @@ def _run(args, trackio_sink):
             states={"learner": learner},
             map_location=args.device,
         )
+        apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
         copy_weights(reference, model)
         if args.save_best and best_checkpoints.latest:
@@ -288,13 +384,15 @@ def _run(args, trackio_sink):
             discount=args.discount,
             gae_lambda=args.gae_lambda,
             value_lambda=args.value_lambda,
-            reuse_rollout_predictions=True,
+            reuse_rollout_predictions=False,
         ),
     )
 
     for step in range(start, args.steps):
         schedule.step(step)
-        schedule_progress = min(step / schedule_steps, 1.0) ** args.perplexity_curve
+        schedule_progress = (
+            min(step / exploration_schedule_steps, 1.0) ** args.perplexity_curve
+        )
 
         if step % args.evaluation_every == 0:
             with inference.evaluating():

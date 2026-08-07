@@ -79,3 +79,22 @@ def test_make_trackio_passes_run_configuration(monkeypatch, tmp_path: Path) -> N
             "name": "trial",
         }
     ]
+
+
+def test_make_trackio_passes_server_url_when_provided(monkeypatch) -> None:
+    run = RunRecorder()
+    calls = []
+    fake_trackio = SimpleNamespace(
+        init=lambda **kwargs: (calls.append(kwargs) or run)
+    )
+    monkeypatch.setitem(sys.modules, "trackio", fake_trackio)
+
+    make_trackio(project="century", server_url="https://trackio.example")
+
+    assert calls == [
+        {
+            "project": "century",
+            "config": {},
+            "server_url": "https://trackio.example",
+        }
+    ]
