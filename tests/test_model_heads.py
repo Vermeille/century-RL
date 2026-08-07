@@ -19,7 +19,7 @@ def test_transformer_canon_layers_are_identity_initialized():
 
     for canon in canons:
         expected_weight = torch.zeros_like(canon.weight)
-        expected_weight[:, :, -1] = 1
+        expected_weight[:, :, canon.kernel_size // 2] = 1
         assert torch.equal(canon.weight, expected_weight)
         assert torch.equal(canon(inputs), inputs)
 
@@ -66,6 +66,42 @@ def test_heads_handle_variable_action_counts():
     assert model.to_pred.out.weight.grad is not None
     assert model.rewards.out.weight.grad is not None
     assert model.rewards.attention.in_proj_weight.grad is not None
+
+
+def test_reinit_heads_preserves_backbone_and_resets_both_heads():
+    torch.manual_seed(0)
+    model = Model(dim=16, num_layers=1, head_size=4, num_heads=4)
+    backbone = {
+        name: parameter.detach().clone()
+        for name, parameter in model.backbone.named_parameters()
+    }
+    initial_raw_value_scale = model.rewards.raw_value_scale.detach().clone()
+    with torch.no_grad():
+        for parameter in model.to_pred.parameters():
+            parameter.fill_(7)
+        for parameter in model.rewards.parameters():
+            parameter.fill_(7)
+
+    model.reinit_heads()
+
+    assert all(
+        torch.equal(parameter, backbone[name])
+        for name, parameter in model.backbone.named_parameters()
+    )
+    assert torch.equal(
+        model.to_pred.norm.weight,
+        torch.ones_like(model.to_pred.norm.weight),
+    )
+    assert torch.count_nonzero(model.to_pred.out.weight) > 0
+    assert torch.count_nonzero(model.to_pred.out.bias) == 0
+    assert torch.count_nonzero(model.rewards.query) == 0
+    assert torch.equal(
+        model.rewards.norm.weight,
+        torch.ones_like(model.rewards.norm.weight),
+    )
+    assert torch.count_nonzero(model.rewards.out.weight) == 0
+    assert torch.count_nonzero(model.rewards.out.bias) == 0
+    assert torch.equal(model.rewards.raw_value_scale, initial_raw_value_scale)
 
 
 def test_patchformer_backbone_trains_local_and_global_paths():
@@ -119,6 +155,8 @@ def test_patchformer_scales_increase_capacity_monotonically():
         len(model.backbone.encode.global_context.transformer_blocks)
         for model in models
     ] == [2, 4, 4, 6]
+    assert [model.spec()["head_size"] for model in models] == [8, 16, 32, 32]
+    assert [model.spec()["num_heads"] for model in models] == [4, 4, 4, 8]
 
 
 def test_model_architectures_cover_scale_and_patch_size_product():
@@ -137,3 +175,32 @@ def test_patchformer_compression_width_is_checkpointed():
     assert model.spec()["backbone_kwargs"] == {"patch_size": 8}
     assert model.backbone.encode.patch_size == 8
     assert model.backbone.encode.downsample.kernel_size == (8,)
+
+
+def test_causal_patchformer_preserves_canon_variant_in_its_spec():
+    model = make("patchformer-small-p4-causal")
+    canon = model.backbone.encode.global_context.canon
+
+    assert model.spec()["backbone_kwargs"] == {
+        "patch_size": 4,
+        "canon": "causal",
+    }
+    assert canon.kernel_size == 4
+    expected = torch.zeros_like(canon.weight)
+    expected[:, :, -1] = 1
+    assert torch.equal(canon.weight, expected)
+
+
+def test_wide_bidirectional_canon_matches_causal_past_radius():
+    model = make("patchformer-small-p4-wide-canon")
+    canon = model.backbone.encode.global_context.canon
+
+    assert model.spec()["backbone_kwargs"] == {
+        "patch_size": 4,
+        "canon": "bidirectional",
+        "canon_kernel_size": 7,
+    }
+    assert canon.kernel_size == 7
+    expected = torch.zeros_like(canon.weight)
+    expected[:, :, 3] = 1
+    assert torch.equal(canon.weight, expected)

@@ -48,14 +48,17 @@ class ValueHead(nn.Module):
         super().__init__()
         if dim % num_heads:
             raise ValueError("value-head dimension must divide the head count")
-        self.query = nn.Parameter(torch.zeros(1, 1, dim))
+        self.initial_value_scale = initial_value_scale
+        self.query = nn.Parameter(torch.randn(1, 1, dim))
         self.attention = nn.MultiheadAttention(
             dim,
             num_heads,
             batch_first=True,
         )
         self.norm = nn.RMSNorm(dim)
-        self.out = zero(nn.Linear(dim, 2))
+        self.out = nn.Sequential(
+            init(nn.Linear(dim, dim), dim**-0.5), nn.GELU(), zero(nn.Linear(dim, 2))
+        )
         self.raw_value_scale = nn.Parameter(
             torch.tensor(math.log(math.expm1(initial_value_scale)))
         )
@@ -67,12 +70,11 @@ class ValueHead(nn.Module):
             self.attention.out_proj.reset_parameters()
             self.norm.reset_parameters()
             zero(self.out)
-            self.raw_value_scale.fill_(
-                math.log(math.expm1(self.initial_value_scale))
-            )
+            self.raw_value_scale.fill_(math.log(math.expm1(self.initial_value_scale)))
 
     def forward(self, x, attn_mask):
         query = self.query.expand(len(x), -1, -1)
+        x = self.norm(x)
         summary, _ = self.attention(
             query,
             x,
@@ -80,7 +82,7 @@ class ValueHead(nn.Module):
             key_padding_mask=~attn_mask,
             need_weights=False,
         )
-        out = self.out(self.norm(summary[:, 0]))
+        out = self.out(summary[:, 0])
         value_scale = F.softplus(self.raw_value_scale)
         return value_scale * out
 
@@ -92,7 +94,11 @@ class PolicyHead(nn.Module):
         super().__init__()
         self.dim = dim
         self.norm = nn.RMSNorm(dim)
-        self.out = init(nn.Linear(dim, 1), var_scale=0.1)
+        self.out = nn.Sequential(
+            init(nn.Linear(dim, dim), dim**-0.5),
+            nn.GELU(),
+            init(nn.Linear(dim, 1), var_scale=0.1),
+        )
 
     def reinit(self):
         self.norm.reset_parameters()
@@ -104,22 +110,17 @@ class PolicyHead(nn.Module):
         if max_actions == 0:
             return [x.new_empty(0) for _ in positions]
 
-        index_matrix = torch.zeros(
-            len(positions),
-            max_actions,
+        index_matrix = torch.tensor(
+            [indices + [0] * (max_actions - len(indices)) for indices in positions],
             dtype=torch.long,
             device=x.device,
         )
-        for batch, action_indices in enumerate(positions):
-            if action_indices:
-                action_positions = torch.tensor(action_indices, device=x.device)
-                index_matrix[batch, : len(action_positions)] = action_positions
 
         features = x.gather(
             1,
             index_matrix.unsqueeze(-1).expand(-1, -1, self.dim),
         )
-        logits = self.out(F.gelu(self.norm(features))).squeeze(-1)
+        logits = self.out(self.norm(features)).squeeze(-1)
         return [row[:count] for row, count in zip(logits, counts)]
 
 
@@ -226,6 +227,8 @@ class PatchTransformerCNNBackbone(Backbone):
         max_len=None,
         num_heads=None,
         patch_size=4,
+        canon="bidirectional",
+        canon_kernel_size=None,
     ):
         super().__init__()
         if head_size is None and num_heads is None:
@@ -242,6 +245,8 @@ class PatchTransformerCNNBackbone(Backbone):
             num_heads=num_heads,
             head_size=head_size,
             patch_size=patch_size,
+            canon=canon,
+            canon_kernel_size=canon_kernel_size,
         )
 
     def forward(self, tokens, attn_mask):
@@ -322,9 +327,12 @@ class Model(nn.Module):
         def do_pad(l):
             return l + [1] + [0] * (maxlen + 1 - len(l))
 
-        txts = [torch.LongTensor(do_pad([ord(c) for c in txt])) for txt in txts]
         device = next(self.parameters()).device
-        return torch.stack(txts, dim=0).to(device)
+        return torch.tensor(
+            [do_pad([ord(c) for c in txt]) for txt in txts],
+            dtype=torch.long,
+            device=device,
+        )
 
     def forward(self, games: list[str], return_hidden=False):
         txt = self.text_encode(games, self.maxlen)

@@ -44,10 +44,30 @@ def patch_model(scale, patch_size, **overrides):
     return Model(**(spec | overrides))
 
 
+def causal_patch_model(scale, patch_size, **overrides):
+    spec = {
+        "backbone": "patch_transformer_cnn",
+        "backbone_kwargs": {"patch_size": patch_size, "canon": "causal"},
+    } | scale
+    return Model(**(spec | overrides))
+
+
+def wide_canon_patch_model(scale, patch_size, **overrides):
+    spec = {
+        "backbone": "patch_transformer_cnn",
+        "backbone_kwargs": {
+            "patch_size": patch_size,
+            "canon": "bidirectional",
+            "canon_kernel_size": 7,
+        },
+    } | scale
+    return Model(**(spec | overrides))
+
+
 MODEL_SCALES = {
     "tiny": {"dim": 32, "num_layers": 2, "num_heads": 4, "head_size": 8},
     "small": {"dim": 64, "num_layers": 4, "num_heads": 4, "head_size": 16},
-    "medium": {"dim": 128, "num_layers": 4, "num_heads": 8, "head_size": 16},
+    "medium": {"dim": 128, "num_layers": 4, "num_heads": 4, "head_size": 32},
     "large": {"dim": 256, "num_layers": 6, "num_heads": 8, "head_size": 32},
 }
 PATCH_SIZES = (4, 8, 16)
@@ -56,6 +76,16 @@ for scale_name, scale in MODEL_SCALES.items():
     for patch_size in PATCH_SIZES:
         architectures[f"patchformer-{scale_name}-p{patch_size}"] = partial(
             patch_model,
+            scale,
+            patch_size,
+        )
+        architectures[f"patchformer-{scale_name}-p{patch_size}-causal"] = partial(
+            causal_patch_model,
+            scale,
+            patch_size,
+        )
+        architectures[f"patchformer-{scale_name}-p{patch_size}-wide-canon"] = partial(
+            wide_canon_patch_model,
             scale,
             patch_size,
         )
@@ -69,7 +99,7 @@ def cnn_large(**overrides):
 @architecture("small")
 def small(**overrides):
     return Model(
-        **({"dim": 128, "num_layers": 8, "num_heads": 16, "head_size": 8} | overrides)
+        **({"dim": 128, "num_layers": 8, "num_heads": 8, "head_size": 16} | overrides)
     )
 
 

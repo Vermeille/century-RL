@@ -23,10 +23,18 @@ class Norm(nn.RMSNorm):
 class ConvBlock(nn.Module):
     """One local, dense residual convolution."""
 
-    def __init__(self, dim, kernel_size=7):
+    def __init__(self, dim, kernel_size=5):
         super().__init__()
         self.norm = Norm(dim)
-        self.conv = zero(
+        self.conv1 = init(
+            MaskedConv1d(
+                dim,
+                dim,
+                kernel_size=kernel_size,
+                padding=kernel_size // 2,
+            ),
+        )
+        self.conv2 = zero(
             MaskedConv1d(
                 dim,
                 dim,
@@ -36,15 +44,13 @@ class ConvBlock(nn.Module):
         )
 
     def forward(self, x, mask):
-        return x + F.gelu(self.conv(self.norm(x), mask))
+        return x + self.conv2(F.gelu(self.conv1(self.norm(x), mask)), mask)
 
 
 class CNNEncoder(nn.Module):
     def __init__(self, dim, num_layers):
         super().__init__()
-        self.blocks = nn.ModuleList(
-            [ConvBlock(dim) for _ in range(num_layers)]
-        )
+        self.blocks = nn.ModuleList([ConvBlock(dim) for _ in range(num_layers)])
 
     def forward(self, x, mask):
         for m in self.blocks:
@@ -63,6 +69,8 @@ class PatchTransformerCNNEncoder(nn.Module):
         head_size,
         patch_size,
         local_layers=2,
+        canon="bidirectional",
+        canon_kernel_size=None,
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -80,16 +88,17 @@ class PatchTransformerCNNEncoder(nn.Module):
             global_layers,
             num_heads,
             head_size,
-            rotary=True,
+            rotary=False,
+            canon=canon,
+            canon_kernel_size=canon_kernel_size,
         )
-        self.context_norm = Norm(dim)
-        self.context_project = init(
-            MaskedConv1d(dim, dim, kernel_size=1),
-            var_scale=0.1,
-        )
+        self.context_project = init(MaskedConv1d(dim, dim, kernel_size=5, padding=2))
+        self.norm = Norm(dim)
+        self.tfm_out = nn.Parameter(torch.zeros(1))
 
     def forward(self, x, mask):
-        local = self.local(x, mask)
+        x = self.norm(x)
+        local = self.local(x, mask)  # BDL
         length = local.shape[-1]
         padding = (-length) % self.patch_size
         if padding:
@@ -99,17 +108,16 @@ class PatchTransformerCNNEncoder(nn.Module):
             local_padded = local
             mask_padded = mask
 
-        patches = self.downsample(local_padded)
+        patches = self.downsample(local_padded)  # BDL
         patch_mask = mask_padded.view(
             len(mask),
             -1,
             self.patch_size,
         ).any(dim=-1)
         patches = self.global_context(
-            patches.transpose(1, 2),
+            self.norm(patches).transpose(1, 2),  # BLD
             patch_mask,
-        ).transpose(1, 2)
+        ).transpose(1, 2)  # BDL
 
         context = patches.repeat_interleave(self.patch_size, dim=-1)[..., :length]
-        context = self.context_norm(context)
-        return local + self.context_project(context, mask)
+        return self.norm(self.context_project(local + self.tfm_out * context, mask))

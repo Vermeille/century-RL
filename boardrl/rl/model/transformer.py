@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from boardrl.rl.model.utils import init
+from boardrl.rl.model.utils import init, zero
 
 
 class Canon(nn.Conv1d):
@@ -11,11 +11,37 @@ class Canon(nn.Conv1d):
         self.kernel_size = kernel_size
         with torch.no_grad():
             self.weight.zero_()
-            self.weight[:, :, kernel_size // 2 + 1] = 1
+            self.weight[:, :, kernel_size // 2] = 1
 
     def forward(self, x):
         x = F.pad(x.transpose(1, 2), (self.kernel_size // 2, self.kernel_size // 2))
         return super().forward(x).transpose(1, 2)
+
+
+class CausalCanon(nn.Conv1d):
+    """Depthwise causal token mixing used by the original transformer."""
+
+    def __init__(self, dim, kernel_size=4):
+        super().__init__(dim, dim, kernel_size, groups=dim, bias=False)
+        self.kernel_size = kernel_size
+        with torch.no_grad():
+            self.weight.zero_()
+            self.weight[:, :, -1] = 1
+
+    def forward(self, x):
+        x = F.pad(x.transpose(1, 2), (self.kernel_size - 1, 0))
+        return super().forward(x).transpose(1, 2)
+
+
+CANONS = {
+    "bidirectional": Canon,
+    "causal": CausalCanon,
+}
+
+
+def make_canon(name, dim, kernel_size=None):
+    canon_cls = CANONS[name]
+    return canon_cls(dim) if kernel_size is None else canon_cls(dim, kernel_size)
 
 
 class Rotary(nn.Module):
@@ -60,11 +86,6 @@ class Rotary(nn.Module):
         return self.apply(q, seq_dim), self.apply(k, seq_dim), v
 
 
-class RotarySingle(Rotary):
-    def forward(self, q, seq_dim=-2):
-        return self.apply(q, seq_dim)
-
-
 class SelfAttnOp(nn.Module):
     def __init__(self, head_size, num_heads, rotary=False, alibi=False):
         super().__init__()
@@ -75,18 +96,18 @@ class SelfAttnOp(nn.Module):
             self.register_buffer(
                 "alibi",
                 torch.tensor(
-                    [1 / ((2**8) ** (1 / num_heads)) ** (h + 1) for h in range(num_heads)]
+                    [
+                        1 / ((2**8) ** (1 / num_heads)) ** (h + 1)
+                        for h in range(num_heads)
+                    ]
                 ),
             )
         else:
             self.alibi = None
 
     def forward(self, q, k, v, attn_mask):
-        b, lq, lk = q.shape[0], q.shape[1], k.shape[1]
+        b, lq, lk = q.shape[0], q.shape[2], k.shape[2]
         h, d = self.num_heads, self.head_size
-        q = q.reshape(b, lq, h, d).transpose(1, 2)
-        k = k.reshape(b, lk, h, d).transpose(1, 2)
-        v = v.reshape(b, lk, h, d).transpose(1, 2)
         if self.rotary is not None:
             q, k, v = self.rotary(q, k, v)
 
@@ -95,14 +116,11 @@ class SelfAttnOp(nn.Module):
             query = attn_mask[:, :lq].bool()
             key = attn_mask[:, :lk].bool()
             mask = (query.unsqueeze(-1) & key.unsqueeze(-2)).unsqueeze(1)
-        if self.alibi is not None:
-            qi = torch.arange(lq, device=q.device)[:, None]
-            ki = torch.arange(lk, device=q.device)[None, :]
-            bias = -torch.abs(qi - ki).to(q.dtype) * self.alibi.to(q.dtype)[:, None, None]
-            mask = bias[None] if mask is None else torch.where(mask, bias, -torch.inf)
 
-        att = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, is_causal=False)
-        return att.transpose(1, 2).contiguous().reshape(b, lq, h * d)
+        att = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=mask, is_causal=False
+        )  # bhld
+        return att
 
 
 class SelfAttention(nn.Module):
@@ -110,26 +128,25 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         self.head_size = head_size
-        self.qkv = init(nn.Linear(hidden_size, head_size * num_heads * 4), var_scale=0.5)
-        self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=False), var_scale=0.1)
+        self.qkv = init(nn.Linear(hidden_size, head_size * num_heads * 4))
+        self.fc = zero(nn.Linear(head_size * num_heads, hidden_size, bias=False))
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary)
 
     def forward(self, x, attn_mask):
         b, l, h, d = x.shape[0], x.shape[1], self.num_heads, self.head_size
-        q, k, v, gate = self.qkv(x).reshape(b, l, 4, h, d).permute(2, 0, 3, 1, 4)
-        q = q.transpose(1, 2).reshape(b, l, h * d)
-        k = k.transpose(1, 2).reshape(b, l, h * d)
-        v = v.transpose(1, 2).reshape(b, l, h * d)
-        att = self.attn_op(q, k, v, attn_mask).reshape(b, l, h, d).transpose(1, 2)
-        att = att * torch.sigmoid(gate)
-        return self.fc(att.transpose(1, 2).reshape(b, l, h * d))
+        q, k, v, gate = (
+            self.qkv(x).reshape(b, l, 4, h, d).permute(2, 0, 3, 1, 4)
+        )  # 4bhld
+        att = self.attn_op(q, k, v, attn_mask) * torch.sigmoid(gate)
+        att = att.permute(0, 2, 1, 3).contiguous().reshape(b, l, h * d)
+        return self.fc(att)
 
 
 class SwiGLU(nn.Module):
     def __init__(self, hidden_size):
         super().__init__()
         self.in_proj = init(nn.Linear(hidden_size, 8 * hidden_size))
-        self.out_proj = init(nn.Linear(4 * hidden_size, hidden_size, bias=False), var_scale=0.1)
+        self.out_proj = zero(nn.Linear(4 * hidden_size, hidden_size, bias=False))
 
     def forward(self, x):
         value, gate = self.in_proj(x).chunk(2, dim=-1)
@@ -137,13 +154,21 @@ class SwiGLU(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, hidden_size, num_heads, head_size, rotary=False):
+    def __init__(
+        self,
+        hidden_size,
+        num_heads,
+        head_size,
+        rotary=False,
+        canon="bidirectional",
+        canon_kernel_size=None,
+    ):
         super().__init__()
         self.layer_norm1 = nn.RMSNorm(hidden_size, elementwise_affine=False)
-        self.canon_a = Canon(hidden_size)
+        self.canon_a = make_canon(canon, hidden_size, canon_kernel_size)
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.layer_norm2 = nn.RMSNorm(hidden_size, elementwise_affine=False)
-        self.canon_c = Canon(hidden_size)
+        self.canon_c = make_canon(canon, hidden_size, canon_kernel_size)
         self.feed_forward = SwiGLU(hidden_size)
 
     def forward(self, x, attn_mask):
@@ -169,24 +194,26 @@ class Transformer(nn.Module):
         num_heads,
         head_size,
         rotary=False,
-        rotary_single=False,
+        canon="bidirectional",
+        canon_kernel_size=None,
     ):
         super().__init__()
-        self.rotary_single = RotarySingle(hidden_size) if rotary_single else None
-        self.canon = Canon(hidden_size)
         self.transformer_blocks = nn.ModuleList(
             [
-                TransformerBlock(hidden_size, num_heads, head_size, rotary=rotary)
+                TransformerBlock(
+                    hidden_size,
+                    num_heads,
+                    head_size,
+                    rotary=rotary,
+                    canon=canon,
+                    canon_kernel_size=canon_kernel_size,
+                )
                 for _ in range(num_layers)
             ]
         )
-        self.final_norm = nn.RMSNorm(hidden_size, elementwise_affine=False)
 
     def forward(self, x, attn_mask):
         attn_mask = attn_mask.bool()
-        if self.rotary_single is not None:
-            x = self.rotary_single(x)
-        x = self.canon(x).masked_fill(~attn_mask.unsqueeze(-1), 0)
         for block in self.transformer_blocks:
             x = block(x, attn_mask)
-        return self.final_norm(x).masked_fill(~attn_mask.unsqueeze(-1), 0)
+        return x
