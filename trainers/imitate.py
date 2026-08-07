@@ -57,7 +57,6 @@ def build_parser():
     parser.add_argument("--strategy")
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
-    parser.add_argument("--evaluation-every", type=int, default=25)
     parser.add_argument("--save-every", type=int, default=25)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
@@ -201,34 +200,17 @@ def _run(args, trackio_sink):
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),
     )
+    teacher_lineup = [
+        game.strategy_from_string(args.strategy),
+        game.strategy_from_string(args.strategy),
+    ]
 
     for step in range(start, args.steps):
         schedule.step(step)
 
-        if step % args.evaluation_every == 0:
-            with inference.evaluating():
-                player = inference.policy(temperature=args.eval_temperature)
-                evaluation = evaluator.compare(
-                    [player, player],
-                    names=["current", "current"],
-                    games=args.evaluation_games,
-                    max_steps=800,
-                )
-            metrics.log(
-                step,
-                evaluation={
-                    "win_rate": evaluation.win_rate(),
-                    "points": Range(evaluation.rollouts.my_points(0)),
-                },
-            )
-
         with inference.evaluating():
-            player = inference.policy()
             games = rollouts.play(
-                [
-                    game.strategy_from_string(args.strategy),
-                    game.strategy_from_string(args.strategy),
-                ],
+                teacher_lineup,
                 games=args.rollout_games,
                 max_steps=5_000,
                 rotate=True,
@@ -249,6 +231,13 @@ def _run(args, trackio_sink):
             save(checkpoints, completed, model, optimizer, args)
 
     trained_path = save(checkpoints, args.steps, model, optimizer, args)
+    log_gameplay_evaluation(
+        args.steps,
+        inference,
+        evaluator,
+        metrics,
+        args,
+    )
     if not args.pretrain:
         return trained_path
 
@@ -261,6 +250,24 @@ def _run(args, trackio_sink):
         optimizer=None,
         args=args,
         pretrain=True,
+    )
+
+
+def log_gameplay_evaluation(step, inference, evaluator, metrics, args):
+    with inference.evaluating():
+        player = inference.policy(temperature=args.eval_temperature)
+        evaluation = evaluator.compare(
+            [player, player],
+            names=["current", "current"],
+            games=args.evaluation_games,
+            max_steps=800,
+        )
+    metrics.log(
+        step,
+        evaluation={
+            "win_rate": evaluation.win_rate(),
+            "points": Range(evaluation.rollouts.my_points(0)),
+        },
     )
 
 
