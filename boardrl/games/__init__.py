@@ -121,7 +121,7 @@ class TheGame(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions, shuffle_hand),
-            reward_rescale=0.01,
+            reward_rescale=0.1,
             coop=True,
         )
 
