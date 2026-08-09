@@ -9,6 +9,7 @@ from boardrl.rl.model.loss import (
     ReverseEntropyBonus,
     SupportFloorPenalty,
     LinearEntropyBonus,
+    LinearSupportFloorPenalty,
     ScheduledPerplexity,
     KLPenalty,
     AdaptiveKLPenalty,
@@ -150,6 +151,23 @@ def test_linear_entropy_bonus_interpolates_strength():
     assert loss.strength(0.5) == 0.0055
     assert loss.strength(1.0) == 0.001
     assert loss.strength(2.0) == 0.001
+
+
+def test_linear_support_floor_interpolates_strength():
+    loss = LinearSupportFloorPenalty(floor_mass=0.01, start=0.01, end=0.002)
+
+    assert loss.strength(-1.0) == 0.01
+    assert loss.strength(0.5) == 0.006
+    assert loss.strength(1.0) == 0.002
+
+    logits = torch.tensor([0.0, -30.0])
+    sample = SimpleNamespace(action_idx=torch.tensor([0]))
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+    result = loss(
+        [logits], pred_value, sample, training_state={"progress": 0.5}
+    )
+
+    assert result.metrics["strength"] == 0.006
 
 
 def test_scheduled_perplexity_normalizes_uniform_and_single_action_policies():

@@ -27,6 +27,9 @@ from boardrl.rl.model.loss import (
     AdaptiveKLPenalty,
     BootstrapValueMSELoss,
     EntropyBonus,
+    LinearEntropyBonus,
+    LinearReverseEntropyBonus,
+    LinearSupportFloorPenalty,
     PolicyGradientLoss,
     ReverseEntropyBonus,
     ScheduledPerplexity,
@@ -51,6 +54,13 @@ def positive_int(value):
     return value
 
 
+def nonnegative_int(value):
+    value = int(value)
+    if value < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return value
+
+
 def positive_float(value):
     value = float(value)
     if value <= 0:
@@ -61,6 +71,11 @@ def positive_float(value):
 exploration_regularizers = {
     "entropy": EntropyBonus,
     "reverse-kl": ReverseEntropyBonus,
+}
+
+linear_exploration_regularizers = {
+    "entropy": LinearEntropyBonus,
+    "reverse-kl": LinearReverseEntropyBonus,
 }
 
 NUCLEUS_THRESHOLD = 0.95
@@ -93,15 +108,21 @@ def build_parser():
         ),
     )
     parser.add_argument(
+        "--schedule-start",
+        type=nonnegative_int,
+        default=0,
+        help="global step at which the exploration schedule starts",
+    )
+    parser.add_argument(
         "--lr-schedule-steps",
         type=positive_int,
         help="anneal learning rate over this many steps independently of exploration",
     )
     parser.add_argument(
-        "--perplexity-curve",
-        type=positive_float,
-        default=1.0,
-        help="power applied to exploration schedule progress (<1 anneals earlier)",
+        "--lr-schedule-start",
+        type=nonnegative_int,
+        default=0,
+        help="global step at which the learning-rate schedule starts",
     )
     parser.add_argument(
         "--inference-batch-size",
@@ -151,12 +172,24 @@ def build_parser():
     )
     parser.add_argument("--perplexity-start", type=float, default=2.0)
     parser.add_argument("--perplexity-end", type=float, default=1.05)
+    parser.add_argument(
+        "--perplexity-curve",
+        type=positive_float,
+        default=1.0,
+        help="power applied to thermostat target progress (<1 anneals earlier)",
+    )
     parser.add_argument("--entropy-strength", type=float, default=0.1)
     parser.add_argument(
         "--exploration-regularizer",
         choices=sorted(exploration_regularizers),
         default="entropy",
-        help="regularizer controlled by the scheduled-perplexity thermostat",
+        help="regularizer controlled by the exploration controller",
+    )
+    parser.add_argument(
+        "--exploration-controller",
+        choices=("thermostat", "linear"),
+        default="thermostat",
+        help="use adaptive perplexity control or linear strength decay",
     )
     parser.add_argument(
         "--entropy-baseline-ratio",
@@ -176,7 +209,13 @@ def build_parser():
         "--support-strength",
         type=float,
         default=0.001,
-        help="strength of the selective log-probability support barrier",
+        help="initial strength of the selective log-probability support barrier",
+    )
+    parser.add_argument(
+        "--support-strength-end",
+        type=float,
+        default=0.0,
+        help="final support-barrier strength after the exploration schedule",
     )
     parser.add_argument("--value-strength", type=float, default=1.0)
     parser.add_argument("--kl-target", type=float, default=0.003)
@@ -226,13 +265,8 @@ def make_learner(model, game, args):
         eps=args.adam_eps,
         weight_decay=args.weight_decay,
     )
-    losses = [
-        PolicyGradientLoss(
-            weight="normalized_gae",
-            drift="ppo",
-            imp_ratio_clip=args.ppo_clip,
-        ),
-        ScheduledPerplexity(
+    if args.exploration_controller == "thermostat":
+        exploration_loss = ScheduledPerplexity(
             start=args.perplexity_start,
             end=args.perplexity_end,
             init_strength=args.entropy_strength,
@@ -240,16 +274,39 @@ def make_learner(model, game, args):
             adaptation_rate=0.02,
             ppl_beta=0.98,
             deadband=0.02,
-            regularizer_factory=exploration_regularizers[args.exploration_regularizer],
+            regularizer_factory=exploration_regularizers[
+                args.exploration_regularizer
+            ],
+        )
+    else:
+        exploration_loss = linear_exploration_regularizers[
+            args.exploration_regularizer
+        ](
+            start=args.entropy_strength,
+            end=args.entropy_strength * args.entropy_baseline_ratio,
+        )
+
+    losses = [
+        PolicyGradientLoss(
+            weight="normalized_gae",
+            drift="ppo",
+            imp_ratio_clip=args.ppo_clip,
         ),
+        exploration_loss,
     ]
     if args.support_floor_mass is not None:
-        losses.append(
-            SupportFloorPenalty(
+        if args.exploration_controller == "linear":
+            support_loss = LinearSupportFloorPenalty(
+                floor_mass=args.support_floor_mass,
+                start=args.support_strength,
+                end=args.support_strength_end,
+            )
+        else:
+            support_loss = SupportFloorPenalty(
                 floor_mass=args.support_floor_mass,
                 strength=args.support_strength,
             )
-        )
+        losses.append(support_loss)
     losses.extend(
         [
             AdaptiveKLPenalty(
@@ -388,40 +445,53 @@ def _run(args, trackio_sink):
         ),
     )
 
-    for step in range(start, args.steps):
-        schedule.step(step)
-        schedule_progress = (
-            min(step / exploration_schedule_steps, 1.0) ** args.perplexity_curve
-        )
+    def evaluate(step):
+        nonlocal best_score
 
-        if step % args.evaluation_every == 0:
-            with inference.evaluating():
-                player = inference.policy(temperature=args.eval_temperature)
-                evaluation = evaluator.compare(
-                    [player, player],
-                    names=["current", "current"],
-                    games=args.evaluation_games,
-                    max_steps=800,
-                )
-            metrics.log(
-                step,
-                evaluation={
-                    "win_rate": evaluation.win_rate(),
-                    "points": Range(evaluation.rollouts.my_points(0)),
-                },
+        with inference.evaluating():
+            player = inference.policy(temperature=args.eval_temperature)
+            evaluation = evaluator.compare(
+                [player, player],
+                names=["current", "current"],
+                games=args.evaluation_games,
+                max_steps=800,
             )
-            score = evaluation.avg_points()
-            if args.save_best and score > best_score:
-                best_score = score
-                save(
-                    best_checkpoints,
-                    step,
-                    model,
-                    optimizer,
-                    learner,
-                    args,
-                    evaluation_points=score,
-                )
+        metrics.log(
+            step,
+            evaluation={
+                "win_rate": evaluation.win_rate(),
+                "points": Range(evaluation.rollouts.my_points(0)),
+            },
+        )
+        score = evaluation.avg_points()
+        if args.save_best and score > best_score:
+            best_score = score
+            save(
+                best_checkpoints,
+                step,
+                model,
+                optimizer,
+                learner,
+                args,
+                evaluation_points=score,
+            )
+
+    # Always establish and log a baseline before the first training step,
+    # including zero-step runs and resumed runs.
+    evaluate(start)
+
+    for step in range(start, args.steps):
+        if step >= args.lr_schedule_start:
+            schedule.step(step - args.lr_schedule_start)
+        schedule_progress = min(
+            max((step - args.schedule_start) / exploration_schedule_steps, 0.0),
+            1.0,
+        )
+        if args.exploration_controller == "thermostat":
+            schedule_progress **= args.perplexity_curve
+
+        if step != start and step % args.evaluation_every == 0:
+            evaluate(step)
 
         with inference.evaluating():
             player = inference.policy()
@@ -447,34 +517,10 @@ def _run(args, trackio_sink):
         if completed % args.save_every == 0:
             save(checkpoints, completed, model, optimizer, learner, args)
 
+    # Persist the terminal state even when args.steps is not a save interval.
     final_path = save(checkpoints, args.steps, model, optimizer, learner, args)
-    if args.save_best:
-        with inference.evaluating():
-            player = inference.policy(temperature=args.eval_temperature)
-            evaluation = evaluator.compare(
-                [player, player],
-                names=["current", "current"],
-                games=args.evaluation_games,
-                max_steps=800,
-            )
-        metrics.log(
-            args.steps,
-            evaluation={
-                "win_rate": evaluation.win_rate(),
-                "points": Range(evaluation.rollouts.my_points(0)),
-            },
-        )
-        score = evaluation.avg_points()
-        if score > best_score:
-            save(
-                best_checkpoints,
-                args.steps,
-                model,
-                optimizer,
-                learner,
-                args,
-                evaluation_points=score,
-            )
+    if args.save_best and args.steps != start:
+        evaluate(args.steps)
     return final_path
 
 

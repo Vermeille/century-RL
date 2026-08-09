@@ -578,8 +578,8 @@ class SupportFloorPenalty(Loss):
     def __init__(self, floor_mass: float = 0.01, strength: float = 0.001):
         if not 0.0 < floor_mass < 1.0:
             raise ValueError("support floor mass must be between zero and one")
-        if strength <= 0.0:
-            raise ValueError("support floor strength must be positive")
+        if strength < 0.0:
+            raise ValueError("support floor strength must be non-negative")
         self.floor_mass = floor_mass
         self.strength = strength
 
@@ -604,26 +604,64 @@ class SupportFloorPenalty(Loss):
         )
 
 
+class LinearRegularizer(Loss):
+    """Linearly decay the strength of another policy regularizer."""
+
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(
+        self,
+        regularizer_factory: Callable[[float], Loss],
+        start: float,
+        end: float = 0.0,
+    ):
+        if start < 0.0 or end < 0.0:
+            raise ValueError("regularizer strengths must be non-negative")
+        self.start = start
+        self.end = end
+        self.regularizer = regularizer_factory(start)
+
+    def strength(self, progress: float) -> float:
+        progress = max(0.0, min(1.0, progress))
+        return self.start * (1.0 - progress) + self.end * progress
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        strength = self.strength(training_state["progress"])
+        self.regularizer.strength = strength
+        result = self.regularizer(pred_policy, pred_value, sample, training_state)
+        result.metrics["strength"] = strength
+        return result
+
+
 @loss_from_string.register("linear_entropy_bonus")
-class LinearEntropyBonus(Loss):
+class LinearEntropyBonus(LinearRegularizer):
     needs_reference_policy_value = False
     supports_off_policy = True
     supports_partial_trajectories = True
 
     def __init__(self, start: float, end: float = 0.0):
-        self.start = start
-        self.end = end
+        super().__init__(EntropyBonus, start, end)
 
-    def strength(self, progress: float) -> float:
-        progress = max(0.0, min(1.0, progress))
-        return self.start * (1 - progress) + self.end * progress
 
-    def __call__(self, pred_policy, pred_value, sample, training_state):
-        progress = training_state["progress"]
-        strength = self.strength(progress)
-        result = EntropyBonus(strength)(pred_policy, pred_value, sample, training_state)
-        result.metrics["strength"] = strength
-        return result
+class LinearReverseEntropyBonus(LinearRegularizer):
+    def __init__(self, start: float, end: float = 0.0):
+        super().__init__(ReverseEntropyBonus, start, end)
+
+
+class LinearSupportFloorPenalty(LinearRegularizer):
+    def __init__(
+        self,
+        floor_mass: float = 0.01,
+        start: float = 0.001,
+        end: float = 0.0,
+    ):
+        super().__init__(
+            lambda strength: SupportFloorPenalty(floor_mass, strength),
+            start,
+            end,
+        )
 
 
 @loss_from_string.register("scheduled_perplexity")

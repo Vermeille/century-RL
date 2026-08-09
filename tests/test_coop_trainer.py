@@ -1,9 +1,11 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
 
 from boardrl.checkpoints import Checkpoints
+from boardrl.metrics import Range
 import trainers.coop as coop
 from trainers.coop import (
     apply_optimizer_hyperparameters,
@@ -11,6 +13,91 @@ from trainers.coop import (
     resolve_schedule_steps,
     run,
 )
+
+
+class _FakeEvaluationRollouts:
+    def my_points(self, player, by="strategy"):
+        return [1.0]
+
+
+class _FakeEvaluation:
+    rollouts = _FakeEvaluationRollouts()
+
+    def win_rate(self):
+        return 1.0
+
+    def avg_points(self):
+        return 1.0
+
+
+class _FakeEvaluator:
+    calls = []
+
+    def __init__(self, make_game, *, progress):
+        del make_game, progress
+
+    def compare(self, players, *, names, games, max_steps, rotate=True):
+        del players, names, games, max_steps, rotate
+        self.calls.append(0)
+        return _FakeEvaluation()
+
+
+class _FakeRolloutRunner:
+    def __init__(self, make_game, *, progress):
+        del make_game, progress
+
+    def play(self, players, *, games, max_steps, rotate=True):
+        del players, games, max_steps, rotate
+        return []
+
+
+class _RecordingMetricLogger:
+    instances = []
+
+    def __init__(self, *sinks):
+        del sinks
+        self.logs = []
+        self.games = []
+        self.instances.append(self)
+
+    def log(self, step, **values):
+        self.logs.append((step, values))
+
+    def game(self, step, metrics, *, histories=False):
+        del metrics, histories
+        self.games.append(step)
+
+
+class _CompletedLearner:
+    def __init__(self, *args, **kwargs):
+        del args, kwargs
+
+    def state_dict(self):
+        return {}
+
+    def train(self, *args, **kwargs):
+        del args, kwargs
+        return SimpleNamespace(metrics={})
+
+
+class _StatefulLearner(_CompletedLearner):
+    def __init__(self, marker):
+        self.state = {"marker": marker}
+
+    def state_dict(self):
+        return self.state
+
+    def load_state_dict(self, state):
+        self.state = state
+
+
+class _CheckpointModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.tensor(1.0))
+
+    def spec(self):
+        return {"test_model": True}
 
 
 def test_coop_cli_selects_game_and_architecture():
@@ -119,13 +206,45 @@ def test_coop_cli_selects_reverse_kl_exploration_regularizer():
     assert args.exploration_regularizer == "reverse-kl"
 
 
+def test_coop_cli_keeps_the_perplexity_thermostat_as_default():
+    assert build_parser().parse_args([]).exploration_controller == "thermostat"
+
+
+def test_coop_cli_can_select_linear_exploration_controller():
+    args = build_parser().parse_args(["--exploration-controller", "linear"])
+
+    assert args.exploration_controller == "linear"
+
+
+def test_coop_cli_supports_resumed_schedule_offsets():
+    args = build_parser().parse_args(
+        [
+            "--schedule-start",
+            "980",
+            "--lr-schedule-start",
+            "1260",
+        ]
+    )
+
+    assert args.schedule_start == 980
+    assert args.lr_schedule_start == 1260
+
+
 def test_coop_cli_configures_selective_action_support():
     args = build_parser().parse_args(
-        ["--support-floor-mass", "0.01", "--support-strength", "0.001"]
+        [
+            "--support-floor-mass",
+            "0.01",
+            "--support-strength",
+            "0.001",
+            "--support-strength-end",
+            "0.0",
+        ]
     )
 
     assert args.support_floor_mass == 0.01
     assert args.support_strength == 0.001
+    assert args.support_strength_end == 0.0
 
 
 def test_coop_resume_and_initialize_are_mutually_exclusive():
@@ -176,7 +295,7 @@ def test_coop_zero_step_smoke(tmp_path: Path) -> None:
             "--game",
             "tictactoe",
             "--architecture",
-            "toy",
+            "cnn",
             "--device",
             "cpu",
             "--steps",
@@ -190,14 +309,159 @@ def test_coop_zero_step_smoke(tmp_path: Path) -> None:
     path = run(args)
     state = Checkpoints(path.parent, prefix="step").load(path)
 
-    assert path.parent == tmp_path / "coop" / "tictactoe" / "toy" / "coop"
+    assert path.parent == tmp_path / "coop" / "tictactoe" / "cnn" / "coop"
     assert state["step"] == 0
     assert state["metadata"] == {
         "trainer": "coop",
         "game": "tictactoe",
-        "architecture": "toy",
+        "architecture": "cnn",
     }
     run_info = path.parent / "run.txt"
     assert run_info.exists()
     assert '"game": "tictactoe"' in run_info.read_text()
     assert "Cooperative PPO training from scratch" in run_info.read_text()
+
+
+def test_coop_evaluates_and_logs_before_zero_steps(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _FakeEvaluator.calls = []
+    _RecordingMetricLogger.instances = []
+    monkeypatch.setattr(coop, "Evaluator", _FakeEvaluator)
+    monkeypatch.setattr(coop, "RolloutRunner", _FakeRolloutRunner)
+    monkeypatch.setattr(coop, "MetricLogger", _RecordingMetricLogger)
+
+    args = build_parser().parse_args(
+        [
+            "--game",
+            "tictactoe",
+            "--architecture",
+            "cnn",
+            "--device",
+            "cpu",
+            "--steps",
+            "0",
+            "--evaluation-games",
+            "1",
+            "--checkpoint-root",
+            str(tmp_path),
+            "--no-progress",
+        ]
+    )
+
+    run(args)
+
+    assert _FakeEvaluator.calls == [0]
+    assert _RecordingMetricLogger.instances[0].logs == [
+        (0, {"evaluation": {"win_rate": 1.0, "points": Range([1.0])}})
+    ]
+
+
+def test_coop_saves_final_checkpoint_when_steps_is_not_save_multiple(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _FakeEvaluator.calls = []
+    _RecordingMetricLogger.instances = []
+    monkeypatch.setattr(coop, "Evaluator", _FakeEvaluator)
+    monkeypatch.setattr(coop, "RolloutRunner", _FakeRolloutRunner)
+    monkeypatch.setattr(coop, "MetricLogger", _RecordingMetricLogger)
+    monkeypatch.setattr(coop, "Learner", _CompletedLearner)
+
+    args = build_parser().parse_args(
+        [
+            "--game",
+            "tictactoe",
+            "--architecture",
+            "cnn",
+            "--device",
+            "cpu",
+            "--steps",
+            "3",
+            "--save-every",
+            "10",
+            "--evaluation-games",
+            "1",
+            "--checkpoint-root",
+            str(tmp_path),
+            "--no-progress",
+        ]
+    )
+
+    path = run(args)
+
+    state = Checkpoints(path.parent, prefix="step").load(path)
+    assert path.name == "step-3.pth"
+    assert state["step"] == 3
+
+
+def test_coop_resume_restores_model_optimizer_and_learner_state(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _FakeEvaluator.calls = []
+    _RecordingMetricLogger.instances = []
+    monkeypatch.setattr(coop, "Evaluator", _FakeEvaluator)
+    monkeypatch.setattr(coop, "RolloutRunner", _FakeRolloutRunner)
+    monkeypatch.setattr(coop, "MetricLogger", _RecordingMetricLogger)
+
+    source_model = _CheckpointModel()
+    source_optimizer = torch.optim.AdamW(source_model.parameters(), lr=0.3)
+    source_model.weight.sum().backward()
+    source_optimizer.step()
+    source_learner = _StatefulLearner("saved")
+    checkpoint_dir = tmp_path / "coop" / "tictactoe" / "cnn" / "resume-test"
+    checkpoint = Checkpoints(checkpoint_dir).save(
+        4,
+        {"current": source_model},
+        optimizers={"current": source_optimizer},
+        states={"learner": source_learner},
+    )
+
+    loaded = {}
+
+    def make_model(name):
+        del name
+        model = _CheckpointModel()
+        loaded["model"] = model
+        return model
+
+    def make_learner(model, game, args):
+        del game, args
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.1)
+        learner = _StatefulLearner("fresh")
+        loaded["optimizer"] = optimizer
+        loaded["learner"] = learner
+        return learner, optimizer
+
+    monkeypatch.setattr(coop, "make", make_model)
+    monkeypatch.setattr(coop, "make_learner", make_learner)
+
+    args = build_parser().parse_args(
+        [
+            "--game",
+            "tictactoe",
+            "--architecture",
+            "cnn",
+            "--device",
+            "cpu",
+            "--steps",
+            "4",
+            "--evaluation-games",
+            "1",
+            "--checkpoint-root",
+            str(tmp_path),
+            "--tag",
+            "resume-test",
+            "--resume",
+            str(checkpoint),
+            "--no-progress",
+        ]
+    )
+
+    run(args)
+
+    assert torch.equal(loaded["model"].weight, source_model.weight)
+    assert loaded["learner"].state == {"marker": "saved"}
+    source_state = next(iter(source_optimizer.state_dict()["state"].values()))
+    loaded_state = next(iter(loaded["optimizer"].state_dict()["state"].values()))
+    assert loaded_state["step"] == source_state["step"]
+    assert torch.equal(loaded_state["exp_avg"], source_state["exp_avg"])
