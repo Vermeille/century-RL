@@ -227,8 +227,7 @@ class PatchTransformerCNNBackbone(Backbone):
         max_len=None,
         num_heads=None,
         patch_size=4,
-        canon="bidirectional",
-        canon_kernel_size=None,
+        canon_kernel_size=5,
     ):
         super().__init__()
         if head_size is None and num_heads is None:
@@ -245,7 +244,6 @@ class PatchTransformerCNNBackbone(Backbone):
             num_heads=num_heads,
             head_size=head_size,
             patch_size=patch_size,
-            canon=canon,
             canon_kernel_size=canon_kernel_size,
         )
 

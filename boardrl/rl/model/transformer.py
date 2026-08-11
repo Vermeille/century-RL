@@ -18,32 +18,6 @@ class Canon(nn.Conv1d):
         return super().forward(x).transpose(1, 2)
 
 
-class CausalCanon(nn.Conv1d):
-    """Depthwise causal token mixing used by the original transformer."""
-
-    def __init__(self, dim, kernel_size=4):
-        super().__init__(dim, dim, kernel_size, groups=dim, bias=False)
-        self.kernel_size = kernel_size
-        with torch.no_grad():
-            self.weight.zero_()
-            self.weight[:, :, -1] = 1
-
-    def forward(self, x):
-        x = F.pad(x.transpose(1, 2), (self.kernel_size - 1, 0))
-        return super().forward(x).transpose(1, 2)
-
-
-CANONS = {
-    "bidirectional": Canon,
-    "causal": CausalCanon,
-}
-
-
-def make_canon(name, dim, kernel_size=None):
-    canon_cls = CANONS[name]
-    return canon_cls(dim) if kernel_size is None else canon_cls(dim, kernel_size)
-
-
 class Rotary(nn.Module):
     def __init__(self, dim, base=10000):
         super().__init__()
@@ -160,15 +134,14 @@ class TransformerBlock(nn.Module):
         num_heads,
         head_size,
         rotary=False,
-        canon="bidirectional",
-        canon_kernel_size=None,
+        canon_kernel_size: int = 5,
     ):
         super().__init__()
         self.layer_norm1 = nn.RMSNorm(hidden_size, elementwise_affine=False)
-        self.canon_a = make_canon(canon, hidden_size, canon_kernel_size)
+        self.canon_a = Canon(hidden_size, canon_kernel_size)
         self.sa = SelfAttention(hidden_size, num_heads, head_size, rotary=rotary)
         self.layer_norm2 = nn.RMSNorm(hidden_size, elementwise_affine=False)
-        self.canon_c = make_canon(canon, hidden_size, canon_kernel_size)
+        self.canon_c = Canon(hidden_size, canon_kernel_size)
         self.feed_forward = SwiGLU(hidden_size)
 
     def forward(self, x, attn_mask):
@@ -194,8 +167,7 @@ class Transformer(nn.Module):
         num_heads,
         head_size,
         rotary=False,
-        canon="bidirectional",
-        canon_kernel_size=None,
+        canon_kernel_size: int = 5,
     ):
         super().__init__()
         self.transformer_blocks = nn.ModuleList(
@@ -205,7 +177,6 @@ class Transformer(nn.Module):
                     num_heads,
                     head_size,
                     rotary=rotary,
-                    canon=canon,
                     canon_kernel_size=canon_kernel_size,
                 )
                 for _ in range(num_layers)

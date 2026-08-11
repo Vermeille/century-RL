@@ -39,25 +39,8 @@ def cnn(**overrides):
 def patch_model(scale, patch_size, **overrides):
     spec = {
         "backbone": "patch_transformer_cnn",
-        "backbone_kwargs": {"patch_size": patch_size},
-    } | scale
-    return Model(**(spec | overrides))
-
-
-def causal_patch_model(scale, patch_size, **overrides):
-    spec = {
-        "backbone": "patch_transformer_cnn",
-        "backbone_kwargs": {"patch_size": patch_size, "canon": "causal"},
-    } | scale
-    return Model(**(spec | overrides))
-
-
-def wide_canon_patch_model(scale, patch_size, **overrides):
-    spec = {
-        "backbone": "patch_transformer_cnn",
         "backbone_kwargs": {
             "patch_size": patch_size,
-            "canon": "bidirectional",
             "canon_kernel_size": 7,
         },
     } | scale
@@ -76,16 +59,6 @@ for scale_name, scale in MODEL_SCALES.items():
     for patch_size in PATCH_SIZES:
         architectures[f"patchformer-{scale_name}-p{patch_size}"] = partial(
             patch_model,
-            scale,
-            patch_size,
-        )
-        architectures[f"patchformer-{scale_name}-p{patch_size}-causal"] = partial(
-            causal_patch_model,
-            scale,
-            patch_size,
-        )
-        architectures[f"patchformer-{scale_name}-p{patch_size}-wide-canon"] = partial(
-            wide_canon_patch_model,
             scale,
             patch_size,
         )

@@ -69,8 +69,7 @@ class PatchTransformerCNNEncoder(nn.Module):
         head_size,
         patch_size,
         local_layers=2,
-        canon="bidirectional",
-        canon_kernel_size=None,
+        canon_kernel_size=5,
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -89,7 +88,6 @@ class PatchTransformerCNNEncoder(nn.Module):
             num_heads,
             head_size,
             rotary=False,
-            canon=canon,
             canon_kernel_size=canon_kernel_size,
         )
         self.context_project = init(MaskedConv1d(dim, dim, kernel_size=5, padding=2))
