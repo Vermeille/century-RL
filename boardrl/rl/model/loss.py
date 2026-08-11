@@ -650,6 +650,11 @@ class LinearReverseEntropyBonus(LinearRegularizer):
         super().__init__(ReverseEntropyBonus, start, end)
 
 
+class LinearSymmetricUniformKLPenalty(LinearRegularizer):
+    def __init__(self, start: float, end: float = 0.0):
+        super().__init__(SymmetricUniformKLPenalty, start, end)
+
+
 class LinearSupportFloorPenalty(LinearRegularizer):
     def __init__(
         self,
@@ -899,6 +904,40 @@ class ReverseEntropyBonus(Loss):
         reverse_kl = -safe_log_probs.sum(dim=1) / action_counts
         reverse_kl = reverse_kl - action_counts.log()
         return LossResult(self.strength * reverse_kl.mean())
+
+
+@loss_from_string.register("symmetric_uniform_kl")
+class SymmetricUniformKLPenalty(Loss):
+    """Jeffreys divergence between the policy and the legal-action uniform prior.
+
+    This averages both KL directions. The policy-to-uniform direction is the
+    usual entropy regularizer up to a per-state constant, while the
+    uniform-to-policy direction retains a recovery gradient for actions whose
+    probability has become very small.
+    """
+
+    needs_reference_policy_value = False
+    supports_off_policy = True
+    supports_partial_trajectories = True
+
+    def __init__(self, strength: float):
+        self.strength = strength
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        padded = pack_cached(pred_policy, training_state, "pred_policy")
+        mask = torch.isfinite(padded)
+        action_counts = mask.sum(dim=1)
+        log_probs = F.log_softmax(padded, dim=1)
+        safe_log_probs = torch.where(mask, log_probs, torch.zeros_like(log_probs))
+        probs = torch.where(
+            mask, safe_log_probs.exp(), torch.zeros_like(safe_log_probs)
+        )
+        log_action_counts = action_counts.float().log()
+
+        forward_kl = (probs * safe_log_probs).sum(dim=1) + log_action_counts
+        reverse_kl = -safe_log_probs.sum(dim=1) / action_counts - log_action_counts
+        symmetric_kl = 0.5 * (forward_kl + reverse_kl)
+        return LossResult(self.strength * symmetric_kl.mean())
 
 
 @loss_from_string.register("value_mse_loss")

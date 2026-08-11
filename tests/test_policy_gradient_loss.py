@@ -7,6 +7,7 @@ from boardrl.rl.model.loss import (
     PolicyGradientLoss,
     EntropyBonus,
     ReverseEntropyBonus,
+    SymmetricUniformKLPenalty,
     SupportFloorPenalty,
     LinearEntropyBonus,
     LinearSupportFloorPenalty,
@@ -81,6 +82,42 @@ def test_reverse_entropy_keeps_recovery_gradient_for_forgotten_action():
     objective.backward()
 
     assert torch.allclose(logits.grad[1], torch.tensor(-0.5))
+
+
+def test_symmetric_uniform_kl_averages_both_kl_directions():
+    pred_policy = [
+        torch.tensor([0.0, 2.0]),
+        torch.tensor([-1.0, 0.0, 1.0]),
+    ]
+    sample = SimpleNamespace(action_idx=torch.tensor([0, 0]))
+    pred_value = SimpleNamespace(mean=torch.zeros(2))
+
+    objective = SymmetricUniformKLPenalty(strength=0.3)(
+        pred_policy, pred_value, sample, training_state={}
+    ).objective
+    per_state = []
+    for logits in pred_policy:
+        log_probs = logits.log_softmax(0)
+        probs = log_probs.exp()
+        log_count = math.log(logits.numel())
+        forward_kl = (probs * log_probs).sum() + log_count
+        reverse_kl = -log_probs.mean() - log_count
+        per_state.append(0.5 * (forward_kl + reverse_kl))
+
+    assert torch.allclose(objective, 0.3 * torch.stack(per_state).mean())
+
+
+def test_symmetric_uniform_kl_recovers_a_forgotten_action():
+    logits = torch.tensor([0.0, -30.0], requires_grad=True)
+    sample = SimpleNamespace(action_idx=torch.tensor([0]))
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+
+    objective = SymmetricUniformKLPenalty(strength=1.0)(
+        [logits], pred_value, sample, training_state={}
+    ).objective
+    objective.backward()
+
+    assert torch.allclose(logits.grad[1], torch.tensor(-0.25), atol=1e-5)
 
 
 def test_support_floor_is_inactive_above_the_probability_floor():

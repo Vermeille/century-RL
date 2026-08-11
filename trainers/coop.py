@@ -29,11 +29,13 @@ from boardrl.rl.model.loss import (
     EntropyBonus,
     LinearEntropyBonus,
     LinearReverseEntropyBonus,
+    LinearSymmetricUniformKLPenalty,
     LinearSupportFloorPenalty,
     PolicyGradientLoss,
     ReverseEntropyBonus,
     ScheduledPerplexity,
     SupportFloorPenalty,
+    SymmetricUniformKLPenalty,
 )
 from boardrl.training import (
     ComputeReturns,
@@ -71,11 +73,13 @@ def positive_float(value):
 exploration_regularizers = {
     "entropy": EntropyBonus,
     "reverse-kl": ReverseEntropyBonus,
+    "symmetric-kl": SymmetricUniformKLPenalty,
 }
 
 linear_exploration_regularizers = {
     "entropy": LinearEntropyBonus,
     "reverse-kl": LinearReverseEntropyBonus,
+    "symmetric-kl": LinearSymmetricUniformKLPenalty,
 }
 
 NUCLEUS_THRESHOLD = 0.95
@@ -178,6 +182,12 @@ def build_parser():
         default=1.0,
         help="power applied to thermostat target progress (<1 anneals earlier)",
     )
+    parser.add_argument(
+        "--perplexity-adaptation-rate",
+        type=positive_float,
+        default=0.004,
+        help="thermostat response rate for perplexity error",
+    )
     parser.add_argument("--entropy-strength", type=float, default=0.1)
     parser.add_argument(
         "--exploration-regularizer",
@@ -271,7 +281,7 @@ def make_learner(model, game, args):
             end=args.perplexity_end,
             init_strength=args.entropy_strength,
             baseline_ratio=args.entropy_baseline_ratio,
-            adaptation_rate=0.02,
+            adaptation_rate=args.perplexity_adaptation_rate,
             ppl_beta=0.98,
             deadband=0.02,
             regularizer_factory=exploration_regularizers[
