@@ -464,7 +464,7 @@ class AdaptiveKLPenalty(Loss):
 
         self.target = target
         self.init_strength = init_strength
-        self.max_strength = self.init_strength * 10.0
+        self.max_strength = self.init_strength * 100.0
         self.adaptation_rate = adaptation_rate
         self.deadband = deadband
 
