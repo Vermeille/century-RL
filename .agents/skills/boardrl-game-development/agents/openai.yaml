@@ -1,0 +1,4 @@
+interface:
+  display_name: "BoardRL Game Development"
+  short_description: "Implement and integrate BoardRL games"
+  default_prompt: "Use $boardrl-game-development to implement or review a BoardRL game and its integration."
