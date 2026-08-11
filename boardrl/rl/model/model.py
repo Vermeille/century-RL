@@ -69,7 +69,8 @@ class ValueHead(nn.Module):
             self.attention._reset_parameters()
             self.attention.out_proj.reset_parameters()
             self.norm.reset_parameters()
-            zero(self.out)
+            zero(self.out[0])
+            zero(self.out[2])
             self.raw_value_scale.fill_(math.log(math.expm1(self.initial_value_scale)))
 
     def forward(self, x, attn_mask):
@@ -102,7 +103,8 @@ class PolicyHead(nn.Module):
 
     def reinit(self):
         self.norm.reset_parameters()
-        init(self.out, var_scale=0.1)
+        init(self.out[0], self.dim**-0.5)
+        init(self.out[2], var_scale=0.1)
 
     def actions(self, x, mask, positions):
         counts = [len(indices) for indices in positions]
@@ -140,7 +142,6 @@ class TransformerBackbone(Backbone):
         max_len=2048,
         num_heads=None,
         rotary: bool = True,
-        rotary_single: bool = False,
     ):
         super().__init__()
         if head_size is None and num_heads is None:
@@ -164,7 +165,6 @@ class TransformerBackbone(Backbone):
             num_heads,
             head_size,
             rotary=rotary,
-            rotary_single=rotary_single,
         )
 
     def forward(self, tokens, attn_mask):
