@@ -51,16 +51,6 @@ def _parse_piles(state: str) -> List[int]:
     raise ValueError("Could not find pile information in state string")
 
 
-def _parse_action(state: str) -> int:
-    """Extract the number of cards already played on the current turn."""
-
-    for line in state.splitlines():
-        if line.startswith("Round:"):
-            # Format: ``Round: 0, Action: 2``
-            return int(line.rsplit("Action:", 1)[1].strip())
-    raise ValueError("Could not find action information in state string")
-
-
 def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
     """Return ``(cost, ten_rule_used)`` for a move."""
 
@@ -121,11 +111,12 @@ class Metrics(GameMetrics):
         total_moves = 0
         lowest_cost_moves = 0
         ten_rule_moves = []
-        plays_before_x = []
+        x_skipped = []
         message_logits = []
 
         for game in self.data:
             for player in game:
+                cur_x_skipped = 0
                 ten_rule_moves.append(0)
                 for rec in player[:-1]:
                     piles = _parse_piles(rec.state)
@@ -146,7 +137,10 @@ class Metrics(GameMetrics):
 
                     chosen_move = rec.moves[rec.action_idx]
                     if chosen_move == "x":
-                        plays_before_x.append(_parse_action(rec.state))
+                        x_skipped.append(cur_x_skipped)
+                        cur_x_skipped = 0
+                    else:
+                        cur_x_skipped = 0 if "x" not in rec.moves else cur_x_skipped + 1
 
                     message_indices = [
                         i for i, move in enumerate(rec.moves) if move in MESSAGE_MOVES
@@ -155,9 +149,7 @@ class Metrics(GameMetrics):
                         # Compare message content distributions conditional on
                         # choosing a message. This avoids conflating the learned
                         # vocabulary with the decision to keep playing cards.
-                        distribution = torch.as_tensor(
-                            rec.action_distribution
-                        ).detach()
+                        distribution = torch.as_tensor(rec.action_distribution).detach()
                         message_logits.append(distribution[message_indices].float())
 
         avg_cost = total_cost / total_moves if total_moves else 0.0
@@ -169,8 +161,8 @@ class Metrics(GameMetrics):
             "ratio_lowest_cost": ratio_lowest,
             "ten_rule_moves": Range(ten_rule_moves),
         }
-        if plays_before_x:
-            metrics["plays_before_x"] = Range(plays_before_x)
+        if x_skipped:
+            metrics["plays_before_x"] = Range(x_skipped)
         if message_logits:
             metrics["message_information"] = _message_information(message_logits)
         return metrics
