@@ -6,6 +6,7 @@ import torch
 from boardrl.training import TrainingSample
 from boardrl.training.returns import compute_returns
 from boardrl.training.returns import annotate_with_model
+from boardrl.training.returns import trimmed_mean_std
 
 
 class Log:
@@ -23,6 +24,24 @@ def make_history(points, *, terminal=True, truncated=False):
     logs = [Log(p) for p in points[:-1]]
     logs.append(Log(points[-1], terminal=terminal, truncated=truncated))
     return logs
+
+
+def test_trimmed_mean_std_removes_two_point_five_percent_from_each_tail():
+    values = torch.arange(40, dtype=torch.float32)
+    mean, std = trimmed_mean_std(values)
+    retained = values[1:-1]
+
+    assert mean == retained.mean().item()
+    assert std == retained.std().item()
+
+
+def test_trimmed_mean_std_keeps_small_batches_unchanged():
+    values = torch.tensor([-2.0, -1.0, 1.0, 2.0])
+
+    mean, std = trimmed_mean_std(values)
+
+    assert mean == values.mean().item()
+    assert std == values.std().item()
 
 
 def test_reward_rescale():

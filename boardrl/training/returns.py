@@ -8,6 +8,29 @@ from boardrl.utils import chunk
 import torch
 
 
+def trimmed_mean_std(
+    values: torch.Tensor, trim_fraction: float = 0.025
+) -> tuple[float, float]:
+    """Estimate mean and standard deviation after symmetric tail trimming.
+
+    The returned parameters are computed after removing the same fraction from
+    both sorted tails. The original values remain unchanged and are all
+    normalized with these parameters. Small batches retain all values rather
+    than removing fewer than one item from each tail.
+    """
+
+    if not 0 <= trim_fraction < 0.5:
+        raise ValueError("trim_fraction must be in [0, 0.5)")
+
+    trim_count = int(values.numel() * trim_fraction)
+    if trim_count == 0 or 2 * trim_count >= values.numel() - 1:
+        retained = values
+    else:
+        retained = values.sort().values[trim_count:-trim_count]
+
+    return retained.mean().item(), retained.std().item()
+
+
 def discount(rews: Iterable, discount_factor: float) -> float:
     """Return the discounted sum of rewards."""
     return sum(discount_factor**i * r.reward for i, r in enumerate(rews))
@@ -217,9 +240,6 @@ def annotate_with_model(
                 compute_gae(sample)
 
         gae_values = torch.tensor([s.gae for s in trainset])
-        mean = gae_values.mean().item()
-        std = gae_values.std().item()
+        mean, std = trimmed_mean_std(gae_values)
         for sample in trainset:
-            sample.normalized_gae = max(
-                -5.0, min(5.0, (sample.gae - mean) / (std + 1e-4))
-            )
+            sample.normalized_gae = (sample.gae - mean) / (std + 1e-4)
