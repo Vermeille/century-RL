@@ -150,20 +150,20 @@ class GameMetrics:
     """A game supplies metric values to the experiment's configured sinks."""
 
 
-def rollout_metrics(results) -> dict[str, object]:
+def rollout_metrics(results, *, coop: bool = False) -> dict[str, object]:
     """Game-independent rollout statistics."""
     if not results:
         return {"games": 0, "samples": 0}
-    return {
+    metrics = {
         "games": len(results),
         "samples": results.num_samples(),
-        "win_rate": [
-            results.win_rate(player, by="strategy")
-            for player in range(results.num_players())
-        ],
+        "win_rate": results.win_rate(0, by="strategy"),
         "avg_reward": [
             results.my_avg_reward(player, by="strategy")
             for player in range(results.num_players())
         ],
         "points": Range(results.my_points(0, by="strategy")),
     }
+    if coop:
+        metrics["win_rate"] = results.objective_win_rate()
+    return metrics

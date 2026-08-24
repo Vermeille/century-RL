@@ -48,13 +48,17 @@ class Record:
 
 
 class EndState:
-    def __init__(self, game: Game, player: int):
+    def __init__(self, game: Game, player: int, *, coop: bool = False):
         self.state = game.display(force=player)
         self.terminal = game.ended()
         self.truncated = not self.terminal
         self.cause = "proper" if self.terminal else "toolong"
         self.my_points = game.points_for(player)
         self.current_diff_points = game.diff_points_for(player)
+        if coop:
+            self.won = game.won() if self.terminal else False
+        else:
+            self.won = None
         self.player = player
         self.round = game.round()
 
@@ -80,6 +84,9 @@ class GameTrace(list):
 
     def num_players(self):
         return len(self)
+
+    def won(self):
+        return self.by_seat[0][-1].won
 
 
 class SelfPlayResults(list):
@@ -195,6 +202,9 @@ class SelfPlayResults(list):
         wins = self.my_wins(num, by=by)
         return sum(wins) / len(wins)
 
+    def objective_win_rate(self):
+        return sum(game.won() for game in self) / len(self)
+
     def my_avg_points(self, num: int, *, by: str = "strategy"):
         pts = self.my_points(num, by=by)
         return sum(pts) / len(pts)
@@ -221,6 +231,7 @@ async def play_game(
     game: Game,
     strategies: list[Strategy],
     max_len: int,
+    coop: bool = False,
 ):
     for _ in range(max_len):
         if game.ended():
@@ -233,7 +244,7 @@ async def play_game(
         yield rec
         game.play_idx(action)
     for p in range(len(strategies)):
-        yield EndState(game, p)
+        yield EndState(game, p, coop=coop)
 
 
 @torch.no_grad()
@@ -243,6 +254,7 @@ def self_play2(
     max_len: int,
     rotate: bool = True,
     desc: str | None = "playing games",
+    coop: bool = False,
 ):
     n_games = len(strategies)
     data: list[GameTrace | None] = [None] * n_games
@@ -261,7 +273,9 @@ def self_play2(
                 for i in range(n_players)
             ]
             game = make_game(num_players=n_players)
-            async for record in play_game(game, mixed_strategies, max_len):
+            async for record in play_game(
+                game, mixed_strategies, max_len, coop=coop
+            ):
                 traces[record.player].append(record)
             data[idx] = GameTrace(traces)
             pbar.update(1)
@@ -279,10 +293,34 @@ def self_play(
     max_len: int,
     rotate: bool = True,
     desc: str = "playing games",
+    coop: bool = False,
 ):
-    return self_play2(make_game, [strategies] * n_games, max_len, rotate, desc=desc)
+    return self_play2(
+        make_game,
+        [strategies] * n_games,
+        max_len,
+        rotate,
+        desc=desc,
+        coop=coop,
+    )
 
 
 @torch.no_grad()
-def pit(make_game, strategies, n_games, max_len, *, rotate: bool = True):
-    return self_play(make_game, strategies, n_games, max_len, rotate=rotate, desc="pit")
+def pit(
+    make_game,
+    strategies,
+    n_games,
+    max_len,
+    *,
+    rotate: bool = True,
+    coop: bool = False,
+):
+    return self_play(
+        make_game,
+        strategies,
+        n_games,
+        max_len,
+        rotate=rotate,
+        desc="pit",
+        coop=coop,
+    )

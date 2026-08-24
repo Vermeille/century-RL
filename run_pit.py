@@ -33,7 +33,8 @@ def main():
         if path is None
         else checkpoint_player(path, args.batch_size, args.temperature)
     )
-    result = Evaluator(games_library(args.game).make_game).compare(
+    game = games_library(args.game)
+    result = Evaluator(game.make_game, coop=game.coop).compare(
         [make_player(args.player1), make_player(args.player2)],
         names=[args.player1 or "random", args.player2 or "random"],
         games=args.games,
@@ -45,7 +46,7 @@ def main():
             {
                 "players": result.names,
                 "games": result.games,
-                "win_rate": [result.win_rate(0), result.win_rate(1)],
+                "win_rate": result.win_rate(),
                 "avg_points": [result.avg_points(0), result.avg_points(1)],
             },
             indent=2,

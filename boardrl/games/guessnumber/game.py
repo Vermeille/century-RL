@@ -105,6 +105,9 @@ class GuessNumber:
     def ended(self) -> bool:
         return self.finished
 
+    def won(self) -> bool:
+        return self.finished
+
     def points_for(self, me: int) -> int:
         # return 1 if self.ended() else 0
         return -self.round_

@@ -67,9 +67,10 @@ class Inference:
 class RolloutRunner:
     """Play batches of games from explicit Python player lineups."""
 
-    def __init__(self, make_game, *, progress: bool = True):
+    def __init__(self, make_game, *, progress: bool = True, coop: bool = False):
         self.make_game = make_game
         self.progress = progress
+        self.coop = coop
 
     def play(
         self,
@@ -90,4 +91,5 @@ class RolloutRunner:
             max_steps,
             rotate=rotate,
             desc=description if self.progress else None,
+            coop=self.coop,
         )

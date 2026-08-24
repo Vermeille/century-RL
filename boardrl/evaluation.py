@@ -13,8 +13,11 @@ from boardrl.rollouts import RolloutRunner
 class Evaluation:
     names: tuple[str, ...]
     rollouts: SelfPlayResults
+    coop: bool = False
 
     def win_rate(self, player=0) -> float:
+        if self.coop:
+            return self.rollouts.objective_win_rate()
         return self.rollouts.win_rate(player, by="strategy")
 
     def avg_points(self, player=0) -> float:
@@ -26,8 +29,9 @@ class Evaluation:
 
 
 class Evaluator:
-    def __init__(self, make_game, *, progress=True):
-        self.runner = RolloutRunner(make_game, progress=progress)
+    def __init__(self, make_game, *, progress=True, coop: bool = False):
+        self.runner = RolloutRunner(make_game, progress=progress, coop=coop)
+        self.coop = coop
 
     def compare(
         self,
@@ -46,7 +50,7 @@ class Evaluator:
             rotate=rotate,
             description="evaluation",
         )
-        return Evaluation(names, results)
+        return Evaluation(names, results, coop=self.coop)
 
 
 class Scoreboard:

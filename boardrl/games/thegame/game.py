@@ -387,6 +387,10 @@ class TheGame:
             bool(self.hands[self.curplay]) and not self.moves
         )
 
+    def won(self) -> bool:
+        """Return whether the cooperative objective was completed."""
+        return not self.deck and not any(self.hands)
+
     def points(self) -> int:
         """
         Returns the score for the current player.

@@ -190,8 +190,12 @@ def _run(args, trackio_sink):
         start = state["step"]
 
     inference = Inference(model, batch_size=args.batch_size)
-    rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
-    evaluator = Evaluator(game.make_game, progress=not args.no_progress)
+    rollouts = RolloutRunner(
+        game.make_game, progress=not args.no_progress, coop=game.coop
+    )
+    evaluator = Evaluator(
+        game.make_game, progress=not args.no_progress, coop=game.coop
+    )
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
@@ -222,7 +226,7 @@ def _run(args, trackio_sink):
         if completed % 1 == 0:
             metrics.log(
                 completed,
-                rollout=rollout_metrics(games),
+                rollout=rollout_metrics(games, coop=game.coop),
                 train=result.metrics,
             )
             metrics.game(completed, game.make_metrics(games))
