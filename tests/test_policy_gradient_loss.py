@@ -327,7 +327,7 @@ def test_scheduled_perplexity_state_round_trip():
     assert restored.last_strength == saved.last_strength
 
 
-def test_kl_regularizer_matches_manual():
+def test_reverse_kl_regularizer_matches_manual():
     logits = torch.tensor([0.5, -0.5], requires_grad=True)
     reference_logits = torch.tensor([-0.25, 0.25])
     sample = SimpleNamespace(
@@ -344,15 +344,15 @@ def test_kl_regularizer_matches_manual():
         [logits], pred_value, sample, training_state={}
     ).objective
     ce = F.cross_entropy(logits, sample.action_idx[0])
-    kl = F.kl_div(
-        F.log_softmax(logits, dim=0),
+    reverse_kl = F.kl_div(
         F.log_softmax(reference_logits, dim=0),
+        F.log_softmax(logits, dim=0),
         # KLPenalty treats each state as one batch item, even though this
         # standalone distribution is represented by a 1-D tensor.
         reduction="sum",
         log_target=True,
     )
-    expected = ce + 0.5 * kl
+    expected = ce + 0.5 * reverse_kl
     assert torch.allclose(loss, expected)
 
 
@@ -371,7 +371,7 @@ def test_kl_regularizer_batch_size_invariant():
     assert torch.allclose(one_loss, two_loss)
 
 
-def test_kl_regularizer_matches_manual_for_variable_move_counts():
+def test_reverse_kl_regularizer_matches_manual_for_variable_move_counts():
     pred_policy = [
         torch.tensor([0.5, -0.5], requires_grad=True),
         torch.tensor([1.0, 0.0, -1.0], requires_grad=True),
@@ -388,8 +388,8 @@ def test_kl_regularizer_matches_manual_for_variable_move_counts():
     ).objective
     manual = sum(
         F.kl_div(
-            F.log_softmax(logit, dim=0),
             F.log_softmax(ref_logit, dim=0),
+            F.log_softmax(logit, dim=0),
             reduction="sum",
             log_target=True,
         )

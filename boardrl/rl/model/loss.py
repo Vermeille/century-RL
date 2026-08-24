@@ -401,6 +401,8 @@ class PolicyGradientLoss(Loss):
 
 @loss_from_string.register("kl")
 class KLPenalty(Loss):
+    """Penalize reverse KL from the current policy to the reference policy."""
+
     needs_reference_policy_value = True
     supports_off_policy = True
     supports_partial_trajectories = True
@@ -420,10 +422,10 @@ class KLPenalty(Loss):
         safe_log_reference = torch.where(
             mask, log_reference, torch.zeros_like(log_reference)
         )
-        reference_prob = torch.where(
-            mask, safe_log_reference.exp(), torch.zeros_like(safe_log_reference)
+        policy_prob = torch.where(
+            mask, safe_log_policy.exp(), torch.zeros_like(safe_log_policy)
         )
-        return (reference_prob * (safe_log_reference - safe_log_policy)).sum() / len(
+        return (policy_prob * (safe_log_policy - safe_log_reference)).sum() / len(
             sample.reference_policy
         )
 
