@@ -6,6 +6,7 @@ import pytest
 
 from boardrl.games import games_library
 from boardrl.evaluation import Evaluation, Scoreboard
+from boardrl.metrics import rollout_metrics
 from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults, pit
 
 
@@ -72,10 +73,73 @@ def _make_game_trace(scores: list[tuple[int, float]]):
     for seat_id, (strategy_id, score) in enumerate(scores):
         trace = PlayerTrace(seat_id=seat_id, strategy_id=strategy_id)
         trace.append(
-            SimpleNamespace(current_diff_points=score, my_points=score, final=True)
+            SimpleNamespace(
+                current_diff_points=score,
+                my_points=score,
+                reward=0.0,
+                final=True,
+            )
         )
         traces.append(trace)
     return GameTrace(traces)
+
+
+def _make_outcome_trace(scores, won):
+    traces = []
+    for seat_id, (strategy_id, score) in enumerate(scores):
+        trace = PlayerTrace(seat_id=seat_id, strategy_id=strategy_id)
+        trace.append(
+            SimpleNamespace(
+                current_diff_points=score,
+                my_points=score,
+                reward=0.0,
+                final=True,
+                won=won,
+            )
+        )
+        traces.append(trace)
+    return GameTrace(traces)
+
+
+def test_adversarial_win_rate_is_for_first_strategy_and_draws_are_half() -> None:
+    results = SelfPlayResults(
+        [
+            _make_game_trace([(0, 1.0), (1, -1.0)]),
+            _make_game_trace([(0, 0.0), (1, 0.0)]),
+            _make_game_trace([(0, -1.0), (1, 1.0)]),
+        ]
+    )
+
+    evaluation = Evaluation(("first", "second"), results)
+
+    assert evaluation.win_rate() == pytest.approx(0.5)
+    assert rollout_metrics(results)["win_rate"] == pytest.approx(0.5)
+
+
+def test_cooperative_win_rate_is_shared_objective_success() -> None:
+    results = SelfPlayResults(
+        [
+            _make_outcome_trace([(0, 98.0), (1, 98.0)], won=True),
+            _make_outcome_trace([(0, 50.0), (1, 50.0)], won=False),
+        ]
+    )
+
+    evaluation = Evaluation(("first", "first"), results, coop=True)
+
+    assert evaluation.win_rate() == pytest.approx(0.5)
+    assert evaluation.win_rate(1) == pytest.approx(0.5)
+    assert rollout_metrics(results, coop=True)["win_rate"] == pytest.approx(0.5)
+
+
+def test_thegame_won_requires_empty_deck_and_hands() -> None:
+    game = games_library("thegame").make_game(num_players=2, max_value=20)
+
+    game.deck.clear()
+    game.hands = [[], []]
+    assert game.won()
+
+    game.hands[0].append(2)
+    assert not game.won()
 
 
 def test_scoreboard_tracks_explicit_evaluations():
