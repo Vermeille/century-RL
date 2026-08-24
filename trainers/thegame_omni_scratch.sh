@@ -10,6 +10,12 @@ source .env
 set +a
 
 python_bin="${PYTHON_BIN:-.venv/bin/python}"
+device="${DEVICE:-cuda}"
+if [[ "$device" == cuda* ]]; then
+  # Python safely offloads before stopping the whole job. Keep this wrapper
+  # and tee alive until that offload is complete.
+  trap '' TSTP
+fi
 steps="${STEPS:-2400}"
 seed="${SEED:-0}"
 rollout_games="${ROLLOUT_GAMES:-128}"

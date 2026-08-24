@@ -10,6 +10,10 @@ source .env
 set +a
 
 python_bin="${PYTHON_BIN:-.venv/bin/python}"
+if [[ "${DEVICE:-cuda}" == cuda* ]]; then
+  # The active Python trainer stops the whole job after safely offloading CUDA.
+  trap '' TSTP
+fi
 total_steps="${TOTAL_STEPS:-1600}"
 phase1_steps=$((total_steps * 70 / 100))
 phase2_steps=$((total_steps * 90 / 100))

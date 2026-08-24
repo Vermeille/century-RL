@@ -267,7 +267,7 @@ def resolve_schedule_steps(args):
     return lr_steps, exploration_steps
 
 
-def make_learner(model, game, args):
+def make_learner(model, reference, game, args):
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
@@ -341,6 +341,7 @@ def make_learner(model, game, args):
             ValueMetrics(),
         ],
         normalize_lr=True,
+        offload_modules=(reference,),
     )
     return learner, optimizer
 
@@ -382,7 +383,7 @@ def _run(args, trackio_sink):
             map_location=args.device,
         )
     reference = copy.deepcopy(model).eval()
-    learner, optimizer = make_learner(model, game, args)
+    learner, optimizer = make_learner(model, reference, game, args)
     lr_schedule_steps, exploration_schedule_steps = resolve_schedule_steps(args)
     schedule = LinearWarmupDecay(
         optimizer,
@@ -486,51 +487,59 @@ def _run(args, trackio_sink):
                 evaluation_points=score,
             )
 
-    # Always establish and log a baseline before the first training step,
-    # including zero-step runs and resumed runs.
-    evaluate(start)
+    with learner:
+        # Always establish and log a baseline before the first training step,
+        # including zero-step runs and resumed runs.
+        evaluate(start)
+        learner.safe_point()
 
-    for step in range(start, args.steps):
-        if step >= args.lr_schedule_start:
-            schedule.step(step - args.lr_schedule_start)
-        schedule_progress = min(
-            max((step - args.schedule_start) / exploration_schedule_steps, 0.0),
-            1.0,
-        )
-        if args.exploration_controller == "thermostat":
-            schedule_progress **= args.perplexity_curve
-
-        if step != start and step % args.evaluation_every == 0:
-            evaluate(step)
-
-        with inference.evaluating():
-            player = inference.policy()
-            games = rollouts.play(
-                [player, player],
-                games=args.rollout_games,
-                max_steps=5_000,
-                rotate=True,
+        for step in range(start, args.steps):
+            learner.safe_point()
+            if step >= args.lr_schedule_start:
+                schedule.step(step - args.lr_schedule_start)
+            schedule_progress = min(
+                max((step - args.schedule_start) / exploration_schedule_steps, 0.0),
+                1.0,
             )
+            if args.exploration_controller == "thermostat":
+                schedule_progress **= args.perplexity_curve
 
-        copy_weights(reference, model)
-        result = learner.train(prepare(games), progress=schedule_progress)
-        completed = step + 1
+            if step != start and step % args.evaluation_every == 0:
+                evaluate(step)
+                learner.safe_point()
 
-        if completed % 5 == 0:
-            metrics.log(
-                completed,
-                rollout=rollout_metrics(games),
-                train=result.metrics,
-            )
-            metrics.game(completed, game.make_metrics(games))
+            with inference.evaluating():
+                player = inference.policy()
+                games = rollouts.play(
+                    [player, player],
+                    games=args.rollout_games,
+                    max_steps=5_000,
+                    rotate=True,
+                )
+            learner.safe_point()
 
-        if completed % args.save_every == 0:
-            save(checkpoints, completed, model, optimizer, learner, args)
+            copy_weights(reference, model)
+            result = learner.train(prepare(games), progress=schedule_progress)
+            learner.safe_point()
+            completed = step + 1
 
-    # Persist the terminal state even when args.steps is not a save interval.
-    final_path = save(checkpoints, args.steps, model, optimizer, learner, args)
-    if args.save_best and args.steps != start:
-        evaluate(args.steps)
+            if completed % 5 == 0:
+                metrics.log(
+                    completed,
+                    rollout=rollout_metrics(games),
+                    train=result.metrics,
+                )
+                metrics.game(completed, game.make_metrics(games))
+
+            if completed % args.save_every == 0:
+                save(checkpoints, completed, model, optimizer, learner, args)
+
+        learner.safe_point()
+        # Persist the terminal state even when args.steps is not a save interval.
+        final_path = save(checkpoints, args.steps, model, optimizer, learner, args)
+        if args.save_best and args.steps != start:
+            evaluate(args.steps)
+            learner.safe_point()
     return final_path
 
 

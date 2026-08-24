@@ -12,6 +12,7 @@ import torch
 
 from boardrl.rl.model.loss import Loss
 from boardrl.rl.utils import explained_variance, pearson_corr
+from boardrl.training.cuda_pause import CudaOffloadPause
 from boardrl.training.sample import TrainingSample
 from boardrl.utils import chunk
 
@@ -218,7 +219,10 @@ class Learner:
 
     The surrounding algorithm remains plain Python: it decides where samples
     came from, which model supplies targets, when to train, and when to update
-    any opponent.
+    any opponent. Used as a context manager, the learner also owns cooperative
+    Ctrl-Z handling. ``offload_modules`` adds reference or target networks that
+    must move with the optimized model, and :meth:`safe_point` marks
+    experiment-level boundaries where pausing is safe.
     """
 
     def __init__(
@@ -234,6 +238,7 @@ class Learner:
         augmentations: Sequence[Callable] = (),
         batch_metrics: Sequence[Callable] = (),
         normalize_lr: bool = False,
+        offload_modules: Sequence[torch.nn.Module] = (),
     ):
         self.model = model
         self.optimizer = optimizer
@@ -245,9 +250,26 @@ class Learner:
         self.augmentations = tuple(augmentations)
         self.batch_metrics = tuple(batch_metrics)
         self.normalize_lr = normalize_lr
+        self._pause = CudaOffloadPause(
+            (model, *offload_modules),
+            optimizer,
+            device=device,
+        )
         # Keep the reference across train() calls so changing rollout sizes
         # does not change the intended update magnitude.
         self.base_batches = None
+
+    def __enter__(self):
+        self._pause.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return self._pause.__exit__(exc_type, exc_value, traceback)
+
+    def safe_point(self):
+        """Honor a pending pause at an experiment-safe boundary."""
+
+        self._pause.service()
 
     def state_dict(self):
         return {

@@ -72,6 +72,15 @@ class _CompletedLearner:
     def __init__(self, *args, **kwargs):
         del args, kwargs
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        del exc_type, exc_value, traceback
+
+    def safe_point(self):
+        pass
+
     def state_dict(self):
         return {}
 
@@ -424,7 +433,8 @@ def test_coop_resume_restores_model_optimizer_and_learner_state(
         loaded["model"] = model
         return model
 
-    def make_learner(model, game, args):
+    def make_learner(model, reference, game, args):
+        del reference
         del game, args
         optimizer = torch.optim.AdamW(model.parameters(), lr=0.1)
         learner = _StatefulLearner("fresh")
