@@ -51,6 +51,15 @@ def _parse_piles(state: str) -> List[int]:
     raise ValueError("Could not find pile information in state string")
 
 
+def _parse_action(state: str) -> int:
+    """Extract the number of cards already played on the current turn."""
+
+    for line in state.splitlines():
+        if line.startswith("Round:"):
+            return int(line.rsplit("Action:", 1)[1].strip())
+    raise ValueError("Could not find action information in state string")
+
+
 def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
     """Return ``(cost, ten_rule_used)`` for a move."""
 
@@ -137,7 +146,7 @@ class Metrics(GameMetrics):
 
                     chosen_move = rec.moves[rec.action_idx]
                     if chosen_move == "x":
-                        x_skipped.append(cur_x_skipped)
+                        x_skipped.append(cur_x_skipped or _parse_action(rec.state))
                         cur_x_skipped = 0
                     else:
                         cur_x_skipped = 0 if "x" not in rec.moves else cur_x_skipped + 1
