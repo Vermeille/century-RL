@@ -348,8 +348,31 @@ class Learner:
         return norm
 
 
-class LinearWarmupDecay:
-    """Small explicit scheduler used by the former config-driven trainer."""
+class ScheduleShape:
+    """Interpolation shape mapping normalized progress from zero to one."""
+
+    def __call__(self, progress: float) -> float:
+        raise NotImplementedError
+
+
+class LinearScheduleShape(ScheduleShape):
+    def __call__(self, progress: float) -> float:
+        return progress
+
+
+class CosineScheduleShape(ScheduleShape):
+    def __call__(self, progress: float) -> float:
+        return 0.5 * (1.0 - math.cos(math.pi * progress))
+
+
+SCHEDULE_SHAPES = {
+    "linear": LinearScheduleShape(),
+    "cosine": CosineScheduleShape(),
+}
+
+
+class WarmupDecay:
+    """Optimizer warmup followed by a shaped decay to a floor."""
 
     def __init__(
         self,
@@ -358,11 +381,13 @@ class LinearWarmupDecay:
         steps: int,
         warmup: int | None = None,
         min_scale: float = 0.0,
+        shape: ScheduleShape,
     ):
         self.optimizer = optimizer
         self.steps = steps
         self.warmup = min(100, steps * 0.05) if warmup is None else warmup
         self.min_scale = min_scale
+        self.shape = shape
         self.initial_lrs = [group["lr"] for group in optimizer.param_groups]
 
     def step(self, step: int) -> float:
@@ -371,8 +396,37 @@ class LinearWarmupDecay:
         else:
             decay_steps = max(self.steps - self.warmup, 1)
             progress = (step - self.warmup) / decay_steps
-            scale = self.min_scale + (1 - self.min_scale) * (1 - progress)
+            progress = min(max(progress, 0.0), 1.0)
+            scale = self.min_scale + (1 - self.min_scale) * (
+                1 - self.shape(progress)
+            )
             scale = max(scale, self.min_scale)
         for initial_lr, group in zip(self.initial_lrs, self.optimizer.param_groups):
             group["lr"] = initial_lr * scale
         return self.optimizer.param_groups[0]["lr"]
+
+
+class LinearWarmupDecay(WarmupDecay):
+    """Backward-compatible linear warmup/decay scheduler."""
+
+    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0):
+        super().__init__(
+            optimizer,
+            steps=steps,
+            warmup=warmup,
+            min_scale=min_scale,
+            shape=SCHEDULE_SHAPES["linear"],
+        )
+
+
+class CosineWarmupDecay(WarmupDecay):
+    """Warm up linearly, then decay with a half cosine."""
+
+    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0):
+        super().__init__(
+            optimizer,
+            steps=steps,
+            warmup=warmup,
+            min_scale=min_scale,
+            shape=SCHEDULE_SHAPES["cosine"],
+        )

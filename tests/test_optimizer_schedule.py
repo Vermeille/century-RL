@@ -1,6 +1,8 @@
+import math
+
 import torch
 
-from boardrl.training import LinearWarmupDecay
+from boardrl.training import CosineWarmupDecay, LinearWarmupDecay
 
 
 def make_schedule(initial_lr=1.0, iterations=100):
@@ -39,3 +41,12 @@ def test_lr_schedule_supports_explicit_warmup_and_floor():
     assert schedule.step(100) == 0.2
 
     assert schedule.step(150) == 0.2
+
+
+def test_cosine_lr_schedule_uses_half_cosine_decay():
+    _, optimizer = make_schedule()
+    schedule = CosineWarmupDecay(optimizer, steps=100, warmup=0, min_scale=0.2)
+
+    assert schedule.step(0) == 1.0
+    assert math.isclose(schedule.step(50), 0.6)
+    assert schedule.step(100) == 0.2

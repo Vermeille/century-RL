@@ -11,16 +11,19 @@ from .postprocess import (
     samples_from,
 )
 from .learner import (
+    CosineWarmupDecay,
     Learner,
     LinearWarmupDecay,
     PolicyMetrics,
     TrainResult,
     ValueMetrics,
+    SCHEDULE_SHAPES,
     normalized_nucleus_size,
 )
 
 __all__ = [
     "ComputeReturns",
+    "CosineWarmupDecay",
     "DoubleQTargets",
     "DropFields",
     "Learner",
@@ -34,6 +37,7 @@ __all__ = [
     "TrainingSample",
     "TrainResult",
     "ValueMetrics",
+    "SCHEDULE_SHAPES",
     "collate",
     "normalized_nucleus_size",
     "samples_from",

@@ -39,6 +39,7 @@ from boardrl.rl.model.loss import (
 )
 from boardrl.training import (
     ComputeReturns,
+    CosineWarmupDecay,
     Learner,
     LinearWarmupDecay,
     Pipeline,
@@ -46,7 +47,14 @@ from boardrl.training import (
     ReferenceTargets,
     ToSamples,
     ValueMetrics,
+    SCHEDULE_SHAPES,
 )
+
+
+lr_schedulers = {
+    "linear": LinearWarmupDecay,
+    "cosine": CosineWarmupDecay,
+}
 
 
 def positive_int(value):
@@ -129,6 +137,12 @@ def build_parser():
         help="global step at which the learning-rate schedule starts",
     )
     parser.add_argument(
+        "--lr-schedule-shape",
+        choices=sorted(lr_schedulers),
+        default="linear",
+        help="shape of the learning-rate decay",
+    )
+    parser.add_argument(
         "--inference-batch-size",
         type=positive_int,
         default=512,
@@ -181,6 +195,12 @@ def build_parser():
         type=positive_float,
         default=1.0,
         help="power applied to thermostat target progress (<1 anneals earlier)",
+    )
+    parser.add_argument(
+        "--perplexity-schedule-shape",
+        choices=sorted(SCHEDULE_SHAPES),
+        default="linear",
+        help="shape used to interpolate the thermostat perplexity target",
     )
     parser.add_argument(
         "--perplexity-adaptation-rate",
@@ -243,6 +263,14 @@ def build_parser():
         type=Path,
         help="load model weights but start a fresh optimizer and step count",
     )
+    parser.add_argument(
+        "--resume-reset-exploration-state",
+        action="store_true",
+        help=(
+            "restore all learner state except the exploration loss state; "
+            "use when intentionally changing exploration controllers"
+        ),
+    )
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--tag", default="coop")
     parser.add_argument("--trackio", action="store_true")
@@ -267,6 +295,16 @@ def resolve_schedule_steps(args):
     return lr_steps, exploration_steps
 
 
+def optimizer_schedule_position(step, args):
+    """Map a global step to warmup/decay-local scheduler time."""
+    if step <= args.warmup:
+        return step
+    decay_start = max(args.lr_schedule_start, args.warmup)
+    if step >= decay_start:
+        return args.warmup + step - decay_start
+    return None
+
+
 def make_learner(model, reference, game, args):
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -284,9 +322,7 @@ def make_learner(model, reference, game, args):
             adaptation_rate=args.perplexity_adaptation_rate,
             ppl_beta=0.98,
             deadband=0.02,
-            regularizer_factory=exploration_regularizers[
-                args.exploration_regularizer
-            ],
+            regularizer_factory=exploration_regularizers[args.exploration_regularizer],
         )
     else:
         exploration_loss = linear_exploration_regularizers[
@@ -322,6 +358,7 @@ def make_learner(model, reference, game, args):
             AdaptiveKLPenalty(
                 target=args.kl_target,
                 init_strength=args.kl_strength,
+                adaptation_rate=args.kl_strength,
                 deadband=0.001,
             ),
             BootstrapValueMSELoss(strength=args.value_strength),
@@ -340,7 +377,7 @@ def make_learner(model, reference, game, args):
             PolicyMetrics(nucleus_threshold=NUCLEUS_THRESHOLD),
             ValueMetrics(),
         ],
-        normalize_lr=True,
+        normalize_lr=False,
         offload_modules=(reference,),
     )
     return learner, optimizer
@@ -356,6 +393,18 @@ def apply_optimizer_hyperparameters(optimizer, args):
             eps=args.adam_eps,
             weight_decay=args.weight_decay,
         )
+
+
+def load_resumed_learner_state(learner, state, *, reset_exploration_state):
+    if not reset_exploration_state:
+        learner.load_state_dict(state)
+        return
+
+    state = copy.deepcopy(state)
+    if len(state["losses"]) < 2 or len(learner.losses) < 2:
+        raise ValueError("learner has no exploration loss to reset")
+    state["losses"][1] = learner.losses[1].state_dict()
+    learner.load_state_dict(state)
 
 
 def run(args):
@@ -385,9 +434,9 @@ def _run(args, trackio_sink):
     reference = copy.deepcopy(model).eval()
     learner, optimizer = make_learner(model, reference, game, args)
     lr_schedule_steps, exploration_schedule_steps = resolve_schedule_steps(args)
-    schedule = LinearWarmupDecay(
+    schedule = lr_schedulers[args.lr_schedule_shape](
         optimizer,
-        steps=lr_schedule_steps,
+        steps=lr_schedule_steps + args.warmup,
         warmup=args.warmup,
         min_scale=args.min_lr_scale,
     )
@@ -426,8 +475,12 @@ def _run(args, trackio_sink):
             args.resume,
             models={"current": model},
             optimizers={"current": optimizer},
-            states={"learner": learner},
             map_location=args.device,
+        )
+        load_resumed_learner_state(
+            learner,
+            state["states"]["learner"],
+            reset_exploration_state=args.resume_reset_exploration_state,
         )
         apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
@@ -437,8 +490,10 @@ def _run(args, trackio_sink):
             best_score = best_state["metadata"]["evaluation_points"]
 
     inference = Inference(model, batch_size=args.inference_batch_size)
-    rollouts = RolloutRunner(game.make_game, progress=not args.no_progress)
-    evaluator = Evaluator(game.make_game, progress=not args.no_progress)
+    rollouts = RolloutRunner(
+        game.make_game, progress=not args.no_progress, coop=game.coop
+    )
+    evaluator = Evaluator(game.make_game, progress=not args.no_progress, coop=game.coop)
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
@@ -495,14 +550,18 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             learner.safe_point()
-            if step >= args.lr_schedule_start:
-                schedule.step(step - args.lr_schedule_start)
+            schedule_position = optimizer_schedule_position(step, args)
+            if schedule_position is not None:
+                schedule.step(schedule_position)
             schedule_progress = min(
                 max((step - args.schedule_start) / exploration_schedule_steps, 0.0),
                 1.0,
             )
             if args.exploration_controller == "thermostat":
                 schedule_progress **= args.perplexity_curve
+                schedule_progress = SCHEDULE_SHAPES[
+                    args.perplexity_schedule_shape
+                ](schedule_progress)
 
             if step != start and step % args.evaluation_every == 0:
                 evaluate(step)
@@ -526,7 +585,7 @@ def _run(args, trackio_sink):
             if completed % 5 == 0:
                 metrics.log(
                     completed,
-                    rollout=rollout_metrics(games),
+                    rollout=rollout_metrics(games, coop=game.coop),
                     train=result.metrics,
                 )
                 metrics.game(completed, game.make_metrics(games))

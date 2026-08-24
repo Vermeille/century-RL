@@ -10,6 +10,8 @@ import trainers.coop as coop
 from trainers.coop import (
     apply_optimizer_hyperparameters,
     build_parser,
+    load_resumed_learner_state,
+    optimizer_schedule_position,
     resolve_schedule_steps,
     run,
 )
@@ -33,8 +35,8 @@ class _FakeEvaluation:
 class _FakeEvaluator:
     calls = []
 
-    def __init__(self, make_game, *, progress):
-        del make_game, progress
+    def __init__(self, make_game, *, progress, coop=False):
+        del make_game, progress, coop
 
     def compare(self, players, *, names, games, max_steps, rotate=True):
         del players, names, games, max_steps, rotate
@@ -43,8 +45,8 @@ class _FakeEvaluator:
 
 
 class _FakeRolloutRunner:
-    def __init__(self, make_game, *, progress):
-        del make_game, progress
+    def __init__(self, make_game, *, progress, coop=False):
+        del make_game, progress, coop
 
     def play(self, players, *, games, max_steps, rotate=True):
         del players, games, max_steps, rotate
@@ -215,8 +217,27 @@ def test_coop_cli_selects_reverse_kl_exploration_regularizer():
     assert args.exploration_regularizer == "reverse-kl"
 
 
+def test_coop_cli_selects_symmetric_kl_exploration_regularizer():
+    args = build_parser().parse_args(
+        ["--exploration-regularizer", "symmetric-kl"]
+    )
+
+    assert args.exploration_regularizer == "symmetric-kl"
+
+
 def test_coop_cli_keeps_the_perplexity_thermostat_as_default():
-    assert build_parser().parse_args([]).exploration_controller == "thermostat"
+    args = build_parser().parse_args([])
+
+    assert args.exploration_controller == "thermostat"
+    assert args.perplexity_adaptation_rate == 0.004
+
+
+def test_coop_cli_configures_perplexity_adaptation_rate():
+    args = build_parser().parse_args(
+        ["--perplexity-adaptation-rate", "0.01"]
+    )
+
+    assert args.perplexity_adaptation_rate == 0.01
 
 
 def test_coop_cli_can_select_linear_exploration_controller():
@@ -237,6 +258,34 @@ def test_coop_cli_supports_resumed_schedule_offsets():
 
     assert args.schedule_start == 980
     assert args.lr_schedule_start == 1260
+
+
+def test_coop_cli_supports_cosine_perplexity_and_lr_schedules():
+    args = build_parser().parse_args(
+        [
+            "--perplexity-schedule-shape",
+            "cosine",
+            "--lr-schedule-shape",
+            "cosine",
+        ]
+    )
+
+    assert args.perplexity_schedule_shape == "cosine"
+    assert args.lr_schedule_shape == "cosine"
+
+
+def test_delayed_lr_decay_keeps_initial_warmup_at_the_start_of_training():
+    args = build_parser().parse_args(
+        ["--warmup", "20", "--lr-schedule-start", "480"]
+    )
+
+    assert optimizer_schedule_position(0, args) == 0
+    assert optimizer_schedule_position(19, args) == 19
+    assert optimizer_schedule_position(20, args) == 20
+    assert optimizer_schedule_position(21, args) is None
+    assert optimizer_schedule_position(479, args) is None
+    assert optimizer_schedule_position(480, args) == 20
+    assert optimizer_schedule_position(599, args) == 139
 
 
 def test_coop_cli_configures_selective_action_support():
@@ -261,6 +310,39 @@ def test_coop_resume_and_initialize_are_mutually_exclusive():
 
     with pytest.raises(SystemExit):
         parser.parse_args(["--resume", "old.pth", "--initialize-from", "best.pth"])
+
+
+def test_resume_can_reset_only_the_exploration_loss_state():
+    class StatefulLoss:
+        def __init__(self, state):
+            self.state = state
+
+        def state_dict(self):
+            return self.state
+
+    class RecordingLearner:
+        losses = [StatefulLoss({"policy": "new"}), StatefulLoss({})]
+
+        def load_state_dict(self, state):
+            self.loaded = state
+
+    learner = RecordingLearner()
+    saved = {
+        "base_batches": 17,
+        "losses": [{"policy": "saved"}, {"thermostat": "saved"}],
+    }
+
+    load_resumed_learner_state(
+        learner,
+        saved,
+        reset_exploration_state=True,
+    )
+
+    assert learner.loaded == {
+        "base_batches": 17,
+        "losses": [{"policy": "saved"}, {}],
+    }
+    assert saved["losses"][1] == {"thermostat": "saved"}
 
 
 def test_cli_adamw_hyperparameters_override_restored_optimizer_state():
