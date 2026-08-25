@@ -26,12 +26,12 @@ def _record(state, moves, action_idx, action_distribution=None):
     )
 
 
-def _state(action):
+def _state(action, *, cards=20):
     return "\n".join(
         [
             f"Round: 0, Action: {action}",
             "Piles: 1 1 100 100",
-            "Cards: 20",
+            f"Cards: {cards}",
             "Hand: 10 20",
         ]
     )
@@ -98,7 +98,34 @@ def test_plays_before_x_is_a_range():
 
     plays_before_x = _metrics_for(records)["plays_before_x"]
 
-    assert list(plays_before_x.values) == list(range(2, 22))
+    assert list(plays_before_x.values) == list(range(20))
+
+
+@pytest.mark.parametrize(
+    "action,cards,expected",
+    [
+        (2, 20, 0),
+        (5, 20, 3),
+        (1, 0, 0),
+        (4, 0, 3),
+    ],
+)
+def test_plays_before_x_subtracts_the_rule_mandatory_plays(
+    action, cards, expected
+):
+    records = [_record(_state(action, cards=cards), ["x"], 0)]
+
+    plays_before_x = _metrics_for(records)["plays_before_x"]
+
+    assert list(plays_before_x.values) == [expected]
+
+
+def test_plays_before_x_needs_no_trace_before_a_resumed_midturn_state():
+    records = [_record(_state(5, cards=20), ["x"], 0)]
+
+    plays_before_x = _metrics_for(records)["plays_before_x"]
+
+    assert list(plays_before_x.values) == [3]
 
 
 def test_message_information_detects_state_dependent_one_hot_protocol():
