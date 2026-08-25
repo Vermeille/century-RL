@@ -22,6 +22,9 @@ class GameMode:
     has_messages = False
     displays_all_information = False
 
+    def randomize_hidden_state(self, game):
+        random.shuffle(game.deck)
+
     def moves_after_minimum_cards(self, game):
         raise NotImplementedError
 
@@ -65,6 +68,11 @@ class Omni(Free):
 
     name = "omni"
     displays_all_information = True
+
+    def randomize_hidden_state(self, game):
+        hidden_deck = game.deck[:-10]
+        random.shuffle(hidden_deck)
+        game.deck[:-10] = hidden_deck
 
 
 class StrictMessageBeforeDraw(GameMode):
@@ -186,7 +194,7 @@ class TheGame:
         g.max_value = self.max_value
         g.deck = self.deck[:]
         if randomize:
-            random.shuffle(g.deck)
+            g.game_mode.randomize_hidden_state(g)
         g.piles = self.piles[:]
         g.hands = [h[:] for h in self.hands]
         g._round = self._round
