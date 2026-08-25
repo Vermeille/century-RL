@@ -18,7 +18,9 @@ statistics:
     than the current pile value; such a move has an effective cost of ``-10``.
 
 ``plays_before_x``
-    The distribution of cards played on turns explicitly ended with ``x``.
+    The distribution of optional cards played on turns explicitly ended with
+    ``x``. Two cards are mandatory while the deck is nonempty, and one is
+    mandatory after it empties.
 
 ``message_information``
     How strongly the policy over message symbols depends on the state. It is
@@ -58,6 +60,20 @@ def _parse_action(state: str) -> int:
         if line.startswith("Round:"):
             return int(line.rsplit("Action:", 1)[1].strip())
     raise ValueError("Could not find action information in state string")
+
+
+def _parse_cards(state: str) -> int:
+    """Extract the number of cards remaining in the drawing deck."""
+
+    for line in state.splitlines():
+        if line.startswith("Cards:"):
+            return int(line.removeprefix("Cards:").strip())
+    raise ValueError("Could not find drawing deck size in state string")
+
+
+def _optional_plays_before_x(state: str) -> int:
+    mandatory_plays = 2 if _parse_cards(state) else 1
+    return _parse_action(state) - mandatory_plays
 
 
 def _cost(move: str, piles: List[int]) -> Tuple[int, bool]:
@@ -125,7 +141,6 @@ class Metrics(GameMetrics):
 
         for game in self.data:
             for player in game:
-                cur_x_skipped = 0
                 ten_rule_moves.append(0)
                 for rec in player[:-1]:
                     piles = _parse_piles(rec.state)
@@ -146,10 +161,7 @@ class Metrics(GameMetrics):
 
                     chosen_move = rec.moves[rec.action_idx]
                     if chosen_move == "x":
-                        x_skipped.append(cur_x_skipped or _parse_action(rec.state))
-                        cur_x_skipped = 0
-                    else:
-                        cur_x_skipped = 0 if "x" not in rec.moves else cur_x_skipped + 1
+                        x_skipped.append(_optional_plays_before_x(rec.state))
 
                     message_indices = [
                         i for i, move in enumerate(rec.moves) if move in MESSAGE_MOVES
