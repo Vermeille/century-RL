@@ -13,7 +13,8 @@ statistics:
     Fraction of moves that played the minimum-cost option available.
 
 ``ten_rule_moves``
-    How often the special "10 rule" was used.  In ``The Game`` you may play a
+    Whether each played card used the special "10 rule". The mean is therefore
+    the fraction of cards played with the rule. In ``The Game`` you may play a
     card exactly ten higher (descending piles) or ten lower (ascending piles)
     than the current pile value; such a move has an effective cost of ``-10``.
 
@@ -141,7 +142,6 @@ class Metrics(GameMetrics):
 
         for game in self.data:
             for player in game:
-                ten_rule_moves.append(0)
                 for rec in player[:-1]:
                     piles = _parse_piles(rec.state)
                     costs = []
@@ -156,10 +156,10 @@ class Metrics(GameMetrics):
                     total_moves += 1
                     if chosen_cost == min(costs):
                         lowest_cost_moves += 1
-                    if ten_flags[rec.action_idx]:
-                        ten_rule_moves[-1] += 1
 
                     chosen_move = rec.moves[rec.action_idx]
+                    if "->" in chosen_move:
+                        ten_rule_moves.append(int(ten_flags[rec.action_idx]))
                     if chosen_move == "x":
                         x_skipped.append(_optional_plays_before_x(rec.state))
 
