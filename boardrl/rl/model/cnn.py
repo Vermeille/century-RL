@@ -112,6 +112,7 @@ class PatchTransformerCNNEncoder(nn.Module):
             -1,
             self.patch_size,
         ).any(dim=-1)
+        patches = patches * patch_mask.unsqueeze(1)
         patches = self.global_context(
             self.norm(patches).transpose(1, 2),  # BLD
             patch_mask,
