@@ -2,6 +2,7 @@ import random
 
 
 MESSAGE_MOVES = list("ABCDEFGHIJ")
+PLAYED_CARD_SYMBOLS = "abcdefghijklmnopqrstuvwxyzABCDEF"
 GAME_MODES = {
     "strict",
     "free",
@@ -148,9 +149,7 @@ class TheGame:
     ):
         assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
         if mode not in GAME_MODES:
-            raise ValueError(
-                f"mode must be one of {sorted(GAME_MODES)}, got {mode!r}"
-            )
+            raise ValueError(f"mode must be one of {sorted(GAME_MODES)}, got {mode!r}")
         # Build the deck of 2..max_value-1
         self.max_value = max_value
         self.mode = mode
@@ -178,6 +177,7 @@ class TheGame:
         self.curplay = 0
         self.num_players = num_players
         self._turn_phase = PLAYING_PHASE
+        self._played_cards = 0
         self.moves = self.gen_moves()
         # Track last message each player sent when ending their turn
         self._last_messages = ["" for _ in range(num_players)]
@@ -202,6 +202,7 @@ class TheGame:
         g.curplay = self.curplay
         g.num_players = self.num_players
         g._turn_phase = self._turn_phase
+        g._played_cards = self._played_cards
         # Recompute legal moves from the copied state to avoid stale moves
         g.moves = g.gen_moves()
         g._last_messages = self._last_messages[:]
@@ -227,6 +228,7 @@ class TheGame:
             assert force in range(self.num_players)
             p = force
         pile_info = " ".join(f"{val}" for val in self.piles)
+        played_cards_memory = self.played_cards_memory()
         hand_lines = [f"Hand: {' '.join(str(c) for c in self.hands[p])}"]
         deck_line = ""
         if self.game_mode.displays_all_information:
@@ -251,10 +253,34 @@ class TheGame:
             f"Round: {self._round}, Action: {self.action}\n"
             f"Piles: {pile_info}\n"
             f"Cards: {len(self.deck)}\n"
+            f"Mem: {played_cards_memory}\n"
             f"{hands_line}\n"
             f"{deck_line}"
             f"{msg_line}"
         )
+
+    def played_cards_memory(self) -> str:
+        highest_decade = max(0, (self.max_value - 1) // 10)
+        return " ".join(
+            self._played_decade_memory(decade)
+            for decade in range(highest_decade, -1, -1)
+        )
+
+    def _played_decade_memory(self, decade: int) -> str:
+        start = decade * 10
+        return (
+            f"{decade}"
+            f"{self._played_card_symbol(start + 9)}"
+            f"{self._played_card_symbol(start + 4)}"
+        )
+
+    def _played_card_symbol(self, highest_card: int) -> str:
+        value = sum(
+            1 << bit
+            for bit in range(5)
+            if self._played_cards & (1 << (highest_card - bit))
+        )
+        return PLAYED_CARD_SYMBOLS[value]
 
     def display_with_moves(self) -> str:
         board = self.display()
@@ -367,6 +393,7 @@ class TheGame:
         # Execute the move:
         #  1) Remove the card from the current player's hand
         self.hands[player].remove(card)
+        self._played_cards |= 1 << card
 
         #  2) Update the pile
         self.piles[pile_idx] = card
