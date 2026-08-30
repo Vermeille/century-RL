@@ -3,7 +3,7 @@ import pytest
 from boardrl.games.tictactoe.game import TicTacToe
 from boardrl.games.connectfour.game import ConnectFour
 from boardrl.games.sum.game import Sum, RockPaperScissors
-from boardrl.games.thegame.game import TheGame
+from boardrl.games.thegame.game import PLAYED_CARD_SYMBOLS, TheGame
 
 
 def test_tictactoe_basic_win():
@@ -141,6 +141,54 @@ def test_thegame_play_and_draw():
     assert len(g.hands[0]) == 2
 
 
+def test_thegame_played_card_memory_starts_empty_in_descending_decade_order():
+    g = TheGame(num_players=2)
+
+    assert len(PLAYED_CARD_SYMBOLS) == 32
+    assert len(set(PLAYED_CARD_SYMBOLS)) == 32
+    assert PLAYED_CARD_SYMBOLS.isascii()
+    assert not set(PLAYED_CARD_SYMBOLS) & set("0123456789 \t\r\n")
+    assert g.played_cards_memory() == " ".join(
+        f"{decade}aa" for decade in range(9, -1, -1)
+    )
+
+    g._played_cards = sum(1 << card for card in range(80, 90))
+    assert "8FF" in g.played_cards_memory().split()
+
+
+def test_thegame_played_card_memory_orders_high_half_first_and_high_card_as_low_bit():
+    g = TheGame(num_players=1)
+    g.deck = []
+    g.hands = [[80, 84, 85, 89]]
+    g.moves = g.gen_moves()
+
+    g.play_str("84->0")
+    assert "8ab" in g.played_cards_memory().split()
+    g.play_str("80->1")
+    assert "8ar" in g.played_cards_memory().split()
+    g.play_str("89->2")
+    assert "8br" in g.played_cards_memory().split()
+    g.play_str("85->3")
+    assert "8rr" in g.played_cards_memory().split()
+
+
+def test_thegame_played_card_memory_accumulates_and_uses_dynamic_decades():
+    g = TheGame(num_players=1, max_value=30, mode="free")
+    g.deck = []
+    g.hands = [[4, 9, 14, 19, 24, 29]]
+    g.moves = g.gen_moves()
+
+    g.play_str("4->0")
+    before_exit = g.played_cards_memory()
+    g.play_str("x")
+    assert g.played_cards_memory() == before_exit
+
+    for card in (9, 14, 19, 24, 29):
+        g.play_str(f"{card}->0")
+
+    assert g.played_cards_memory() == "2bb 1bb 0bb"
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -184,9 +232,11 @@ def test_thegame_strict_before_draw_message_gets_message_action_only():
     assert g.action == 2
     assert g.moves == list("ABCDEFGHIJ")
 
+    before_message = g.played_cards_memory()
     g.play_str("A")
     assert g.current_player() == 1
     assert g._last_messages[0] == "A"
+    assert g.played_cards_memory() == before_message
 
 
 def test_thegame_free_without_messages_can_continue_or_exit():
@@ -218,6 +268,7 @@ def test_thegame_omni_matches_free_moves_and_displays_full_information():
         "Round: 0, Action: 0\n"
         "Piles: 1 1 100 100\n"
         "Cards: 12\n"
+        "Mem: 9aa 8aa 7aa 6aa 5aa 4aa 3aa 2aa 1aa 0aa\n"
         "Hand: 21\n"
         "Hand: 22\n"
         "Hand: 20\n"

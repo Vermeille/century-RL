@@ -12,6 +12,7 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     orig_piles = g.piles[:]
     orig_hands = [h[:] for h in g.hands]
     orig_last_msgs = g._last_messages[:]
+    orig_played_cards = g._played_cards
 
     # 1) Plain deep copy (no randomization)
     g2 = g.copy(randomize=False)
@@ -21,6 +22,7 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     assert g2.piles == orig_piles
     assert g2.hands == orig_hands
     assert g2._last_messages == orig_last_msgs
+    assert g2._played_cards == orig_played_cards
 
     # Different objects (deep copy of containers)
     assert g2.deck is not g.deck
@@ -37,11 +39,13 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     g.piles[0] += 1
     g.hands[0].append(123)
     g._last_messages[0] = "Z"
+    g._played_cards |= 1 << 24
 
     assert g2.deck == orig_deck
     assert g2.piles == orig_piles
     assert g2.hands == orig_hands
     assert g2._last_messages == orig_last_msgs
+    assert g2._played_cards == orig_played_cards
 
     # 2) Randomized copy should shuffle the deck but keep other state identical
     def fake_shuffle(xs):
@@ -57,6 +61,8 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     assert g3.piles == g.piles
     assert g3.hands == g.hands
     assert g3._last_messages == g._last_messages
+    assert g3._played_cards == g._played_cards
+    assert g3.played_cards_memory() == g.played_cards_memory()
 
     # Containers are distinct objects
     assert g3.deck is not g.deck

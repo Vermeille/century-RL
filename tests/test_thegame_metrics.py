@@ -76,7 +76,22 @@ def test_thegame_metrics():
     assert values["avg_cost"] == 10.0
     assert values["ratio_lowest_cost"] == 0.5
     assert list(values["points"].values) == [50]
-    assert list(values["ten_rule_moves"].values) == [1]
+    assert list(values["ten_rule_moves"].values) == [1, 0]
+
+
+def test_ten_rule_moves_is_per_card_and_excludes_non_card_actions():
+    ten_rule_state = _state(0).replace(
+        "Piles: 1 1 100 100", "Piles: 21 1 100 100"
+    )
+    records = [
+        _record(ten_rule_state, ["11->0"], 0),
+        _record(_state(1), ["x"], 0),
+        _record(_state(2), MESSAGE_MOVES, 0),
+    ]
+
+    ten_rule_moves = _metrics_for(records)["ten_rule_moves"]
+
+    assert list(ten_rule_moves.values) == [1]
 
 
 def test_thegame_metrics_self_play_runs():

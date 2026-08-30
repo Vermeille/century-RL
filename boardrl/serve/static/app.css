@@ -728,6 +728,12 @@ h2 {
   align-items: center;
 }
 
+.thegame-memory-value {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+}
+
 .thegame-board .piles {
   display: grid;
   grid-template-columns: repeat(4, minmax(112px, 1fr));

@@ -322,6 +322,7 @@ const game = {
     'Round: 0, Action: 0',
     'Piles: 1 1 100 100',
     'Cards: 84',
+    'Mem: 9aa 8ab 7aa 6aa 5aa 4aa 3aa 2aa 1aa 0aa',
     'Hand: 96 39 29 32 71 19 20',
     '@96->0',
     '@96->1',
@@ -330,9 +331,16 @@ const game = {
   ].join('\n'),
 };
 const piles = sandbox.parseTheGame(game).piles;
+const memory = sandbox.parseTheGame(game).memory;
 const html = sandbox.renderThegame(game);
 if (piles.length !== 4) throw new Error(`expected 4 piles, got ${piles.length}`);
 if (html.includes('undefined')) throw new Error('renderer leaked undefined');
+if (memory !== '9aa 8ab 7aa 6aa 5aa 4aa 3aa 2aa 1aa 0aa') {
+  throw new Error(`unexpected played-card memory: ${memory}`);
+}
+if (!html.includes('Played-card memory') || !html.includes('Mem: 9aa 8ab')) {
+  throw new Error('renderer did not display played-card memory');
+}
 if (!html.includes('Ascending') || !html.includes('Descending')) {
   throw new Error('renderer did not label pile directions');
 }

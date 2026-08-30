@@ -603,6 +603,7 @@ function parseTheGame(game) {
     piles: [],
     hand: [],
     cards: 0,
+    memory: "",
     messages: "",
     moves: game.moves,
   };
@@ -618,6 +619,8 @@ function parseTheGame(game) {
       data.piles = parseTheGamePiles(line.slice(6).trim());
     } else if (line.startsWith("Cards:")) {
       data.cards = Number(line.slice(6));
+    } else if (line.startsWith("Mem:")) {
+      data.memory = line.slice(4).trim();
     } else if (line.startsWith("Hand:") && !handSeen) {
       data.hand = line.slice(5).trim().split(/\s+/).filter(Boolean);
       handSeen = true;
@@ -678,6 +681,10 @@ function renderThegame(game) {
       <span class="score-pill">Played ${data.action}</span>
       <span class="score-pill">Deck ${data.cards}</span>
       ${data.messages ? `<span class="score-pill">Msgs ${escapeHtml(data.messages)}</span>` : ""}
+    </section>
+    <section class="thegame-section thegame-memory">
+      <div class="section-label">Played-card memory</div>
+      <div class="thegame-memory-value">Mem: ${escapeHtml(data.memory)}</div>
     </section>
     <section class="thegame-section">
       <div class="section-label">Piles</div>
