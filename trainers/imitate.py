@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import random
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
 from boardrl.models import architectures, make
 from boardrl.rl.model.loss import (
+    BootstrapValueMSELoss,
     CELoss,
 )
 from boardrl.training import (
@@ -31,7 +33,9 @@ from boardrl.training import (
     LinearWarmupDecay,
     Pipeline,
     PolicyMetrics,
+    ReferenceTargets,
     ToSamples,
+    ValueMetrics,
 )
 
 
@@ -64,6 +68,18 @@ def build_parser():
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--gradient-clip", type=float)
     parser.add_argument("--discount", type=float, default=1.0)
+    parser.add_argument(
+        "--gae-lambda",
+        type=float,
+        default=1.0,
+        help="trace decay for generalized advantage estimation",
+    )
+    parser.add_argument(
+        "--value-lambda",
+        type=float,
+        default=1.0,
+        help="trace decay for critic targets (1 uses pure Monte Carlo returns)",
+    )
     parser.add_argument("--perplexity-start", type=float, default=0.8)
     parser.add_argument("--perplexity-end", type=float, default=0.05)
     parser.add_argument("--entropy-strength", type=float, default=0.1)
@@ -127,7 +143,7 @@ def make_learner(model, args):
     learner = Learner(
         model,
         optimizer,
-        [CELoss()],
+        [CELoss(), BootstrapValueMSELoss(strength=args.value_strength)],
         batch_size=args.batch_size,
         device=args.device,
         epochs=args.epochs,
@@ -135,7 +151,7 @@ def make_learner(model, args):
         # Shuffling destroys lowest_cost's deterministic first-action tie break,
         # making exact supervised labels impossible to recover.
         augmentations=(),
-        batch_metrics=[PolicyMetrics(), AccuracyMetrics()],
+        batch_metrics=[PolicyMetrics(), ValueMetrics(), AccuracyMetrics()],
         normalize_lr=True,
     )
     return learner, optimizer
@@ -189,6 +205,8 @@ def _run(args, trackio_sink):
         )
         start = state["step"]
 
+    reference = copy.deepcopy(model).eval()
+
     inference = Inference(model, batch_size=args.batch_size)
     rollouts = RolloutRunner(
         game.make_game, progress=not args.no_progress, coop=game.coop
@@ -203,6 +221,14 @@ def _run(args, trackio_sink):
     prepare = Pipeline(
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),
+        ReferenceTargets(
+            reference,
+            batch_size=args.batch_size,
+            discount=args.discount,
+            gae_lambda=args.gae_lambda,
+            value_lambda=args.value_lambda,
+            reuse_rollout_predictions=False,
+        ),
     )
     teacher_lineup = [
         game.strategy_from_string(args.strategy),
@@ -220,6 +246,7 @@ def _run(args, trackio_sink):
                 rotate=True,
             )
 
+        reference.load_state_dict(model.state_dict())
         result = learner.train(prepare(games), progress=step / args.steps)
         completed = step + 1
 
