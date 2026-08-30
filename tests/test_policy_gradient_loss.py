@@ -461,6 +461,12 @@ def test_adaptive_kl_has_fixed_target_and_can_freeze_controller():
     assert loss.last_kl is not None
     assert loss.kl.strength == loss.init_strength
     assert result.metrics["kl"] == loss.last_kl
+    current_prob = logits.softmax(dim=0)
+    reference_prob = sample.reference_policy[0].softmax(dim=0)
+    expected_total_variation = 0.5 * (current_prob - reference_prob).abs().sum()
+    assert math.isclose(
+        result.metrics["total_variation"], expected_total_variation.item()
+    )
     assert result.metrics["target"] == loss.target
     assert result.metrics["strength"] == loss.kl.strength
     assert torch.isfinite(logits.grad).all()
