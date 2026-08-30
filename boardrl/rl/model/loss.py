@@ -410,7 +410,7 @@ class KLPenalty(Loss):
     def __init__(self, strength: float = 0.0):
         self.strength = strength
 
-    def divergence(self, pred_policy, sample, training_state):
+    def distances(self, pred_policy, sample, training_state):
         padded_policy = pack_cached(pred_policy, training_state, "pred_policy")
         padded_reference = pack_cached(
             sample.reference_policy, training_state, "reference_policy"
@@ -425,9 +425,17 @@ class KLPenalty(Loss):
         policy_prob = torch.where(
             mask, safe_log_policy.exp(), torch.zeros_like(safe_log_policy)
         )
-        return (policy_prob * (safe_log_policy - safe_log_reference)).sum() / len(
-            sample.reference_policy
+        reference_prob = torch.where(
+            mask, safe_log_reference.exp(), torch.zeros_like(safe_log_reference)
         )
+        batch_size = len(sample.reference_policy)
+        kl = (policy_prob * (safe_log_policy - safe_log_reference)).sum() / batch_size
+        total_variation = 0.5 * (policy_prob - reference_prob).abs().sum() / batch_size
+        return kl, total_variation
+
+    def divergence(self, pred_policy, sample, training_state):
+        divergence, _ = self.distances(pred_policy, sample, training_state)
+        return divergence
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         if self.strength is None or self.strength == 0:
@@ -509,8 +517,11 @@ class AdaptiveKLPenalty(Loss):
         self.last_strength = strength
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
-        divergence = self.kl.divergence(pred_policy, sample, training_state)
+        divergence, total_variation = self.kl.distances(
+            pred_policy, sample, training_state
+        )
         measured_kl = divergence.detach().item()
+        measured_total_variation = total_variation.detach().item()
 
         if training_state.get("update_kl_controller", True):
             self.update_strength(measured_kl)
@@ -521,6 +532,7 @@ class AdaptiveKLPenalty(Loss):
             penalty,
             metrics={
                 "kl": measured_kl,
+                "total_variation": measured_total_variation,
                 "target": self.target,
                 "strength": self.kl.strength,
             },
