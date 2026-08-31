@@ -123,20 +123,20 @@ class CrossAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         self.head_size = head_size
-        self.qkv = init(nn.Linear(hidden_size, head_size * num_heads * 3))
+        self.kv = init(nn.Linear(hidden_size, head_size * num_heads * 2))
+        self.qg = init(nn.Linear(hidden_size, head_size * num_heads * 2))
         # Standalone pooling must be live before its zeroed predictor can unblock it.
         self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=False))
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary)
 
     def forward(self, q, kv, attn_mask):
         b, lk, h, d = kv.shape[0], kv.shape[1], self.num_heads, self.head_size
-        k, v, gate = (
-            self.qkv(kv).reshape(b, lk, 3, h, d).permute(2, 0, 3, 1, 4)
-        )
+        lq = q.shape[1]
+        k, v = self.kv(kv).reshape(b, lk, 2, h, d).permute(2, 0, 3, 1, 4)
+        q, g = self.kv(q).reshape(b, lq, 2, h, d).permute(2, 0, 3, 1, 4)
         # Gate key/value positions before pooling; gating the pooled query would
         # broadcast a one-query result back across the key sequence.
-        att = self.attn_op(q, k, v * torch.sigmoid(gate), attn_mask)
-        lq = att.shape[2]
+        att = self.attn_op(q, k, v, attn_mask) * torch.sigmoid(g)
         return self.fc(att.permute(0, 2, 1, 3).contiguous().reshape(b, lq, h * d))
 
 

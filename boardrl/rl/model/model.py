@@ -51,7 +51,7 @@ class ValueHead(nn.Module):
         self.initial_value_scale = initial_value_scale
         self.dim = dim
         self.num_heads = num_heads
-        self.query = nn.Parameter(torch.randn(1, 1, dim))
+        self.query = nn.Parameter(torch.randn(1, dim))
         self.attention = CrossAttention(dim, num_heads, dim // num_heads)
         self.norm = nn.RMSNorm(dim)
         self.out = nn.Sequential(
@@ -71,9 +71,7 @@ class ValueHead(nn.Module):
             self.raw_value_scale.fill_(math.log(math.expm1(self.initial_value_scale)))
 
     def forward(self, x, attn_mask):
-        query = self.query.view(
-            1, self.num_heads, 1, self.dim // self.num_heads
-        ).expand(len(x), -1, -1, -1)
+        query = self.query.expand(len(x), 1, -1)
         summary = self.attention(query, self.norm(x), attn_mask)
         out = self.out(summary[:, 0])
         return F.softplus(self.raw_value_scale) * out
