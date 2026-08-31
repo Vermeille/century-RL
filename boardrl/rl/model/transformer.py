@@ -116,6 +116,30 @@ class SelfAttention(nn.Module):
         return self.fc(att)
 
 
+class CrossAttention(nn.Module):
+    """Cross-attention from head-space queries into encoded key/value tokens."""
+
+    def __init__(self, hidden_size, num_heads, head_size, rotary=False):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_size = head_size
+        self.qkv = init(nn.Linear(hidden_size, head_size * num_heads * 3))
+        # Standalone pooling must be live before its zeroed predictor can unblock it.
+        self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=False))
+        self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary)
+
+    def forward(self, q, kv, attn_mask):
+        b, lk, h, d = kv.shape[0], kv.shape[1], self.num_heads, self.head_size
+        k, v, gate = (
+            self.qkv(kv).reshape(b, lk, 3, h, d).permute(2, 0, 3, 1, 4)
+        )
+        # Gate key/value positions before pooling; gating the pooled query would
+        # broadcast a one-query result back across the key sequence.
+        att = self.attn_op(q, k, v * torch.sigmoid(gate), attn_mask)
+        lq = att.shape[2]
+        return self.fc(att.permute(0, 2, 1, 3).contiguous().reshape(b, lq, h * d))
+
+
 class SwiGLU(nn.Module):
     def __init__(self, hidden_size):
         super().__init__()

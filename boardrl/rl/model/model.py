@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from boardrl.rl.model.transformer import Transformer
+from boardrl.rl.model.transformer import CrossAttention, Transformer
 from boardrl.rl.model.gated_cnn import GatedCNNEncoder
 from boardrl.rl.model.cnn import (
     CNNEncoder,
@@ -42,19 +42,17 @@ class PolicyValue:
 
 
 class ValueHead(nn.Module):
-    """Pool the encoded state with one fixed learned cross-attention query."""
+    """Pool encoded state with one learned head-space query."""
 
     def __init__(self, dim, initial_value_scale=1.0, num_heads=4):
         super().__init__()
         if dim % num_heads:
             raise ValueError("value-head dimension must divide the head count")
         self.initial_value_scale = initial_value_scale
+        self.dim = dim
+        self.num_heads = num_heads
         self.query = nn.Parameter(torch.randn(1, 1, dim))
-        self.attention = nn.MultiheadAttention(
-            dim,
-            num_heads,
-            batch_first=True,
-        )
+        self.attention = CrossAttention(dim, num_heads, dim // num_heads)
         self.norm = nn.RMSNorm(dim)
         self.out = nn.Sequential(
             init(nn.Linear(dim, dim), dim**-0.5), nn.GELU(), zero(nn.Linear(dim, 2))
@@ -62,30 +60,23 @@ class ValueHead(nn.Module):
         self.raw_value_scale = nn.Parameter(
             torch.tensor(math.log(math.expm1(initial_value_scale)))
         )
+        self.reinit()
 
     def reinit(self):
         with torch.no_grad():
-            self.query.zero_()
-            self.attention._reset_parameters()
-            self.attention.out_proj.reset_parameters()
+            self.query.normal_()
             self.norm.reset_parameters()
-            zero(self.out[0])
+            init(self.out[0])
             zero(self.out[2])
             self.raw_value_scale.fill_(math.log(math.expm1(self.initial_value_scale)))
 
     def forward(self, x, attn_mask):
-        query = self.query.expand(len(x), -1, -1)
-        x = self.norm(x)
-        summary, _ = self.attention(
-            query,
-            x,
-            x,
-            key_padding_mask=~attn_mask,
-            need_weights=False,
-        )
+        query = self.query.view(
+            1, self.num_heads, 1, self.dim // self.num_heads
+        ).expand(len(x), -1, -1, -1)
+        summary = self.attention(query, self.norm(x), attn_mask)
         out = self.out(summary[:, 0])
-        value_scale = F.softplus(self.raw_value_scale)
-        return value_scale * out
+        return F.softplus(self.raw_value_scale) * out
 
 
 class PolicyHead(nn.Module):

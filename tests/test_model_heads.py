@@ -64,7 +64,7 @@ def test_heads_handle_variable_action_counts():
 
     assert model.to_pred.out[2].weight.grad is not None
     assert model.rewards.out[2].weight.grad is not None
-    assert model.rewards.attention.in_proj_weight.grad is not None
+    assert model.rewards.attention.qkv.weight.grad is not None
 
 
 def test_reinit_heads_preserves_backbone_and_resets_both_heads():
@@ -93,12 +93,12 @@ def test_reinit_heads_preserves_backbone_and_resets_both_heads():
     )
     assert torch.count_nonzero(model.to_pred.out[2].weight) > 0
     assert torch.count_nonzero(model.to_pred.out[2].bias) == 0
-    assert torch.count_nonzero(model.rewards.query) == 0
+    assert torch.count_nonzero(model.rewards.query) > 0
     assert torch.equal(
         model.rewards.norm.weight,
         torch.ones_like(model.rewards.norm.weight),
     )
-    assert torch.count_nonzero(model.rewards.out[0].weight) == 0
+    assert torch.count_nonzero(model.rewards.out[0].weight) > 0
     assert torch.count_nonzero(model.rewards.out[0].bias) == 0
     assert torch.count_nonzero(model.rewards.out[2].weight) == 0
     assert torch.count_nonzero(model.rewards.out[2].bias) == 0
