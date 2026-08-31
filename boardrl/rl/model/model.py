@@ -80,7 +80,7 @@ class ValueHead(nn.Module):
 class PolicyHead(nn.Module):
     """Score action tokens directly; global reasoning belongs to the backbone."""
 
-    def __init__(self, dim):
+    def __init__(self, dim, num_heads):
         super().__init__()
         self.dim = dim
         self.norm = nn.RMSNorm(dim)
@@ -89,6 +89,7 @@ class PolicyHead(nn.Module):
             nn.GELU(),
             init(nn.Linear(dim, 1), var_scale=0.1),
         )
+        self.attention = CrossAttention(dim, num_heads, dim // num_heads)
 
     def reinit(self):
         self.norm.reset_parameters()
@@ -107,11 +108,12 @@ class PolicyHead(nn.Module):
             device=x.device,
         )
 
+        x = self.norm(x)
         features = x.gather(
             1,
             index_matrix.unsqueeze(-1).expand(-1, -1, self.dim),
         )
-        logits = self.out(self.norm(features)).squeeze(-1)
+        logits = self.out(self.attention(features, x, mask)).squeeze(-1)
         return [row[:count] for row, count in zip(logits, counts)]
 
 
@@ -297,8 +299,8 @@ class Model(nn.Module):
                 **backbone_kwargs,
             )
             del self.backbone
-        self.to_pred = PolicyHead(dim)
-        self.rewards = ValueHead(dim)
+        self.to_pred = PolicyHead(dim, num_heads=num_heads)
+        self.rewards = ValueHead(dim, num_heads=num_heads)
 
     def spec(self):
         """Constructor arguments needed to recreate this model."""

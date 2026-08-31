@@ -90,8 +90,15 @@ class PatchTransformerCNNEncoder(nn.Module):
             rotary=False,
             canon_kernel_size=canon_kernel_size,
         )
-        self.context_project = init(MaskedConv1d(dim, dim, kernel_size=5, padding=2))
-        self.norm = Norm(dim)
+        self.context_project = init(
+            MaskedConv1d(
+                dim,
+                dim,
+                kernel_size=patch_size + 1,
+                padding=patch_size // 2,
+                groups=dim,
+            )
+        )
         self.tfm_out = nn.Parameter(torch.zeros(1))
 
     def forward(self, x, mask):
@@ -118,4 +125,4 @@ class PatchTransformerCNNEncoder(nn.Module):
         ).transpose(1, 2)  # BDL
 
         context = patches.repeat_interleave(self.patch_size, dim=-1)[..., :length]
-        return self.norm(self.context_project(local + self.tfm_out * context, mask))
+        return self.context_project(local + self.tfm_out * context, mask)
