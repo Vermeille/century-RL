@@ -133,7 +133,7 @@ class CrossAttention(nn.Module):
         b, lk, h, d = kv.shape[0], kv.shape[1], self.num_heads, self.head_size
         lq = q.shape[1]
         k, v = self.kv(kv).reshape(b, lk, 2, h, d).permute(2, 0, 3, 1, 4)
-        q, g = self.kv(q).reshape(b, lq, 2, h, d).permute(2, 0, 3, 1, 4)
+        q, g = self.qg(q).reshape(b, lq, 2, h, d).permute(2, 0, 3, 1, 4)
         # Gate key/value positions before pooling; gating the pooled query would
         # broadcast a one-query result back across the key sequence.
         att = self.attn_op(q, k, v, attn_mask) * torch.sigmoid(g)
