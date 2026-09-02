@@ -65,6 +65,7 @@ class ValueHead(nn.Module):
     def reinit(self):
         with torch.no_grad():
             self.query.normal_()
+            self.attention.reinit()
             self.norm.reset_parameters()
             init(self.out[0])
             zero(self.out[2])
@@ -92,6 +93,7 @@ class PolicyHead(nn.Module):
         self.attention = CrossAttention(dim, num_heads, dim // num_heads)
 
     def reinit(self):
+        self.attention.reinit()
         self.norm.reset_parameters()
         init(self.out[0], self.dim**-0.5)
         init(self.out[2], var_scale=0.1)
@@ -277,6 +279,9 @@ class Model(nn.Module):
         }
         self.backbone_name = backbone
         self.shared_backbone = shared_backbone
+        head_num_heads = num_heads
+        if head_num_heads is None:
+            head_num_heads = dim // head_size if head_size is not None else 4
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
@@ -299,8 +304,8 @@ class Model(nn.Module):
                 **backbone_kwargs,
             )
             del self.backbone
-        self.to_pred = PolicyHead(dim, num_heads=num_heads)
-        self.rewards = ValueHead(dim, num_heads=num_heads)
+        self.to_pred = PolicyHead(dim, num_heads=head_num_heads)
+        self.rewards = ValueHead(dim, num_heads=head_num_heads)
 
     def spec(self):
         """Constructor arguments needed to recreate this model."""

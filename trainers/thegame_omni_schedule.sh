@@ -54,7 +54,7 @@ fi
 
 high_ppl="${HIGH_PERPLEXITY:-2.5}"
 medium_ppl="${MEDIUM_PERPLEXITY:-1.5}"
-tag="${TAG:-omni-${recipe}-ppl${ppl_start_percent}-${ppl_end_percent}-lr${lr_start_percent}-${lr_end_percent}-n${total_steps}-s${SEED:-0}}"
+tag="${TAG:-${recipe}-ppl${ppl_start_percent}-${ppl_end_percent}-lr${lr_start_percent}-${lr_end_percent}-n${total_steps}-s${SEED:-0}}"
 
 snapshot_training_source() {
   local run_tag="$1"
@@ -81,8 +81,8 @@ snapshot_training_source() {
     echo "Base commit: $(git rev-parse HEAD)"
     echo "Launcher: trainers/thegame_omni_schedule.sh"
   } | GIT_AUTHOR_NAME="$identity_name" GIT_AUTHOR_EMAIL="$identity_email" \
-      GIT_COMMITTER_NAME="$identity_name" GIT_COMMITTER_EMAIL="$identity_email" \
-      git commit-tree "$snapshot_tree" -p HEAD)"
+    GIT_COMMITTER_NAME="$identity_name" GIT_COMMITTER_EMAIL="$identity_email" \
+    git commit-tree "$snapshot_tree" -p HEAD)"
 
   safe_tag="$(printf '%s' "$run_tag" | sed -E 's/[^A-Za-z0-9_+-]+/-/g; s/^-+//; s/-+$//' | cut -c1-80)"
   safe_tag="${safe_tag:-run}"

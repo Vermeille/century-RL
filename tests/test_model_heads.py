@@ -64,7 +64,8 @@ def test_heads_handle_variable_action_counts():
 
     assert model.to_pred.out[2].weight.grad is not None
     assert model.rewards.out[2].weight.grad is not None
-    assert model.rewards.attention.qkv.weight.grad is not None
+    assert model.rewards.attention.kv.weight.grad is not None
+    assert model.rewards.attention.qg.weight.grad is not None
 
 
 def test_reinit_heads_preserves_backbone_and_resets_both_heads():
@@ -103,6 +104,24 @@ def test_reinit_heads_preserves_backbone_and_resets_both_heads():
     assert torch.count_nonzero(model.rewards.out[2].weight) == 0
     assert torch.count_nonzero(model.rewards.out[2].bias) == 0
     assert torch.equal(model.rewards.raw_value_scale, initial_raw_value_scale)
+    for head in (model.to_pred, model.rewards):
+        assert torch.count_nonzero(head.attention.kv.weight != 7) > 0
+        assert torch.count_nonzero(head.attention.qg.weight != 7) > 0
+        assert torch.count_nonzero(head.attention.fc.weight != 7) > 0
+
+
+def test_heads_resolve_missing_head_counts_for_all_presets():
+    expected_heads = {
+        "toy": 8,
+        "cnn": 4,
+        "minimal-lstm": 4,
+        "minimal-gated-cnn": 4,
+    }
+
+    for name, num_heads in expected_heads.items():
+        model = make(name)
+        assert model.to_pred.attention.num_heads == num_heads
+        assert model.rewards.attention.num_heads == num_heads
 
 
 def test_patchformer_backbone_trains_local_and_global_paths():

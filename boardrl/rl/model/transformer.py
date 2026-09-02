@@ -129,6 +129,11 @@ class CrossAttention(nn.Module):
         self.fc = init(nn.Linear(head_size * num_heads, hidden_size, bias=False))
         self.attn_op = SelfAttnOp(head_size, num_heads, rotary=rotary)
 
+    def reinit(self):
+        init(self.kv)
+        init(self.qg)
+        init(self.fc)
+
     def forward(self, q, kv, attn_mask):
         b, lk, h, d = kv.shape[0], kv.shape[1], self.num_heads, self.head_size
         lq = q.shape[1]
