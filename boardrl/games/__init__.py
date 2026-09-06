@@ -9,6 +9,7 @@ from boardrl.games.nim.game import Nim as NimGame
 from boardrl.games.take5.game import Take5 as Take5Game
 from boardrl.games.skullking.game import SkullKing as SkullKingGame
 from boardrl.games.regicide.game import Regicide as RegicideGame
+from boardrl.games.hanabi.game import Hanabi as HanabiGame
 
 
 class GameDesc:
@@ -219,5 +220,20 @@ class Regicide(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=0.01,
+            coop=True,
+        )
+
+
+@games_library.register("hanabi", args_from=HanabiGame)
+class Hanabi(GameDesc):
+    def __init__(self, *args, **kwargs):
+        from boardrl.games.hanabi.metrics import Metrics
+
+        super().__init__(
+            partial(HanabiGame, *args, **kwargs),
+            strategy_from_string,
+            Metrics,
+            augmentations=(shuffle_actions,),
+            reward_rescale=0.1,
             coop=True,
         )
