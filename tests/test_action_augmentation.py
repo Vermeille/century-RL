@@ -2,6 +2,7 @@ import torch
 
 from boardrl.games import games_library
 from boardrl.games.augmentations import shuffle_actions
+from boardrl.games.connectfour.augmentations import horizontal_symmetry
 from boardrl.games.thegame.augmentations import shuffle_hand
 from boardrl.training import TrainingSample
 
@@ -47,6 +48,71 @@ def test_shuffle_actions_preserves_non_action_lines():
     assert augmented.state == "@a\nboard @ marker\n"
     assert augmented.action_idx == 0
     assert augmented.action_distribution == [0.1]
+
+
+def test_connectfour_horizontal_symmetry_mirrors_board_and_moves(monkeypatch):
+    monkeypatch.setattr(
+        "boardrl.games.connectfour.augmentations.random.random", lambda: 0.0
+    )
+    sample = TrainingSample(
+        state=(
+            ">X\n"
+            "|       |\n"
+            "|       |\n"
+            "|       |\n"
+            "|       |\n"
+            "|O      |\n"
+            "|OX X   |\n"
+            "---------\n"
+            "@0\n"
+            "@2\n"
+            "@5"
+        ),
+        moves=["0", "2", "5"],
+        action_idx=1,
+        action_distribution=torch.tensor([0.1, 0.7, 0.2]),
+        reference_policy=torch.tensor([0.2, 0.3, 0.5]),
+    )
+
+    augmented = horizontal_symmetry([sample])[0]
+
+    assert augmented is not sample
+    assert augmented.state == (
+        ">X\n"
+        "|       |\n"
+        "|       |\n"
+        "|       |\n"
+        "|       |\n"
+        "|      O|\n"
+        "|   X XO|\n"
+        "---------\n"
+        "@6\n"
+        "@4\n"
+        "@1"
+    )
+    assert augmented.moves == ["6", "4", "1"]
+    assert augmented.action_idx == 1
+    assert torch.equal(augmented.action_distribution, sample.action_distribution)
+    assert torch.equal(augmented.reference_policy, sample.reference_policy)
+    assert sample.moves == ["0", "2", "5"]
+
+
+def test_connectfour_horizontal_symmetry_can_leave_sample_unchanged(monkeypatch):
+    monkeypatch.setattr(
+        "boardrl.games.connectfour.augmentations.random.random", lambda: 0.5
+    )
+    sample = TrainingSample(
+        state=">O\n|O      |\n---------\n@0\n@6",
+        moves=["0", "6"],
+        action_idx=0,
+    )
+
+    augmented = horizontal_symmetry([sample])[0]
+
+    assert augmented is not sample
+    assert augmented.state == sample.state
+    assert augmented.moves == sample.moves
+    assert augmented.action_idx == sample.action_idx
 
 
 def test_thegame_shuffle_hand_keeps_actions_and_metadata(monkeypatch):
@@ -119,3 +185,10 @@ def test_thegame_shuffle_hand_preserves_hand_line_ending(monkeypatch):
 
 def test_thegame_registers_hand_augmentation():
     assert games_library("thegame").augmentations == (shuffle_actions, shuffle_hand)
+
+
+def test_connectfour_registers_horizontal_symmetry_augmentation():
+    assert games_library("connectfour").augmentations == (
+        shuffle_actions,
+        horizontal_symmetry,
+    )
