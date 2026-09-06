@@ -6,7 +6,6 @@ from itertools import combinations
 
 
 SUITS = ("H", "D", "C", "S")
-SUIT_NAMES = {"H": "heart", "D": "diamond", "C": "club", "S": "spade"}
 RANKS = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 RANK_VALUE = {
     "A": 1,
@@ -74,12 +73,12 @@ def parse_card(code: str) -> Card:
 
 def attack_move(cards: tuple[Card, ...] | list[Card]) -> str:
     cards = sorted(cards, key=card_sort_key)
-    return "play:" + "+".join(card.code for card in cards)
+    return "+".join(card.code for card in cards)
 
 
 def discard_move(cards: tuple[Card, ...] | list[Card]) -> str:
     cards = sorted(cards, key=card_sort_key)
-    return "discard:" + "+".join(card.code for card in cards)
+    return "+".join(card.code for card in cards)
 
 
 class Regicide:
@@ -256,15 +255,18 @@ class Regicide:
             for rank in ("J", "Q", "K")
         }
         hand_sizes = " ".join(str(len(hand)) for hand in self.hands)
-        hand = " ".join(card.code for card in sorted(self.hands[viewer], key=card_sort_key))
-        discard = " ".join(card.code for card in sorted(self.discard, key=card_sort_key))
+        hand = " ".join(
+            card.code for card in sorted(self.hands[viewer], key=card_sort_key)
+        )
+        # discard = " ".join(card.code for card in sorted(self.discard, key=card_sort_key))
+        discard = str(len(self.discard))
         battle = " ".join(card.code for card in self.battle_cards)
         known_top = " ".join(card.code for card in self.known_tavern_prefix)
 
         lines = [
             f"Round: {self._round}, Phase: {self.phase}, Active: P{self.curplay}",
             enemy_line,
-            f"Castle: J={castle_counts['J']} Q={castle_counts['Q']} K={castle_counts['K']}",
+            f"J={castle_counts['J']} Q={castle_counts['Q']} K={castle_counts['K']}",
             f"Tavern: {len(self.tavern)}",
             f"KnownTavernTop: {known_top or '-'}",
             f"Discard: {discard or '-'}",
