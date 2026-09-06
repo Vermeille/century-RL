@@ -101,6 +101,13 @@ def test_policy_sampling_epsilon_uses_dirichlet_noise(monkeypatch):
     assert torch.allclose(policy.exp(), torch.tensor([0.1, 0.2, 0.7]))
 
 
+def test_connectfour_keeps_default_and_game_specific_strategies():
+    registry = games_library("connectfour").strategy_from_string
+
+    assert "policy_sampling" in registry
+    assert "tactical_random" in registry
+
+
 @pytest.mark.parametrize(
     "game_name,expected_scale",
     [

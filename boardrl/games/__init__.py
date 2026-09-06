@@ -77,10 +77,14 @@ class ConnectFour(GameDesc):
     def __init__(self):
         from boardrl.games.connectfour.game import ConnectFour
         from boardrl.games.connectfour.metrics import Metrics
+        from boardrl.games.connectfour.strategies import (
+            strategy_from_string as connectfour_strategy_from_string,
+        )
 
+        strats = connectfour_strategy_from_string.copy().update(strategy_from_string)
         super().__init__(
             ConnectFour,
-            strategy_from_string,
+            strats,
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,

@@ -197,6 +197,11 @@ def build_parser():
         help="power applied to thermostat target progress (<1 anneals earlier)",
     )
     parser.add_argument(
+        "--opponent-eval-strategy",
+        help="For non coop game, what evaluation strategy is used as opponent",
+        default="random",
+    )
+    parser.add_argument(
         "--perplexity-schedule-shape",
         choices=sorted(SCHEDULE_SHAPES),
         default="linear",
@@ -517,7 +522,9 @@ def _run(args, trackio_sink):
         with inference.evaluating():
             player = inference.policy(temperature=args.eval_temperature)
             evaluation = evaluator.compare(
-                [player, player],
+                [player, player]
+                if game.coop
+                else [player, game.strategy_from_string(args.opponent_eval_strategy)],
                 names=["current", "current"],
                 games=args.evaluation_games,
                 max_steps=800,
