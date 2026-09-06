@@ -160,18 +160,35 @@ def test_pass_is_forbidden_after_every_other_player_just_passed():
     assert "pass" not in game.moves
 
 
-def test_randomized_copy_preserves_current_hand_and_public_state():
+def test_randomized_copy_preserves_all_hands_and_public_state():
     random.seed(1234)
     game = Regicide(4)
+    original_hands = [hand[:] for hand in game.hands]
+    original_tavern_cards = sorted(card.code for card in game.tavern)
+
     copied = game.copy(randomize=True)
 
     assert copied is not game
-    assert copied.hands[game.current_player()] == game.hands[game.current_player()]
+    assert copied.hands == original_hands
+    assert game.hands == original_hands
     assert copied.enemy == game.enemy
     assert copied.discard == game.discard
     assert copied.battle_cards == game.battle_cards
-    assert [len(h) for h in copied.hands] == [len(h) for h in game.hands]
+    assert sorted(card.code for card in copied.tavern) == original_tavern_cards
     assert len(copied.tavern) == len(game.tavern)
+
+
+def test_randomized_copy_preserves_known_tavern_top():
+    random.seed(4321)
+    game = Regicide(2)
+    known = Card("J", "H")
+    game.tavern.append(known)
+    game.known_tavern_prefix = [known]
+
+    copied = game.copy(randomize=True)
+
+    assert copied.tavern[-1] == known
+    assert copied.known_tavern_prefix == [known]
 
 
 def test_random_playouts_terminate():
