@@ -610,7 +610,11 @@ class Regicide:
                 raise ValueError(f"Player P{player} does not hold {card}.") from exc
 
     def _randomize_hidden_state(self):
-        viewer = self.curplay
+        # Every player's hand is private to that player but has still been seen
+        # by someone. Rollout randomization must therefore preserve *all* hands:
+        # later turns may be evaluated from those players' viewpoints, and
+        # changing their cards would contradict their observation history.
+        # Only randomness that no player has observed may be resampled.
         known_count = len(self.known_tavern_prefix)
         if known_count:
             known_suffix = self.tavern[-known_count:]
@@ -622,24 +626,15 @@ class Regicide:
             known_suffix = []
             unknown_tavern = self.tavern[:]
 
-        pool = unknown_tavern[:]
-        for player, hand in enumerate(self.hands):
-            if player != viewer:
-                pool.extend(hand)
-        random.shuffle(pool)
+        # Tavern order is hidden, except for perfect-execution cards whose exact
+        # position on top is public knowledge. Preserve the cards themselves and
+        # randomize only the unseen order.
+        random.shuffle(unknown_tavern)
+        self.tavern = unknown_tavern + known_suffix
 
-        offset = 0
-        for player in range(self.num_players):
-            if player == viewer:
-                continue
-            size = len(self.hands[player])
-            self.hands[player] = pool[offset : offset + size]
-            offset += size
-
-        self.tavern = pool[offset:] + known_suffix
-
-        # The Castle composition/order inside each rank tier is hidden, but the
-        # J -> Q -> K tier order is public and must remain intact.
+        # Likewise, future Castle suits are unseen. Randomize only within each
+        # public J -> Q -> K tier; the current enemy and all revealed enemies are
+        # elsewhere in the state and remain untouched.
         for rank in ("J", "Q", "K"):
             indices = [i for i, card in enumerate(self.castle) if card.rank == rank]
             cards = [self.castle[i] for i in indices]
