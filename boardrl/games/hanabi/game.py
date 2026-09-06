@@ -340,49 +340,10 @@ class Hanabi:
         return copied
 
     def _randomize_hidden_state(self):
-        viewer = self.curplay
-        hidden_pool = self.hands[viewer] + self.deck
-        random.shuffle(hidden_pool)
-        assignment, remaining = self._sample_hidden_hand(
-            hidden_pool, self.knowledge[viewer]
-        )
-        self.hands[viewer] = assignment
-        self.deck = remaining
+        # Every hand is visible to at least one player in Hanabi. A randomized
+        # copy must therefore preserve every hand exactly; only the draw pile is
+        # unseen by all players and may be resampled.
         random.shuffle(self.deck)
-
-    def _sample_hidden_hand(self, pool, knowledge):
-        assigned = [None] * len(knowledge)
-
-        def search(slots, available):
-            if not slots:
-                return available
-            candidates_by_slot = {
-                slot: [
-                    i
-                    for i, card in enumerate(available)
-                    if knowledge[slot].allows(card)
-                ]
-                for slot in slots
-            }
-            slot = min(slots, key=lambda s: len(candidates_by_slot[s]))
-            candidate_indices = candidates_by_slot[slot]
-            random.shuffle(candidate_indices)
-            for candidate_index in candidate_indices:
-                card = available[candidate_index]
-                assigned[slot] = card
-                next_available = (
-                    available[:candidate_index] + available[candidate_index + 1 :]
-                )
-                result = search([s for s in slots if s != slot], next_available)
-                if result is not None:
-                    return result
-            assigned[slot] = None
-            return None
-
-        remaining = search(list(range(len(knowledge))), pool[:])
-        if remaining is None:
-            raise RuntimeError("Could not determinize Hanabi hidden state from card knowledge")
-        return list(assigned), remaining
 
     def simulate_to_end(self):
         steps = 0
