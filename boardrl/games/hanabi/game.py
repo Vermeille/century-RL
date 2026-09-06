@@ -185,9 +185,9 @@ class Hanabi:
         if self.ended():
             return []
 
-        moves = [f"play {i}" for i in range(len(self.hands[self.curplay]))]
+        moves = [f"p {i}" for i in range(len(self.hands[self.curplay]))]
         if self.information_tokens < self.max_information_tokens:
-            moves.extend(f"discard {i}" for i in range(len(self.hands[self.curplay])))
+            moves.extend(f"d {i}" for i in range(len(self.hands[self.curplay])))
         if self.information_tokens > 0:
             moves.extend(self._hint_moves())
         return moves
@@ -200,12 +200,12 @@ class Hanabi:
             present_colors = {card.color for card in hand}
             present_ranks = {card.rank for card in hand}
             moves.extend(
-                f"hint p{offset} c{color}"
+                f"h p{offset} c{color}"
                 for color in self.colors
                 if color in present_colors
             )
             moves.extend(
-                f"hint p{offset} r{rank}"
+                f"h p{offset} r{rank}"
                 for rank in self.ranks
                 if rank in present_ranks
             )
@@ -221,16 +221,16 @@ class Hanabi:
         discard = " ".join(str(card) for card in self.discard) or "-"
         acting = self._player_label(self.curplay, viewer)
         lines = [
-            f"hanabi {self.mode} r{self._round} turn {acting}",
+            f"{self.mode} r{self._round} t {acting}",
             (
-                f"score {self.score()}/{self.max_score} "
-                f"info {self.information_tokens}/{self.max_information_tokens} "
-                f"life {self.life_tokens}/{self.max_life_tokens} "
-                f"deck {len(self.deck)} final {final}"
+                f"s {self.score()}/{self.max_score} "
+                f"i {self.information_tokens}/{self.max_information_tokens} "
+                f"l {self.life_tokens}/{self.max_life_tokens} "
+                f"d {len(self.deck)} f {final}"
             ),
-            f"fire {fireworks}",
-            f"discard {discard}",
-            f"last {self._last_action_text(viewer)}",
+            f"fw {fireworks}",
+            f"dc {discard}",
+            f"la {self._last_action_text(viewer)}",
         ]
         for offset in range(self.num_players):
             player = (viewer + offset) % self.num_players
@@ -239,7 +239,7 @@ class Hanabi:
 
     def _player_label(self, player: int, viewer: int) -> str:
         offset = (player - viewer) % self.num_players
-        return "self" if offset == 0 else f"p{offset}"
+        return "me" if offset == 0 else f"p{offset}"
 
     def _last_action_text(self, viewer: int) -> str:
         action = self.last_action
@@ -248,10 +248,10 @@ class Hanabi:
 
         actor = self._player_label(action.actor, viewer)
         if action.kind == "play":
-            outcome = "ok" if action.success else "miss"
-            return f"{actor} play {action.card} {outcome}"
+            outcome = "ok" if action.success else "x"
+            return f"{actor} p {action.card} {outcome}"
         if action.kind == "discard":
-            return f"{actor} discard {action.card}"
+            return f"{actor} d {action.card}"
 
         target = self._player_label(action.target, viewer)  # type: ignore[arg-type]
         clue = (
@@ -260,7 +260,7 @@ class Hanabi:
             else f"r{action.clue_value}"
         )
         affected = " ".join(str(index) for index in action.affected)
-        return f"{actor} hint {target} {clue} {affected}"
+        return f"{actor} h {target} {clue} {affected}"
 
     def _display_hand(self, player: int, viewer: int, offset: int) -> str:
         cards = []
@@ -269,7 +269,7 @@ class Hanabi:
             cards.append(
                 f"{visible_card}/{self._possible_text(knowledge)}/{self._hinted_text(knowledge)}"
             )
-        label = "self" if offset == 0 else f"p{offset}"
+        label = "me" if offset == 0 else f"p{offset}"
         return f"{label} " + (" ".join(cards) if cards else "-")
 
     def _possible_text(self, knowledge: CardKnowledge) -> str:
@@ -293,9 +293,9 @@ class Hanabi:
             raise ValueError(f"Illegal move: {move}. Legal moves: {self.moves}")
 
         parts = move.split()
-        if parts[0] == "play":
+        if parts[0] == "p":
             self._play_card(int(parts[1]))
-        elif parts[0] == "discard":
+        elif parts[0] == "d":
             self._discard_card(int(parts[1]))
         else:
             self._give_hint(parts)
