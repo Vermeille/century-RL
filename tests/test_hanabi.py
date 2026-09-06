@@ -44,7 +44,7 @@ def test_mini_matches_deepmind_hanabi_small():
     assert len(game.deck) == 16
 
 
-def test_display_hides_own_cards_but_shows_teammate_cards():
+def test_display_is_compact_and_hides_only_own_card_identity():
     game = Hanabi(num_players=2, mode="mini")
     game.hands = [[Card("R", 1), Card("Y", 2)], [Card("R", 3), Card("Y", 4)]]
     game.knowledge = [[_unknown(game), _unknown(game)], [_unknown(game), _unknown(game)]]
@@ -53,25 +53,36 @@ def test_display_hides_own_cards_but_shows_teammate_cards():
 
     display = game.display()
 
-    assert "Self: ??" in display
+    assert "hanabi mini r0 turn self" in display
+    assert "score 0/10 info 3/3 life 1/1 deck 16 final -" in display
+    assert "self ?/RY12345/- ?/RY12345/-" in display
+    assert "p1 R3/RY12345/- Y4/RY12345/-" in display
     assert "R1" not in display
     assert "Y2" not in display
-    assert "P+1: R3" in display
-    assert "Y4" in display
+    assert "[" not in display
+    assert "]" not in display
+    assert "|" not in display
+    assert ":" not in display
 
 
-def test_hint_updates_positive_and_negative_card_knowledge():
+def test_hint_tracks_explicit_and_inferred_knowledge_and_last_action():
     game = Hanabi(num_players=2, mode="mini")
     game.hands = [[Card("R", 3), Card("Y", 3)], [Card("R", 1), Card("Y", 2)]]
     game.knowledge = [[_unknown(game), _unknown(game)], [_unknown(game), _unknown(game)]]
     game.curplay = 0
     game.moves = game.gen_moves()
 
-    game.play_str("hint:P+1:color:R")
+    game.play_str("hint p1 cR")
 
     assert game.information_tokens == 2
     assert game.knowledge[1][0].colors == {"R"}
-    assert "R" not in game.knowledge[1][1].colors
+    assert game.knowledge[1][0].hinted_color == "R"
+    assert game.knowledge[1][1].colors == {"Y"}
+    assert game.knowledge[1][1].hinted_color is None
+
+    display = game.display()
+    assert "last p1 hint self cR 0" in display
+    assert "self ?/R12345/R ?/Y12345/-" in display
 
 
 def test_hint_targets_are_relative_to_acting_player():
@@ -85,8 +96,8 @@ def test_hint_targets_are_relative_to_acting_player():
     game.knowledge = [[_unknown(game), _unknown(game)] for _ in range(3)]
     game.moves = game.gen_moves()
 
-    assert "hint:P+1:color:R" in game.moves
-    assert "hint:P+2:color:Y" in game.moves
+    assert "hint p1 cR" in game.moves
+    assert "hint p2 cY" in game.moves
 
 
 def test_successful_play_advances_firework_and_draws():
@@ -96,35 +107,42 @@ def test_successful_play_advances_firework_and_draws():
     deck_before = len(game.deck)
     game.moves = game.gen_moves()
 
-    game.play_str("play:0")
+    game.play_str("play 0")
 
     assert game.fireworks["R"] == 1
     assert len(game.deck) == deck_before - 1
     assert game.current_player() == 1
+    assert "last p1 play R1 ok" in game.display()
 
 
-def test_misplay_spends_life_and_ends_mini_immediately():
+def test_fatal_misplay_ends_game_and_scores_zero():
     game = Hanabi(num_players=2, mode="mini")
-    game.hands[0][0] = Card("R", 2)
-    game.fireworks["R"] = 0
+    game.fireworks["R"] = 3
+    game.fireworks["Y"] = 2
+    game.hands[0][0] = Card("R", 5)
     game.moves = game.gen_moves()
 
-    game.play_str("play:0")
+    assert game.score() == 5
+    game.play_str("play 0")
 
     assert game.life_tokens == 0
     assert game.ended()
     assert game.moves == []
-    assert Card("R", 2) in game.discard
+    assert game.score() == 0
+    assert game.points() == 0
+    assert game.points_for(0) == 0
+    assert sum(game.fireworks.values()) == 5
+    assert Card("R", 5) in game.discard
 
 
 def test_discard_is_illegal_at_max_information_and_restores_a_token_otherwise():
     game = Hanabi(num_players=2, mode="mini")
-    assert not any(move.startswith("discard:") for move in game.moves)
+    assert not any(move.startswith("discard ") for move in game.moves)
 
     game.information_tokens = 2
     game.moves = game.gen_moves()
     discarded = game.hands[0][0]
-    game.play_str("discard:0")
+    game.play_str("discard 0")
 
     assert game.information_tokens == 3
     assert discarded in game.discard
@@ -137,7 +155,7 @@ def test_playing_five_restores_information_token():
     game.hands[0][0] = Card("R", 5)
     game.moves = game.gen_moves()
 
-    game.play_str("play:0")
+    game.play_str("play 0")
 
     assert game.fireworks["R"] == 5
     assert game.information_tokens == 8
@@ -149,18 +167,27 @@ def test_last_draw_gives_every_player_one_final_turn_including_drawer():
     game.information_tokens = 2
     game.moves = game.gen_moves()
 
-    game.play_str("discard:0")
+    game.play_str("discard 0")
     assert game.final_turns_left == 2
     assert not game.ended()
 
-    game.play_str(next(move for move in game.moves if move.startswith("hint:")))
+    game.play_str(next(move for move in game.moves if move.startswith("hint ")))
     assert game.final_turns_left == 1
     assert not game.ended()
 
-    game.play_str(next(move for move in game.moves if move.startswith("hint:")))
+    game.play_str(next(move for move in game.moves if move.startswith("hint ")))
     assert game.final_turns_left == 0
     assert game.ended()
     assert game.moves == []
+
+
+def test_compact_moves_work_with_action_line_interface():
+    game = Hanabi(num_players=2, mode="mini")
+    state = game.display_with_moves()
+
+    action_lines = [line[1:] for line in state.splitlines() if line.startswith("@")]
+    assert action_lines == game.moves
+    assert all(":" not in move for move in game.moves)
 
 
 def test_randomized_copy_preserves_every_players_visible_information():
