@@ -71,9 +71,36 @@ def test_equal_distribution_is_round_number_divided_by_players():
 def test_skullking_metrics_ignore_unfinished_rounds():
     # A truncated game may contain bids for a round whose tricks are unknown.
     # Round 1 is still recoverable from the round-2 bid observations.
-    player0 = [_bid(1, 0, [0, 0]), _bid(2, 1, [0, 1]), SimpleNamespace(state=_state(2, "play", [0, 0]))]
-    player1 = [_bid(1, 1, [0, 0]), _bid(2, 1, [0, 1]), SimpleNamespace(state=_state(2, "play", [0, 0]))]
+    player0 = [
+        _bid(1, 0, [0, 0]),
+        _bid(2, 1, [0, 1]),
+        SimpleNamespace(state=_state(2, "play", [0, 0])),
+    ]
+    player1 = [
+        _bid(1, 1, [0, 0]),
+        _bid(2, 1, [0, 1]),
+        SimpleNamespace(state=_state(2, "play", [0, 0])),
+    ]
     values = Metrics(DummyResults([[player0, player1]])).metrics()
 
     assert values["won_bet_ratio"] == pytest.approx(1.0)
     assert values["zero_bet_ratio"] == pytest.approx(0.5)
+
+
+def test_skullking_metrics_self_play_runs():
+    from boardrl.games.skullking.game import SkullKing
+    from boardrl.games.strategies import strategy_from_string
+    from boardrl.rl.eval.selfplay import self_play
+
+    results = self_play(
+        lambda num_players: SkullKing(num_players=num_players, num_rounds=2),
+        [strategy_from_string("random"), strategy_from_string("random")],
+        n_games=1,
+        max_len=20,
+        rotate=False,
+        desc="",
+    )
+
+    values = Metrics(results).metrics()
+    assert 0.0 <= values["won_bet_ratio"] <= 1.0
+    assert 0.0 <= values["zero_bet_ratio"] <= 1.0
