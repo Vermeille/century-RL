@@ -163,27 +163,20 @@ def test_last_draw_gives_every_player_one_final_turn_including_drawer():
     assert game.moves == []
 
 
-def test_randomized_copy_preserves_observation_and_hint_constraints():
+def test_randomized_copy_preserves_every_players_visible_information():
     random.seed(1234)
-    game = Hanabi(num_players=2, mode="mini")
-    for card, knowledge in zip(game.hands[0], game.knowledge[0]):
-        knowledge.colors.intersection_update({card.color})
+    game = Hanabi(num_players=4, mode="full")
+    before_hands = [hand[:] for hand in game.hands]
+    before_views = [game.display(force=player) for player in range(game.num_players)]
+    before_deck_multiset = sorted(game.deck)
 
-    before = game.display()
-    public_hand = game.hands[1][:]
     copied = game.copy(randomize=True)
 
-    assert copied.display() == before
-    assert copied.hands[1] == public_hand
+    assert copied.hands == before_hands
+    assert [copied.display(force=player) for player in range(game.num_players)] == before_views
+    assert sorted(copied.deck) == before_deck_multiset
     assert copied.discard == game.discard
     assert copied.fireworks == game.fireworks
-    assert all(
-        knowledge.allows(card)
-        for card, knowledge in zip(
-            copied.hands[copied.current_player()],
-            copied.knowledge[copied.current_player()],
-        )
-    )
 
 
 def test_copy_is_independent():
