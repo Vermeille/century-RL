@@ -166,15 +166,15 @@ def test_last_draw_gives_every_player_one_final_turn_including_drawer():
 def test_randomized_copy_preserves_observation_and_hint_constraints():
     random.seed(1234)
     game = Hanabi(num_players=2, mode="mini")
-    target_card = game.hands[1][0]
-    game.play_str(f"hint:P+1:color:{target_card.color}")
-    game.play_str("play:0")
+    for card, knowledge in zip(game.hands[0], game.knowledge[0]):
+        knowledge.colors.intersection_update({card.color})
 
     before = game.display()
+    public_hand = game.hands[1][:]
     copied = game.copy(randomize=True)
 
     assert copied.display() == before
-    assert copied.hands[1] == game.hands[1]
+    assert copied.hands[1] == public_hand
     assert copied.discard == game.discard
     assert copied.fireworks == game.fireworks
     assert all(
