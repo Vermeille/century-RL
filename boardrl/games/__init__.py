@@ -8,6 +8,7 @@ from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
 from boardrl.games.nim.game import Nim as NimGame
 from boardrl.games.take5.game import Take5 as Take5Game
 from boardrl.games.skullking.game import SkullKing as SkullKingGame
+from boardrl.games.regicide.game import Regicide as RegicideGame
 
 
 class GameDesc:
@@ -203,4 +204,19 @@ class SkullKing(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,
+        )
+
+
+@games_library.register("regicide", args_from=RegicideGame)
+class Regicide(GameDesc):
+    def __init__(self, *args, **kwargs):
+        from boardrl.games.regicide.metrics import Metrics
+
+        super().__init__(
+            partial(RegicideGame, *args, **kwargs),
+            strategy_from_string,
+            Metrics,
+            augmentations=(shuffle_actions,),
+            reward_rescale=0.01,
+            coop=True,
         )
