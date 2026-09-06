@@ -20,13 +20,20 @@ class Card:
 class CardKnowledge:
     colors: set[str]
     ranks: set[int]
+    hinted_color: str | None = None
+    hinted_rank: int | None = None
 
     @classmethod
     def unknown(cls, colors, ranks):
         return cls(set(colors), set(ranks))
 
     def copy(self):
-        return CardKnowledge(set(self.colors), set(self.ranks))
+        return CardKnowledge(
+            set(self.colors),
+            set(self.ranks),
+            self.hinted_color,
+            self.hinted_rank,
+        )
 
     def allows(self, card: Card) -> bool:
         return card.color in self.colors and card.rank in self.ranks
@@ -34,14 +41,28 @@ class CardKnowledge:
     def reveal_color(self, true_color: str, hinted_color: str):
         if true_color == hinted_color:
             self.colors.intersection_update({hinted_color})
+            self.hinted_color = hinted_color
         else:
             self.colors.discard(hinted_color)
 
     def reveal_rank(self, true_rank: int, hinted_rank: int):
         if true_rank == hinted_rank:
             self.ranks.intersection_update({hinted_rank})
+            self.hinted_rank = hinted_rank
         else:
             self.ranks.discard(hinted_rank)
+
+
+@dataclass(frozen=True)
+class ActionRecord:
+    actor: int
+    kind: str
+    target: int | None = None
+    clue_kind: str | None = None
+    clue_value: str | int | None = None
+    affected: tuple[int, ...] = ()
+    card: Card | None = None
+    success: bool | None = None
 
 
 class HanabiMode:
@@ -112,6 +133,7 @@ class Hanabi:
         self.curplay = 0
         self._round = 0
         self.final_turns_left = None
+        self.last_action: ActionRecord | None = None
         self.moves = self.gen_moves()
 
     def _make_deck(self) -> list[Card]:
@@ -136,6 +158,10 @@ class Hanabi:
         return self._round
 
     def score(self) -> int:
+        # Fuse exhaustion is a loss worth zero points, even if fireworks were
+        # completed before the fatal misplay.
+        if self.life_tokens <= 0:
+            return 0
         return sum(self.fireworks.values())
 
     def points(self) -> int:
@@ -159,9 +185,9 @@ class Hanabi:
         if self.ended():
             return []
 
-        moves = [f"play:{i}" for i in range(len(self.hands[self.curplay]))]
+        moves = [f"play {i}" for i in range(len(self.hands[self.curplay]))]
         if self.information_tokens < self.max_information_tokens:
-            moves.extend(f"discard:{i}" for i in range(len(self.hands[self.curplay])))
+            moves.extend(f"discard {i}" for i in range(len(self.hands[self.curplay])))
         if self.information_tokens > 0:
             moves.extend(self._hint_moves())
         return moves
@@ -174,12 +200,12 @@ class Hanabi:
             present_colors = {card.color for card in hand}
             present_ranks = {card.rank for card in hand}
             moves.extend(
-                f"hint:P+{offset}:color:{color}"
+                f"hint p{offset} c{color}"
                 for color in self.colors
                 if color in present_colors
             )
             moves.extend(
-                f"hint:P+{offset}:rank:{rank}"
+                f"hint p{offset} r{rank}"
                 for rank in self.ranks
                 if rank in present_ranks
             )
@@ -193,36 +219,68 @@ class Hanabi:
         final = "-" if self.final_turns_left is None else str(self.final_turns_left)
         fireworks = " ".join(f"{color}{self.fireworks[color]}" for color in self.colors)
         discard = " ".join(str(card) for card in self.discard) or "-"
-        acting_offset = (self.curplay - viewer) % self.num_players
-        acting = "self" if acting_offset == 0 else f"P+{acting_offset}"
+        acting = self._player_label(self.curplay, viewer)
         lines = [
-            f"Hanabi {self.mode} | Round: {self._round} | Turn: {acting}",
+            f"hanabi {self.mode} r{self._round} turn {acting}",
             (
-                f"Score: {self.score()}/{self.max_score} | "
-                f"Info: {self.information_tokens}/{self.max_information_tokens} | "
-                f"Lives: {self.life_tokens}/{self.max_life_tokens} | "
-                f"Deck: {len(self.deck)} | Final: {final}"
+                f"score {self.score()}/{self.max_score} "
+                f"info {self.information_tokens}/{self.max_information_tokens} "
+                f"life {self.life_tokens}/{self.max_life_tokens} "
+                f"deck {len(self.deck)} final {final}"
             ),
-            f"Fireworks: {fireworks}",
-            f"Discard: {discard}",
+            f"fire {fireworks}",
+            f"discard {discard}",
+            f"last {self._last_action_text(viewer)}",
         ]
         for offset in range(self.num_players):
             player = (viewer + offset) % self.num_players
             lines.append(self._display_hand(player, viewer, offset))
         return "\n".join(lines) + "\n"
 
+    def _player_label(self, player: int, viewer: int) -> str:
+        offset = (player - viewer) % self.num_players
+        return "self" if offset == 0 else f"p{offset}"
+
+    def _last_action_text(self, viewer: int) -> str:
+        action = self.last_action
+        if action is None:
+            return "-"
+
+        actor = self._player_label(action.actor, viewer)
+        if action.kind == "play":
+            outcome = "ok" if action.success else "miss"
+            return f"{actor} play {action.card} {outcome}"
+        if action.kind == "discard":
+            return f"{actor} discard {action.card}"
+
+        target = self._player_label(action.target, viewer)  # type: ignore[arg-type]
+        clue = (
+            f"c{action.clue_value}"
+            if action.clue_kind == "color"
+            else f"r{action.clue_value}"
+        )
+        affected = " ".join(str(index) for index in action.affected)
+        return f"{actor} hint {target} {clue} {affected}"
+
     def _display_hand(self, player: int, viewer: int, offset: int) -> str:
         cards = []
         for card, knowledge in zip(self.hands[player], self.knowledge[player]):
-            visible_card = "??" if player == viewer else str(card)
-            cards.append(f"{visible_card}[{self._knowledge_text(knowledge)}]")
-        label = "Self" if offset == 0 else f"P+{offset}"
-        return f"{label}: " + (" ".join(cards) if cards else "-")
+            visible_card = "?" if player == viewer else str(card)
+            cards.append(
+                f"{visible_card}/{self._possible_text(knowledge)}/{self._hinted_text(knowledge)}"
+            )
+        label = "self" if offset == 0 else f"p{offset}"
+        return f"{label} " + (" ".join(cards) if cards else "-")
 
-    def _knowledge_text(self, knowledge: CardKnowledge) -> str:
+    def _possible_text(self, knowledge: CardKnowledge) -> str:
         colors = "".join(color for color in self.colors if color in knowledge.colors) or "-"
         ranks = "".join(str(rank) for rank in self.ranks if rank in knowledge.ranks) or "-"
-        return f"{colors}|{ranks}"
+        return colors + ranks
+
+    def _hinted_text(self, knowledge: CardKnowledge) -> str:
+        color = knowledge.hinted_color or ""
+        rank = "" if knowledge.hinted_rank is None else str(knowledge.hinted_rank)
+        return color + rank or "-"
 
     def display_with_moves(self) -> str:
         return self.display() + "\n".join(f"@{move}" for move in self.moves)
@@ -234,12 +292,13 @@ class Hanabi:
         if move not in self.moves:
             raise ValueError(f"Illegal move: {move}. Legal moves: {self.moves}")
 
-        if move.startswith("play:"):
-            self._play_card(int(move.split(":", 1)[1]))
-        elif move.startswith("discard:"):
-            self._discard_card(int(move.split(":", 1)[1]))
+        parts = move.split()
+        if parts[0] == "play":
+            self._play_card(int(parts[1]))
+        elif parts[0] == "discard":
+            self._discard_card(int(parts[1]))
         else:
-            self._give_hint(move)
+            self._give_hint(parts)
 
         if self.ended():
             self.moves = []
@@ -249,7 +308,8 @@ class Hanabi:
     def _play_card(self, index: int):
         player = self.curplay
         card = self._remove_from_hand(player, index)
-        if card.rank == self.fireworks[card.color] + 1:
+        success = card.rank == self.fireworks[card.color] + 1
+        if success:
             self.fireworks[card.color] = card.rank
             if card.rank == self.ranks[-1]:
                 self.information_tokens = min(
@@ -258,6 +318,12 @@ class Hanabi:
         else:
             self.discard.append(card)
             self.life_tokens -= 1
+        self.last_action = ActionRecord(
+            actor=player,
+            kind="play",
+            card=card,
+            success=success,
+        )
 
         if self.life_tokens <= 0 or self.won():
             self._round += 1
@@ -272,22 +338,42 @@ class Hanabi:
         self.information_tokens = min(
             self.max_information_tokens, self.information_tokens + 1
         )
+        self.last_action = ActionRecord(actor=player, kind="discard", card=card)
         self._draw_card(player)
         self._finish_turn()
 
-    def _give_hint(self, move: str):
-        _, target_text, kind, value = move.split(":")
-        offset = int(target_text[2:])
+    def _give_hint(self, parts: list[str]):
+        _, target_text, clue = parts
+        offset = int(target_text[1:])
         target = (self.curplay + offset) % self.num_players
+        kind = "color" if clue[0] == "c" else "rank"
+        value = clue[1:] if kind == "color" else int(clue[1:])
         self.information_tokens -= 1
 
+        affected = []
         if kind == "color":
-            for card, knowledge in zip(self.hands[target], self.knowledge[target]):
-                knowledge.reveal_color(card.color, value)
+            for index, (card, knowledge) in enumerate(
+                zip(self.hands[target], self.knowledge[target])
+            ):
+                knowledge.reveal_color(card.color, value)  # type: ignore[arg-type]
+                if card.color == value:
+                    affected.append(index)
         else:
-            rank = int(value)
-            for card, knowledge in zip(self.hands[target], self.knowledge[target]):
-                knowledge.reveal_rank(card.rank, rank)
+            for index, (card, knowledge) in enumerate(
+                zip(self.hands[target], self.knowledge[target])
+            ):
+                knowledge.reveal_rank(card.rank, value)  # type: ignore[arg-type]
+                if card.rank == value:
+                    affected.append(index)
+
+        self.last_action = ActionRecord(
+            actor=self.curplay,
+            kind="hint",
+            target=target,
+            clue_kind=kind,
+            clue_value=value,
+            affected=tuple(affected),
+        )
         self._finish_turn()
 
     def _remove_from_hand(self, player: int, index: int) -> Card:
@@ -334,6 +420,7 @@ class Hanabi:
         copied.curplay = self.curplay
         copied._round = self._round
         copied.final_turns_left = self.final_turns_left
+        copied.last_action = self.last_action
         if randomize and not copied.ended():
             copied._randomize_hidden_state()
         copied.moves = copied.gen_moves()
