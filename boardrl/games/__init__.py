@@ -76,6 +76,7 @@ class TicTacToe(GameDesc):
 @games_library.register("connectfour")
 class ConnectFour(GameDesc):
     def __init__(self):
+        from boardrl.games.connectfour.augmentations import horizontal_symmetry
         from boardrl.games.connectfour.game import ConnectFour
         from boardrl.games.connectfour.metrics import Metrics
         from boardrl.games.connectfour.strategies import (
@@ -87,7 +88,7 @@ class ConnectFour(GameDesc):
             ConnectFour,
             strats,
             Metrics,
-            augmentations=(shuffle_actions,),
+            augmentations=(shuffle_actions, horizontal_symmetry),
             reward_rescale=1.0,
         )
 
