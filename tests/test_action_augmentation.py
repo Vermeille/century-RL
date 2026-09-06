@@ -97,6 +97,23 @@ def test_connectfour_horizontal_symmetry_mirrors_board_and_moves(monkeypatch):
     assert sample.moves == ["0", "2", "5"]
 
 
+def test_connectfour_horizontal_symmetry_infers_width_from_state(monkeypatch):
+    monkeypatch.setattr(
+        "boardrl.games.connectfour.augmentations.random.random", lambda: 0.0
+    )
+    sample = TrainingSample(
+        state=">O\n|O   X|\n-------\n@0\n@4",
+        moves=["0", "4"],
+        action_idx=0,
+    )
+
+    augmented = horizontal_symmetry([sample])[0]
+
+    assert augmented.state == ">O\n|X   O|\n-------\n@4\n@0"
+    assert augmented.moves == ["4", "0"]
+    assert augmented.action_idx == 0
+
+
 def test_connectfour_horizontal_symmetry_can_leave_sample_unchanged(monkeypatch):
     monkeypatch.setattr(
         "boardrl.games.connectfour.augmentations.random.random", lambda: 0.5
