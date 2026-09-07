@@ -7,3 +7,6 @@ boardrl/games/century/engine.cpp
 boardrl/games/century/engine.cpython-*.so
 *-ckpt
 .venv
+.env
+checkpoints/
+training-logs/

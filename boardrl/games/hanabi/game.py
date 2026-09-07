@@ -160,8 +160,7 @@ class Hanabi:
     def score(self) -> int:
         # Fuse exhaustion is a loss worth zero points, even if fireworks were
         # completed before the fatal misplay.
-        if self.life_tokens <= 0:
-            return 0
+        # if self.life_tokens <= 0: return 0
         return sum(self.fireworks.values())
 
     def points(self) -> int:

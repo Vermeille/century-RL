@@ -572,9 +572,9 @@ def _run(args, trackio_sink):
             )
             if args.exploration_controller == "thermostat":
                 schedule_progress **= args.perplexity_curve
-                schedule_progress = SCHEDULE_SHAPES[
-                    args.perplexity_schedule_shape
-                ](schedule_progress)
+                schedule_progress = SCHEDULE_SHAPES[args.perplexity_schedule_shape](
+                    schedule_progress
+                )
 
             if step != start and step % args.evaluation_every == 0:
                 evaluate(step)

@@ -73,9 +73,7 @@ def can_play(color: str, hand: list[str]) -> list[bool]:
     playable = []
     for card in hand:
         card_color, _ = _card(card)
-        playable.append(
-            card_color == "_" or not has_lead_suit or card_color == color
-        )
+        playable.append(card_color == "_" or not has_lead_suit or card_color == color)
     return playable
 
 
@@ -107,9 +105,7 @@ def _winning_play(trick: list[tuple[int, str]], lead_suit: str) -> tuple[int, st
         return trick[0]
 
     black = [play for play in numbered if _card(play[1])[0] == "B"]
-    candidates = black or [
-        play for play in numbered if _card(play[1])[0] == lead_suit
-    ]
+    candidates = black or [play for play in numbered if _card(play[1])[0] == lead_suit]
     if not candidates:
         # Only reachable in a partial trick before a suit is established.
         return numbered[0]
@@ -122,7 +118,7 @@ class SkullKing:
         assert 1 <= num_rounds <= 10
         self.num_players = num_players
         self.num_rounds = num_rounds
-        self.points = [0] * num_players
+        self.the_points = [0] * num_players
         self.bids = []
         self.tricks = [0] * num_players
         self.round_ = 1
@@ -184,7 +180,7 @@ class SkullKing:
             else:
                 points = -10 * abs(bid - taken)
             self.round_points[player] = points
-            self.points[player] += points
+            self.the_points[player] += points
 
         if self.round_ == self.num_rounds:
             self.round_ += 1
@@ -205,9 +201,7 @@ class SkullKing:
     def _bonus_points(self, player: int) -> int:
         cards = self.captured[player]
         bonus = sum(
-            20 if card == "B:14" else 10
-            for card in cards
-            if card.endswith(":14")
+            20 if card == "B:14" else 10 for card in cards if card.endswith(":14")
         )
         for trick, winner_card in self._captured_tricks[player]:
             winner_rank = _rank(winner_card)
@@ -314,15 +308,18 @@ class SkullKing:
         lead = self.current_color if not self._lead_suit_pending else "-"
         visible_bids = self.bids if self.phase != "bid" else []
         current_trick = " ".join(f"{p}:{card}" for p, card in self._trick) or "-"
-        history = " | ".join(
-            " ".join(f"{p}:{card}" for p, card in trick)
-            for trick in self._played_tricks
-        ) or "-"
+        history = (
+            " | ".join(
+                " ".join(f"{p}:{card}" for p, card in trick)
+                for trick in self._played_tricks
+            )
+            or "-"
+        )
         return (
             f"Round: {round_number}/{self.num_rounds}\n"
             f"Phase: {self.phase}\n"
             f"Current player: {self.current_player_}\n"
-            f"Scores: {' '.join(map(str, self.points))}\n"
+            f"Scores: {' '.join(map(str, self.the_points))}\n"
             f"Bids: {' '.join(map(str, visible_bids)) or '-'}\n"
             f"Tricks: {' '.join(map(str, self.tricks))}\n"
             f"Lead: {lead}\n"
@@ -333,15 +330,15 @@ class SkullKing:
         )
 
     def display_with_moves(self) -> str:
-        return self.display() + "\nMoves\n" + "\n".join(
-            f"@{move}" for move in self.moves
+        return (
+            self.display() + "\nMoves\n" + "\n".join(f"@{move}" for move in self.moves)
         )
 
     def copy(self):
         game = SkullKing.__new__(SkullKing)
         game.num_players = self.num_players
         game.num_rounds = self.num_rounds
-        game.points = self.points[:]
+        game.the_points = self.the_points[:]
         game.bids = self.bids[:]
         game.tricks = self.tricks[:]
         game.round_ = self.round_
@@ -377,16 +374,16 @@ class SkullKing:
         return max(range(self.num_players), key=self.points_for)
 
     def points_for(self, player: int) -> int:
-        return self.points[player]
+        return self.the_points[player]
 
-    def points_(self) -> int:
+    def points(self) -> int:
         return self.points_for(self.current_player_)
 
     def diff_points(self) -> int:
         return self.diff_points_for(self.current_player_)
 
     def diff_points_for(self, player: int) -> int:
-        opponents = [score for i, score in enumerate(self.points) if i != player]
+        opponents = [score for i, score in enumerate(self.the_points) if i != player]
         return self.points_for(player) - max(opponents)
 
     def simulate_to_end(self) -> None:
