@@ -7,84 +7,76 @@ from boardrl.rl.model import load_model
 strategy_from_string = RegisterByName(arg_readers={"model": load_model})
 
 
-_CUBE_VALUES = {"Y": 1, "R": 2, "G": 3, "B": 4}
 _MIN_ACTION_POTENTIAL = 6.0
 _ACTION_POTENTIAL_WEIGHT = 0.75
 _CLAIM_BONUS = 2.0
 _REJECT_SCORE = -1e9
 
 
-def _stock_value(stock):
-    return sum(_CUBE_VALUES[color] for color in stock)
-
-
 def _card_potential(card):
     spent, gained = card.takes(), card.gives()
     spent_size = sum(1 for _ in spent)
     gained_size = sum(1 for _ in gained)
-    gain = _stock_value(gained) - _stock_value(spent)
+    gain = gained.weighted_value() - spent.weighted_value()
     if spent_size == 0:
-        return float(_stock_value(gained))
+        return float(gained.weighted_value())
     return float(max(1, 10 // max(spent_size, gained_size)) * gain)
 
 
 @strategy_from_string.register("tempo_greedy")
 class TempoGreedyStrategy:
-    """One-ply Century baseline using game objects, never serialized state."""
+    """One-ply Century baseline using only observable game objects."""
 
-    def _score_harvest(self, g, move, me, stock_value):
-        trial = g.copy(randomize=False)
-        trial.play_str(move)
-        return _stock_value(trial.get_player(me).stock) - stock_value
+    def _score_harvest(self, g, move, stock_value):
+        return g.preview_stock(move).weighted_value() - stock_value
 
-    def _score_rest(self, g, me):
-        before = len(g.get_player(me).hand)
-        trial = g.copy(randomize=False)
-        trial.play_str("R")
-        return 2.0 + 0.75 * (len(trial.get_player(me).hand) - before)
+    def _score_rest(self, player):
+        return 2.0 + 0.75 * player.discard_count()
 
-    def _score_victory(self, g, move, me, stock_value, victory_points):
-        trial = g.copy(randomize=False)
-        trial.play_str(move)
-        player = trial.get_player(me)
-        if trial.ended():
-            diff = trial.diff_points_for(me)
+    def _score_victory(self, g, move, me, player, stock_value, victory_points):
+        card = g.visible_victory()[int(move[1:])]
+        stock_delta = g.preview_stock(move).weighted_value() - stock_value
+        vp_after = victory_points + card.points
+
+        if player.victory_count() + 1 >= g.goal_card_count():
+            if g.num_players == 1:
+                diff = vp_after
+            else:
+                diff = vp_after - max(
+                    g.points_for(i) for i in range(g.num_players) if i != me
+                )
             return (1000.0 if diff > 0 else 500.0 if diff == 0 else -1000.0) + diff
-        return (
-            player.victory_points()
-            - victory_points
-            + _stock_value(player.stock)
-            - stock_value
-            + _CLAIM_BONUS
-        )
 
-    def _score_action_purchase(self, g, move, me, stock_value):
+        return card.points - victory_points + victory_points + stock_delta + _CLAIM_BONUS
+
+    def _score_action_purchase(self, g, move, stock_value):
         action_index = int(move.split(" ", 1)[0][1:])
-        potential = _card_potential(g.action.pile[action_index])
+        card = g.action.visible()[action_index][0]
+        potential = _card_potential(card)
         if potential < _MIN_ACTION_POTENTIAL:
             return _REJECT_SCORE
-        trial = g.copy(randomize=False)
-        trial.play_str(move)
-        stock_delta = _stock_value(trial.get_player(me).stock) - stock_value
+        stock_delta = g.preview_stock(move).weighted_value() - stock_value
         return _ACTION_POTENTIAL_WEIGHT * potential + stock_delta
 
     async def __call__(self, g: Game):
         moves = g.moves
         me = g.current_player()
         player = g.get_player(me)
-        stock_value = _stock_value(player.stock)
+        stock_value = player.stock.weighted_value()
         victory_points = player.victory_points()
         scores = []
 
         for move in moves:
             if move[0] == "H":
-                score = self._score_harvest(g, move, me, stock_value)
+                score = self._score_harvest(g, move, stock_value)
             elif move == "R":
-                score = self._score_rest(g, me)
+                score = self._score_rest(player)
             elif move[0] == "V":
-                score = self._score_victory(g, move, me, stock_value, victory_points)
+                score = self._score_victory(
+                    g, move, me, player, stock_value, victory_points
+                )
             elif move[0] == "A":
-                score = self._score_action_purchase(g, move, me, stock_value)
+                score = self._score_action_purchase(g, move, stock_value)
             else:
                 score = _REJECT_SCORE
             scores.append(float(score))
