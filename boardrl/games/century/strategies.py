@@ -8,6 +8,7 @@ strategy_from_string = RegisterByName(arg_readers={"model": load_model})
 
 
 _MIN_ACTION_POTENTIAL = 6.0
+_MAX_ENGINE_CARDS = 5
 _ACTION_POTENTIAL_WEIGHT = 0.75
 _CLAIM_BONUS = 2.0
 _REJECT_SCORE = -1e9
@@ -49,7 +50,10 @@ class TempoGreedyStrategy:
 
         return card.points + stock_delta + _CLAIM_BONUS
 
-    def _score_action_purchase(self, g, move, stock_value):
+    def _score_action_purchase(self, g, move, player, stock_value):
+        if len(player.hand) + player.discard_count() >= _MAX_ENGINE_CARDS:
+            return _REJECT_SCORE
+
         action_index = int(move.split(" ", 1)[0][1:])
         card = g.action.visible()[action_index][0]
         potential = _card_potential(card)
@@ -76,7 +80,7 @@ class TempoGreedyStrategy:
                     g, move, me, player, stock_value, victory_points
                 )
             elif move[0] == "A":
-                score = self._score_action_purchase(g, move, stock_value)
+                score = self._score_action_purchase(g, move, player, stock_value)
             else:
                 score = _REJECT_SCORE
             scores.append(float(score))
