@@ -47,7 +47,7 @@ class TempoGreedyStrategy:
                 )
             return (1000.0 if diff > 0 else 500.0 if diff == 0 else -1000.0) + diff
 
-        return card.points - victory_points + victory_points + stock_delta + _CLAIM_BONUS
+        return card.points + stock_delta + _CLAIM_BONUS
 
     def _score_action_purchase(self, g, move, stock_value):
         action_index = int(move.split(" ", 1)[0][1:])
