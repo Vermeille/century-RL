@@ -155,6 +155,12 @@ def build_parser():
         help="batch size for reference targets and PPO updates",
     )
     parser.add_argument("--rollout-games", type=int, default=256)
+    parser.add_argument(
+        "--rollout-max-steps",
+        type=positive_int,
+        default=5_000,
+        help="maximum number of environment steps per rollout game",
+    )
     parser.add_argument("--evaluation-games", type=int, default=256)
     parser.add_argument("--evaluation-every", type=int, default=25)
     parser.add_argument("--save-every", type=int, default=25)
@@ -579,7 +585,7 @@ def _run(args, trackio_sink):
                 games = rollouts.play(
                     [player, player],
                     games=args.rollout_games,
-                    max_steps=5_000,
+                    max_steps=args.rollout_max_steps,
                     rotate=True,
                 )
             learner.safe_point()
