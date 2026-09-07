@@ -11,6 +11,7 @@ def fresh_deck():
         + ["_:P"] * 5
         + ["_:M"] * 2
         + ["_:K"]
+        + ["_:T"]
     )
 
 
@@ -19,13 +20,32 @@ def _card(card: str):
     return color, value
 
 
+def _rank(card: str) -> str:
+    """Return the effective rank for special cards, including Tigress choices."""
+    _, value = _card(card)
+    if value == "T=P":
+        return "P"
+    if value == "T=E":
+        return "E"
+    return value
+
+
 def beats(top: str, candidate: str) -> bool:
-    """Return whether candidate beats top, with ties going to top."""
-    top_color, top_value = _card(top)
-    candidate_color, candidate_value = _card(candidate)
+    """Return whether candidate directly beats top.
+
+    Character cards are non-transitive, so complete tricks are resolved from
+    all played cards by :func:`_winning_play` rather than by repeated pairwise
+    comparison.
+    """
+    top_color, _ = _card(top)
+    candidate_color, _ = _card(candidate)
+    top_value = _rank(top)
+    candidate_value = _rank(candidate)
 
     if top_value == "E":
         return candidate_value != "E"
+    if candidate_value == "E":
+        return False
 
     if top_value == "P":
         return candidate_value == "K"
@@ -36,8 +56,6 @@ def beats(top: str, candidate: str) -> bool:
 
     if candidate_value in {"P", "M", "K"}:
         return True
-    if candidate_value == "E":
-        return False
 
     if candidate_color == top_color:
         return int(candidate_value) > int(top_value)
@@ -47,7 +65,7 @@ def beats(top: str, candidate: str) -> bool:
 
 
 def can_play(color: str, hand: list[str]) -> list[bool]:
-    """Return which cards may be played when color is the lead suit."""
+    """Return which physical cards may be played when ``color`` is led."""
     if color not in SUITS:
         return [True] * len(hand)
 
@@ -61,14 +79,54 @@ def can_play(color: str, hand: list[str]) -> list[bool]:
     return playable
 
 
+def _winning_play(trick: list[tuple[int, str]], lead_suit: str) -> tuple[int, str]:
+    """Resolve a complete or partial trick from all cards played so far."""
+    assert trick
+
+    def first_with_rank(rank: str):
+        return next((play for play in trick if _rank(play[1]) == rank), None)
+
+    pirate = first_with_rank("P")
+    mermaid = first_with_rank("M")
+    skull_king = first_with_rank("K")
+
+    # Mermaid beats Skull King even if a Pirate is also present. Otherwise
+    # Skull King beats Pirates, Pirates beat Mermaids, and characters beat
+    # numbered cards. First played wins ties between equal characters.
+    if mermaid is not None and skull_king is not None:
+        return mermaid
+    if skull_king is not None:
+        return skull_king
+    if pirate is not None:
+        return pirate
+    if mermaid is not None:
+        return mermaid
+
+    numbered = [play for play in trick if _rank(play[1]) != "E"]
+    if not numbered:
+        return trick[0]
+
+    black = [play for play in numbered if _card(play[1])[0] == "B"]
+    candidates = black or [
+        play for play in numbered if _card(play[1])[0] == lead_suit
+    ]
+    if not candidates:
+        # Only reachable in a partial trick before a suit is established.
+        return numbered[0]
+    return max(candidates, key=lambda play: int(_card(play[1])[1]))
+
+
 class SkullKing:
     def __init__(self, num_players: int = 4, num_rounds: int = 10):
+        assert 2 <= num_players <= 8
+        assert 1 <= num_rounds <= 10
         self.num_players = num_players
         self.num_rounds = num_rounds
         self.points = [0] * num_players
         self.bids = []
         self.tricks = [0] * num_players
         self.round_ = 1
+        self.round_starter = 0
         self.current_player_ = 0
         self.phase = "bid"
         self.current_color = "_"
@@ -76,6 +134,7 @@ class SkullKing:
         self.current_winner = 0
         self._lead_suit_pending = True
         self._trick = []
+        self._played_tricks: list[list[tuple[int, str]]] = []
         self.captured = [[] for _ in range(num_players)]
         self._captured_tricks = [[] for _ in range(num_players)]
         self.round_points = [0] * num_players
@@ -93,6 +152,7 @@ class SkullKing:
         self.deck = fresh_deck()
         random.shuffle(self.deck)
         cards_per_player = self._cards_per_player()
+        assert cards_per_player * self.num_players <= len(self.deck)
         self.hands = [[] for _ in range(self.num_players)]
         for _ in range(cards_per_player):
             for hand in self.hands:
@@ -103,8 +163,9 @@ class SkullKing:
         self.tricks = [0] * self.num_players
         self.captured = [[] for _ in range(self.num_players)]
         self._captured_tricks = [[] for _ in range(self.num_players)]
+        self._played_tricks = []
         self._trick = []
-        self.current_player_ = self.current_winner
+        self.current_player_ = self.round_starter
         self.current_color = "_"
         self.current_top = "_:E"
         self.current_winner = self.current_player_
@@ -132,8 +193,11 @@ class SkullKing:
             return
 
         self.round_ += 1
+        self.round_starter = (self.round_starter + 1) % self.num_players
         self.phase = "bid"
         self.bids = []
+        # Bids are collected in seat order only as an implementation detail;
+        # they remain hidden until all players have committed.
         self.current_player_ = 0
         self._deal()
         self.moves = self.gen_moves()
@@ -146,12 +210,13 @@ class SkullKing:
             if card.endswith(":14")
         )
         for trick, winner_card in self._captured_tricks[player]:
-            if winner_card == "_:P":
-                bonus += 20 * trick.count("_:M")
-            elif winner_card == "_:K":
-                bonus += 30 * trick.count("_:P")
-            elif winner_card == "_:M":
-                bonus += 40 * trick.count("_:K")
+            winner_rank = _rank(winner_card)
+            if winner_rank == "P":
+                bonus += 20 * sum(_rank(card) == "M" for card in trick)
+            elif winner_rank == "K":
+                bonus += 30 * sum(_rank(card) == "P" for card in trick)
+            elif winner_rank == "M":
+                bonus += 40 * sum(_rank(card) == "K" for card in trick)
         return bonus
 
     def ended(self):
@@ -165,11 +230,17 @@ class SkullKing:
         if self.phase == "play":
             hand = self.hands[self.current_player_]
             color = self.current_color if not self._lead_suit_pending else "_"
-            return [
-                card
-                for card, can in zip(hand, can_play(color, hand))
-                if can
-            ]
+            moves = []
+            for card, can in zip(hand, can_play(color, hand)):
+                if not can:
+                    continue
+                if card == "_:T":
+                    moves.extend(["_:T=P", "_:T=E"])
+                else:
+                    moves.append(card)
+            # Identical physical cards have identical consequences and should
+            # not become duplicate policy actions.
+            return list(dict.fromkeys(moves))
         return []
 
     def _complete_trick(self) -> None:
@@ -178,6 +249,7 @@ class SkullKing:
         self.tricks[winner] += 1
         self.captured[winner].extend(cards)
         self._captured_tricks[winner].append((cards, self.current_top))
+        self._played_tricks.append(self._trick[:])
 
         if all(not hand for hand in self.hands):
             self._finish_round()
@@ -190,6 +262,16 @@ class SkullKing:
         self._lead_suit_pending = True
         self._trick = []
         self.moves = self.gen_moves()
+
+    def _update_lead(self, card: str) -> None:
+        card_color, _ = _card(card)
+        rank = _rank(card)
+        if not self._lead_suit_pending:
+            return
+        if rank == "E":
+            return
+        self._lead_suit_pending = False
+        self.current_color = card_color if card_color in SUITS else "_"
 
     def play_str(self, move: str):
         assert not self.ended()
@@ -206,23 +288,14 @@ class SkullKing:
 
         assert self.phase == "play"
         assert move in self.moves, f"Invalid move {move} for player {p}"
-        self.hands[p].remove(move)
+        hand_card = "_:T" if move.startswith("_:T=") else move
+        self.hands[p].remove(hand_card)
         self._trick.append((p, move))
+        self._update_lead(move)
 
-        if beats(self.current_top, move):
-            self.current_top = move
-            self.current_winner = p
-
-        card_color, card_value = _card(move)
-        if len(self._trick) == 1:
-            if card_color in SUITS:
-                self.current_color = card_color
-                self._lead_suit_pending = False
-            elif card_value != "E":
-                self._lead_suit_pending = False
-        elif self._lead_suit_pending and card_color in SUITS:
-            self.current_color = card_color
-            self._lead_suit_pending = False
+        self.current_winner, self.current_top = _winning_play(
+            self._trick, self.current_color
+        )
 
         if len(self._trick) == self.num_players:
             self._complete_trick()
@@ -239,15 +312,23 @@ class SkullKing:
             player = force
         round_number = min(self.round_, self.num_rounds)
         lead = self.current_color if not self._lead_suit_pending else "-"
+        visible_bids = self.bids if self.phase != "bid" else []
+        current_trick = " ".join(f"{p}:{card}" for p, card in self._trick) or "-"
+        history = " | ".join(
+            " ".join(f"{p}:{card}" for p, card in trick)
+            for trick in self._played_tricks
+        ) or "-"
         return (
             f"Round: {round_number}/{self.num_rounds}\n"
             f"Phase: {self.phase}\n"
             f"Current player: {self.current_player_}\n"
             f"Scores: {' '.join(map(str, self.points))}\n"
-            f"Bids: {' '.join(map(str, self.bids)) or '-'}\n"
+            f"Bids: {' '.join(map(str, visible_bids)) or '-'}\n"
             f"Tricks: {' '.join(map(str, self.tricks))}\n"
             f"Lead: {lead}\n"
             f"Top: {self.current_top}\n"
+            f"Trick: {current_trick}\n"
+            f"History: {history}\n"
             f"Hand: {' '.join(self.hands[player])}"
         )
 
@@ -264,6 +345,7 @@ class SkullKing:
         game.bids = self.bids[:]
         game.tricks = self.tricks[:]
         game.round_ = self.round_
+        game.round_starter = self.round_starter
         game.current_player_ = self.current_player_
         game.phase = self.phase
         game.current_color = self.current_color
@@ -271,6 +353,7 @@ class SkullKing:
         game.current_winner = self.current_winner
         game._lead_suit_pending = self._lead_suit_pending
         game._trick = self._trick[:]
+        game._played_tricks = [trick[:] for trick in self._played_tricks]
         game.captured = [cards[:] for cards in self.captured]
         game._captured_tricks = [
             [(cards[:], winner_card) for cards, winner_card in tricks]
@@ -300,10 +383,11 @@ class SkullKing:
         return self.points_for(self.current_player_)
 
     def diff_points(self) -> int:
-        return self.points_()
+        return self.diff_points_for(self.current_player_)
 
     def diff_points_for(self, player: int) -> int:
-        return self.points_for(player)
+        opponents = [score for i, score in enumerate(self.points) if i != player]
+        return self.points_for(player) - max(opponents)
 
     def simulate_to_end(self) -> None:
         while not self.ended():
