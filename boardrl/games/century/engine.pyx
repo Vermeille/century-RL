@@ -158,7 +158,7 @@ cdef class Stock:
     cdef inline int size(self) noexcept nogil:
         return self.Y + self.R + self.G + self.B
 
-    cpdef inline int weighted_value(self) noexcept:
+    cpdef int weighted_value(self):
         return self.Y + 2 * self.R + 3 * self.G + 4 * self.B
 
     @cython.profile(False)
