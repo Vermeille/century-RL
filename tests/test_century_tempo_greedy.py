@@ -27,10 +27,21 @@ def test_preview_stock_does_not_mutate_game():
     assert [str(card) for card in g.visible_victory()] == before_victories
 
 
+def test_safe_accessors_only_expose_visible_or_owned_information():
+    g = _century()
+    player = g.get_player(g.current_player())
+
+    assert len(g.visible_victory()) <= 5
+    assert g.goal_card_count() == 6
+    assert player.victory_count() == 0
+    assert player.discard_count() == 0
+
+
 def test_tempo_greedy_never_simulates_full_game_transition():
     source = inspect.getsource(TempoGreedyStrategy)
     assert ".play_str(" not in source
     assert ".copy(" not in source
+    assert ".display(" not in source
 
 
 def test_tempo_greedy_returns_a_deterministic_legal_move():
