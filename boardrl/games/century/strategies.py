@@ -19,23 +19,13 @@ def _stock_value(stock):
 
 
 def _card_potential(card):
-    spent = card.takes()
-    gained = card.gives()
+    spent, gained = card.takes(), card.gives()
     spent_size = sum(1 for _ in spent)
     gained_size = sum(1 for _ in gained)
     gain = _stock_value(gained) - _stock_value(spent)
-
     if spent_size == 0:
         return float(_stock_value(gained))
-
-    repeats = max(1, 10 // max(spent_size, gained_size))
-    return float(repeats * gain)
-
-
-def _one_hot_policy(moves, index):
-    policy = torch.zeros(len(moves), dtype=torch.float)
-    policy[index] = 1
-    return policy
+    return float(max(1, 10 // max(spent_size, gained_size)) * gain)
 
 
 @strategy_from_string.register("tempo_greedy")
@@ -51,22 +41,15 @@ class TempoGreedyStrategy:
         before = len(g.get_player(me).hand)
         trial = g.copy(randomize=False)
         trial.play_str("R")
-        recovered = len(trial.get_player(me).hand) - before
-        return 2.0 + 0.75 * recovered
+        return 2.0 + 0.75 * (len(trial.get_player(me).hand) - before)
 
     def _score_victory(self, g, move, me, stock_value, victory_points):
         trial = g.copy(randomize=False)
         trial.play_str(move)
         player = trial.get_player(me)
-
         if trial.ended():
             diff = trial.diff_points_for(me)
-            if diff > 0:
-                return 1000.0 + diff
-            if diff == 0:
-                return 500.0
-            return -1000.0 + diff
-
+            return (1000.0 if diff > 0 else 500.0 if diff == 0 else -1000.0) + diff
         return (
             player.victory_points()
             - victory_points
@@ -80,7 +63,6 @@ class TempoGreedyStrategy:
         potential = _card_potential(g.action.pile[action_index])
         if potential < _MIN_ACTION_POTENTIAL:
             return _REJECT_SCORE
-
         trial = g.copy(randomize=False)
         trial.play_str(move)
         stock_delta = _stock_value(trial.get_player(me).stock) - stock_value
@@ -92,17 +74,15 @@ class TempoGreedyStrategy:
         player = g.get_player(me)
         stock_value = _stock_value(player.stock)
         victory_points = player.victory_points()
-
         scores = []
+
         for move in moves:
             if move[0] == "H":
                 score = self._score_harvest(g, move, me, stock_value)
             elif move == "R":
                 score = self._score_rest(g, me)
             elif move[0] == "V":
-                score = self._score_victory(
-                    g, move, me, stock_value, victory_points
-                )
+                score = self._score_victory(g, move, me, stock_value, victory_points)
             elif move[0] == "A":
                 score = self._score_action_purchase(g, move, me, stock_value)
             else:
@@ -110,7 +90,8 @@ class TempoGreedyStrategy:
             scores.append(float(score))
 
         best = max(range(len(moves)), key=scores.__getitem__)
-        policy = _one_hot_policy(moves, best)
+        policy = torch.zeros(len(moves), dtype=torch.float)
+        policy[best] = 1
         return policy.log(), {
             "moves": dict(zip(moves, policy.tolist())),
             "scores": dict(zip(moves, scores)),
