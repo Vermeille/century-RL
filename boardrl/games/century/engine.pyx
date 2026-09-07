@@ -158,6 +158,9 @@ cdef class Stock:
     cdef inline int size(self) noexcept nogil:
         return self.Y + self.R + self.G + self.B
 
+    cpdef inline int weighted_value(self) noexcept:
+        return self.Y + 2 * self.R + 3 * self.G + 4 * self.B
+
     @cython.profile(False)
     cdef inline Stock sub(self, ref: Stock):
         if not self.contains(ref):
@@ -709,6 +712,12 @@ cdef class Player:
     def victory_points(self):
         return sum(p.points for p in self.victory)
 
+    cpdef int victory_count(self):
+        return len(self.victory)
+
+    cpdef int discard_count(self):
+        return len(self.discard)
+
     cdef has_finished(self, int goal_cards):
         return len(self.victory) >= goal_cards
 
@@ -828,6 +837,49 @@ cdef class Century:
         elif index == 4:
             return self.p4
         return -1
+
+    cpdef list visible_victory(self):
+        return self.victory.visible()
+
+    cpdef int goal_card_count(self):
+        return self.goal_cards
+
+    cpdef Stock preview_stock(self, str s):
+        """Return post-move stock without mutating state or revealing new cards."""
+        cdef Player p = self.get_player(self.current_player())
+        cdef Stock out = p.stock.ccopy()
+        cdef Stock from_stock, to_stock
+        cdef VictoryCard v
+        cdef str hx, action, from_, to_, a, bonus, give, take
+        cdef int idx
+
+        if s not in self.moves:
+            raise Illegal()
+        if s == 'R':
+            return out
+        if s[0] == 'H':
+            hx, action = s.split(' ')
+            from_, to_ = action.split('>')
+            from_stock = Stock.cfrom_str(from_)
+            to_stock = Stock.cfrom_str(to_)
+            Stock.isub(out, from_stock)
+            Stock.iadd(out, to_stock)
+        elif s[0] == 'V':
+            idx = int(s[1:])
+            v = self.victory.pile[idx]
+            Stock.isub(out, v.cost)
+        elif s[0] == 'A':
+            a, bonus = s.split(' ')
+            give, take = bonus.split('>')
+            from_stock = Stock.cfrom_str(give)
+            to_stock = Stock.cfrom_str(take)
+            Stock.isub(out, from_stock)
+            Stock.iadd(out, to_stock)
+        else:
+            raise Illegal()
+
+        out.trim()
+        return out
 
     cdef rank(self, int[5] ranking):
         ranking[0] = 0
