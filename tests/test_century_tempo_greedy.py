@@ -1,27 +1,32 @@
+import asyncio
+
+from boardrl.games import games_library
 from boardrl.games.century.strategies import (
-    _apply_transform,
-    _card_potential_from_string,
-    _parse_stock,
-    _target_distance,
+    TempoGreedyStrategy,
+    _card_potential,
+    _stock_value,
 )
 
 
-def test_parse_compact_stock_counts():
-    assert _parse_stock("2YR3B") == {"Y": 2, "R": 1, "G": 0, "B": 3}
+def _century():
+    return games_library("century").make_game()
 
 
-def test_power_card_potential_matches_weighted_cube_economy():
-    assert _card_potential_from_string("YY>RR") == 10.0
-    assert _card_potential_from_string("YYY>RRR") == 9.0
-    assert _card_potential_from_string(">B") == 4.0
+def test_weighted_value_and_card_potential_use_game_objects():
+    g = _century()
+    assert _stock_value(g.get_player(0).stock) == 3
+
+    yy_rr = next(card for card in g.action.pile if str(card) == "YY>RR")
+    yyy_rrr = next(card for card in g.action.pile if str(card) == "YYY>RRR")
+    assert _card_potential(yy_rr) == 10.0
+    assert _card_potential(yyy_rrr) == 9.0
 
 
-def test_transform_applies_ten_cube_trim_with_engine_tie_break():
-    out = _apply_transform(_parse_stock("5Y5R"), ">B")
-    assert out == {"Y": 4, "R": 5, "G": 0, "B": 1}
+def test_tempo_greedy_returns_a_deterministic_legal_move():
+    g = _century()
+    policy, info = asyncio.run(TempoGreedyStrategy()(g))
 
-
-def test_target_distance_uses_cube_values():
-    stock = _parse_stock("3Y")
-    targets = [_parse_stock("2Y2R"), _parse_stock("GB")]
-    assert _target_distance(stock, targets) == 4
+    probs = policy.exp()
+    assert probs.sum().item() == 1.0
+    assert (probs == 1).sum().item() == 1
+    assert set(info["scores"]) == set(g.moves)
