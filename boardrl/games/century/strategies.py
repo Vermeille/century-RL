@@ -101,7 +101,7 @@ def _visible_victory_targets(g):
             continue
         if not in_board:
             continue
-        if line.startswith("A"):
+        if line.startswith("A") or line.startswith("_"):
             break
         if line.startswith("V"):
             _, card = line.split(" ", 1)
