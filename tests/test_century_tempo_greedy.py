@@ -1,17 +1,36 @@
 import asyncio
+import inspect
 
 from boardrl.games import games_library
-from boardrl.games.century.strategies import TempoGreedyStrategy, _stock_value
+from boardrl.games.century.strategies import TempoGreedyStrategy
 
 
 def _century():
     return games_library("century").make_game()
 
 
-def test_weighted_stock_value_uses_century_stock_object():
+def test_preview_stock_does_not_mutate_game():
     g = _century()
-    assert _stock_value(g.get_player(0).stock) == 3
-    assert _stock_value(g.get_player(1).stock) == 4
+    move = next(move for move in g.moves if move.startswith("H"))
+    player = g.get_player(g.current_player())
+    before_stock = player.stock.to_str()
+    before_moves = list(g.moves)
+    before_actions = [str(card) for card, _ in g.action.visible()]
+    before_victories = [str(card) for card in g.visible_victory()]
+
+    preview = g.preview_stock(move)
+
+    assert preview.to_str() != before_stock
+    assert player.stock.to_str() == before_stock
+    assert g.moves == before_moves
+    assert [str(card) for card, _ in g.action.visible()] == before_actions
+    assert [str(card) for card in g.visible_victory()] == before_victories
+
+
+def test_tempo_greedy_never_simulates_full_game_transition():
+    source = inspect.getsource(TempoGreedyStrategy)
+    assert ".play_str(" not in source
+    assert ".copy(" not in source
 
 
 def test_tempo_greedy_returns_a_deterministic_legal_move():
