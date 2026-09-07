@@ -30,7 +30,7 @@ def _card_potential(card):
 
 @strategy_from_string.register("tempo_greedy")
 class TempoGreedyStrategy:
-    """Deterministic Century baseline built around weighted cube tempo."""
+    """One-ply Century baseline using game objects, never serialized state."""
 
     def _score_harvest(self, g, move, me, stock_value):
         trial = g.copy(randomize=False)
