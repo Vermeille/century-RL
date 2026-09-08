@@ -8,7 +8,6 @@ import random
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
 
 if __package__:
     from . import coop
@@ -29,7 +28,7 @@ from boardrl import (
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
 from boardrl.models import copy_weights, make
-from boardrl.rl.model.loss import Loss, LossResult
+from boardrl.rl.model.loss import CELoss
 from boardrl.training import (
     ComputeReturns,
     Learner,
@@ -42,23 +41,6 @@ from boardrl.training.sample import TrainingSample
 
 
 NUCLEUS_THRESHOLD = coop.NUCLEUS_THRESHOLD
-
-
-class NFSPAveragePolicyLoss(Loss):
-    """Cross-entropy against the action actually sampled in BR mode."""
-
-    supports_off_policy = True
-    supports_partial_trajectories = True
-    needs_reference_policy_value = False
-
-    def __call__(self, pred_policy, pred_value, sample, training_state):
-        del pred_value, training_state
-        assert len(pred_policy) == len(sample.action_idx)
-        loss = sum(
-            F.cross_entropy(logit.unsqueeze(0), action.unsqueeze(0))
-            for logit, action in zip(pred_policy, sample.action_idx)
-        )
-        return LossResult(loss / len(sample.action_idx))
 
 
 def probability(value):
@@ -179,7 +161,7 @@ def make_average_learner(model, game, args):
     learner = Learner(
         model,
         optimizer,
-        [NFSPAveragePolicyLoss()],
+        [CELoss()],
         batch_size=args.average_batch_size or args.learner_batch_size,
         device=args.device,
         epochs=args.average_epochs,
