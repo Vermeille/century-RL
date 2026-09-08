@@ -57,7 +57,7 @@ class CELoss(Loss):
         loss = 0
         for logit, act in zip(pred_policy, sample.action_idx):
             loss += F.cross_entropy(logit, act, label_smoothing=self.label_smoothing)
-        return LossResult(loss / len(sample.action_distribution))
+        return LossResult(loss / len(sample.action_idx))
 
 
 @loss_from_string.register("imitation_jeffreys_loss")
