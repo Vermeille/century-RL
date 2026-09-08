@@ -3,18 +3,19 @@ from types import SimpleNamespace
 import torch
 import torch.nn.functional as F
 
+from boardrl.rl.model.loss import CELoss
 from boardrl.training import TrainingSample
-from trainers.adversarial import NFSPAveragePolicyLoss, Reservoir, build_parser
+from trainers.adversarial import Reservoir, build_parser
 
 
-def test_nfsp_average_policy_loss_imitates_sampled_actions():
+def test_ce_loss_imitates_sampled_actions_without_action_distribution():
     policy = [
         torch.tensor([0.0, 2.0], requires_grad=True),
         torch.tensor([1.5, -0.5], requires_grad=True),
     ]
     sample = SimpleNamespace(action_idx=torch.tensor([1, 0]))
 
-    result = NFSPAveragePolicyLoss()(policy, None, sample, {})
+    result = CELoss()(policy, None, sample, {})
     expected = (
         F.cross_entropy(policy[0].unsqueeze(0), torch.tensor([1]))
         + F.cross_entropy(policy[1].unsqueeze(0), torch.tensor([0]))
