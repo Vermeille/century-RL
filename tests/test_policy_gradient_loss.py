@@ -15,6 +15,7 @@ from boardrl.rl.model.loss import (
     KLPenalty,
     AdaptiveKLPenalty,
     BootstrapValueMSELoss,
+    BootstrapValueLogProbLoss,
 )
 
 
@@ -581,3 +582,39 @@ def test_bootstrap_value_mse_loss_targets_td_lambda_mean():
     ).objective
 
     assert torch.allclose(loss, torch.tensor(1.25))
+
+
+def test_bootstrap_value_log_prob_clips_to_rollout_distribution():
+    pred_value = torch.distributions.Normal(
+        torch.tensor([0.0, 0.0], requires_grad=True),
+        torch.tensor([1.0, 1.0], requires_grad=True),
+    )
+    sample = SimpleNamespace(
+        td_lambda=torch.tensor([20.0, 3.0]),
+        reference_value=torch.tensor([10.0, 2.0]),
+        reference_value_stddev=torch.tensor([2.0, 1.0]),
+    )
+
+    result = BootstrapValueLogProbLoss(strength=0.5)(
+        [], pred_value, sample, training_state={}
+    )
+    expected = -0.5 * pred_value.log_prob(torch.tensor([14.0, 3.0])).mean()
+
+    assert torch.allclose(result.objective, expected)
+    assert torch.allclose(result.metrics["clip_ratio"], torch.tensor(0.5))
+
+
+def test_bootstrap_value_log_prob_can_disable_clipping():
+    pred_value = torch.distributions.Normal(torch.tensor([0.0]), torch.tensor([1.0]))
+    sample = SimpleNamespace(
+        td_lambda=torch.tensor([20.0]),
+        reference_value=torch.tensor([10.0]),
+        reference_value_stddev=torch.tensor([2.0]),
+    )
+
+    result = BootstrapValueLogProbLoss(epsilon=None)(
+        [], pred_value, sample, training_state={}
+    )
+
+    assert torch.allclose(result.objective, -pred_value.log_prob(sample.td_lambda).mean())
+    assert result.metrics["clip_ratio"].item() == 0.0

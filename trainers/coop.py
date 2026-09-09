@@ -25,7 +25,7 @@ from boardrl.metrics import rollout_metrics
 from boardrl.models import architectures, copy_weights, make
 from boardrl.rl.model.loss import (
     AdaptiveKLPenalty,
-    BootstrapValueMSELoss,
+    BootstrapValueLogProbLoss,
     EntropyBonus,
     LinearEntropyBonus,
     LinearReverseEntropyBonus,
@@ -76,6 +76,12 @@ def positive_float(value):
     if value <= 0:
         raise argparse.ArgumentTypeError("must be positive")
     return value
+
+
+def optional_positive_float(value):
+    if value.lower() == "none":
+        return None
+    return positive_float(value)
 
 
 exploration_regularizers = {
@@ -155,6 +161,15 @@ def build_parser():
         help="batch size for reference targets and PPO updates",
     )
     parser.add_argument("--rollout-games", type=int, default=256)
+    parser.add_argument(
+        "--value-clip-epsilon",
+        type=optional_positive_float,
+        default=2.0,
+        help=(
+            "clip TD(lambda) targets to this many rollout value standard deviations; "
+            "use 'none' to disable"
+        ),
+    )
     parser.add_argument(
         "--rollout-max-steps",
         type=positive_int,
@@ -372,7 +387,10 @@ def make_learner(model, reference, game, args):
                 adaptation_rate=args.kl_strength,
                 deadband=0.001,
             ),
-            BootstrapValueMSELoss(strength=args.value_strength),
+            BootstrapValueLogProbLoss(
+                strength=args.value_strength,
+                epsilon=args.value_clip_epsilon,
+            ),
         ]
     )
     learner = Learner(
@@ -472,9 +490,11 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/rl/model/model.py",
             repo_root / "boardrl/rl/model/transformer.py",
+            repo_root / "boardrl/rl/eval/selfplay.py",
             repo_root / "boardrl/games/strategies.py",
             repo_root / "boardrl/games/thegame/game.py",
             repo_root / "boardrl/training/learner.py",
+            repo_root / "boardrl/training/postprocess.py",
             repo_root / "boardrl/training/returns.py",
         ),
     )

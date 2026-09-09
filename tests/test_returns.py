@@ -92,6 +92,7 @@ def test_annotate_with_model_can_use_cached_rollout_references():
         truncated=False,
         reference_policy=torch.tensor([0.2, 0.3]),
         reference_value=0.5,
+        reference_value_stddev=1.5,
         reference_max_q=0.6,
     )
     first = TrainingSample(
@@ -102,6 +103,7 @@ def test_annotate_with_model_can_use_cached_rollout_references():
         truncated=False,
         reference_policy=torch.tensor([0.1, 0.4]),
         reference_value=0.25,
+        reference_value_stddev=1.25,
         reference_max_q=0.7,
     )
 
@@ -119,6 +121,8 @@ def test_annotate_with_model_can_use_cached_rollout_references():
     assert second.td_lambda == 2.0
     assert first.gae == 2.0
     assert second.gae == 1.5
+    assert first.reference_value_stddev == 1.25
+    assert second.reference_value_stddev == 1.5
     assert end.reference_value == 0
 
 
@@ -126,7 +130,9 @@ def test_annotate_with_model_bootstraps_truncated_endpoint():
     class Prediction:
         def __init__(self, value):
             self.policy = [torch.tensor([0.2, 0.3])]
-            self.value = SimpleNamespace(mean=torch.tensor(value))
+            self.value = torch.distributions.Normal(
+                torch.tensor(value), torch.tensor(0.5)
+            )
 
         def q_value(self):
             return torch.tensor([[value for value in (0.6, 0.7)]])
@@ -158,6 +164,7 @@ def test_annotate_with_model_bootstraps_truncated_endpoint():
     )
 
     assert end.reference_value == 12.0
+    assert end.reference_value_stddev == 0.5
     assert end.td_lambda == 12.0
     assert last.td_lambda == 14.0
     assert first.td_lambda == 15.0

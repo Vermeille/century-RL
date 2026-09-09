@@ -163,6 +163,18 @@ def test_coop_cli_separates_inference_and_learner_batch_sizes():
     assert args.learner_batch_size == 1024
 
 
+def test_coop_cli_defaults_to_two_sigma_value_clipping():
+    args = build_parser().parse_args([])
+
+    assert args.value_clip_epsilon == 2.0
+
+
+def test_coop_cli_can_disable_value_clipping():
+    args = build_parser().parse_args(["--value-clip-epsilon", "none"])
+
+    assert args.value_clip_epsilon is None
+
+
 def test_coop_cli_configures_bounded_best_checkpoints():
     args = build_parser().parse_args(
         ["--keep-checkpoints", "1", "--save-best"]

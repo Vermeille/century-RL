@@ -53,3 +53,6 @@ def test_adversarial_trainer_defaults_to_nfsp_connect_four():
     assert args.game == "connectfour"
     assert args.tag == "nfsp"
     assert args.anticipatory == 0.1
+    assert args.adam_beta1 == 0.9
+    assert args.adam_beta2 == 0.95
+    assert args.adam_eps == 1e-5
