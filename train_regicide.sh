@@ -1,0 +1,14 @@
+TOTAL_STEPS=900 \
+  RECIPE=full-decay \
+  HIGH_PERPLEXITY=4 \
+  MEDIUM_PERPLEXITY=1 \
+  LEARNING_RATE=4e-4 \
+  KL_STRENGTH=0.1 \
+  LR_DECAY_START_PERCENT=50 \
+  KL_TARGET=0.1 \
+  GAME=regicide \
+  TAG=YOLO \
+  SEED=1 \
+  INFERENCE_BATCH_SIZE=128 \
+  LEARNER_BATCH_SIZE=128 \
+  trainers/thegame_omni_schedule.sh

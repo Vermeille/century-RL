@@ -1,0 +1,15 @@
+TOTAL_STEPS=900 \
+  RECIPE=full-decay \
+  HIGH_PERPLEXITY=3 \
+  MEDIUM_PERPLEXITY=1 \
+  ENTROPY_STRENGTH=0.01 \
+  LEARNING_RATE=4e-4 \
+  KL_STRENGTH=0.1 \
+  LR_DECAY_START_PERCENT=50 \
+  KL_TARGET=0.1 \
+  GAME=hanabi,mode=mini \
+  TAG=YOLO \
+  SEED=1 \
+  GAE_LAMBDA=0.9 \
+  VALUE_LAMBDA=0.9 \
+  trainers/thegame_omni_schedule.sh
