@@ -1019,6 +1019,38 @@ class BootstrapValueMSELoss(Loss):
         return LossResult(self.strength * F.mse_loss(pred_value.mean, sample.td_lambda))
 
 
+@loss_from_string.register("bootstrap_value_log_prob_loss")
+class BootstrapValueLogProbLoss(Loss):
+    """Fit TD(lambda) under the value distribution with a rollout trust region."""
+
+    supports_off_policy = True
+    supports_partial_trajectories = True
+    needs_reference_policy_value = True
+
+    def __init__(self, strength: float = 1.0, epsilon: float | None = 2.0):
+        if epsilon is not None and epsilon <= 0:
+            raise ValueError("epsilon must be positive or None")
+        self.strength = strength
+        self.epsilon = epsilon
+
+    def __call__(self, pred_policy, pred_value, sample, training_state):
+        target = sample.td_lambda
+        if self.epsilon is None:
+            clipped_target = target
+            clip_ratio = target.new_zeros(())
+        else:
+            radius = self.epsilon * sample.reference_value_stddev
+            lower = sample.reference_value - radius
+            upper = sample.reference_value + radius
+            clipped_target = torch.clamp(target, min=lower, max=upper)
+            clip_ratio = ((target < lower) | (target > upper)).float().mean()
+
+        return LossResult(
+            -self.strength * pred_value.log_prob(clipped_target).mean(),
+            {"clip_ratio": clip_ratio},
+        )
+
+
 @loss_from_string.register("q_mse_loss")
 class QMSELoss(Loss):
     supports_off_policy = True

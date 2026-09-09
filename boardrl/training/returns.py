@@ -179,6 +179,7 @@ def annotate_with_model(
                     for key in (
                         "reference_policy",
                         "reference_value",
+                        "reference_value_stddev",
                         "reference_max_q",
                     )
                 )
@@ -189,6 +190,7 @@ def annotate_with_model(
         for sample, pv in zip(missing_samples, preds):
             sample.reference_policy = pv.policy[0]
             sample.reference_value = pv.value.mean.item()
+            sample.reference_value_stddev = pv.value.stddev.item()
             sample.reference_max_q = pv.q_value()[0].max().item()
 
         for sample in trainset:
