@@ -76,6 +76,25 @@ class Reservoir:
             if index < self.capacity:
                 self.samples[index] = item
 
+    def add_random(self, samples, count: int):
+        """Insert a fixed-size random quota from one BR iteration.
+
+        Sampling without replacement preserves diversity when the rollout is
+        large enough. Smaller rollouts are sampled with replacement so every
+        BR iteration contributes the same total reservoir weight.
+        """
+        if count <= 0:
+            raise ValueError("count must be positive")
+        samples = list(samples)
+        if not samples:
+            return 0
+        if len(samples) >= count:
+            selected = self.rng.sample(samples, count)
+        else:
+            selected = self.rng.choices(samples, k=count)
+        self.add(selected)
+        return len(selected)
+
     def sample(self, count: int) -> list[TrainingSample]:
         count = min(count, len(self.samples))
         if count == 0:
@@ -108,7 +127,14 @@ class Reservoir:
 def build_parser():
     parser = coop.build_parser()
     parser.description = __doc__
-    parser.set_defaults(game="connectfour", tag="nfsp")
+    parser.set_defaults(
+        game="connectfour",
+        tag="nfsp",
+        opponent_eval_strategy="tactical_random",
+        adam_beta1=0.9,
+        adam_beta2=0.95,
+        adam_eps=1e-5,
+    )
     parser.add_argument(
         "--anticipatory",
         type=probability,
@@ -116,6 +142,15 @@ def build_parser():
         help=(
             "probability that the opponent uses the current best response "
             "instead of the average policy"
+        ),
+    )
+    parser.add_argument(
+        "--fixed-training-opponent-fraction",
+        type=probability,
+        default=0.0,
+        help=(
+            "fraction of rollout games against the fixed evaluation opponent; "
+            "the default keeps pure NFSP self-play"
         ),
     )
     parser.add_argument(
@@ -129,6 +164,16 @@ def build_parser():
         type=coop.positive_int,
         default=4096,
         help="uniform reservoir samples used for each average-policy update",
+    )
+    parser.add_argument(
+        "--reservoir-insert-ratio",
+        type=coop.positive_float,
+        default=4.0,
+        help=(
+            "random BR transitions inserted per iteration as a multiple of "
+            "--average-samples-per-update; oversamples with replacement when "
+            "the rollout contains fewer transitions"
+        ),
     )
     parser.add_argument(
         "--average-batch-size",
@@ -342,8 +387,11 @@ def _run(args, trackio_sink):
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
 
+    compute_rollout_returns = ComputeReturns(
+        args.discount,
+        reward_scale=game.reward_rescale,
+    )
     reinforcement_targets = Pipeline(
-        ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),
         ReferenceTargets(
             reference,
@@ -354,8 +402,6 @@ def _run(args, trackio_sink):
             reuse_rollout_predictions=False,
         ),
     )
-    imitation_targets = ToSamples()
-
     def evaluate(step):
         nonlocal best_score
 
@@ -374,9 +420,9 @@ def _run(args, trackio_sink):
                 games=args.evaluation_games,
                 max_steps=args.rollout_max_steps,
             )
-            exploitability_probe = evaluator.compare(
-                [best_response_player, average_player],
-                names=["best_response", "average"],
+            best_response_fixed_evaluation = evaluator.compare(
+                [best_response_player, fixed_opponent],
+                names=["best_response", "fixed"],
                 games=args.evaluation_games,
                 max_steps=args.rollout_max_steps,
             )
@@ -388,9 +434,11 @@ def _run(args, trackio_sink):
                     "win_rate": average_evaluation.win_rate(),
                     "points": Range(average_evaluation.rollouts.my_points(0)),
                 },
-                "best_response_vs_average": {
-                    "win_rate": exploitability_probe.win_rate(),
-                    "points": Range(exploitability_probe.rollouts.my_points(0)),
+                "best_response_vs_fixed": {
+                    "win_rate": best_response_fixed_evaluation.win_rate(),
+                    "points": Range(
+                        best_response_fixed_evaluation.rollouts.my_points(0)
+                    ),
                 },
             },
             nfsp={
@@ -399,7 +447,7 @@ def _run(args, trackio_sink):
             },
         )
 
-        score = average_evaluation.avg_points()
+        score = best_response_fixed_evaluation.avg_points()
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -434,42 +482,70 @@ def _run(args, trackio_sink):
                 args.perplexity_schedule_shape
             ](schedule_progress)
 
-        if step != start and step % args.evaluation_every == 0:
-            evaluate(step)
-
         with best_response_inference.evaluating(), average_inference.evaluating():
             best_response_player = best_response_inference.policy()
             average_player = average_inference.policy()
-            opponent_uses_best_response = [
-                random.random() < args.anticipatory
-                for _ in range(args.rollout_games)
-            ]
-
-            # Strategy 0 is always the BR so every game yields on-policy PPO
-            # data. The opponent is the NFSP anticipatory mixture; rotation
-            # exposes the shared BR to both seats without collecting
-            # average-vs-average games that contain no BR training samples.
-            def lineup(game_index):
-                opponent = (
-                    best_response_player
-                    if opponent_uses_best_response[game_index]
-                    else average_player
-                )
-                return [best_response_player, opponent]
-
-            games = rollouts.play(
-                lineup,
-                games=args.rollout_games,
+            fixed_player = (
+                game.strategy_from_string(args.opponent_eval_strategy)
+                if args.fixed_training_opponent_fraction
+                else None
+            )
+            # Keep the anticipatory mixture at the batch level. This avoids
+            # per-game opponent branching and lets the rollout engine process
+            # each homogeneous opponent batch efficiently.
+            fixed_opponent_games = round(
+                args.rollout_games * args.fixed_training_opponent_fraction
+            )
+            best_response_opponent_games = round(
+                (args.rollout_games - fixed_opponent_games) * args.anticipatory
+            )
+            average_opponent_games = (
+                args.rollout_games - fixed_opponent_games - best_response_opponent_games
+            )
+            average_opponent_rollouts = rollouts.play(
+                [best_response_player, average_player],
+                games=average_opponent_games,
                 max_steps=args.rollout_max_steps,
                 rotate=True,
+                description="rollouts vs average",
+            )
+            best_response_opponent_rollouts = rollouts.play(
+                [best_response_player, best_response_player],
+                games=best_response_opponent_games,
+                max_steps=args.rollout_max_steps,
+                rotate=True,
+                description="rollouts vs best response",
+            )
+            fixed_opponent_rollouts = rollouts.play(
+                [best_response_player, fixed_player],
+                games=fixed_opponent_games,
+                max_steps=args.rollout_max_steps,
+                rotate=True,
+                description="rollouts vs fixed opponent",
+            )
+            games = type(average_opponent_rollouts)(
+                list(average_opponent_rollouts)
+                + list(best_response_opponent_rollouts)
+                + list(fixed_opponent_rollouts)
+            )
+            best_response_games = type(average_opponent_rollouts)(
+                list(average_opponent_rollouts.only_strategy([0]))
+                + list(best_response_opponent_rollouts.only_strategy([0, 1]))
+                + list(fixed_opponent_rollouts.only_strategy([0]))
             )
 
-        best_response_games = games.only_strategy([0])
-        reservoir.add(imitation_targets(best_response_games))
-
+        compute_rollout_returns(games)
         copy_weights(reference, best_response)
+        reinforcement_samples = reinforcement_targets(best_response_games)
+        reservoir_inserted = reservoir.add_random(
+            reinforcement_samples,
+            round(
+                args.reservoir_insert_ratio
+                * args.average_samples_per_update
+            ),
+        )
         best_response_result = best_response_learner.train(
-            reinforcement_targets(best_response_games),
+            reinforcement_samples,
             progress=schedule_progress,
         )
         average_result = average_learner.train(
@@ -479,23 +555,49 @@ def _run(args, trackio_sink):
         completed = step + 1
 
         if completed % 5 == 0:
+            rollout_log = rollout_metrics(games, coop=False)
+            if average_opponent_games:
+                rollout_log["best_response_vs_average"] = {
+                    "win_rate": average_opponent_rollouts.win_rate(0),
+                }
+            if fixed_opponent_games:
+                rollout_log["best_response_vs_fixed"] = {
+                    "win_rate": fixed_opponent_rollouts.win_rate(0),
+                }
             metrics.log(
                 completed,
-                rollout=rollout_metrics(games, coop=False),
+                rollout=rollout_log,
                 nfsp={
                     "reservoir_size": len(reservoir),
                     "reservoir_seen": reservoir.seen,
+                    "reservoir_inserted": reservoir_inserted,
                     "opponent_best_response_fraction": (
-                        sum(opponent_uses_best_response)
-                        / len(opponent_uses_best_response)
+                        best_response_opponent_games / args.rollout_games
+                    ),
+                    "fixed_training_opponent_fraction": (
+                        fixed_opponent_games / args.rollout_games
                     ),
                 },
                 train={
-                    "best_response": best_response_result.metrics,
-                    "average": average_result.metrics,
+                    "best_response": {
+                        **best_response_result.metrics,
+                        "batches": best_response_result.batches,
+                        "samples": best_response_result.samples,
+                    },
+                    "average": {
+                        **average_result.metrics,
+                        "batches": average_result.batches,
+                        "samples": average_result.samples,
+                    },
                 },
             )
             metrics.game(completed, game.make_metrics(games))
+
+        # Evaluate the post-update models so evaluation step N refers to the
+        # same weights saved in step-N.pth. Previously this ran before the
+        # update, making dashboard evaluations disagree with checkpoint probes.
+        if completed % args.evaluation_every == 0:
+            evaluate(completed)
 
         if completed % args.save_every == 0:
             save(
@@ -523,7 +625,11 @@ def _run(args, trackio_sink):
         reservoir,
         args,
     )
-    if args.save_best and args.steps != start:
+    if (
+        args.save_best
+        and args.steps != start
+        and args.steps % args.evaluation_every != 0
+    ):
         evaluate(args.steps)
     return final_path
 
