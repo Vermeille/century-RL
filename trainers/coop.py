@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import os
 import random
 from pathlib import Path
 
@@ -30,11 +31,9 @@ from boardrl.rl.model.loss import (
     LinearEntropyBonus,
     LinearReverseEntropyBonus,
     LinearSymmetricUniformKLPenalty,
-    LinearSupportFloorPenalty,
     PolicyGradientLoss,
     ReverseEntropyBonus,
     ScheduledPerplexity,
-    SupportFloorPenalty,
     SymmetricUniformKLPenalty,
 )
 from boardrl.training import (
@@ -71,6 +70,13 @@ def nonnegative_int(value):
     return value
 
 
+def percentage(value):
+    value = nonnegative_int(value)
+    if value > 100:
+        raise argparse.ArgumentTypeError("must be between 0 and 100")
+    return value
+
+
 def positive_float(value):
     value = float(value)
     if value <= 0:
@@ -104,67 +110,92 @@ def build_parser():
     parser.add_argument(
         "--game",
         "-g",
-        default="thegame",
+        default="thegame,mode=omni",
         help=f"game specification; available games: {', '.join(games_library.registry)}",
     )
     parser.add_argument(
         "--architecture",
         "-a",
         choices=sorted(architectures),
-        default="cnn",
+        default="patchformer-medium-p8",
     )
     parser.add_argument(
         "--device", default="cuda" if torch.cuda.is_available() else "cpu"
     )
-    parser.add_argument("--steps", type=int, default=2_000)
+    parser.add_argument("--steps", type=int, default=2_400)
     parser.add_argument(
         "--schedule-steps",
         type=positive_int,
         help=(
-            "anneal exploration over this many steps, then hold; also used for "
-            "learning rate unless --lr-schedule-steps is provided"
+            "anneal exploration over this many steps, then hold; defaults to the "
+            "window defined by --schedule-start-percent and --schedule-end-percent"
         ),
     )
     parser.add_argument(
         "--schedule-start",
         type=nonnegative_int,
-        default=0,
-        help="global step at which the exploration schedule starts",
+        help=(
+            "global step at which the exploration schedule starts; defaults to "
+            "--schedule-start-percent of --steps"
+        ),
+    )
+    parser.add_argument(
+        "--schedule-start-percent",
+        type=percentage,
+        default=1,
+        help="default exploration schedule start as a percentage of --steps",
+    )
+    parser.add_argument(
+        "--schedule-end-percent",
+        type=percentage,
+        default=99,
+        help="default exploration schedule end as a percentage of --steps",
     )
     parser.add_argument(
         "--lr-schedule-steps",
         type=positive_int,
-        help="anneal learning rate over this many steps independently of exploration",
+        help=(
+            "anneal learning rate over this many steps independently of exploration; "
+            "defaults to the window from --lr-schedule-start-percent through --steps"
+        ),
     )
     parser.add_argument(
         "--lr-schedule-start",
         type=nonnegative_int,
-        default=0,
-        help="global step at which the learning-rate schedule starts",
+        help=(
+            "global step at which the learning-rate schedule starts; defaults to "
+            "--lr-schedule-start-percent of --steps"
+        ),
+    )
+    parser.add_argument(
+        "--lr-schedule-start-percent",
+        type=percentage,
+        default=50,
+        help="default learning-rate schedule start as a percentage of --steps",
     )
     parser.add_argument(
         "--lr-schedule-shape",
         choices=sorted(lr_schedulers),
-        default="linear",
+        default="cosine",
         help="shape of the learning-rate decay",
     )
     parser.add_argument(
         "--inference-batch-size",
         type=positive_int,
-        default=512,
+        default=1024,
         help="maximum batch for live rollout and evaluation inference",
     )
     parser.add_argument(
         "--learner-batch-size",
         type=positive_int,
-        default=512,
+        default=384,
         help="batch size for reference targets and PPO updates",
     )
-    parser.add_argument("--rollout-games", type=int, default=256)
+    parser.add_argument("--rollout-games", type=positive_int, default=128)
     parser.add_argument(
         "--value-clip-epsilon",
         type=optional_positive_float,
-        default=2.0,
+        default=3.0,
         help=(
             "clip TD(lambda) targets to this many rollout value standard deviations; "
             "use 'none' to disable"
@@ -176,41 +207,43 @@ def build_parser():
         default=5_000,
         help="maximum number of environment steps per rollout game",
     )
-    parser.add_argument("--evaluation-games", type=int, default=256)
-    parser.add_argument("--evaluation-every", type=int, default=25)
-    parser.add_argument("--save-every", type=int, default=25)
+    parser.add_argument("--evaluation-games", type=positive_int, default=512)
+    parser.add_argument("--evaluation-every", type=positive_int, default=50)
+    parser.add_argument("--save-every", type=positive_int, default=25)
     parser.add_argument(
         "--keep-checkpoints",
         type=positive_int,
+        default=10,
         help="retain only this many latest periodic checkpoints",
     )
     parser.add_argument(
         "--save-best",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="retain the checkpoint with the highest evaluation points",
     )
-    parser.add_argument("--learning-rate", type=float, default=3e-4)
+    parser.add_argument("--learning-rate", type=positive_float, default=8e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
-    parser.add_argument("--adam-beta1", type=float, default=0.5)
-    parser.add_argument("--adam-beta2", type=float, default=0.999)
-    parser.add_argument("--adam-eps", type=float, default=1e-8)
+    parser.add_argument("--adam-beta1", type=float, default=0.9)
+    parser.add_argument("--adam-beta2", type=float, default=0.95)
+    parser.add_argument("--adam-eps", type=positive_float, default=1e-5)
     parser.add_argument("--epochs", type=int, default=1)
-    parser.add_argument("--gradient-clip", type=float)
+    parser.add_argument("--gradient-clip", type=float, default=5.0)
     parser.add_argument("--discount", type=float, default=1.0)
     parser.add_argument(
         "--gae-lambda",
         type=float,
-        default=1.0,
+        default=0.1,
         help="trace decay for generalized advantage estimation",
     )
     parser.add_argument(
         "--value-lambda",
         type=float,
-        default=1.0,
+        default=0.9,
         help="trace decay for critic targets (1 uses pure Monte Carlo returns)",
     )
-    parser.add_argument("--perplexity-start", type=float, default=2.0)
-    parser.add_argument("--perplexity-end", type=float, default=1.05)
+    parser.add_argument("--perplexity-start", type=float, default=2.5)
+    parser.add_argument("--perplexity-end", type=float, default=1.5)
     parser.add_argument(
         "--perplexity-curve",
         type=positive_float,
@@ -225,7 +258,7 @@ def build_parser():
     parser.add_argument(
         "--perplexity-schedule-shape",
         choices=sorted(SCHEDULE_SHAPES),
-        default="linear",
+        default="cosine",
         help="shape used to interpolate the thermostat perplexity target",
     )
     parser.add_argument(
@@ -253,35 +286,17 @@ def build_parser():
         default=0.05,
         help="fraction of initial entropy strength retained after annealing",
     )
-    parser.add_argument(
-        "--support-floor-mass",
-        type=float,
-        help=(
-            "minimum total probability mass reserved across legal actions; "
-            "disabled when omitted"
-        ),
-    )
-    parser.add_argument(
-        "--support-strength",
-        type=float,
-        default=0.001,
-        help="initial strength of the selective log-probability support barrier",
-    )
-    parser.add_argument(
-        "--support-strength-end",
-        type=float,
-        default=0.0,
-        help="final support-barrier strength after the exploration schedule",
-    )
     parser.add_argument("--value-strength", type=float, default=1.0)
-    parser.add_argument("--kl-target", type=float, default=0.003)
-    parser.add_argument("--kl-strength", type=float, default=1.0)
+    parser.add_argument("--kl-target", type=float, default=0.05)
+    parser.add_argument("--kl-strength", type=float, default=0.05)
     parser.add_argument("--ppo-clip", type=float, default=0.2)
-    parser.add_argument("--eval-temperature", type=float, default=0.05)
-    parser.add_argument("--warmup", type=int, default=15)
-    parser.add_argument("--min-lr-scale", type=float, default=0.3)
+    parser.add_argument("--eval-temperature", type=float, default=0.02)
+    parser.add_argument("--warmup", type=nonnegative_int, default=20)
+    parser.add_argument("--min-lr-scale", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--checkpoint-root", type=Path, default=Path("checkpoints"))
+    parser.add_argument(
+        "--checkpoint-root", type=Path, default=Path("checkpoints/schedule-search")
+    )
     starting_point = parser.add_mutually_exclusive_group()
     starting_point.add_argument("--resume", type=Path)
     starting_point.add_argument(
@@ -289,18 +304,10 @@ def build_parser():
         type=Path,
         help="load model weights but start a fresh optimizer and step count",
     )
-    parser.add_argument(
-        "--resume-reset-exploration-state",
-        action="store_true",
-        help=(
-            "restore all learner state except the exploration loss state; "
-            "use when intentionally changing exploration controllers"
-        ),
-    )
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--tag", default="coop")
     parser.add_argument("--trackio", action="store_true")
-    parser.add_argument("--trackio-url")
+    parser.add_argument("--trackio-url", default=os.environ.get("TRACKIO_URL"))
     return parser
 
 
@@ -316,16 +323,47 @@ def seed_everything(seed):
 
 
 def resolve_schedule_steps(args):
-    exploration_steps = args.schedule_steps or args.steps
-    lr_steps = args.lr_schedule_steps or exploration_steps
+    schedule_start = resolve_schedule_start(args)
+    exploration_end = args.steps * args.schedule_end_percent // 100
+    exploration_steps = args.schedule_steps or max(exploration_end - schedule_start, 1)
+    lr_schedule_start = resolve_lr_schedule_start(args)
+    if args.lr_schedule_steps is not None:
+        lr_steps = args.lr_schedule_steps
+    elif args.schedule_steps is not None:
+        lr_steps = exploration_steps
+    else:
+        lr_steps = max(args.steps - lr_schedule_start - 1, 1)
     return lr_steps, exploration_steps
+
+
+def resolve_schedule_start(args):
+    if args.schedule_start is not None:
+        return args.schedule_start
+    return args.steps * args.schedule_start_percent // 100
+
+
+def resolve_lr_schedule_start(args):
+    if args.lr_schedule_start is not None:
+        return args.lr_schedule_start
+    return args.steps * args.lr_schedule_start_percent // 100
+
+
+def exploration_schedule_progress(step, args, schedule_start, schedule_steps):
+    progress = min(
+        max((step - schedule_start) / schedule_steps, 0.0),
+        1.0,
+    )
+    if args.exploration_controller == "thermostat":
+        progress **= args.perplexity_curve
+        return SCHEDULE_SHAPES[args.perplexity_schedule_shape](progress)
+    return progress
 
 
 def optimizer_schedule_position(step, args):
     """Map a global step to warmup/decay-local scheduler time."""
     if step <= args.warmup:
         return step
-    decay_start = max(args.lr_schedule_start, args.warmup)
+    decay_start = max(resolve_lr_schedule_start(args), args.warmup)
     if step >= decay_start:
         return args.warmup + step - decay_start
     return None
@@ -366,19 +404,6 @@ def make_learner(model, reference, game, args):
         ),
         exploration_loss,
     ]
-    if args.support_floor_mass is not None:
-        if args.exploration_controller == "linear":
-            support_loss = LinearSupportFloorPenalty(
-                floor_mass=args.support_floor_mass,
-                start=args.support_strength,
-                end=args.support_strength_end,
-            )
-        else:
-            support_loss = SupportFloorPenalty(
-                floor_mass=args.support_floor_mass,
-                strength=args.support_strength,
-            )
-        losses.append(support_loss)
     losses.extend(
         [
             AdaptiveKLPenalty(
@@ -424,15 +449,7 @@ def apply_optimizer_hyperparameters(optimizer, args):
         )
 
 
-def load_resumed_learner_state(learner, state, *, reset_exploration_state):
-    if not reset_exploration_state:
-        learner.load_state_dict(state)
-        return
-
-    state = copy.deepcopy(state)
-    if len(state["losses"]) < 2 or len(learner.losses) < 2:
-        raise ValueError("learner has no exploration loss to reset")
-    state["losses"][1] = learner.losses[1].state_dict()
+def load_resumed_learner_state(learner, state):
     learner.load_state_dict(state)
 
 
@@ -511,7 +528,6 @@ def _run(args, trackio_sink):
         load_resumed_learner_state(
             learner,
             state["states"]["learner"],
-            reset_exploration_state=args.resume_reset_exploration_state,
         )
         apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
@@ -529,6 +545,7 @@ def _run(args, trackio_sink):
     if trackio_sink is not None:
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
+    schedule_start = resolve_schedule_start(args)
     prepare = Pipeline(
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),
@@ -586,15 +603,9 @@ def _run(args, trackio_sink):
             schedule_position = optimizer_schedule_position(step, args)
             if schedule_position is not None:
                 schedule.step(schedule_position)
-            schedule_progress = min(
-                max((step - args.schedule_start) / exploration_schedule_steps, 0.0),
-                1.0,
+            schedule_progress = exploration_schedule_progress(
+                step, args, schedule_start, exploration_schedule_steps
             )
-            if args.exploration_controller == "thermostat":
-                schedule_progress **= args.perplexity_curve
-                schedule_progress = SCHEDULE_SHAPES[args.perplexity_schedule_shape](
-                    schedule_progress
-                )
 
             if step != start and step % args.evaluation_every == 0:
                 evaluate(step)

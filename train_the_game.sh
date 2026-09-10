@@ -1,1 +1,21 @@
-TOTAL_STEPS=900 RECIPE=full-decay HIGH_PERPLEXITY=6 MEDIUM_PERPLEXITY=1 LEARNING_RATE=4e-4 KL_STRENGTH=0.1 LR_DECAY_START_PERCENT=50 KL_TARGET=0.1 GAME=thegame,mode=strict TAG=YOLO SEED=1 trainers/thegame_omni_schedule.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+set -a
+source .env
+set +a
+
+exec uv run python trainers/coop.py \
+  --game thegame,mode=strict \
+  --steps 900 \
+  --perplexity-start 6 \
+  --perplexity-end 1 \
+  --learning-rate 4e-4 \
+  --kl-strength 0.1 \
+  --kl-target 0.1 \
+  --tag YOLO \
+  --seed 1 \
+  --trackio \
+  --no-progress \
+  "$@"
