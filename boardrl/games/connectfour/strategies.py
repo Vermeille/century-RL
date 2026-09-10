@@ -39,7 +39,7 @@ class TacticalRandomStrategy:
             sim = g.copy()
             sim.board[col][row] = opponent
 
-            if sim._check_winner_at(col, row) == opponent:
+            if sim._check_winner() == opponent:
                 probs = one_hot(idx, len(g.moves))
                 return probs.log(), {
                     "moves": dict(zip(g.moves, probs.tolist())),
