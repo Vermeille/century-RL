@@ -71,5 +71,4 @@ class Metrics(GameMetrics):
             "strategy": GroupedTraceMetrics(
                 self.data.by_strategy, StrategyMetrics
             ).metrics(),
-            "seat": GroupedTraceMetrics(self.data.by_seat).metrics(),
         }

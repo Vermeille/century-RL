@@ -1,6 +1,6 @@
 import torch
 from tqdm import tqdm  # type: ignore[import-untyped]
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable
 from typing import Awaitable, Tuple
 
 from boardrl.utils import Game, run_tasks
@@ -90,38 +90,12 @@ class GameTrace(list):
         return self.by_seat[0][-1].won
 
 
-class TraceGrouping:
-    """Select one stable trace identity from every game in a rollout."""
-
-    def identity(self, trace: PlayerTrace) -> int:
-        raise NotImplementedError
-
-
-class SeatGrouping(TraceGrouping):
-    def identity(self, trace: PlayerTrace) -> int:
-        return trace.seat_id
-
-
-class StrategyGrouping(TraceGrouping):
-    def identity(self, trace: PlayerTrace) -> int:
-        return trace.strategy_id
-
-
-class TraceGroup(Sequence[PlayerTrace]):
+class TraceGroup(list[PlayerTrace]):
     """The traces belonging to one seat or strategy across many games."""
 
     def __init__(self, identity: int, traces: list[PlayerTrace]):
         self.identity = identity
-        self.traces = traces
-
-    def __getitem__(self, index):
-        return self.traces[index]
-
-    def __len__(self) -> int:
-        return len(self.traces)
-
-    def __iter__(self) -> Iterator[PlayerTrace]:
-        return iter(self.traces)
+        super().__init__(traces)
 
     def points(self) -> list[float]:
         return [trace[-1].current_diff_points for trace in self]
@@ -176,53 +150,28 @@ class TraceGroup(Sequence[PlayerTrace]):
         return total / count
 
 
-class TraceGroups:
+class TraceGroups(list[TraceGroup]):
     """Rollout traces grouped explicitly by seat or strategy identity."""
 
-    def __init__(self, games: "SelfPlayResults", grouping: TraceGrouping):
-        self.games = games
-        self.grouping = grouping
-        self.identities = tuple(
-            sorted(
-                {
-                    grouping.identity(trace)
-                    for game in games
-                    for trace in game.by_seat
-                }
-            )
+    def __init__(
+        self,
+        games: "SelfPlayResults",
+        identity: Callable[[PlayerTrace], int],
+    ):
+        traces = [trace for game in games for trace in game.by_seat]
+        super().__init__(
+            TraceGroup(key, [trace for trace in traces if identity(trace) == key])
+            for key in sorted({identity(trace) for trace in traces})
         )
-
-    def __getitem__(self, index):
-        return self.group(self.identities[index])
-
-    def __len__(self) -> int:
-        return len(self.identities)
-
-    def __iter__(self) -> Iterator[TraceGroup]:
-        return (self.group(identity) for identity in self.identities)
 
     def group(self, identity: int) -> TraceGroup:
-        if identity not in self.identities:
-            raise KeyError(f"unknown trace identity {identity}")
-        return TraceGroup(
-            identity,
-            [
-                trace
-                for game in self.games
-                for trace in game.by_seat
-                if self.grouping.identity(trace) == identity
-            ],
-        )
-
-    def map(self, metric: Callable[[TraceGroup], object]) -> dict[str, object]:
-        return {str(group.identity): metric(group) for group in self}
+        try:
+            return next(group for group in self if group.identity == identity)
+        except StopIteration as exc:
+            raise KeyError(f"unknown trace identity {identity}") from exc
 
     def collapse(self) -> list[float]:
         return [group.collapse() for group in self]
-
-
-BY_SEAT = SeatGrouping()
-BY_STRATEGY = StrategyGrouping()
 
 
 class SelfPlayResults(list):
@@ -270,11 +219,11 @@ class SelfPlayResults(list):
 
     @property
     def by_seat(self) -> TraceGroups:
-        return TraceGroups(self, BY_SEAT)
+        return TraceGroups(self, lambda trace: trace.seat_id)
 
     @property
     def by_strategy(self) -> TraceGroups:
-        return TraceGroups(self, BY_STRATEGY)
+        return TraceGroups(self, lambda trace: trace.strategy_id)
 
     def grouped(self, by: str) -> TraceGroups:
         try:

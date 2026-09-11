@@ -98,7 +98,7 @@ def test_trace_groups_distinguish_strategy_identity_from_rotated_seats():
     assert first_seat.points() == [1.0, 1.0]
     assert first_seat.win_rate() == pytest.approx(1.0)
     assert first_seat.collapse() == pytest.approx(0.0)
-    assert results.by_strategy.map(lambda group: group.win_rate()) == {
+    assert {str(group.identity): group.win_rate() for group in results.by_strategy} == {
         "0": pytest.approx(0.5),
         "1": pytest.approx(0.5),
     }

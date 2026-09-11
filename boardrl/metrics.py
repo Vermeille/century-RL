@@ -142,21 +142,10 @@ class MetricLogger:
         for sink in self.sinks:
             sink.log(step, values)
 
-    def game(
-        self,
-        step: int,
-        metrics,
-        *,
-        histories: bool = False,
-        exclude: tuple[str, ...] = (),
-    ) -> None:
+    def game(self, step: int, metrics, *, histories: bool = False) -> None:
         if histories:
             metrics.print_short_history()
-        values = metrics.metrics()
-        self.log(
-            step,
-            game={key: value for key, value in values.items() if key not in exclude},
-        )
+        self.log(step, game=metrics.metrics())
 
 
 class GameMetrics:
@@ -186,9 +175,10 @@ class GroupedTraceMetrics:
         self.metric_type = metric_type
 
     def metrics(self) -> dict[str, object]:
-        return self.groups.map(
-            lambda traces: self.metric_type(traces).metrics()
-        )
+        return {
+            str(group.identity): self.metric_type(group).metrics()
+            for group in self.groups
+        }
 
 
 def rollout_metrics(results, *, coop: bool = False) -> dict[str, object]:
