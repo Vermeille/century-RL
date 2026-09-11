@@ -288,6 +288,7 @@ def _run(args, trackio_sink):
     reservoir = Reservoir(args.reservoir_capacity, seed=args.seed + 1)
 
     lr_schedule_steps, exploration_schedule_steps = coop.resolve_schedule_steps(args)
+    schedule_start = coop.resolve_schedule_start(args)
     best_response_schedule = coop.lr_schedulers[args.lr_schedule_shape](
         best_response_optimizer,
         steps=lr_schedule_steps + args.warmup,
@@ -349,7 +350,6 @@ def _run(args, trackio_sink):
         coop.load_resumed_learner_state(
             best_response_learner,
             state["states"]["best_response_learner"],
-            reset_exploration_state=args.resume_reset_exploration_state,
         )
         average_learner.load_state_dict(state["states"]["average_learner"])
         reservoir.load_state_dict(state["states"]["reservoir"])
@@ -472,15 +472,9 @@ def _run(args, trackio_sink):
             best_response_schedule.step(schedule_position)
             average_schedule.step(schedule_position)
 
-        schedule_progress = min(
-            max((step - args.schedule_start) / exploration_schedule_steps, 0.0),
-            1.0,
+        schedule_progress = coop.exploration_schedule_progress(
+            step, args, schedule_start, exploration_schedule_steps
         )
-        if args.exploration_controller == "thermostat":
-            schedule_progress **= args.perplexity_curve
-            schedule_progress = coop.SCHEDULE_SHAPES[
-                args.perplexity_schedule_shape
-            ](schedule_progress)
 
         with best_response_inference.evaluating(), average_inference.evaluating():
             best_response_player = best_response_inference.policy()

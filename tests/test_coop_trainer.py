@@ -10,7 +10,6 @@ import trainers.coop as coop
 from trainers.coop import (
     apply_optimizer_hyperparameters,
     build_parser,
-    load_resumed_learner_state,
     optimizer_schedule_position,
     resolve_schedule_steps,
     run,
@@ -300,62 +299,11 @@ def test_delayed_lr_decay_keeps_initial_warmup_at_the_start_of_training():
     assert optimizer_schedule_position(599, args) == 139
 
 
-def test_coop_cli_configures_selective_action_support():
-    args = build_parser().parse_args(
-        [
-            "--support-floor-mass",
-            "0.01",
-            "--support-strength",
-            "0.001",
-            "--support-strength-end",
-            "0.0",
-        ]
-    )
-
-    assert args.support_floor_mass == 0.01
-    assert args.support_strength == 0.001
-    assert args.support_strength_end == 0.0
-
-
 def test_coop_resume_and_initialize_are_mutually_exclusive():
     parser = build_parser()
 
     with pytest.raises(SystemExit):
         parser.parse_args(["--resume", "old.pth", "--initialize-from", "best.pth"])
-
-
-def test_resume_can_reset_only_the_exploration_loss_state():
-    class StatefulLoss:
-        def __init__(self, state):
-            self.state = state
-
-        def state_dict(self):
-            return self.state
-
-    class RecordingLearner:
-        losses = [StatefulLoss({"policy": "new"}), StatefulLoss({})]
-
-        def load_state_dict(self, state):
-            self.loaded = state
-
-    learner = RecordingLearner()
-    saved = {
-        "base_batches": 17,
-        "losses": [{"policy": "saved"}, {"thermostat": "saved"}],
-    }
-
-    load_resumed_learner_state(
-        learner,
-        saved,
-        reset_exploration_state=True,
-    )
-
-    assert learner.loaded == {
-        "base_batches": 17,
-        "losses": [{"policy": "saved"}, {}],
-    }
-    assert saved["losses"][1] == {"thermostat": "saved"}
-
 
 def test_cli_adamw_hyperparameters_override_restored_optimizer_state():
     parameter = torch.nn.Parameter(torch.tensor(1.0))

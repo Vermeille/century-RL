@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm  # type: ignore[import-untyped]
-from typing import Tuple, Callable, Awaitable
+from collections.abc import Callable, Iterator, Sequence
+from typing import Awaitable, Tuple
 
 from boardrl.utils import Game, run_tasks
 import pyximport  # type: ignore[import-untyped]
@@ -89,6 +90,141 @@ class GameTrace(list):
         return self.by_seat[0][-1].won
 
 
+class TraceGrouping:
+    """Select one stable trace identity from every game in a rollout."""
+
+    def identity(self, trace: PlayerTrace) -> int:
+        raise NotImplementedError
+
+
+class SeatGrouping(TraceGrouping):
+    def identity(self, trace: PlayerTrace) -> int:
+        return trace.seat_id
+
+
+class StrategyGrouping(TraceGrouping):
+    def identity(self, trace: PlayerTrace) -> int:
+        return trace.strategy_id
+
+
+class TraceGroup(Sequence[PlayerTrace]):
+    """The traces belonging to one seat or strategy across many games."""
+
+    def __init__(self, identity: int, traces: list[PlayerTrace]):
+        self.identity = identity
+        self.traces = traces
+
+    def __getitem__(self, index):
+        return self.traces[index]
+
+    def __len__(self) -> int:
+        return len(self.traces)
+
+    def __iter__(self) -> Iterator[PlayerTrace]:
+        return iter(self.traces)
+
+    def points(self) -> list[float]:
+        return [trace[-1].current_diff_points for trace in self]
+
+    def wins(self) -> list[float]:
+        return [
+            1.0 if points > 0 else (0.5 if points == 0 else 0.0)
+            for points in self.points()
+        ]
+
+    def win_rate(self) -> float:
+        wins = self.wins()
+        return sum(wins) / len(wins)
+
+    def avg_points(self) -> float:
+        points = self.points()
+        return sum(points) / len(points)
+
+    def avg_reward(self) -> float:
+        records = [record for trace in self for record in trace]
+        return sum(record.reward for record in records) / len(records)
+
+    def num_actions(self) -> int:
+        return sum(max(len(trace) - 1, 0) for trace in self)
+
+    def avg_actions(self) -> float:
+        return self.num_actions() / len(self)
+
+    def collapse(self) -> float:
+        """Average pairwise action-sequence similarity for this identity."""
+        sequences = [
+            [record.moves[record.action_idx] for record in trace[:-1]]
+            for trace in self
+        ]
+        n = len(sequences)
+        if n <= 1:
+            return 1.0
+
+        max_len = max(len(sequence) for sequence in sequences)
+        if max_len == 0:
+            return 1.0
+
+        total = 0.0
+        count = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                first, second = sequences[i], sequences[j]
+                matches = sum(int(a == b) for a, b in zip(first, second))
+                matches += max_len - max(len(first), len(second))
+                total += matches / max_len
+                count += 1
+        return total / count
+
+
+class TraceGroups:
+    """Rollout traces grouped explicitly by seat or strategy identity."""
+
+    def __init__(self, games: "SelfPlayResults", grouping: TraceGrouping):
+        self.games = games
+        self.grouping = grouping
+        self.identities = tuple(
+            sorted(
+                {
+                    grouping.identity(trace)
+                    for game in games
+                    for trace in game.by_seat
+                }
+            )
+        )
+
+    def __getitem__(self, index):
+        return self.group(self.identities[index])
+
+    def __len__(self) -> int:
+        return len(self.identities)
+
+    def __iter__(self) -> Iterator[TraceGroup]:
+        return (self.group(identity) for identity in self.identities)
+
+    def group(self, identity: int) -> TraceGroup:
+        if identity not in self.identities:
+            raise KeyError(f"unknown trace identity {identity}")
+        return TraceGroup(
+            identity,
+            [
+                trace
+                for game in self.games
+                for trace in game.by_seat
+                if self.grouping.identity(trace) == identity
+            ],
+        )
+
+    def map(self, metric: Callable[[TraceGroup], object]) -> dict[str, object]:
+        return {str(group.identity): metric(group) for group in self}
+
+    def collapse(self) -> list[float]:
+        return [group.collapse() for group in self]
+
+
+BY_SEAT = SeatGrouping()
+BY_STRATEGY = StrategyGrouping()
+
+
 class SelfPlayResults(list):
     """Container for a batch of self-play games.
 
@@ -132,6 +268,20 @@ class SelfPlayResults(list):
     def num_players(self):
         return self[0].num_players()
 
+    @property
+    def by_seat(self) -> TraceGroups:
+        return TraceGroups(self, BY_SEAT)
+
+    @property
+    def by_strategy(self) -> TraceGroups:
+        return TraceGroups(self, BY_STRATEGY)
+
+    def grouped(self, by: str) -> TraceGroups:
+        try:
+            return {"strategy": self.by_strategy, "seat": self.by_seat}[by]
+        except KeyError as exc:
+            raise ValueError("by must be 'strategy' or 'seat'") from exc
+
     def all_traces(self):
         for game in self:
             for player in game:
@@ -144,9 +294,9 @@ class SelfPlayResults(list):
         return len(self) * self.num_players()
 
     def collapse(self) -> list[float]:
-        """Return per-player similarity of action sequences.
+        """Return per-seat similarity of action sequences.
 
-        For each seat, compare that player's move sequences across games
+        For each seat, compare that seat's move sequences across games
         using the string representation of each action. Sequences are
         padded to the longest trace before computing the fraction of
         matching actions, and scores are averaged over all pairs. Values
@@ -154,66 +304,32 @@ class SelfPlayResults(list):
         ``0.0`` when no pair shared an action at the same step.
         """
 
-        def score(sequences: list[list[str]]) -> float:
-            n = len(sequences)
-            if n <= 1:
-                return 1.0
-
-            max_len = max(len(s) for s in sequences)
-            if max_len == 0:
-                return 1.0
-
-            total = 0.0
-            count = 0
-            for i in range(n):
-                for j in range(i + 1, n):
-                    a, b = sequences[i], sequences[j]
-                    matches = sum(int(x == y) for x, y in zip(a, b))
-                    matches += max_len - max(len(a), len(b))
-                    total += matches / max_len
-                    count += 1
-            return total / count
-
-        return [
-            score([[r.moves[r.action_idx] for r in game[seat][:-1]] for game in self])
-            for seat in range(self.num_players())
-        ]
+        return self.by_seat.collapse()
 
     #
     # ------------------------------------------------------------------
     # Metrics previously provided by ``PitResults``
     # ------------------------------------------------------------------
     def my_games(self, num: int, *, by: str = "strategy"):
-        if by == "strategy":
-            return [game.by_strategy[num] for game in self]
-        if by == "seat":
-            return [game.by_seat[num] for game in self]
-        raise ValueError("by must be 'strategy' or 'seat'")
+        return list(self.grouped(by).group(num))
 
     def my_points(self, num: int, *, by: str = "strategy"):
-        return [hist[-1].current_diff_points for hist in self.my_games(num, by=by)]
+        return self.grouped(by).group(num).points()
 
     def my_wins(self, num: int, *, by: str = "strategy"):
-        return [
-            1 if p > 0 else (0.5 if p == 0 else 0) for p in self.my_points(num, by=by)
-        ]
+        return self.grouped(by).group(num).wins()
 
     def win_rate(self, num: int, *, by: str = "strategy"):
-        wins = self.my_wins(num, by=by)
-        return sum(wins) / len(wins)
+        return self.grouped(by).group(num).win_rate()
 
     def objective_win_rate(self):
         return sum(game.won() for game in self) / len(self)
 
     def my_avg_points(self, num: int, *, by: str = "strategy"):
-        pts = self.my_points(num, by=by)
-        return sum(pts) / len(pts)
+        return self.grouped(by).group(num).avg_points()
 
     def my_avg_reward(self, num: int, *, by: str = "strategy"):
-        my_games = self.my_games(num, by=by)
-        return sum(g.reward for game in my_games for g in game) / sum(
-            len(game) for game in my_games
-        )
+        return self.grouped(by).group(num).avg_reward()
 
 
 Strategy = Callable[[Game], Awaitable[Tuple[torch.Tensor, dict]]]

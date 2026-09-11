@@ -9,6 +9,8 @@ from pathlib import Path
 
 import torch
 
+from boardrl.rl.eval.selfplay import TraceGroup, TraceGroups
+
 
 @dataclass(frozen=True)
 class Range:
@@ -140,29 +142,67 @@ class MetricLogger:
         for sink in self.sinks:
             sink.log(step, values)
 
-    def game(self, step: int, metrics, *, histories: bool = False) -> None:
+    def game(
+        self,
+        step: int,
+        metrics,
+        *,
+        histories: bool = False,
+        exclude: tuple[str, ...] = (),
+    ) -> None:
         if histories:
             metrics.print_short_history()
-        self.log(step, game=metrics.metrics())
+        values = metrics.metrics()
+        self.log(
+            step,
+            game={key: value for key, value in values.items() if key not in exclude},
+        )
 
 
 class GameMetrics:
     """A game supplies metric values to the experiment's configured sinks."""
 
 
+class TraceMetrics:
+    """Common metrics for one explicit seat or strategy identity."""
+
+    def __init__(self, traces: TraceGroup):
+        self.traces = traces
+
+    def metrics(self) -> dict[str, object]:
+        return {
+            "win_rate": self.traces.win_rate(),
+            "points": Range(self.traces.points()),
+            "avg_actions": self.traces.avg_actions(),
+            "collapse": self.traces.collapse(),
+        }
+
+
+class GroupedTraceMetrics:
+    """Apply a metric object independently to every identity in a grouping."""
+
+    def __init__(self, groups: TraceGroups, metric_type=TraceMetrics):
+        self.groups = groups
+        self.metric_type = metric_type
+
+    def metrics(self) -> dict[str, object]:
+        return self.groups.map(
+            lambda traces: self.metric_type(traces).metrics()
+        )
+
+
 def rollout_metrics(results, *, coop: bool = False) -> dict[str, object]:
     """Game-independent rollout statistics."""
     if not results:
         return {"games": 0, "samples": 0}
+    strategies = results.by_strategy
+    first = strategies.group(0)
     metrics = {
         "games": len(results),
         "samples": results.num_samples(),
-        "win_rate": results.win_rate(0, by="strategy"),
-        "avg_reward": [
-            results.my_avg_reward(player, by="strategy")
-            for player in range(results.num_players())
-        ],
-        "points": Range(results.my_points(0, by="strategy")),
+        "win_rate": first.win_rate(),
+        "avg_reward": [strategy.avg_reward() for strategy in strategies],
+        "points": Range(first.points()),
     }
     if coop:
         metrics["win_rate"] = results.objective_win_rate()

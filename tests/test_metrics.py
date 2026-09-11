@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import torch
 
-from boardrl.metrics import Range, Trackio, make_trackio
+from boardrl.metrics import MetricLogger, Range, Trackio, make_trackio
 
 
 class RunRecorder:
@@ -42,6 +42,25 @@ def test_trackio_sink_normalizes_training_metrics() -> None:
             },
             12,
         )
+    ]
+
+
+def test_metric_logger_can_exclude_a_metric_namespace() -> None:
+    run = RunRecorder()
+
+    MetricLogger(Trackio(run)).game(
+        12,
+        SimpleNamespace(
+            metrics=lambda: {
+                "strategy": {"0": {"win_rate": 0.5}},
+                "seat": {"0": {"win_rate": 1.0}},
+            }
+        ),
+        exclude=("seat",),
+    )
+
+    assert run.logs == [
+        ({"game/strategy/0/win_rate": 0.5}, 12),
     ]
 
 

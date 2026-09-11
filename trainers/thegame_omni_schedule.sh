@@ -63,9 +63,13 @@ snapshot_training_source() {
   snapshot_index="$(mktemp)"
   rm -f -- "$snapshot_index"
   GIT_INDEX_FILE="$snapshot_index" git read-tree HEAD
+  # Also remove any legacy tracked generated artifacts inherited from HEAD.
+  GIT_INDEX_FILE="$snapshot_index" git rm --cached -r --ignore-unmatch -- checkpoints training-logs .env >/dev/null
 
   # Snapshot every tracked working-tree change plus untracked runtime source.
-  # Deliberately exclude .env, checkpoints, and logs from the synthetic commit.
+  # Never put local secrets, model checkpoints, or training logs in the snapshot.
+  # The first command only updates paths already in the temporary index; the
+  # second is limited to source directories, so ignored runtime output stays out.
   GIT_INDEX_FILE="$snapshot_index" git add -u -- .
   GIT_INDEX_FILE="$snapshot_index" git add -- boardrl trainers examples
   snapshot_tree="$(GIT_INDEX_FILE="$snapshot_index" git write-tree)"
@@ -109,7 +113,6 @@ STEPS="$total_steps" \
   --schedule-steps "$ppl_steps" \
   --perplexity-start "$high_ppl" \
   --perplexity-end "$medium_ppl" \
-  --perplexity-schedule-shape cosine \
   --lr-schedule-start "$lr_start_step" \
   --lr-schedule-steps "$lr_steps" \
   --lr-schedule-shape cosine \

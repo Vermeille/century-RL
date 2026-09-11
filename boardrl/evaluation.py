@@ -18,10 +18,10 @@ class Evaluation:
     def win_rate(self, player=0) -> float:
         if self.coop:
             return self.rollouts.objective_win_rate()
-        return self.rollouts.win_rate(player, by="strategy")
+        return self.rollouts.by_strategy.group(player).win_rate()
 
     def avg_points(self, player=0) -> float:
-        return self.rollouts.my_avg_points(player, by="strategy")
+        return self.rollouts.by_strategy.group(player).avg_points()
 
     @property
     def games(self) -> int:

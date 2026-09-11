@@ -61,6 +61,27 @@ games = rollouts.play(
 Game-specific strategies work the same way, for example
 `LowestCostStrategy()` from `boardrl.games.thegame.strategies`.
 
+### Metrics by strategy or seat
+
+Seat identity is board position; strategy identity is the lineup entry and
+survives seat rotation. Keep that choice explicit when computing metrics:
+
+```python
+agent = games.by_strategy.group(0)
+first_seat = games.by_seat.group(0)
+
+agent.win_rate()
+agent.points()
+agent.avg_actions()
+agent.collapse()
+```
+
+`TraceMetrics(agent).metrics()` produces the common outcome summary for one
+identity. `GroupedTraceMetrics(games.by_strategy).metrics()` produces a nested
+mapping keyed by strategy identity, suitable for `MetricLogger` and Trackio.
+Game-specific metric classes can subclass `TraceMetrics` to add policy-specific
+measurements without combining different strategies.
+
 ### NFSP-like two-model training
 
 Create two independent `Learner` objects. Pick the behavior lineup in Python,

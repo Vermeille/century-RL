@@ -4,4 +4,6 @@ Seven-column, six-row board. Players drop coloured discs into columns trying to 
 
 ## Metrics
 - `print_short_history()` prints move sequences for each player and shows the final coloured board and score.
-- `metrics()` tracks the ratio of finished boards, average trace length, collapse, and the average probability of the chosen move in winning games.
+- `metrics()` reports terminal rate, draw rate, and average actions per game.
+- Policy metrics are grouped by stable strategy identity; outcome-only seat metrics are reported separately.
+- Per-strategy metrics include win rate, points, average actions, collapse, winning-game count, and the average probability assigned to the final winning move.

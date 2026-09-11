@@ -52,6 +52,58 @@ def test_pit_rotate_flag():
     assert static[1][0].strategy_id == 0
 
 
+def _make_action_trace(seat_id, strategy_id, action, score):
+    trace = PlayerTrace(seat_id=seat_id, strategy_id=strategy_id)
+    trace.append(
+        SimpleNamespace(
+            action_idx=0,
+            moves=[action],
+            reward=score,
+        )
+    )
+    trace.append(
+        SimpleNamespace(
+            current_diff_points=score,
+            my_points=score,
+            reward=0.0,
+        )
+    )
+    return trace
+
+
+def test_trace_groups_distinguish_strategy_identity_from_rotated_seats():
+    results = SelfPlayResults(
+        [
+            GameTrace(
+                [
+                    _make_action_trace(0, 0, "agent", 1.0),
+                    _make_action_trace(1, 1, "bot", -1.0),
+                ]
+            ),
+            GameTrace(
+                [
+                    _make_action_trace(0, 1, "bot", 1.0),
+                    _make_action_trace(1, 0, "agent", -1.0),
+                ]
+            ),
+        ]
+    )
+
+    agent = results.by_strategy.group(0)
+    first_seat = results.by_seat.group(0)
+
+    assert agent.points() == [1.0, -1.0]
+    assert agent.win_rate() == pytest.approx(0.5)
+    assert agent.collapse() == pytest.approx(1.0)
+    assert first_seat.points() == [1.0, 1.0]
+    assert first_seat.win_rate() == pytest.approx(1.0)
+    assert first_seat.collapse() == pytest.approx(0.0)
+    assert results.by_strategy.map(lambda group: group.win_rate()) == {
+        "0": pytest.approx(0.5),
+        "1": pytest.approx(0.5),
+    }
+
+
 def test_max_len_is_truncation_not_terminal():
     game_desc = games_library("tictactoe")
     strategies = [

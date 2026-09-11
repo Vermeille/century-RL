@@ -5,8 +5,10 @@ from .evaluation import Evaluation, Evaluator, Scoreboard
 from .metrics import (
     Console,
     GameMetrics,
+    GroupedTraceMetrics,
     MetricLogger,
     Range,
+    TraceMetrics,
     Trackio,
     make_trackio,
 )
@@ -19,6 +21,7 @@ __all__ = [
     "Evaluation",
     "Evaluator",
     "GameMetrics",
+    "GroupedTraceMetrics",
     "Inference",
     "MetricLogger",
     "Range",
@@ -26,5 +29,6 @@ __all__ = [
     "RunInfo",
     "Scoreboard",
     "Trackio",
+    "TraceMetrics",
     "make_trackio",
 ]

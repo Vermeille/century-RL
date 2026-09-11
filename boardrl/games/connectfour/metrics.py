@@ -1,6 +1,34 @@
 import torch
 import crayons  # type: ignore[import-untyped]
-from boardrl.metrics import GameMetrics
+from boardrl.metrics import GameMetrics, GroupedTraceMetrics, TraceMetrics
+
+
+class StrategyMetrics(TraceMetrics):
+    """Policy metrics that only make sense for a stable strategy identity."""
+
+    def winning_move_probability(self) -> float:
+        winning_traces = [
+            trace
+            for trace in self.traces
+            if trace[-1].current_diff_points > 0
+        ]
+        if not winning_traces:
+            return float("nan")
+        probabilities = [
+            torch.softmax(trace[-2].action_distribution, 0)[
+                trace[-2].action_idx
+            ].item()
+            for trace in winning_traces
+        ]
+        return sum(probabilities) / len(probabilities)
+
+    def metrics(self):
+        return super().metrics() | {
+            "winning_games": sum(
+                trace[-1].current_diff_points > 0 for trace in self.traces
+            ),
+            "avg_winning_move_probability": self.winning_move_probability(),
+        }
 
 
 class Metrics(GameMetrics):
@@ -23,25 +51,25 @@ class Metrics(GameMetrics):
             print()
 
     def metrics(self):
-        ratio_complete = sum(" " not in h[0][-1].state for h in self.data) / len(
-            self.data
+        terminal_games = sum(
+            game.by_seat[0][-1].terminal for game in self.data
         )
-        avg_len = sum(len(h) for h in self.data.all_traces()) / (self.data.num_traces())
-        winning_games = [
-            p for players in self.data for p in players if p[-1].current_diff_points > 0
-        ]
-        winning_probability = (
-            sum(
-                    torch.softmax(w[-2].action_distribution, 0)[w[-2].action_idx]
-                    for w in winning_games
-                )
-            / len(winning_games)
-            if winning_games
-            else 0.0
+        draws = sum(
+            game.by_seat[0][-1].terminal
+            and game.by_seat[0][-1].current_diff_points == 0
+            for game in self.data
         )
         return {
-            "ratio_complete": ratio_complete,
-            "avg_len": avg_len,
-            "collapse": self.data.collapse(),
-            "avg_winning_move_probability": winning_probability,
+            "terminal_rate": terminal_games / len(self.data),
+            "draw_rate": draws / len(self.data),
+            "avg_game_actions": sum(
+                max(len(trace) - 1, 0)
+                for game in self.data
+                for trace in game.by_seat
+            )
+            / len(self.data),
+            "strategy": GroupedTraceMetrics(
+                self.data.by_strategy, StrategyMetrics
+            ).metrics(),
+            "seat": GroupedTraceMetrics(self.data.by_seat).metrics(),
         }
