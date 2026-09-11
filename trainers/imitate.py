@@ -22,7 +22,7 @@ from boardrl import (
 )
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
-from boardrl.models import architectures, make
+from boardrl.models import architectures, make_for_game
 from boardrl.rl.model.loss import (
     BootstrapValueMSELoss,
     CELoss,
@@ -173,7 +173,7 @@ def run(args):
 def _run(args, trackio_sink):
     seed_everything(args.seed)
     game = games_library(args.game)
-    model = make(args.architecture).to(args.device)
+    model = make_for_game(args.architecture, game).to(args.device)
     if args.initialize_from:
         Checkpoints(args.initialize_from.parent).load(
             args.initialize_from,

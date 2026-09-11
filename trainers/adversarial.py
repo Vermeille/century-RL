@@ -27,7 +27,7 @@ from boardrl import (
 )
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
-from boardrl.models import copy_weights, make
+from boardrl.models import copy_weights, make_for_game
 from boardrl.rl.model.loss import CELoss
 from boardrl.training import (
     ComputeReturns,
@@ -267,7 +267,7 @@ def _run(args, trackio_sink):
     if game.coop:
         raise ValueError("adversarial.py requires a non-cooperative game")
 
-    best_response = make(args.architecture).to(args.device)
+    best_response = make_for_game(args.architecture, game).to(args.device)
     average = copy.deepcopy(best_response)
     if args.initialize_from:
         initialize_models(

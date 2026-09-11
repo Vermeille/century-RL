@@ -21,6 +21,7 @@ class GameDesc:
         augmentations=(),
         *,
         reward_rescale: float,
+        points_based: bool,
         coop: bool = False,
     ):
         self.make_game = game_class
@@ -28,6 +29,7 @@ class GameDesc:
         self.make_metrics = metrics_class
         self.augmentations = tuple(augmentations)
         self.reward_rescale = reward_rescale
+        self.points_based = points_based
         self.coop = coop
 
 
@@ -56,6 +58,7 @@ class Century(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=0.01,
+            points_based=True,
         )
 
 
@@ -71,6 +74,7 @@ class TicTacToe(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,
+            points_based=False,
         )
 
 
@@ -91,6 +95,7 @@ class ConnectFour(GameDesc):
             Metrics,
             augmentations=(shuffle_actions, horizontal_symmetry),
             reward_rescale=1.0,
+            points_based=False,
         )
 
 
@@ -110,6 +115,7 @@ class Sum(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,
+            points_based=True,
         )
 
 
@@ -129,6 +135,7 @@ class TheGame(GameDesc):
             Metrics,
             augmentations=(shuffle_actions, shuffle_hand),
             reward_rescale=0.1,
+            points_based=True,
             coop=True,
         )
 
@@ -144,6 +151,7 @@ class GuessNumber(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=0.1,
+            points_based=True,
             coop=True,
         )
 
@@ -159,6 +167,7 @@ class RPS(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,
+            points_based=False,
         )
 
 
@@ -178,6 +187,7 @@ class Nim(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,
+            points_based=False,
         )
 
 
@@ -192,6 +202,7 @@ class Take5(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,
+            points_based=True,
         )
 
 
@@ -206,6 +217,7 @@ class SkullKing(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=1.0,
+            points_based=True,
         )
 
 
@@ -220,6 +232,7 @@ class Regicide(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=0.01,
+            points_based=True,
             coop=True,
         )
 
@@ -235,5 +248,6 @@ class Hanabi(GameDesc):
             Metrics,
             augmentations=(shuffle_actions,),
             reward_rescale=0.1,
+            points_based=True,
             coop=True,
         )

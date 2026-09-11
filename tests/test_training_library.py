@@ -8,7 +8,7 @@ from boardrl.games import games_library
 from boardrl.games.strategies import RandomStrategy
 from boardrl.models import toy
 from boardrl.rl.model.loss import ImitationCELoss, ScheduledPerplexity
-from boardrl.rl.model import PolicyValue, load_model
+from boardrl.rl.model import NormalValueDistribution, PolicyValue, load_model
 from boardrl.rollouts import RolloutRunner
 from boardrl.training import (
     ComputeReturns,
@@ -82,7 +82,7 @@ def test_double_q_targets_select_online_action_and_evaluate_with_target():
             batch = len(states)
             return PolicyValue(
                 [self.policy.clone() for _ in states],
-                torch.distributions.Normal(
+                NormalValueDistribution(
                     self.value.repeat(batch),
                     torch.ones(batch),
                 ),

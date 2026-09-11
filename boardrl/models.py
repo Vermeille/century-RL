@@ -26,6 +26,12 @@ def make(name, **overrides):
     return architectures[name](**overrides)
 
 
+def make_for_game(name, game, **overrides):
+    """Build an architecture with the value semantics declared by its game."""
+
+    return make(name, points_based=game.points_based, **overrides)
+
+
 @architecture("toy")
 def toy(**overrides):
     return Model(**({"dim": 16, "num_layers": 1, "head_size": 2} | overrides))

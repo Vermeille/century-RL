@@ -1,7 +1,8 @@
 import torch
 
-from boardrl.models import architectures, make
-from boardrl.rl.model.model import Model
+from boardrl.games import games_library
+from boardrl.models import architectures, make, make_for_game
+from boardrl.rl.model.model import Model, OutcomeValueDistribution
 from boardrl.rl.model.transformer import Transformer
 
 
@@ -39,6 +40,66 @@ def test_model_heads_produce_gradients():
     loss.backward()
 
     assert all(parameter.grad is not None for parameter in model.parameters())
+
+
+def test_outcome_value_head_preserves_distribution_when_unbatched():
+    torch.manual_seed(0)
+    model = Model(
+        dim=16,
+        num_layers=1,
+        head_size=4,
+        num_heads=4,
+        points_based=False,
+    )
+
+    output = model(["abc@0def@1", "xy@0"])
+    values = [prediction.value for prediction in output.unbatched()]
+
+    assert isinstance(output.value, torch.distributions.Categorical)
+    assert output.value.mean.shape == torch.Size([2])
+    assert output.value.stddev.shape == torch.Size([2])
+    assert len(values) == 2
+    assert all(isinstance(value, torch.distributions.Categorical) for value in values)
+    assert all(value.mean.shape == torch.Size([1]) for value in values)
+
+
+def test_outcome_value_distribution_has_expected_moments_and_log_prob():
+    distribution = Model(
+        dim=16,
+        num_layers=1,
+        head_size=4,
+        num_heads=4,
+        points_based=False,
+    )(["abc@0"])
+    value = distribution.value
+
+    assert torch.allclose(value.probs, torch.full((1, 3), 1 / 3))
+    assert torch.allclose(value.mean, torch.tensor([0.0]))
+    assert torch.allclose(value.variance, torch.tensor([2 / 3]))
+    assert torch.allclose(
+        value.log_prob(torch.tensor([-1.0])),
+        torch.log(torch.tensor([1 / 3])),
+    )
+
+
+def test_outcome_value_distribution_projects_fractional_targets():
+    distribution = OutcomeValueDistribution(
+        logits=torch.log(torch.tensor([[0.2, 0.3, 0.5]]))
+    )
+
+    assert torch.allclose(
+        distribution.log_prob(torch.tensor([0.25])),
+        0.75 * torch.log(torch.tensor([0.3]))
+        + 0.25 * torch.log(torch.tensor([0.5])),
+    )
+
+
+def test_game_descriptor_selects_value_head_family():
+    outcome_model = make_for_game("toy", games_library("tictactoe"))
+    points_model = make_for_game("toy", games_library("thegame"))
+
+    assert outcome_model.rewards.out[2].out_features == 3
+    assert points_model.rewards.out[2].out_features == 2
 
 
 def test_heads_handle_variable_action_counts():

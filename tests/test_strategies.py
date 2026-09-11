@@ -9,13 +9,13 @@ import torch
 
 from boardrl.games import games_library
 from boardrl.games.strategies import PolicySamplingStrategy
-from boardrl.rl.model.model import PolicyValue
+from boardrl.rl.model.model import NormalValueDistribution, PolicyValue
 from boardrl.utils import BatchProcessor, ModelPool
 
 
 def toy_process(games: list[str]) -> PolicyValue:
     policies = [torch.randn(g.count("@")) for g in games]
-    value = torch.distributions.Normal(torch.randn(len(games)), torch.rand(len(games)))
+    value = NormalValueDistribution(torch.randn(len(games)), torch.rand(len(games)))
     return PolicyValue(policies, value)
 
 
@@ -128,3 +128,24 @@ def test_game_descriptor_reward_rescale(game_name, expected_scale):
 )
 def test_game_descriptor_coop(game_name, expected_coop):
     assert games_library(game_name).coop is expected_coop
+
+
+@pytest.mark.parametrize(
+    "game_name,expected_points_based",
+    [
+        ("century", True),
+        ("thegame", True),
+        ("take5", True),
+        ("skullking", True),
+        ("regicide", True),
+        ("hanabi", True),
+        ("guessnumber", True),
+        ("sum", True),
+        ("tictactoe", False),
+        ("connectfour", False),
+        ("rps", False),
+        ("nim", False),
+    ],
+)
+def test_game_descriptor_value_semantics(game_name, expected_points_based):
+    assert games_library(game_name).points_based is expected_points_based

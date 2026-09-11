@@ -25,13 +25,8 @@ class PolicyValue:
 
     def unbatched(self):
         return [
-            PolicyValue(
-                [self.policy[i]],
-                torch.distributions.Normal(
-                    self.value.mean[i, None], self.value.scale[i, None]
-                ),
-            )
-            for i in range(len(self))
+            PolicyValue([self.policy[i]], value)
+            for i, value in enumerate(self.value.unbatched())
         ]
 
     def q_value(self) -> List[torch.Tensor]:
@@ -41,10 +36,77 @@ class PolicyValue:
         ]
 
 
+class NormalValueDistribution(torch.distributions.Normal):
+    output_size = 2
+
+    @classmethod
+    def from_raw(cls, value):
+        return cls(value[:, 0], F.softplus(value[:, 1]))
+
+    def unbatched(self):
+        return [
+            type(self)(self.loc[i, None], self.scale[i, None])
+            for i in range(len(self.loc))
+        ]
+
+
+class OutcomeValueDistribution(torch.distributions.Categorical):
+    """Categorical distribution over loss, draw, and win returns."""
+
+    output_size = 3
+
+    @classmethod
+    def from_raw(cls, value):
+        return cls(logits=value)
+
+    @property
+    def atoms(self):
+        return self.probs.new_tensor([-1.0, 0.0, 1.0])
+
+    @property
+    def mean(self):
+        return (self.probs * self.atoms).sum(dim=-1)
+
+    @property
+    def variance(self):
+        return (self.probs * (self.atoms - self.mean.unsqueeze(-1)).square()).sum(
+            dim=-1
+        )
+
+    @property
+    def stddev(self):
+        return self.variance.sqrt()
+
+    def log_prob(self, value):
+        if torch.any((value < -1) | (value > 1)):
+            raise ValueError("outcome value targets must be in [-1, 1]")
+
+        position = value + 1
+        lower = position.floor().long()
+        upper = (lower + 1).clamp(max=2)
+        upper_weight = position - lower
+        log_probs = F.log_softmax(self.logits, dim=-1)
+        lower_log_prob = log_probs.gather(-1, lower.unsqueeze(-1)).squeeze(-1)
+        upper_log_prob = log_probs.gather(-1, upper.unsqueeze(-1)).squeeze(-1)
+        return torch.lerp(lower_log_prob, upper_log_prob, upper_weight)
+
+    def unbatched(self):
+        return [
+            type(self)(logits=self.logits[i, None])
+            for i in range(len(self.logits))
+        ]
+
+
+VALUE_DISTRIBUTIONS = {
+    True: NormalValueDistribution,
+    False: OutcomeValueDistribution,
+}
+
+
 class ValueHead(nn.Module):
     """Pool encoded state with one learned head-space query."""
 
-    def __init__(self, dim, initial_value_scale=1.0, num_heads=4):
+    def __init__(self, dim, initial_value_scale=1.0, num_heads=4, output_size=2):
         super().__init__()
         if dim % num_heads:
             raise ValueError("value-head dimension must divide the head count")
@@ -55,7 +117,9 @@ class ValueHead(nn.Module):
         self.attention = CrossAttention(dim, num_heads, dim // num_heads)
         self.norm = nn.RMSNorm(dim)
         self.out = nn.Sequential(
-            init(nn.Linear(dim, dim), dim**-0.5), nn.GELU(), zero(nn.Linear(dim, 2))
+            init(nn.Linear(dim, dim), dim**-0.5),
+            nn.GELU(),
+            zero(nn.Linear(dim, output_size)),
         )
         self.raw_value_scale = nn.Parameter(
             torch.tensor(math.log(math.expm1(initial_value_scale)))
@@ -264,6 +328,7 @@ class Model(nn.Module):
         backbone: str = "transformer",
         shared_backbone: bool = True,
         backbone_kwargs: dict | None = None,
+        points_based: bool = True,
     ):
         super().__init__()
         backbone_kwargs = dict(backbone_kwargs or {})
@@ -276,6 +341,7 @@ class Model(nn.Module):
             "backbone": backbone,
             "shared_backbone": shared_backbone,
             "backbone_kwargs": backbone_kwargs,
+            "points_based": points_based,
         }
         self.backbone_name = backbone
         self.shared_backbone = shared_backbone
@@ -285,6 +351,7 @@ class Model(nn.Module):
         backbone_cls = BACKBONES.get(backbone)
         if backbone_cls is None:
             raise ValueError(f"Unknown backbone {backbone}")
+        self.value_distribution = VALUE_DISTRIBUTIONS[points_based]
         self.backbone = backbone_cls(
             dim,
             num_layers,
@@ -305,7 +372,11 @@ class Model(nn.Module):
             )
             del self.backbone
         self.to_pred = PolicyHead(dim, num_heads=head_num_heads)
-        self.rewards = ValueHead(dim, num_heads=head_num_heads)
+        self.rewards = ValueHead(
+            dim,
+            num_heads=head_num_heads,
+            output_size=self.value_distribution.output_size,
+        )
 
     def spec(self):
         """Constructor arguments needed to recreate this model."""
@@ -345,10 +416,7 @@ class Model(nn.Module):
 
         out = PolicyValue(
             pred,
-            torch.distributions.Normal(
-                value[:, 0],
-                torch.nn.functional.softplus(value[:, 1]),
-            ),
+            self.value_distribution.from_raw(value),
         )
         if not return_hidden:
             return out
@@ -369,6 +437,7 @@ def load_model(model_path, name=None):
         backbone=config.get("backbone", "transformer"),
         shared_backbone=config.get("shared_backbone", True),
         backbone_kwargs=config.get("backbone_kwargs"),
+        points_based=config["points_based"],
     )
     model.load_state_dict(state)
     if torch.cuda.is_available():
