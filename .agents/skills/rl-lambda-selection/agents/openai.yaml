@@ -1,0 +1,4 @@
+interface:
+  display_name: "RL Lambda Selection"
+  short_description: "Choose separate TD(lambda) and GAE lambda values"
+  default_prompt: "Use $rl-lambda-selection to choose and justify value lambda and GAE lambda for this BoardRL/self-play environment."
