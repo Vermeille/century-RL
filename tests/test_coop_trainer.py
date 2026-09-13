@@ -117,6 +117,29 @@ def test_coop_cli_selects_game_and_architecture():
     assert args.architecture == "toy"
 
 
+def test_coop_cli_defaults_to_the_shared_omni_recipe():
+    args = build_parser().parse_args([])
+
+    assert args.game == "thegame,mode=omni"
+    assert args.architecture == "patchformer-medium-p8"
+    assert args.steps == 2_400
+    assert args.inference_batch_size == 1_024
+    assert args.learner_batch_size == 384
+    assert args.rollout_games == 128
+    assert args.evaluation_games == 512
+    assert args.learning_rate == 8e-4
+    assert args.adam_beta1 == 0.9
+    assert args.adam_beta2 == 0.95
+    assert args.adam_eps == 1e-5
+    assert args.gradient_clip == 5.0
+    assert args.gae_lambda == 0.1
+    assert args.value_lambda == 0.9
+    assert args.perplexity_start == 2.5
+    assert args.perplexity_end == 1.5
+    assert args.lr_schedule_shape == "cosine"
+    assert args.save_best
+
+
 def test_coop_cli_selects_model_scale_and_patch_size_together():
     args = build_parser().parse_args(["--architecture", "patchformer-tiny-p8"])
 
@@ -151,6 +174,32 @@ def test_coop_lr_schedule_defaults_to_exploration_schedule():
     )
 
     assert resolve_schedule_steps(args) == (350, 350)
+
+
+def test_coop_default_schedule_matches_full_decay_recipe():
+    args = build_parser().parse_args(["--steps", "1800"])
+
+    assert resolve_schedule_steps(args) == (899, 1764)
+
+
+def test_coop_schedule_percentages_are_cli_configurable():
+    args = build_parser().parse_args(
+        [
+            "--steps",
+            "1000",
+            "--schedule-start-percent",
+            "10",
+            "--schedule-end-percent",
+            "90",
+            "--lr-schedule-start-percent",
+            "60",
+        ]
+    )
+
+    assert args.schedule_start_percent == 10
+    assert args.schedule_end_percent == 90
+    assert args.lr_schedule_start_percent == 60
+    assert resolve_schedule_steps(args) == (399, 800)
 
 
 def test_coop_cli_separates_inference_and_learner_batch_sizes():
@@ -214,26 +263,18 @@ def test_coop_trackio_run_name_includes_nucleus_threshold(monkeypatch):
     assert calls[0]["server_url"] == "https://trackio.example"
 
 
+def test_coop_cli_reads_trackio_url_from_environment(monkeypatch):
+    monkeypatch.setenv("TRACKIO_URL", "https://trackio.example")
+
+    args = build_parser().parse_args([])
+
+    assert args.trackio_url == "https://trackio.example"
+
+
 def test_coop_cli_can_anneal_entropy_strength_to_zero():
     args = build_parser().parse_args(["--entropy-baseline-ratio", "0"])
 
     assert args.entropy_baseline_ratio == 0.0
-
-
-def test_coop_cli_selects_reverse_kl_exploration_regularizer():
-    args = build_parser().parse_args(
-        ["--exploration-regularizer", "reverse-kl"]
-    )
-
-    assert args.exploration_regularizer == "reverse-kl"
-
-
-def test_coop_cli_selects_symmetric_kl_exploration_regularizer():
-    args = build_parser().parse_args(
-        ["--exploration-regularizer", "symmetric-kl"]
-    )
-
-    assert args.exploration_regularizer == "symmetric-kl"
 
 
 def test_coop_cli_keeps_the_perplexity_thermostat_as_default():
@@ -241,6 +282,14 @@ def test_coop_cli_keeps_the_perplexity_thermostat_as_default():
 
     assert args.exploration_controller == "thermostat"
     assert args.perplexity_adaptation_rate == 0.004
+    assert args.perplexity_curve == 1.0
+    assert args.perplexity_schedule_shape == "cosine"
+
+
+def test_coop_cli_can_disable_default_best_checkpoints():
+    args = build_parser().parse_args(["--no-save-best"])
+
+    assert not args.save_best
 
 
 def test_coop_cli_configures_perplexity_adaptation_rate():
@@ -271,17 +320,11 @@ def test_coop_cli_supports_resumed_schedule_offsets():
     assert args.lr_schedule_start == 1260
 
 
-def test_coop_cli_supports_cosine_perplexity_and_lr_schedules():
+def test_coop_cli_supports_cosine_lr_schedule():
     args = build_parser().parse_args(
-        [
-            "--perplexity-schedule-shape",
-            "cosine",
-            "--lr-schedule-shape",
-            "cosine",
-        ]
+        ["--lr-schedule-shape", "cosine"]
     )
 
-    assert args.perplexity_schedule_shape == "cosine"
     assert args.lr_schedule_shape == "cosine"
 
 
