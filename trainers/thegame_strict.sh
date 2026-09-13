@@ -28,41 +28,29 @@ set +a
 
 python trainers/coop.py \
   --device cuda \
-  --architecture patchformer-medium-p4-wide-canon \
+  --architecture patchformer-medium-p4 \
   --game 'thegame,mode=strict' \
   --steps 1400 \
   --schedule-steps 500 \
+  --schedule-start 0 \
   --lr-schedule-steps 1400 \
+  --lr-schedule-start 0 \
+  --lr-schedule-shape linear \
   --rollout-games 64 \
-  --evaluation-games 512 \
-  --evaluation-every 50 \
   --save-every 50 \
   --keep-checkpoints 1 \
-  --save-best \
-  --inference-batch-size 1024 \
   --learner-batch-size 512 \
-  --learning-rate 0.0008 \
-  --weight-decay 0.01 \
   --adam-beta1 0.5 \
   --adam-beta2 0.999 \
   --adam-eps 1e-8 \
-  --epochs 1 \
-  --discount 1.0 \
   --gae-lambda 0.98 \
   --value-lambda 1.0 \
   --perplexity-start 4 \
   --perplexity-end 1.3 \
-  --perplexity-curve 1.0 \
   --entropy-strength 0.01 \
   --entropy-baseline-ratio 0.01 \
-  --value-strength 1.0 \
   --kl-target 0.01 \
   --kl-strength 0.05 \
-  --ppo-clip 0.2 \
-  --eval-temperature 0.02 \
-  --warmup 20 \
-  --min-lr-scale 1.0 \
-  --seed 0 \
   --checkpoint-root checkpoints/time80 \
   --tag thegame-medium-wide-k7-lr8e4-decay \
   --trackio \

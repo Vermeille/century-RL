@@ -94,6 +94,7 @@ train_started_at="$(date +%s)"
   --tag "$tag" \
   "${trackio_args[@]}" \
   --no-progress \
+  --rollout-max-steps "${ROLLOUT_MAX_STEPS:-5000}" \
   "$@" 2>&1 | tee "$log_path"
 train_status=${PIPESTATUS[0]}
 train_finished_at="$(date +%s)"
