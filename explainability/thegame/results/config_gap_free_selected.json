@@ -1,0 +1,4 @@
+[
+  {"max_value":100,"num_piles":4,"minimum":2,"num_players":2,"mode":"free"},
+  {"max_value":100,"num_piles":4,"minimum":3,"num_players":2,"mode":"free"}
+]

@@ -1,0 +1,315 @@
+{
+  "strict": {
+    "strict-v100-p4-m2-n2": {
+      "normalized_gap_vs_default": {
+        "mean": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "strict-v100-p4-m3-n2": {
+      "normalized_gap_vs_default": {
+        "mean": -0.2989477040816327,
+        "ci95": [
+          -1.1107029682702942,
+          0.5128075601070288
+        ]
+      }
+    },
+    "strict-v100-p4-m3-n3": {
+      "normalized_gap_vs_default": {
+        "mean": -0.6427375637755103,
+        "ci95": [
+          -1.472998567204777,
+          0.1875234396537565
+        ]
+      }
+    },
+    "strict-v100-p4-m3-n5": {
+      "normalized_gap_vs_default": {
+        "mean": -1.7892020089285716,
+        "ci95": [
+          -2.6935480329205728,
+          -0.8848559849365706
+        ]
+      }
+    },
+    "strict-v50-p2-m2-n2": {
+      "normalized_gap_vs_default": {
+        "mean": -1.7550929063031462,
+        "ci95": [
+          -2.6738728333311643,
+          -0.8363129792751283
+        ]
+      }
+    },
+    "strict-v150-p6-m4-n2": {
+      "normalized_gap_vs_default": {
+        "mean": -0.31991444170573635,
+        "ci95": [
+          -1.0390363461597154,
+          0.3992074627482426
+        ]
+      }
+    },
+    "strict-v150-p4-m2-n2": {
+      "normalized_gap_vs_default": {
+        "mean": -1.9352016038678985,
+        "ci95": [
+          -2.5921092863674566,
+          -1.2782939213683404
+        ]
+      }
+    },
+    "strict-v100-p2-m2-n2": {
+      "normalized_gap_vs_default": {
+        "mean": -4.092095822704082,
+        "ci95": [
+          -4.710794813359411,
+          -3.473396832048754
+        ]
+      }
+    },
+    "strict-v100-p4-m4-n2": {
+      "normalized_gap_vs_default": {
+        "mean": -1.328324298469388,
+        "ci95": [
+          -2.0770507208456963,
+          -0.5795978760930794
+        ]
+      }
+    },
+    "strict-v100-p4-m2-n3": {
+      "normalized_gap_vs_default": {
+        "mean": -0.9785554846938775,
+        "ci95": [
+          -1.7052301490676314,
+          -0.2518808203201236
+        ]
+      }
+    },
+    "strict-v100-p4-m2-n5": {
+      "normalized_gap_vs_default": {
+        "mean": -1.5037069515306123,
+        "ci95": [
+          -2.2663118160106546,
+          -0.74110208705057
+        ]
+      }
+    },
+    "strict-v150-p6-m3-n3": {
+      "normalized_gap_vs_default": {
+        "mean": 0.9644631976523718,
+        "ci95": [
+          0.17763128571992226,
+          1.7512951095848213
+        ]
+      }
+    },
+    "strict-v150-p6-m3-n5": {
+      "normalized_gap_vs_default": {
+        "mean": 0.45506708278750696,
+        "ci95": [
+          -0.35067689883369346,
+          1.2608110644087074
+        ]
+      }
+    },
+    "strict-v150-p6-m3-n4": {
+      "normalized_gap_vs_default": {
+        "mean": 0.17826440119966908,
+        "ci95": [
+          -0.6009234155655181,
+          0.9574522179648564
+        ]
+      }
+    },
+    "strict-v150-p6-m1-n2": {
+      "normalized_gap_vs_default": {
+        "mean": -0.4805853665368174,
+        "ci95": [
+          -1.1651369925618429,
+          0.20396625948820823
+        ]
+      }
+    }
+  },
+  "free": {
+    "free-v100-p4-m2-n2": {
+      "greedy": {
+        "mean": 81.5224609375,
+        "sd": 11.826852252178444,
+        "win_rate": 0.02587890625,
+        "played_fraction": 0.8114536830357143,
+        "gap_points": -4.53759765625,
+        "gap_percentage_points": -4.63020169005102,
+        "gap_ci95": [
+          -5.09567501928401,
+          -3.97952029321599
+        ],
+        "leftover_reduction": -0.3255105257627237,
+        "paired_win_fraction": 0.34716796875,
+        "worst5_mean": 55.75728155339806
+      },
+      "greedy_calibrated": {
+        "mean": 86.06005859375,
+        "sd": 10.723318139746588,
+        "win_rate": 0.0458984375,
+        "played_fraction": 0.8577556999362245,
+        "gap_points": 0.0,
+        "gap_percentage_points": 0.0,
+        "gap_ci95": [
+          0.0,
+          0.0
+        ],
+        "leftover_reduction": 0.0,
+        "paired_win_fraction": 0.0,
+        "worst5_mean": 60.84466019417476
+      },
+      "awkward_calibrated": {
+        "mean": 88.1103515625,
+        "sd": 9.710339790679411,
+        "win_rate": 0.07080078125,
+        "played_fraction": 0.878677056760204,
+        "gap_points": 2.05029296875,
+        "gap_percentage_points": 2.0921356823979593,
+        "gap_ci95": [
+          1.5214408227638176,
+          2.5791451147361824
+        ],
+        "leftover_reduction": 0.14708045815965534,
+        "paired_win_fraction": 0.54931640625,
+        "worst5_mean": 65.0
+      },
+      "formula_calibrated": {
+        "mean": 90.3857421875,
+        "sd": 8.557037678479107,
+        "win_rate": 0.08642578125,
+        "played_fraction": 0.9018953284438775,
+        "gap_points": 4.32568359375,
+        "gap_percentage_points": 4.413962850765306,
+        "gap_ci95": [
+          3.8088812647101706,
+          4.842485922789829
+        ],
+        "leftover_reduction": 0.31030859224491225,
+        "paired_win_fraction": 0.60888671875,
+        "worst5_mean": 68.71844660194175
+      }
+    },
+    "free-v100-p4-m3-n2": {
+      "greedy": {
+        "mean": 72.259765625,
+        "sd": 11.73993149649951,
+        "win_rate": 0.00341796875,
+        "played_fraction": 0.7169363839285714,
+        "gap_points": -2.59716796875,
+        "gap_percentage_points": -2.6501713966836733,
+        "gap_ci95": [
+          -3.139360916128869,
+          -2.054975021371131
+        ],
+        "leftover_reduction": -0.10329559357582584,
+        "paired_win_fraction": 0.3740234375,
+        "worst5_mean": 50.09708737864078
+      },
+      "greedy_calibrated": {
+        "mean": 74.85693359375,
+        "sd": 12.035874594559761,
+        "win_rate": 0.01123046875,
+        "played_fraction": 0.7434380978954083,
+        "gap_points": 0.0,
+        "gap_percentage_points": 0.0,
+        "gap_ci95": [
+          0.0,
+          0.0
+        ],
+        "leftover_reduction": 0.0,
+        "paired_win_fraction": 0.0,
+        "worst5_mean": 51.62135922330097
+      },
+      "awkward_calibrated": {
+        "mean": 77.43896484375,
+        "sd": 11.92941237577931,
+        "win_rate": 0.01123046875,
+        "played_fraction": 0.7697853555484694,
+        "gap_points": 2.58203125,
+        "gap_percentage_points": 2.6347257653061225,
+        "gap_ci95": [
+          1.9695759707528153,
+          3.1944865292471847
+        ],
+        "leftover_reduction": 0.10269356999980579,
+        "paired_win_fraction": 0.5498046875,
+        "worst5_mean": 54.63106796116505
+      },
+      "formula_calibrated": {
+        "mean": 79.92822265625,
+        "sd": 11.330028251121483,
+        "win_rate": 0.0146484375,
+        "played_fraction": 0.7951859454719388,
+        "gap_points": 5.0712890625,
+        "gap_percentage_points": 5.174784757653061,
+        "gap_ci95": [
+          4.474419496218948,
+          5.668158628781052
+        ],
+        "leftover_reduction": 0.20169731808206942,
+        "paired_win_fraction": 0.62744140625,
+        "worst5_mean": 57.20388349514563
+      }
+    }
+  },
+  "final": {
+    "strict-v100-p4-m2-n2": {
+      "raw_gap": {
+        "mean": 4.81201171875,
+        "ci95": [
+          4.413800939728044,
+          5.210222497771956
+        ]
+      },
+      "normalized_gap": {
+        "mean": 4.910216039540816,
+        "ci95": [
+          4.503878509926576,
+          5.316553569155056
+        ]
+      },
+      "paired_effect": 0.37007501215479016
+    },
+    "strict-v150-p6-m3-n3": {
+      "raw_gap": {
+        "mean": 8.54736328125,
+        "ci95": [
+          8.004622158567777,
+          9.090104403932223
+        ]
+      },
+      "normalized_gap": {
+        "mean": 5.775245460304054,
+        "ci95": [
+          5.408528485518769,
+          6.14196243508934
+        ]
+      },
+      "paired_effect": 0.48229807830785
+    }
+  },
+  "free_gap_widening": {
+    "mean": 0.74560546875,
+    "ci95": [
+      -0.035648543339984795,
+      1.5268594808399847
+    ]
+  },
+  "final_gap_widening": {
+    "mean": 0.8650294207632376,
+    "ci95": [
+      0.3141162295378729,
+      1.4159426119886023
+    ]
+  }
+}
