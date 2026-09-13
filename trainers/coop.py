@@ -105,6 +105,23 @@ linear_exploration_regularizers = {
 NUCLEUS_THRESHOLD = 0.95
 
 
+class RandomOpeningGameFactory:
+    """Create games after a uniformly sampled number of random legal moves."""
+
+    def __init__(self, make_game, max_depth):
+        self.make_game = make_game
+        self.max_depth = max_depth
+
+    def __call__(self, **kwargs):
+        game = self.make_game(**kwargs)
+        depth = random.randint(0, self.max_depth) if self.max_depth else 0
+        for _ in range(depth):
+            game.play_idx(random.randrange(len(game.moves)))
+            if game.ended():
+                break
+        return game
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -192,6 +209,12 @@ def build_parser():
         help="batch size for reference targets and PPO updates",
     )
     parser.add_argument("--rollout-games", type=positive_int, default=128)
+    parser.add_argument(
+        "--random-game-depth",
+        type=nonnegative_int,
+        default=0,
+        help="maximum uniformly sampled number of random opening moves",
+    )
     parser.add_argument(
         "--value-clip-epsilon",
         type=optional_positive_float,
@@ -537,8 +560,12 @@ def _run(args, trackio_sink):
             best_score = best_state["metadata"]["evaluation_points"]
 
     inference = Inference(model, batch_size=args.inference_batch_size)
+    training_games = RandomOpeningGameFactory(
+        game.make_game,
+        args.random_game_depth,
+    )
     rollouts = RolloutRunner(
-        game.make_game, progress=not args.no_progress, coop=game.coop
+        training_games, progress=not args.no_progress, coop=game.coop
     )
     evaluator = Evaluator(game.make_game, progress=not args.no_progress, coop=game.coop)
     sinks = [Console()]

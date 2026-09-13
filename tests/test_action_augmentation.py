@@ -50,6 +50,23 @@ def test_shuffle_actions_preserves_non_action_lines():
     assert augmented.action_distribution == [0.1]
 
 
+def test_shuffle_actions_supports_distribution_only_imitation_samples(monkeypatch):
+    monkeypatch.setattr(
+        "boardrl.games.augmentations.random.shuffle",
+        lambda values: values.reverse(),
+    )
+    sample = TrainingSample(
+        state="position\n@first\n@second\n@third",
+        action_distribution=torch.tensor([1.0, 2.0, 3.0]),
+    )
+
+    augmented = shuffle_actions([sample])[0]
+
+    assert not hasattr(augmented, "action_idx")
+    assert augmented.state == "position\n@third\n@second\n@first"
+    assert torch.equal(augmented.action_distribution, torch.tensor([3.0, 2.0, 1.0]))
+
+
 def test_connectfour_horizontal_symmetry_mirrors_board_and_moves(monkeypatch):
     monkeypatch.setattr(
         "boardrl.games.connectfour.augmentations.random.random", lambda: 0.0

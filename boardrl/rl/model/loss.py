@@ -3,6 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 import torch
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 from boardrl.rl.model.utils import js_div, jeffreys_div
 from boardrl.utils import RegisterByName
 
@@ -28,19 +29,32 @@ class Loss:
 
 @loss_from_string.register("imitation_ce_loss")
 class ImitationCELoss(Loss):
+    """Cross-entropy against variable-length target policy logits."""
+
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = False
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         assert len(pred_policy) == len(sample.action_distribution)
-        loss = 0
-        for logit, act in zip(pred_policy, sample.action_distribution):
-            logit = logit.unsqueeze(0)
-            act = act.unsqueeze(0)
+        targets = list(sample.action_distribution)
+        assert all(
+            prediction.shape == target.shape
+            for prediction, target in zip(pred_policy, targets)
+        )
 
-            loss += F.cross_entropy(logit, F.softmax(act, dim=1))
-        return LossResult(loss / len(sample.action_distribution))
+        padding = torch.finfo(pred_policy[0].dtype).min
+        predictions = pad_sequence(
+            pred_policy,
+            batch_first=True,
+            padding_value=padding,
+        )
+        targets = pad_sequence(
+            targets,
+            batch_first=True,
+            padding_value=padding,
+        )
+        return LossResult(F.cross_entropy(predictions, F.softmax(targets, dim=1)))
 
 
 @loss_from_string.register("ce_loss")

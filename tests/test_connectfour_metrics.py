@@ -79,6 +79,38 @@ def test_connectfour_winning_probability_is_nan_without_wins():
     assert math.isnan(probability)
 
 
+def test_connectfour_winning_probability_ignores_unrecorded_opening_win():
+    results = _rotated_results()
+    opening_win = PlayerTrace(seat_id=0, strategy_id=0)
+    opening_win.append(
+        SimpleNamespace(
+            current_diff_points=1.0,
+            my_points=1.0,
+            terminal=True,
+            state="terminal",
+        )
+    )
+    results.append(
+        GameTrace(
+            [
+                opening_win,
+                _trace(1, 1, "a", [1.0, 0.0], -1.0),
+            ]
+        )
+    )
+
+    strategy = Metrics(results).metrics()["strategy"]["0"]
+
+    assert strategy["winning_games"] == 2
+    assert strategy["avg_winning_move_probability"] == pytest.approx(0.75)
+
+    opening_only = SelfPlayResults([results[-1]])
+    opening_probability = Metrics(opening_only).metrics()["strategy"]["0"][
+        "avg_winning_move_probability"
+    ]
+    assert math.isnan(opening_probability)
+
+
 def test_connectfour_metrics_flatten_to_separate_trackio_paths():
     class RunRecorder:
         def log(self, values, *, step):

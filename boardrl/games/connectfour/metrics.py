@@ -10,7 +10,7 @@ class StrategyMetrics(TraceMetrics):
         winning_traces = [
             trace
             for trace in self.traces
-            if trace[-1].current_diff_points > 0
+            if trace[-1].current_diff_points > 0 and len(trace) > 1
         ]
         if not winning_traces:
             return float("nan")

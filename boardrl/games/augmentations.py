@@ -43,13 +43,14 @@ def shuffle_actions(samples):
             lines[position] = action_lines[old_idx] + ending
         sample.state = "".join(lines)
 
-        old_action_idx = sample.action_idx
-        if not 0 <= old_action_idx < len(action_positions):
-            raise ValueError(
-                f"action_idx {old_action_idx} is out of range for "
-                f"{len(action_positions)} actions"
-            )
-        sample.action_idx = action_order.index(old_action_idx)
+        if hasattr(sample, "action_idx"):
+            old_action_idx = sample.action_idx
+            if not 0 <= old_action_idx < len(action_positions):
+                raise ValueError(
+                    f"action_idx {old_action_idx} is out of range for "
+                    f"{len(action_positions)} actions"
+                )
+            sample.action_idx = action_order.index(old_action_idx)
 
         for field in ("moves", "action_distribution", "reference_policy"):
             if not hasattr(sample, field):

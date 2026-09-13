@@ -28,7 +28,7 @@ from boardrl import (
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
 from boardrl.models import copy_weights, make_for_game
-from boardrl.rl.model.loss import CELoss
+from boardrl.rl.model.loss import ImitationCELoss
 from boardrl.training import (
     ComputeReturns,
     Learner,
@@ -37,6 +37,7 @@ from boardrl.training import (
     ReferenceTargets,
     ToSamples,
 )
+from boardrl.training.cuda_pause import CudaOffloadPause
 from boardrl.training.sample import TrainingSample
 
 
@@ -51,13 +52,13 @@ def probability(value):
 
 
 class Reservoir:
-    """Uniform reservoir of best-response state/action pairs."""
+    """Uniform reservoir of best-response state/policy pairs."""
 
     def __init__(self, capacity: int, *, seed: int):
         if capacity <= 0:
             raise ValueError("capacity must be positive")
         self.capacity = capacity
-        self.samples: list[tuple[str, int]] = []
+        self.samples: list[tuple[str, torch.Tensor]] = []
         self.seen = 0
         self.rng = random.Random(seed)
 
@@ -66,7 +67,10 @@ class Reservoir:
 
     def add(self, samples):
         for sample in samples:
-            item = (sample.state, int(sample.action_idx))
+            item = (
+                sample.state,
+                sample.action_distribution.detach().cpu().clone(),
+            )
             self.seen += 1
             if len(self.samples) < self.capacity:
                 self.samples.append(item)
@@ -100,8 +104,8 @@ class Reservoir:
         if count == 0:
             return []
         return [
-            TrainingSample(state=state, action_idx=action_idx)
-            for state, action_idx in self.rng.sample(self.samples, count)
+            TrainingSample(state=state, action_distribution=action_distribution)
+            for state, action_distribution in self.rng.sample(self.samples, count)
         ]
 
     def state_dict(self):
@@ -157,7 +161,7 @@ def build_parser():
         "--reservoir-capacity",
         type=coop.positive_int,
         default=100_000,
-        help="maximum number of best-response state/action pairs retained",
+        help="maximum number of best-response state/policy pairs retained",
     )
     parser.add_argument(
         "--average-samples-per-update",
@@ -206,7 +210,7 @@ def make_average_learner(model, game, args):
     learner = Learner(
         model,
         optimizer,
-        [CELoss()],
+        [ImitationCELoss()],
         batch_size=args.average_batch_size or args.learner_batch_size,
         device=args.device,
         epochs=args.average_epochs,
@@ -286,6 +290,12 @@ def _run(args, trackio_sink):
     )
     average_learner, average_optimizer = make_average_learner(average, game, args)
     reservoir = Reservoir(args.reservoir_capacity, seed=args.seed + 1)
+    pause = CudaOffloadPause(
+        (best_response, reference, average),
+        best_response_optimizer,
+        device=args.device,
+        extra_optimizers=(average_optimizer,),
+    )
 
     lr_schedule_steps, exploration_schedule_steps = coop.resolve_schedule_steps(args)
     schedule_start = coop.resolve_schedule_start(args)
@@ -303,11 +313,7 @@ def _run(args, trackio_sink):
     )
 
     checkpoint_dir = (
-        args.checkpoint_root
-        / "adversarial"
-        / args.game
-        / args.architecture
-        / args.tag
+        args.checkpoint_root / "adversarial" / args.game / args.architecture / args.tag
     )
     checkpoints = Checkpoints(
         checkpoint_dir,
@@ -371,8 +377,12 @@ def _run(args, trackio_sink):
         batch_size=args.inference_batch_size,
         name="average",
     )
-    rollouts = RolloutRunner(
+    training_games = coop.RandomOpeningGameFactory(
         game.make_game,
+        args.random_game_depth,
+    )
+    rollouts = RolloutRunner(
+        training_games,
         progress=not args.no_progress,
         coop=False,
     )
@@ -402,13 +412,12 @@ def _run(args, trackio_sink):
             reuse_rollout_predictions=False,
         ),
     )
+
     def evaluate(step):
         nonlocal best_score
 
         with best_response_inference.evaluating(), average_inference.evaluating():
-            average_player = average_inference.policy(
-                temperature=args.eval_temperature
-            )
+            average_player = average_inference.policy(temperature=args.eval_temperature)
             best_response_player = best_response_inference.policy(
                 temperature=args.eval_temperature
             )
@@ -464,167 +473,175 @@ def _run(args, trackio_sink):
                 evaluation_points=score,
             )
 
-    evaluate(start)
+    with pause:
+        evaluate(start)
+        pause.service()
 
-    for step in range(start, args.steps):
-        schedule_position = coop.optimizer_schedule_position(step, args)
-        if schedule_position is not None:
-            best_response_schedule.step(schedule_position)
-            average_schedule.step(schedule_position)
+        for step in range(start, args.steps):
+            pause.service()
+            schedule_position = coop.optimizer_schedule_position(step, args)
+            if schedule_position is not None:
+                best_response_schedule.step(schedule_position)
+                average_schedule.step(schedule_position)
 
-        schedule_progress = coop.exploration_schedule_progress(
-            step, args, schedule_start, exploration_schedule_steps
-        )
-
-        with best_response_inference.evaluating(), average_inference.evaluating():
-            best_response_player = best_response_inference.policy()
-            average_player = average_inference.policy()
-            fixed_player = (
-                game.strategy_from_string(args.opponent_eval_strategy)
-                if args.fixed_training_opponent_fraction
-                else None
-            )
-            # Keep the anticipatory mixture at the batch level. This avoids
-            # per-game opponent branching and lets the rollout engine process
-            # each homogeneous opponent batch efficiently.
-            fixed_opponent_games = round(
-                args.rollout_games * args.fixed_training_opponent_fraction
-            )
-            best_response_opponent_games = round(
-                (args.rollout_games - fixed_opponent_games) * args.anticipatory
-            )
-            average_opponent_games = (
-                args.rollout_games - fixed_opponent_games - best_response_opponent_games
-            )
-            average_opponent_rollouts = rollouts.play(
-                [best_response_player, average_player],
-                games=average_opponent_games,
-                max_steps=args.rollout_max_steps,
-                rotate=True,
-                description="rollouts vs average",
-            )
-            best_response_opponent_rollouts = rollouts.play(
-                [best_response_player, best_response_player],
-                games=best_response_opponent_games,
-                max_steps=args.rollout_max_steps,
-                rotate=True,
-                description="rollouts vs best response",
-            )
-            fixed_opponent_rollouts = rollouts.play(
-                [best_response_player, fixed_player],
-                games=fixed_opponent_games,
-                max_steps=args.rollout_max_steps,
-                rotate=True,
-                description="rollouts vs fixed opponent",
-            )
-            games = type(average_opponent_rollouts)(
-                list(average_opponent_rollouts)
-                + list(best_response_opponent_rollouts)
-                + list(fixed_opponent_rollouts)
-            )
-            best_response_games = type(average_opponent_rollouts)(
-                list(average_opponent_rollouts.only_strategy([0]))
-                + list(best_response_opponent_rollouts.only_strategy([0, 1]))
-                + list(fixed_opponent_rollouts.only_strategy([0]))
+            schedule_progress = coop.exploration_schedule_progress(
+                step, args, schedule_start, exploration_schedule_steps
             )
 
-        compute_rollout_returns(games)
-        copy_weights(reference, best_response)
-        reinforcement_samples = reinforcement_targets(best_response_games)
-        reservoir_inserted = reservoir.add_random(
-            reinforcement_samples,
-            round(
-                args.reservoir_insert_ratio
-                * args.average_samples_per_update
-            ),
-        )
-        best_response_result = best_response_learner.train(
-            reinforcement_samples,
-            progress=schedule_progress,
-        )
-        average_result = average_learner.train(
-            reservoir.sample(args.average_samples_per_update),
-            progress=schedule_progress,
-        )
-        completed = step + 1
+            with best_response_inference.evaluating(), average_inference.evaluating():
+                best_response_player = best_response_inference.policy()
+                average_player = average_inference.policy()
+                fixed_player = (
+                    game.strategy_from_string(args.opponent_eval_strategy)
+                    if args.fixed_training_opponent_fraction
+                    else None
+                )
+                # Keep the anticipatory mixture at the batch level. This avoids
+                # per-game opponent branching and lets the rollout engine process
+                # each homogeneous opponent batch efficiently.
+                fixed_opponent_games = round(
+                    args.rollout_games * args.fixed_training_opponent_fraction
+                )
+                best_response_opponent_games = round(
+                    (args.rollout_games - fixed_opponent_games) * args.anticipatory
+                )
+                average_opponent_games = (
+                    args.rollout_games
+                    - fixed_opponent_games
+                    - best_response_opponent_games
+                )
+                average_opponent_rollouts = rollouts.play(
+                    [best_response_player, average_player],
+                    games=average_opponent_games,
+                    max_steps=args.rollout_max_steps,
+                    rotate=True,
+                    description="rollouts vs average",
+                )
+                best_response_opponent_rollouts = rollouts.play(
+                    [best_response_player, best_response_player],
+                    games=best_response_opponent_games,
+                    max_steps=args.rollout_max_steps,
+                    rotate=True,
+                    description="rollouts vs best response",
+                )
+                fixed_opponent_rollouts = rollouts.play(
+                    [best_response_player, fixed_player],
+                    games=fixed_opponent_games,
+                    max_steps=args.rollout_max_steps,
+                    rotate=True,
+                    description="rollouts vs fixed opponent",
+                )
+                games = type(average_opponent_rollouts)(
+                    list(average_opponent_rollouts)
+                    + list(best_response_opponent_rollouts)
+                    + list(fixed_opponent_rollouts)
+                )
+                best_response_games = type(average_opponent_rollouts)(
+                    list(average_opponent_rollouts.only_strategy([0]))
+                    + list(best_response_opponent_rollouts.only_strategy([0, 1]))
+                    + list(fixed_opponent_rollouts.only_strategy([0]))
+                )
 
-        if completed % 5 == 0:
-            rollout_log = rollout_metrics(games, coop=False)
-            if average_opponent_games:
-                rollout_log["best_response_vs_average"] = {
-                    "win_rate": average_opponent_rollouts.win_rate(0),
-                }
-            if fixed_opponent_games:
-                rollout_log["best_response_vs_fixed"] = {
-                    "win_rate": fixed_opponent_rollouts.win_rate(0),
-                }
-            metrics.log(
-                completed,
-                rollout=rollout_log,
-                nfsp={
-                    "reservoir_size": len(reservoir),
-                    "reservoir_seen": reservoir.seen,
-                    "reservoir_inserted": reservoir_inserted,
-                    "opponent_best_response_fraction": (
-                        best_response_opponent_games / args.rollout_games
-                    ),
-                    "fixed_training_opponent_fraction": (
-                        fixed_opponent_games / args.rollout_games
-                    ),
-                },
-                train={
-                    "best_response": {
-                        **best_response_result.metrics,
-                        "batches": best_response_result.batches,
-                        "samples": best_response_result.samples,
+            pause.service()
+            compute_rollout_returns(games)
+            copy_weights(reference, best_response)
+            reinforcement_samples = reinforcement_targets(best_response_games)
+            reservoir_inserted = reservoir.add_random(
+                reinforcement_samples,
+                round(args.reservoir_insert_ratio * args.average_samples_per_update),
+            )
+            best_response_result = best_response_learner.train(
+                reinforcement_samples,
+                progress=schedule_progress,
+            )
+            pause.service()
+            average_result = average_learner.train(
+                reservoir.sample(args.average_samples_per_update),
+                progress=schedule_progress,
+            )
+            pause.service()
+            completed = step + 1
+
+            if completed % 5 == 0:
+                rollout_log = rollout_metrics(games, coop=False)
+                if average_opponent_games:
+                    rollout_log["best_response_vs_average"] = {
+                        "win_rate": average_opponent_rollouts.win_rate(0),
+                    }
+                if fixed_opponent_games:
+                    rollout_log["best_response_vs_fixed"] = {
+                        "win_rate": fixed_opponent_rollouts.win_rate(0),
+                    }
+                metrics.log(
+                    completed,
+                    rollout=rollout_log,
+                    nfsp={
+                        "reservoir_size": len(reservoir),
+                        "reservoir_seen": reservoir.seen,
+                        "reservoir_inserted": reservoir_inserted,
+                        "opponent_best_response_fraction": (
+                            best_response_opponent_games / args.rollout_games
+                        ),
+                        "fixed_training_opponent_fraction": (
+                            fixed_opponent_games / args.rollout_games
+                        ),
                     },
-                    "average": {
-                        **average_result.metrics,
-                        "batches": average_result.batches,
-                        "samples": average_result.samples,
+                    train={
+                        "best_response": {
+                            **best_response_result.metrics,
+                            "batches": best_response_result.batches,
+                            "samples": best_response_result.samples,
+                        },
+                        "average": {
+                            **average_result.metrics,
+                            "batches": average_result.batches,
+                            "samples": average_result.samples,
+                        },
                     },
-                },
-            )
-            metrics.game(completed, game.make_metrics(games))
+                )
+                metrics.game(completed, game.make_metrics(games))
 
-        # Evaluate the post-update models so evaluation step N refers to the
-        # same weights saved in step-N.pth. Previously this ran before the
-        # update, making dashboard evaluations disagree with checkpoint probes.
-        if completed % args.evaluation_every == 0:
-            evaluate(completed)
+            # Evaluate post-update so evaluation step N matches step-N.pth.
+            if completed % args.evaluation_every == 0:
+                evaluate(completed)
+                pause.service()
 
-        if completed % args.save_every == 0:
-            save(
-                checkpoints,
-                completed,
-                best_response,
-                average,
-                best_response_optimizer,
-                average_optimizer,
-                best_response_learner,
-                average_learner,
-                reservoir,
-                args,
-            )
+            if completed % args.save_every == 0:
+                save(
+                    checkpoints,
+                    completed,
+                    best_response,
+                    average,
+                    best_response_optimizer,
+                    average_optimizer,
+                    best_response_learner,
+                    average_learner,
+                    reservoir,
+                    args,
+                )
+                pause.service()
 
-    final_path = save(
-        checkpoints,
-        args.steps,
-        best_response,
-        average,
-        best_response_optimizer,
-        average_optimizer,
-        best_response_learner,
-        average_learner,
-        reservoir,
-        args,
-    )
-    if (
-        args.save_best
-        and args.steps != start
-        and args.steps % args.evaluation_every != 0
-    ):
-        evaluate(args.steps)
+        pause.service()
+        final_path = save(
+            checkpoints,
+            args.steps,
+            best_response,
+            average,
+            best_response_optimizer,
+            average_optimizer,
+            best_response_learner,
+            average_learner,
+            reservoir,
+            args,
+        )
+        pause.service()
+        if (
+            args.save_best
+            and args.steps != start
+            and args.steps % args.evaluation_every != 0
+        ):
+            evaluate(args.steps)
+            pause.service()
     return final_path
 
 

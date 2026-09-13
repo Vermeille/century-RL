@@ -106,6 +106,37 @@ def test_ctrl_z_pause_is_disabled_for_cpu(monkeypatch):
     assert calls == []
 
 
+def test_ctrl_z_offloads_multiple_optimizer_states(monkeypatch):
+    calls = []
+    first_moment = _RecordingTensor(calls, "first", "cuda")
+    second_moment = _RecordingTensor(calls, "second", "cuda")
+    first_optimizer = SimpleNamespace(state={0: {"moment": first_moment}})
+    second_optimizer = SimpleNamespace(state={0: {"moment": second_moment}})
+    pause = CudaOffloadPause(
+        (),
+        first_optimizer,
+        device="cuda",
+        extra_optimizers=(second_optimizer,),
+    )
+
+    monkeypatch.setattr(
+        torch,
+        "is_tensor",
+        lambda value: value is first_moment or value is second_moment,
+    )
+    monkeypatch.setattr(torch.cuda, "synchronize", lambda device: None)
+
+    pause._offload()
+    pause._restore()
+
+    assert calls == [
+        ("first", "cpu"),
+        ("second", "cpu"),
+        ("first", "cuda"),
+        ("second", "cuda"),
+    ]
+
+
 def test_ctrl_z_handler_is_scoped_to_the_training_context(monkeypatch):
     calls = []
     previous = object()

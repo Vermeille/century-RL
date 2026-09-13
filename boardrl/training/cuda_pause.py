@@ -17,9 +17,9 @@ class CudaOffloadPause:
     Resuming the job with ``fg`` continues after the stop and restores CUDA.
     """
 
-    def __init__(self, modules, optimizer, *, device):
+    def __init__(self, modules, optimizer, *, device, extra_optimizers=()):
         self.modules = tuple(modules)
-        self.optimizer = optimizer
+        self.optimizers = (optimizer, *extra_optimizers)
         self.device = torch.device(device)
         self.signal = getattr(signal, "SIGTSTP", None)
         self.enabled = self.device.type == "cuda" and self.signal is not None
@@ -82,12 +82,15 @@ class CudaOffloadPause:
             module.to(torch.device("cpu"))
         if remember_optimizer_devices:
             self._optimizer_devices = []
-        for state in self.optimizer.state.values():
-            for name, value in state.items():
-                if torch.is_tensor(value):
-                    if remember_optimizer_devices:
-                        self._optimizer_devices.append((state, name, value.device))
-                    state[name] = value.to(torch.device("cpu"))
+        for optimizer in self.optimizers:
+            for state in optimizer.state.values():
+                for name, value in state.items():
+                    if torch.is_tensor(value):
+                        if remember_optimizer_devices:
+                            self._optimizer_devices.append(
+                                (state, name, value.device)
+                            )
+                        state[name] = value.to(torch.device("cpu"))
 
     def _restore(self):
         for module in self.modules:
