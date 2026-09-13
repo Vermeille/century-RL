@@ -1,0 +1,5344 @@
+{
+  "models": {
+    "core_4": {
+      "vocabulary": "core",
+      "candidate_count": 7,
+      "leaves": 4,
+      "depth": 3,
+      "tree": {
+        "feature_index": 299,
+        "feature": "separation_within_5.delta_separation_change",
+        "threshold": 0.5,
+        "left": {
+          "feature_index": 248,
+          "feature": "most_constrained_card.delta_card_legal_piles",
+          "threshold": -0.5,
+          "left": {
+            "feature_index": 261,
+            "feature": "cheapest_reverse_setup.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "action": 4,
+              "name": "cheapest_reverse_setup",
+              "samples": 11295
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 3911
+            }
+          },
+          "right": {
+            "action": 0,
+            "name": "greedy",
+            "samples": 9822
+          }
+        },
+        "right": {
+          "action": 0,
+          "name": "greedy",
+          "samples": 18922
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.8886247256766642,
+        "nongreedy_coverage": 0.5656235404016815,
+        "exact_agreement": 0.7606986100950988,
+        "symmetric_agreement": 0.7690197512801755,
+        "nongreedy_agreement": 0.0
+      }
+    },
+    "core_8": {
+      "vocabulary": "core",
+      "candidate_count": 7,
+      "leaves": 8,
+      "depth": 4,
+      "tree": {
+        "feature_index": 299,
+        "feature": "separation_within_5.delta_separation_change",
+        "threshold": 0.5,
+        "left": {
+          "feature_index": 248,
+          "feature": "most_constrained_card.delta_card_legal_piles",
+          "threshold": -0.5,
+          "left": {
+            "feature_index": 261,
+            "feature": "cheapest_reverse_setup.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "action": 4,
+              "name": "cheapest_reverse_setup",
+              "samples": 11295
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 3911
+            }
+          },
+          "right": {
+            "feature_index": 280,
+            "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+            "threshold": -0.08333301544189453,
+            "left": {
+              "feature_index": 65,
+              "feature": "cheapest_reverse_setup.extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "action": 1,
+                "name": "fewest_dead_cards",
+                "samples": 4917
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 2090
+              }
+            },
+            "right": {
+              "action": 1,
+              "name": "fewest_dead_cards",
+              "samples": 2815
+            }
+          }
+        },
+        "right": {
+          "feature_index": 260,
+          "feature": "cheapest_reverse_setup.delta_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 247,
+            "feature": "most_constrained_card.delta_extra_cost",
+            "threshold": 1.5,
+            "left": {
+              "action": 1,
+              "name": "fewest_dead_cards",
+              "samples": 4883
+            },
+            "right": {
+              "action": 4,
+              "name": "cheapest_reverse_setup",
+              "samples": 8963
+            }
+          },
+          "right": {
+            "action": 0,
+            "name": "greedy",
+            "samples": 5076
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.8886247256766642,
+        "nongreedy_coverage": 0.5656235404016815,
+        "exact_agreement": 0.7606986100950988,
+        "symmetric_agreement": 0.7690197512801755,
+        "nongreedy_agreement": 0.0
+      }
+    },
+    "core_16": {
+      "vocabulary": "core",
+      "candidate_count": 7,
+      "leaves": 16,
+      "depth": 5,
+      "tree": {
+        "feature_index": 299,
+        "feature": "separation_within_5.delta_separation_change",
+        "threshold": 0.5,
+        "left": {
+          "feature_index": 248,
+          "feature": "most_constrained_card.delta_card_legal_piles",
+          "threshold": -0.5,
+          "left": {
+            "feature_index": 261,
+            "feature": "cheapest_reverse_setup.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 104,
+              "feature": "separation_within_5.pile_open_space_after",
+              "threshold": 4.5,
+              "left": {
+                "action": 2,
+                "name": "best_two_card_start",
+                "samples": 1748
+              },
+              "right": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 1115
+                },
+                "right": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 8432
+                }
+              }
+            },
+            "right": {
+              "feature_index": 237,
+              "feature": "best_two_card_start.delta_cheapest_next_card",
+              "threshold": -2.5,
+              "left": {
+                "action": 1,
+                "name": "fewest_dead_cards",
+                "samples": 1859
+              },
+              "right": {
+                "action": 2,
+                "name": "best_two_card_start",
+                "samples": 2052
+              }
+            }
+          },
+          "right": {
+            "feature_index": 280,
+            "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+            "threshold": -0.08333301544189453,
+            "left": {
+              "feature_index": 65,
+              "feature": "cheapest_reverse_setup.extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 806
+                },
+                "right": {
+                  "action": 1,
+                  "name": "fewest_dead_cards",
+                  "samples": 4111
+                }
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 2090
+              }
+            },
+            "right": {
+              "action": 1,
+              "name": "fewest_dead_cards",
+              "samples": 2815
+            }
+          }
+        },
+        "right": {
+          "feature_index": 260,
+          "feature": "cheapest_reverse_setup.delta_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 247,
+            "feature": "most_constrained_card.delta_extra_cost",
+            "threshold": 1.5,
+            "left": {
+              "action": 1,
+              "name": "fewest_dead_cards",
+              "samples": 4883
+            },
+            "right": {
+              "feature_index": 19,
+              "feature": "greedy.separation_change",
+              "threshold": 0.0,
+              "left": {
+                "feature_index": 104,
+                "feature": "separation_within_5.pile_open_space_after",
+                "threshold": 18.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 1378
+                },
+                "right": {
+                  "action": 6,
+                  "name": "separation_within_5",
+                  "samples": 1573
+                }
+              },
+              "right": {
+                "feature_index": 300,
+                "feature": "separation_within_5.delta_pile_open_space_after",
+                "threshold": 0.5,
+                "left": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 4861
+                },
+                "right": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 1151
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 37,
+            "feature": "best_two_card_start.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "action": 2,
+              "name": "best_two_card_start",
+              "samples": 2049
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 3027
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.8886247256766642,
+        "nongreedy_coverage": 0.5656235404016815,
+        "exact_agreement": 0.7680138990490124,
+        "symmetric_agreement": 0.7763350402340893,
+        "nongreedy_agreement": 0.09528257823446988
+      }
+    },
+    "core_32": {
+      "vocabulary": "core",
+      "candidate_count": 7,
+      "leaves": 32,
+      "depth": 8,
+      "tree": {
+        "feature_index": 299,
+        "feature": "separation_within_5.delta_separation_change",
+        "threshold": 0.5,
+        "left": {
+          "feature_index": 248,
+          "feature": "most_constrained_card.delta_card_legal_piles",
+          "threshold": -0.5,
+          "left": {
+            "feature_index": 261,
+            "feature": "cheapest_reverse_setup.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 104,
+              "feature": "separation_within_5.pile_open_space_after",
+              "threshold": 4.5,
+              "left": {
+                "feature_index": 251,
+                "feature": "most_constrained_card.delta_cheapest_next_card",
+                "threshold": -5.5,
+                "left": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 869
+                },
+                "right": {
+                  "action": 2,
+                  "name": "best_two_card_start",
+                  "samples": 879
+                }
+              },
+              "right": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 1115
+                },
+                "right": {
+                  "feature_index": 5,
+                  "feature": "minimum_cost_ties",
+                  "threshold": 1.5,
+                  "left": {
+                    "feature_index": 79,
+                    "feature": "easiest_remaining_hand.extra_cost",
+                    "threshold": 3.5,
+                    "left": {
+                      "action": 5,
+                      "name": "easiest_remaining_hand",
+                      "samples": 278
+                    },
+                    "right": {
+                      "feature_index": 279,
+                      "feature": "easiest_remaining_hand.delta_cheapest_next_card",
+                      "threshold": -5.5,
+                      "left": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 4215
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 3526
+                      }
+                    }
+                  },
+                  "right": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 413
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 237,
+              "feature": "best_two_card_start.delta_cheapest_next_card",
+              "threshold": -2.5,
+              "left": {
+                "action": 1,
+                "name": "fewest_dead_cards",
+                "samples": 1859
+              },
+              "right": {
+                "action": 2,
+                "name": "best_two_card_start",
+                "samples": 2052
+              }
+            }
+          },
+          "right": {
+            "feature_index": 280,
+            "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+            "threshold": -0.08333301544189453,
+            "left": {
+              "feature_index": 65,
+              "feature": "cheapest_reverse_setup.extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 806
+                },
+                "right": {
+                  "feature_index": 5,
+                  "feature": "minimum_cost_ties",
+                  "threshold": 1.5,
+                  "left": {
+                    "feature_index": 274,
+                    "feature": "easiest_remaining_hand.delta_cost",
+                    "threshold": 4.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 253
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 3553
+                    }
+                  },
+                  "right": {
+                    "action": 1,
+                    "name": "fewest_dead_cards",
+                    "samples": 305
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 1110
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 980
+                }
+              }
+            },
+            "right": {
+              "feature_index": 65,
+              "feature": "cheapest_reverse_setup.extra_cost",
+              "threshold": 2.0,
+              "left": {
+                "action": 1,
+                "name": "fewest_dead_cards",
+                "samples": 2410
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 405
+              }
+            }
+          }
+        },
+        "right": {
+          "feature_index": 260,
+          "feature": "cheapest_reverse_setup.delta_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 247,
+            "feature": "most_constrained_card.delta_extra_cost",
+            "threshold": 1.5,
+            "left": {
+              "feature_index": 275,
+              "feature": "easiest_remaining_hand.delta_extra_cost",
+              "threshold": 3.5,
+              "left": {
+                "action": 1,
+                "name": "fewest_dead_cards",
+                "samples": 985
+              },
+              "right": {
+                "feature_index": 5,
+                "feature": "minimum_cost_ties",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 61,
+                  "feature": "most_constrained_card.separation_change",
+                  "threshold": -3.5,
+                  "left": {
+                    "feature_index": 104,
+                    "feature": "separation_within_5.pile_open_space_after",
+                    "threshold": 16.5,
+                    "left": {
+                      "action": 3,
+                      "name": "most_constrained_card",
+                      "samples": 364
+                    },
+                    "right": {
+                      "action": 2,
+                      "name": "best_two_card_start",
+                      "samples": 663
+                    }
+                  },
+                  "right": {
+                    "feature_index": 300,
+                    "feature": "separation_within_5.delta_pile_open_space_after",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 1826
+                    },
+                    "right": {
+                      "action": 2,
+                      "name": "best_two_card_start",
+                      "samples": 272
+                    }
+                  }
+                },
+                "right": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 773
+                }
+              }
+            },
+            "right": {
+              "feature_index": 19,
+              "feature": "greedy.separation_change",
+              "threshold": 0.0,
+              "left": {
+                "feature_index": 104,
+                "feature": "separation_within_5.pile_open_space_after",
+                "threshold": 18.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 1378
+                },
+                "right": {
+                  "action": 6,
+                  "name": "separation_within_5",
+                  "samples": 1573
+                }
+              },
+              "right": {
+                "feature_index": 300,
+                "feature": "separation_within_5.delta_pile_open_space_after",
+                "threshold": 0.5,
+                "left": {
+                  "feature_index": 275,
+                  "feature": "easiest_remaining_hand.delta_extra_cost",
+                  "threshold": 2.5,
+                  "left": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 312
+                  },
+                  "right": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 4549
+                  }
+                },
+                "right": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 1151
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 37,
+            "feature": "best_two_card_start.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 51,
+              "feature": "most_constrained_card.extra_cost",
+              "threshold": 1.5,
+              "left": {
+                "action": 2,
+                "name": "best_two_card_start",
+                "samples": 869
+              },
+              "right": {
+                "action": 2,
+                "name": "best_two_card_start",
+                "samples": 1180
+              }
+            },
+            "right": {
+              "feature_index": 247,
+              "feature": "most_constrained_card.delta_extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "action": 3,
+                "name": "most_constrained_card",
+                "samples": 1083
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 1944
+              }
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.8886247256766642,
+        "nongreedy_coverage": 0.5656235404016815,
+        "exact_agreement": 0.7688368690563278,
+        "symmetric_agreement": 0.7773408924652524,
+        "nongreedy_agreement": 0.102288650163475
+      }
+    },
+    "core_64": {
+      "vocabulary": "core",
+      "candidate_count": 7,
+      "leaves": 64,
+      "depth": 11,
+      "tree": {
+        "feature_index": 299,
+        "feature": "separation_within_5.delta_separation_change",
+        "threshold": 0.5,
+        "left": {
+          "feature_index": 248,
+          "feature": "most_constrained_card.delta_card_legal_piles",
+          "threshold": -0.5,
+          "left": {
+            "feature_index": 261,
+            "feature": "cheapest_reverse_setup.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 104,
+              "feature": "separation_within_5.pile_open_space_after",
+              "threshold": 4.5,
+              "left": {
+                "feature_index": 251,
+                "feature": "most_constrained_card.delta_cheapest_next_card",
+                "threshold": -5.5,
+                "left": {
+                  "feature_index": 19,
+                  "feature": "greedy.separation_change",
+                  "threshold": 5.5,
+                  "left": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 643
+                  },
+                  "right": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 226
+                  }
+                },
+                "right": {
+                  "feature_index": 51,
+                  "feature": "most_constrained_card.extra_cost",
+                  "threshold": 3.5,
+                  "left": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 331
+                  },
+                  "right": {
+                    "feature_index": 3,
+                    "feature": "legal_moves",
+                    "threshold": 8.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 220
+                    },
+                    "right": {
+                      "action": 2,
+                      "name": "best_two_card_start",
+                      "samples": 328
+                    }
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "feature_index": 37,
+                  "feature": "best_two_card_start.extra_cost",
+                  "threshold": 2.5,
+                  "left": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 325
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 790
+                  }
+                },
+                "right": {
+                  "feature_index": 5,
+                  "feature": "minimum_cost_ties",
+                  "threshold": 1.5,
+                  "left": {
+                    "feature_index": 79,
+                    "feature": "easiest_remaining_hand.extra_cost",
+                    "threshold": 3.5,
+                    "left": {
+                      "action": 5,
+                      "name": "easiest_remaining_hand",
+                      "samples": 278
+                    },
+                    "right": {
+                      "feature_index": 279,
+                      "feature": "easiest_remaining_hand.delta_cheapest_next_card",
+                      "threshold": -5.5,
+                      "left": {
+                        "feature_index": 58,
+                        "feature": "most_constrained_card.two_card_cost",
+                        "threshold": -5.5,
+                        "left": {
+                          "feature_index": 96,
+                          "feature": "separation_within_5.legal_hand_placements_after",
+                          "threshold": 7.5,
+                          "left": {
+                            "action": 0,
+                            "name": "greedy",
+                            "samples": 103
+                          },
+                          "right": {
+                            "action": 0,
+                            "name": "greedy",
+                            "samples": 180
+                          }
+                        },
+                        "right": {
+                          "action": 0,
+                          "name": "greedy",
+                          "samples": 3932
+                        }
+                      },
+                      "right": {
+                        "feature_index": 50,
+                        "feature": "most_constrained_card.cost",
+                        "threshold": 4.5,
+                        "left": {
+                          "action": 0,
+                          "name": "greedy",
+                          "samples": 157
+                        },
+                        "right": {
+                          "action": 0,
+                          "name": "greedy",
+                          "samples": 3369
+                        }
+                      }
+                    }
+                  },
+                  "right": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 413
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 237,
+              "feature": "best_two_card_start.delta_cheapest_next_card",
+              "threshold": -2.5,
+              "left": {
+                "feature_index": 20,
+                "feature": "greedy.pile_open_space_after",
+                "threshold": 2.5,
+                "left": {
+                  "action": 1,
+                  "name": "fewest_dead_cards",
+                  "samples": 172
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 1687
+                }
+              },
+              "right": {
+                "feature_index": 20,
+                "feature": "greedy.pile_open_space_after",
+                "threshold": 4.5,
+                "left": {
+                  "action": 2,
+                  "name": "best_two_card_start",
+                  "samples": 193
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 1859
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 280,
+            "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+            "threshold": -0.08333301544189453,
+            "left": {
+              "feature_index": 65,
+              "feature": "cheapest_reverse_setup.extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "feature_index": 34,
+                  "feature": "fewest_dead_cards.pile_open_space_after",
+                  "threshold": 9.5,
+                  "left": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 168
+                  },
+                  "right": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 638
+                  }
+                },
+                "right": {
+                  "feature_index": 5,
+                  "feature": "minimum_cost_ties",
+                  "threshold": 1.5,
+                  "left": {
+                    "feature_index": 274,
+                    "feature": "easiest_remaining_hand.delta_cost",
+                    "threshold": 4.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 253
+                    },
+                    "right": {
+                      "feature_index": 34,
+                      "feature": "fewest_dead_cards.pile_open_space_after",
+                      "threshold": 5.5,
+                      "left": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 129
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 3424
+                      }
+                    }
+                  },
+                  "right": {
+                    "action": 1,
+                    "name": "fewest_dead_cards",
+                    "samples": 305
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 240,
+                "feature": "best_two_card_start.delta_two_card_cost",
+                "threshold": -0.5,
+                "left": {
+                  "feature_index": 104,
+                  "feature": "separation_within_5.pile_open_space_after",
+                  "threshold": 10.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 108
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1002
+                  }
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 980
+                }
+              }
+            },
+            "right": {
+              "feature_index": 65,
+              "feature": "cheapest_reverse_setup.extra_cost",
+              "threshold": 2.0,
+              "left": {
+                "action": 1,
+                "name": "fewest_dead_cards",
+                "samples": 2410
+              },
+              "right": {
+                "feature_index": 37,
+                "feature": "best_two_card_start.extra_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 259
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 146
+                }
+              }
+            }
+          }
+        },
+        "right": {
+          "feature_index": 260,
+          "feature": "cheapest_reverse_setup.delta_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 247,
+            "feature": "most_constrained_card.delta_extra_cost",
+            "threshold": 1.5,
+            "left": {
+              "feature_index": 275,
+              "feature": "easiest_remaining_hand.delta_extra_cost",
+              "threshold": 3.5,
+              "left": {
+                "feature_index": 280,
+                "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+                "threshold": -0.33333325386047363,
+                "left": {
+                  "action": 2,
+                  "name": "best_two_card_start",
+                  "samples": 501
+                },
+                "right": {
+                  "feature_index": 66,
+                  "feature": "cheapest_reverse_setup.card_legal_piles",
+                  "threshold": 2.5,
+                  "left": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 356
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 128
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 5,
+                "feature": "minimum_cost_ties",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 61,
+                  "feature": "most_constrained_card.separation_change",
+                  "threshold": -3.5,
+                  "left": {
+                    "feature_index": 104,
+                    "feature": "separation_within_5.pile_open_space_after",
+                    "threshold": 16.5,
+                    "left": {
+                      "action": 3,
+                      "name": "most_constrained_card",
+                      "samples": 364
+                    },
+                    "right": {
+                      "action": 2,
+                      "name": "best_two_card_start",
+                      "samples": 663
+                    }
+                  },
+                  "right": {
+                    "feature_index": 300,
+                    "feature": "separation_within_5.delta_pile_open_space_after",
+                    "threshold": 0.5,
+                    "left": {
+                      "feature_index": 246,
+                      "feature": "most_constrained_card.delta_cost",
+                      "threshold": 0.5,
+                      "left": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 1716
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 110
+                      }
+                    },
+                    "right": {
+                      "action": 2,
+                      "name": "best_two_card_start",
+                      "samples": 272
+                    }
+                  }
+                },
+                "right": {
+                  "action": 4,
+                  "name": "cheapest_reverse_setup",
+                  "samples": 773
+                }
+              }
+            },
+            "right": {
+              "feature_index": 19,
+              "feature": "greedy.separation_change",
+              "threshold": 0.0,
+              "left": {
+                "feature_index": 104,
+                "feature": "separation_within_5.pile_open_space_after",
+                "threshold": 18.5,
+                "left": {
+                  "feature_index": 300,
+                  "feature": "separation_within_5.delta_pile_open_space_after",
+                  "threshold": -36.5,
+                  "left": {
+                    "feature_index": 3,
+                    "feature": "legal_moves",
+                    "threshold": 13.5,
+                    "left": {
+                      "feature_index": 48,
+                      "feature": "best_two_card_start.pile_open_space_after",
+                      "threshold": 44.5,
+                      "left": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 202
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 674
+                      }
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 390
+                    }
+                  },
+                  "right": {
+                    "action": 6,
+                    "name": "separation_within_5",
+                    "samples": 112
+                  }
+                },
+                "right": {
+                  "feature_index": 289,
+                  "feature": "separation_within_5.delta_extra_cost",
+                  "threshold": 2.5,
+                  "left": {
+                    "action": 6,
+                    "name": "separation_within_5",
+                    "samples": 571
+                  },
+                  "right": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 1002
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 300,
+                "feature": "separation_within_5.delta_pile_open_space_after",
+                "threshold": 0.5,
+                "left": {
+                  "feature_index": 275,
+                  "feature": "easiest_remaining_hand.delta_extra_cost",
+                  "threshold": 2.5,
+                  "left": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 312
+                  },
+                  "right": {
+                    "feature_index": 237,
+                    "feature": "best_two_card_start.delta_cheapest_next_card",
+                    "threshold": -0.5,
+                    "left": {
+                      "action": 4,
+                      "name": "cheapest_reverse_setup",
+                      "samples": 271
+                    },
+                    "right": {
+                      "feature_index": 5,
+                      "feature": "minimum_cost_ties",
+                      "threshold": 1.5,
+                      "left": {
+                        "feature_index": 34,
+                        "feature": "fewest_dead_cards.pile_open_space_after",
+                        "threshold": 16.5,
+                        "left": {
+                          "feature_index": 250,
+                          "feature": "most_constrained_card.delta_legal_hand_placements_after",
+                          "threshold": 0.5,
+                          "left": {
+                            "action": 0,
+                            "name": "greedy",
+                            "samples": 536
+                          },
+                          "right": {
+                            "feature_index": 51,
+                            "feature": "most_constrained_card.extra_cost",
+                            "threshold": 6.5,
+                            "left": {
+                              "action": 0,
+                              "name": "greedy",
+                              "samples": 204
+                            },
+                            "right": {
+                              "action": 0,
+                              "name": "greedy",
+                              "samples": 703
+                            }
+                          }
+                        },
+                        "right": {
+                          "action": 0,
+                          "name": "greedy",
+                          "samples": 2581
+                        }
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 254
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 20,
+                  "feature": "greedy.pile_open_space_after",
+                  "threshold": 53.5,
+                  "left": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 939
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 212
+                  }
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 37,
+            "feature": "best_two_card_start.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 51,
+              "feature": "most_constrained_card.extra_cost",
+              "threshold": 1.5,
+              "left": {
+                "action": 2,
+                "name": "best_two_card_start",
+                "samples": 869
+              },
+              "right": {
+                "feature_index": 19,
+                "feature": "greedy.separation_change",
+                "threshold": 0.0,
+                "left": {
+                  "feature_index": 104,
+                  "feature": "separation_within_5.pile_open_space_after",
+                  "threshold": 17.5,
+                  "left": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 156
+                  },
+                  "right": {
+                    "action": 6,
+                    "name": "separation_within_5",
+                    "samples": 171
+                  }
+                },
+                "right": {
+                  "action": 2,
+                  "name": "best_two_card_start",
+                  "samples": 853
+                }
+              }
+            },
+            "right": {
+              "feature_index": 247,
+              "feature": "most_constrained_card.delta_extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 61,
+                "feature": "most_constrained_card.separation_change",
+                "threshold": -5.5,
+                "left": {
+                  "action": 3,
+                  "name": "most_constrained_card",
+                  "samples": 278
+                },
+                "right": {
+                  "action": 3,
+                  "name": "most_constrained_card",
+                  "samples": 805
+                }
+              },
+              "right": {
+                "feature_index": 33,
+                "feature": "fewest_dead_cards.separation_change",
+                "threshold": 0.0,
+                "left": {
+                  "feature_index": 104,
+                  "feature": "separation_within_5.pile_open_space_after",
+                  "threshold": 19.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 328
+                  },
+                  "right": {
+                    "action": 6,
+                    "name": "separation_within_5",
+                    "samples": 370
+                  }
+                },
+                "right": {
+                  "feature_index": 300,
+                  "feature": "separation_within_5.delta_pile_open_space_after",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 986
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 260
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.8886247256766642,
+        "nongreedy_coverage": 0.5656235404016815,
+        "exact_agreement": 0.7737746891002194,
+        "symmetric_agreement": 0.7822787125091442,
+        "nongreedy_agreement": 0.1452592246613732
+      }
+    },
+    "piles_4": {
+      "vocabulary": "piles",
+      "candidate_count": 11,
+      "leaves": 4,
+      "depth": 3,
+      "tree": {
+        "feature_index": 94,
+        "feature": "separation_within_5.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "action": 3,
+          "name": "most_constrained_card",
+          "samples": 5338
+        },
+        "right": {
+          "feature_index": 298,
+          "feature": "separation_within_5.delta_pile_separation_after",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 316,
+            "feature": "cheapest_pile_1.delta_cost",
+            "threshold": 2.5,
+            "left": {
+              "action": 8,
+              "name": "cheapest_pile_1",
+              "samples": 10632
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 9067
+            }
+          },
+          "right": {
+            "action": 0,
+            "name": "greedy",
+            "samples": 18913
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.998811265544989,
+        "nongreedy_coverage": 0.9939280709948622,
+        "exact_agreement": 0.7655449890270666,
+        "symmetric_agreement": 0.7701170446232626,
+        "nongreedy_agreement": 0.0009341429238673517
+      }
+    },
+    "piles_8": {
+      "vocabulary": "piles",
+      "candidate_count": 11,
+      "leaves": 8,
+      "depth": 4,
+      "tree": {
+        "feature_index": 94,
+        "feature": "separation_within_5.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "action": 3,
+            "name": "most_constrained_card",
+            "samples": 2766
+          },
+          "right": {
+            "action": 3,
+            "name": "most_constrained_card",
+            "samples": 2572
+          }
+        },
+        "right": {
+          "feature_index": 298,
+          "feature": "separation_within_5.delta_pile_separation_after",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 316,
+            "feature": "cheapest_pile_1.delta_cost",
+            "threshold": 2.5,
+            "left": {
+              "feature_index": 135,
+              "feature": "cheapest_pile_2.extra_cost",
+              "threshold": 5.0,
+              "left": {
+                "action": 8,
+                "name": "cheapest_pile_1",
+                "samples": 5292
+              },
+              "right": {
+                "action": 8,
+                "name": "cheapest_pile_1",
+                "samples": 5340
+              }
+            },
+            "right": {
+              "feature_index": 342,
+              "feature": "cheapest_pile_2.delta_pile_open_space_after",
+              "threshold": -0.5,
+              "left": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 4602
+              },
+              "right": {
+                "action": 9,
+                "name": "cheapest_pile_2",
+                "samples": 4465
+              }
+            }
+          },
+          "right": {
+            "feature_index": 65,
+            "feature": "cheapest_reverse_setup.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "action": 4,
+              "name": "cheapest_reverse_setup",
+              "samples": 13837
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 5076
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.998811265544989,
+        "nongreedy_coverage": 0.9939280709948622,
+        "exact_agreement": 0.7653621068032187,
+        "symmetric_agreement": 0.7699341623994148,
+        "nongreedy_agreement": 0.0014012143858010276
+      }
+    },
+    "piles_16": {
+      "vocabulary": "piles",
+      "candidate_count": 11,
+      "leaves": 16,
+      "depth": 6,
+      "tree": {
+        "feature_index": 94,
+        "feature": "separation_within_5.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "feature_index": 344,
+            "feature": "cheapest_pile_3.delta_cost",
+            "threshold": 1.5,
+            "left": {
+              "action": 10,
+              "name": "cheapest_pile_3",
+              "samples": 1539
+            },
+            "right": {
+              "action": 3,
+              "name": "most_constrained_card",
+              "samples": 1227
+            }
+          },
+          "right": {
+            "action": 3,
+            "name": "most_constrained_card",
+            "samples": 2572
+          }
+        },
+        "right": {
+          "feature_index": 298,
+          "feature": "separation_within_5.delta_pile_separation_after",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 316,
+            "feature": "cheapest_pile_1.delta_cost",
+            "threshold": 2.5,
+            "left": {
+              "feature_index": 135,
+              "feature": "cheapest_pile_2.extra_cost",
+              "threshold": 5.0,
+              "left": {
+                "feature_index": 246,
+                "feature": "most_constrained_card.delta_cost",
+                "threshold": 4.5,
+                "left": {
+                  "action": 3,
+                  "name": "most_constrained_card",
+                  "samples": 1342
+                },
+                "right": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 3950
+                }
+              },
+              "right": {
+                "feature_index": 260,
+                "feature": "cheapest_reverse_setup.delta_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 3866
+                },
+                "right": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 1474
+                }
+              }
+            },
+            "right": {
+              "feature_index": 342,
+              "feature": "cheapest_pile_2.delta_pile_open_space_after",
+              "threshold": -0.5,
+              "left": {
+                "feature_index": 345,
+                "feature": "cheapest_pile_3.delta_extra_cost",
+                "threshold": 1.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 2426
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 2176
+                }
+              },
+              "right": {
+                "feature_index": 269,
+                "feature": "cheapest_reverse_setup.delta_reverse_setup",
+                "threshold": 0.5,
+                "left": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 3184
+                },
+                "right": {
+                  "action": 1,
+                  "name": "fewest_dead_cards",
+                  "samples": 1281
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 65,
+            "feature": "cheapest_reverse_setup.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 341,
+              "feature": "cheapest_pile_2.delta_separation_change",
+              "threshold": 0.5,
+              "left": {
+                "action": 9,
+                "name": "cheapest_pile_2",
+                "samples": 5692
+              },
+              "right": {
+                "feature_index": 326,
+                "feature": "cheapest_pile_1.delta_pile_separation_after",
+                "threshold": 1.0,
+                "left": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 4352
+                },
+                "right": {
+                  "feature_index": 66,
+                  "feature": "cheapest_reverse_setup.card_legal_piles",
+                  "threshold": 2.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 863
+                  },
+                  "right": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 2930
+                  }
+                }
+              }
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 5076
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.998811265544989,
+        "nongreedy_coverage": 0.9939280709948622,
+        "exact_agreement": 0.7724945135332846,
+        "symmetric_agreement": 0.7746891002194587,
+        "nongreedy_agreement": 0.06165343297524521
+      }
+    },
+    "piles_32": {
+      "vocabulary": "piles",
+      "candidate_count": 11,
+      "leaves": 32,
+      "depth": 8,
+      "tree": {
+        "feature_index": 94,
+        "feature": "separation_within_5.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "feature_index": 344,
+            "feature": "cheapest_pile_3.delta_cost",
+            "threshold": 1.5,
+            "left": {
+              "feature_index": 303,
+              "feature": "cheapest_pile_0.delta_extra_cost",
+              "threshold": 5.5,
+              "left": {
+                "action": 10,
+                "name": "cheapest_pile_3",
+                "samples": 521
+              },
+              "right": {
+                "action": 3,
+                "name": "most_constrained_card",
+                "samples": 1018
+              }
+            },
+            "right": {
+              "action": 3,
+              "name": "most_constrained_card",
+              "samples": 1227
+            }
+          },
+          "right": {
+            "feature_index": 65,
+            "feature": "cheapest_reverse_setup.extra_cost",
+            "threshold": 2.0,
+            "left": {
+              "action": 3,
+              "name": "most_constrained_card",
+              "samples": 2188
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 384
+            }
+          }
+        },
+        "right": {
+          "feature_index": 298,
+          "feature": "separation_within_5.delta_pile_separation_after",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 316,
+            "feature": "cheapest_pile_1.delta_cost",
+            "threshold": 2.5,
+            "left": {
+              "feature_index": 135,
+              "feature": "cheapest_pile_2.extra_cost",
+              "threshold": 5.0,
+              "left": {
+                "feature_index": 246,
+                "feature": "most_constrained_card.delta_cost",
+                "threshold": 4.5,
+                "left": {
+                  "feature_index": 82,
+                  "feature": "easiest_remaining_hand.legal_hand_placements_after",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 167
+                  },
+                  "right": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 1175
+                  }
+                },
+                "right": {
+                  "feature_index": 261,
+                  "feature": "cheapest_reverse_setup.delta_extra_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 4,
+                    "name": "cheapest_reverse_setup",
+                    "samples": 2890
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 1060
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 260,
+                "feature": "cheapest_reverse_setup.delta_cost",
+                "threshold": 0.5,
+                "left": {
+                  "feature_index": 132,
+                  "feature": "cheapest_pile_1.pile_open_space_after",
+                  "threshold": 4.5,
+                  "left": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 425
+                  },
+                  "right": {
+                    "feature_index": 6,
+                    "feature": "ascending_gap",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 143
+                    },
+                    "right": {
+                      "feature_index": 248,
+                      "feature": "most_constrained_card.delta_card_legal_piles",
+                      "threshold": -0.5,
+                      "left": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 2684
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 614
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 1474
+                }
+              }
+            },
+            "right": {
+              "feature_index": 342,
+              "feature": "cheapest_pile_2.delta_pile_open_space_after",
+              "threshold": -0.5,
+              "left": {
+                "feature_index": 345,
+                "feature": "cheapest_pile_3.delta_extra_cost",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 246,
+                  "feature": "most_constrained_card.delta_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 881
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1545
+                  }
+                },
+                "right": {
+                  "feature_index": 246,
+                  "feature": "most_constrained_card.delta_cost",
+                  "threshold": 1.0,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 789
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1387
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 269,
+                "feature": "cheapest_reverse_setup.delta_reverse_setup",
+                "threshold": 0.5,
+                "left": {
+                  "feature_index": 247,
+                  "feature": "most_constrained_card.delta_extra_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 765
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 2419
+                  }
+                },
+                "right": {
+                  "action": 1,
+                  "name": "fewest_dead_cards",
+                  "samples": 1281
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 65,
+            "feature": "cheapest_reverse_setup.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 341,
+              "feature": "cheapest_pile_2.delta_separation_change",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 51,
+                "feature": "most_constrained_card.extra_cost",
+                "threshold": 1.5,
+                "left": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 1749
+                },
+                "right": {
+                  "feature_index": 317,
+                  "feature": "cheapest_pile_1.delta_extra_cost",
+                  "threshold": 4.5,
+                  "left": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 2704
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 1239
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 326,
+                "feature": "cheapest_pile_1.delta_pile_separation_after",
+                "threshold": 1.0,
+                "left": {
+                  "feature_index": 51,
+                  "feature": "most_constrained_card.extra_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "feature_index": 6,
+                    "feature": "ascending_gap",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 165
+                    },
+                    "right": {
+                      "action": 1,
+                      "name": "fewest_dead_cards",
+                      "samples": 1284
+                    }
+                  },
+                  "right": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 2903
+                  }
+                },
+                "right": {
+                  "feature_index": 66,
+                  "feature": "cheapest_reverse_setup.card_legal_piles",
+                  "threshold": 2.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 863
+                  },
+                  "right": {
+                    "feature_index": 160,
+                    "feature": "cheapest_pile_3.pile_open_space_after",
+                    "threshold": 88.5,
+                    "left": {
+                      "action": 6,
+                      "name": "separation_within_5",
+                      "samples": 2437
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 493
+                    }
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 37,
+              "feature": "best_two_card_start.extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "action": 2,
+                "name": "best_two_card_start",
+                "samples": 2049
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 3027
+              }
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.998811265544989,
+        "nongreedy_coverage": 0.9939280709948622,
+        "exact_agreement": 0.7746891002194587,
+        "symmetric_agreement": 0.7769751280175567,
+        "nongreedy_agreement": 0.14572629612330687
+      }
+    },
+    "piles_64": {
+      "vocabulary": "piles",
+      "candidate_count": 11,
+      "leaves": 64,
+      "depth": 11,
+      "tree": {
+        "feature_index": 94,
+        "feature": "separation_within_5.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "feature_index": 344,
+            "feature": "cheapest_pile_3.delta_cost",
+            "threshold": 1.5,
+            "left": {
+              "feature_index": 303,
+              "feature": "cheapest_pile_0.delta_extra_cost",
+              "threshold": 5.5,
+              "left": {
+                "feature_index": 286,
+                "feature": "easiest_remaining_hand.delta_pile_open_space_after",
+                "threshold": 2.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 320
+                },
+                "right": {
+                  "action": 5,
+                  "name": "easiest_remaining_hand",
+                  "samples": 201
+                }
+              },
+              "right": {
+                "feature_index": 269,
+                "feature": "cheapest_reverse_setup.delta_reverse_setup",
+                "threshold": 0.5,
+                "left": {
+                  "action": 3,
+                  "name": "most_constrained_card",
+                  "samples": 790
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 228
+                }
+              }
+            },
+            "right": {
+              "feature_index": 269,
+              "feature": "cheapest_reverse_setup.delta_reverse_setup",
+              "threshold": 0.5,
+              "left": {
+                "action": 3,
+                "name": "most_constrained_card",
+                "samples": 944
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 283
+              }
+            }
+          },
+          "right": {
+            "feature_index": 65,
+            "feature": "cheapest_reverse_setup.extra_cost",
+            "threshold": 2.0,
+            "left": {
+              "feature_index": 303,
+              "feature": "cheapest_pile_0.delta_extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 149,
+                "feature": "cheapest_pile_3.extra_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 10,
+                  "name": "cheapest_pile_3",
+                  "samples": 1577
+                },
+                "right": {
+                  "action": 3,
+                  "name": "most_constrained_card",
+                  "samples": 297
+                }
+              },
+              "right": {
+                "action": 3,
+                "name": "most_constrained_card",
+                "samples": 314
+              }
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 384
+            }
+          }
+        },
+        "right": {
+          "feature_index": 298,
+          "feature": "separation_within_5.delta_pile_separation_after",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 316,
+            "feature": "cheapest_pile_1.delta_cost",
+            "threshold": 2.5,
+            "left": {
+              "feature_index": 135,
+              "feature": "cheapest_pile_2.extra_cost",
+              "threshold": 5.0,
+              "left": {
+                "feature_index": 246,
+                "feature": "most_constrained_card.delta_cost",
+                "threshold": 4.5,
+                "left": {
+                  "feature_index": 82,
+                  "feature": "easiest_remaining_hand.legal_hand_placements_after",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 167
+                  },
+                  "right": {
+                    "feature_index": 20,
+                    "feature": "greedy.pile_open_space_after",
+                    "threshold": 2.5,
+                    "left": {
+                      "action": 3,
+                      "name": "most_constrained_card",
+                      "samples": 401
+                    },
+                    "right": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 774
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 261,
+                  "feature": "cheapest_reverse_setup.delta_extra_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "feature_index": 344,
+                    "feature": "cheapest_pile_3.delta_cost",
+                    "threshold": 8.5,
+                    "left": {
+                      "feature_index": 356,
+                      "feature": "cheapest_pile_3.delta_pile_open_space_after",
+                      "threshold": 14.5,
+                      "left": {
+                        "action": 4,
+                        "name": "cheapest_reverse_setup",
+                        "samples": 526
+                      },
+                      "right": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 624
+                      }
+                    },
+                    "right": {
+                      "feature_index": 107,
+                      "feature": "cheapest_pile_0.extra_cost",
+                      "threshold": 3.5,
+                      "left": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 380
+                      },
+                      "right": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 1360
+                      }
+                    }
+                  },
+                  "right": {
+                    "feature_index": 237,
+                    "feature": "best_two_card_start.delta_cheapest_next_card",
+                    "threshold": -2.5,
+                    "left": {
+                      "action": 9,
+                      "name": "cheapest_pile_2",
+                      "samples": 479
+                    },
+                    "right": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 581
+                    }
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 260,
+                "feature": "cheapest_reverse_setup.delta_cost",
+                "threshold": 0.5,
+                "left": {
+                  "feature_index": 132,
+                  "feature": "cheapest_pile_1.pile_open_space_after",
+                  "threshold": 4.5,
+                  "left": {
+                    "action": 2,
+                    "name": "best_two_card_start",
+                    "samples": 425
+                  },
+                  "right": {
+                    "feature_index": 6,
+                    "feature": "ascending_gap",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 143
+                    },
+                    "right": {
+                      "feature_index": 248,
+                      "feature": "most_constrained_card.delta_card_legal_piles",
+                      "threshold": -0.5,
+                      "left": {
+                        "feature_index": 303,
+                        "feature": "cheapest_pile_0.delta_extra_cost",
+                        "threshold": 0.5,
+                        "left": {
+                          "action": 8,
+                          "name": "cheapest_pile_1",
+                          "samples": 480
+                        },
+                        "right": {
+                          "feature_index": 345,
+                          "feature": "cheapest_pile_3.delta_extra_cost",
+                          "threshold": 0.5,
+                          "left": {
+                            "action": 0,
+                            "name": "greedy",
+                            "samples": 314
+                          },
+                          "right": {
+                            "feature_index": 237,
+                            "feature": "best_two_card_start.delta_cheapest_next_card",
+                            "threshold": -1.0,
+                            "left": {
+                              "action": 0,
+                              "name": "greedy",
+                              "samples": 207
+                            },
+                            "right": {
+                              "action": 0,
+                              "name": "greedy",
+                              "samples": 1683
+                            }
+                          }
+                        }
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 614
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 237,
+                  "feature": "best_two_card_start.delta_cheapest_next_card",
+                  "threshold": -2.0,
+                  "left": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 683
+                  },
+                  "right": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 791
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 342,
+              "feature": "cheapest_pile_2.delta_pile_open_space_after",
+              "threshold": -0.5,
+              "left": {
+                "feature_index": 345,
+                "feature": "cheapest_pile_3.delta_extra_cost",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 246,
+                  "feature": "most_constrained_card.delta_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 881
+                  },
+                  "right": {
+                    "feature_index": 36,
+                    "feature": "best_two_card_start.cost",
+                    "threshold": 4.5,
+                    "left": {
+                      "action": 10,
+                      "name": "cheapest_pile_3",
+                      "samples": 995
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 550
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 246,
+                  "feature": "most_constrained_card.delta_cost",
+                  "threshold": 1.0,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 789
+                  },
+                  "right": {
+                    "feature_index": 261,
+                    "feature": "cheapest_reverse_setup.delta_extra_cost",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 1035
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 352
+                    }
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 269,
+                "feature": "cheapest_reverse_setup.delta_reverse_setup",
+                "threshold": 0.5,
+                "left": {
+                  "feature_index": 247,
+                  "feature": "most_constrained_card.delta_extra_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 765
+                  },
+                  "right": {
+                    "feature_index": 34,
+                    "feature": "fewest_dead_cards.pile_open_space_after",
+                    "threshold": 16.5,
+                    "left": {
+                      "action": 2,
+                      "name": "best_two_card_start",
+                      "samples": 354
+                    },
+                    "right": {
+                      "feature_index": 344,
+                      "feature": "cheapest_pile_3.delta_cost",
+                      "threshold": 0.5,
+                      "left": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 290
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 1775
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 237,
+                  "feature": "best_two_card_start.delta_cheapest_next_card",
+                  "threshold": -0.5,
+                  "left": {
+                    "action": 1,
+                    "name": "fewest_dead_cards",
+                    "samples": 627
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 654
+                  }
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 65,
+            "feature": "cheapest_reverse_setup.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 341,
+              "feature": "cheapest_pile_2.delta_separation_change",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 51,
+                "feature": "most_constrained_card.extra_cost",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 328,
+                  "feature": "cheapest_pile_1.delta_pile_open_space_after",
+                  "threshold": -7.5,
+                  "left": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 696
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 1053
+                  }
+                },
+                "right": {
+                  "feature_index": 317,
+                  "feature": "cheapest_pile_1.delta_extra_cost",
+                  "threshold": 4.5,
+                  "left": {
+                    "feature_index": 326,
+                    "feature": "cheapest_pile_1.delta_pile_separation_after",
+                    "threshold": 0.5,
+                    "left": {
+                      "feature_index": 5,
+                      "feature": "minimum_cost_ties",
+                      "threshold": 1.5,
+                      "left": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 1017
+                      },
+                      "right": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 227
+                      }
+                    },
+                    "right": {
+                      "feature_index": 328,
+                      "feature": "cheapest_pile_1.delta_pile_open_space_after",
+                      "threshold": 0.5,
+                      "left": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 992
+                      },
+                      "right": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 468
+                      }
+                    }
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 1239
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 326,
+                "feature": "cheapest_pile_1.delta_pile_separation_after",
+                "threshold": 1.0,
+                "left": {
+                  "feature_index": 51,
+                  "feature": "most_constrained_card.extra_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "feature_index": 6,
+                    "feature": "ascending_gap",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 165
+                    },
+                    "right": {
+                      "action": 1,
+                      "name": "fewest_dead_cards",
+                      "samples": 1284
+                    }
+                  },
+                  "right": {
+                    "feature_index": 34,
+                    "feature": "fewest_dead_cards.pile_open_space_after",
+                    "threshold": 2.5,
+                    "left": {
+                      "action": 9,
+                      "name": "cheapest_pile_2",
+                      "samples": 219
+                    },
+                    "right": {
+                      "feature_index": 302,
+                      "feature": "cheapest_pile_0.delta_cost",
+                      "threshold": 1.5,
+                      "left": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 456
+                      },
+                      "right": {
+                        "feature_index": 342,
+                        "feature": "cheapest_pile_2.delta_pile_open_space_after",
+                        "threshold": 10.5,
+                        "left": {
+                          "action": 0,
+                          "name": "greedy",
+                          "samples": 1852
+                        },
+                        "right": {
+                          "action": 0,
+                          "name": "greedy",
+                          "samples": 376
+                        }
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 66,
+                  "feature": "cheapest_reverse_setup.card_legal_piles",
+                  "threshold": 2.5,
+                  "left": {
+                    "feature_index": 107,
+                    "feature": "cheapest_pile_0.extra_cost",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 7,
+                      "name": "cheapest_pile_0",
+                      "samples": 449
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 414
+                    }
+                  },
+                  "right": {
+                    "feature_index": 160,
+                    "feature": "cheapest_pile_3.pile_open_space_after",
+                    "threshold": 88.5,
+                    "left": {
+                      "feature_index": 331,
+                      "feature": "cheapest_pile_2.delta_extra_cost",
+                      "threshold": 3.5,
+                      "left": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 977
+                      },
+                      "right": {
+                        "feature_index": 316,
+                        "feature": "cheapest_pile_1.delta_cost",
+                        "threshold": 3.5,
+                        "left": {
+                          "action": 8,
+                          "name": "cheapest_pile_1",
+                          "samples": 763
+                        },
+                        "right": {
+                          "action": 0,
+                          "name": "greedy",
+                          "samples": 697
+                        }
+                      }
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 493
+                    }
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 37,
+              "feature": "best_two_card_start.extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 316,
+                "feature": "cheapest_pile_1.delta_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 1005
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 1044
+                }
+              },
+              "right": {
+                "feature_index": 247,
+                "feature": "most_constrained_card.delta_extra_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 3,
+                  "name": "most_constrained_card",
+                  "samples": 1083
+                },
+                "right": {
+                  "feature_index": 317,
+                  "feature": "cheapest_pile_1.delta_extra_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 874
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1070
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.998811265544989,
+        "nongreedy_coverage": 0.9939280709948622,
+        "exact_agreement": 0.7900512070226774,
+        "symmetric_agreement": 0.7906912948061449,
+        "nongreedy_agreement": 0.18028958430639888
+      }
+    },
+    "expanded_4": {
+      "vocabulary": "expanded",
+      "candidate_count": 15,
+      "leaves": 4,
+      "depth": 3,
+      "tree": {
+        "feature_index": 192,
+        "feature": "second_cheapest_pile_2.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "action": 0,
+          "name": "greedy",
+          "samples": 5836
+        },
+        "right": {
+          "feature_index": 177,
+          "feature": "second_cheapest_pile_1.extra_cost",
+          "threshold": 0.5,
+          "left": {
+            "action": 0,
+            "name": "greedy",
+            "samples": 14163
+          },
+          "right": {
+            "feature_index": 299,
+            "feature": "separation_within_5.delta_separation_change",
+            "threshold": 0.5,
+            "left": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 10845
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 13106
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 1.0,
+        "nongreedy_coverage": 1.0,
+        "exact_agreement": 0.7605157278712509,
+        "symmetric_agreement": 0.7688368690563278,
+        "nongreedy_agreement": 0.0
+      }
+    },
+    "expanded_8": {
+      "vocabulary": "expanded",
+      "candidate_count": 15,
+      "leaves": 8,
+      "depth": 5,
+      "tree": {
+        "feature_index": 192,
+        "feature": "second_cheapest_pile_2.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "action": 0,
+            "name": "greedy",
+            "samples": 3104
+          },
+          "right": {
+            "action": 1,
+            "name": "fewest_dead_cards",
+            "samples": 2732
+          }
+        },
+        "right": {
+          "feature_index": 177,
+          "feature": "second_cheapest_pile_1.extra_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 191,
+            "feature": "second_cheapest_pile_2.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 6735
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 7428
+            }
+          },
+          "right": {
+            "feature_index": 299,
+            "feature": "separation_within_5.delta_separation_change",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 316,
+              "feature": "cheapest_pile_1.delta_cost",
+              "threshold": 5.5,
+              "left": {
+                "action": 8,
+                "name": "cheapest_pile_1",
+                "samples": 3739
+              },
+              "right": {
+                "feature_index": 342,
+                "feature": "cheapest_pile_2.delta_pile_open_space_after",
+                "threshold": -0.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 3730
+                },
+                "right": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 3376
+                }
+              }
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 13106
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 1.0,
+        "nongreedy_coverage": 1.0,
+        "exact_agreement": 0.7655449890270666,
+        "symmetric_agreement": 0.7701170446232626,
+        "nongreedy_agreement": 0.0014012143858010276
+      }
+    },
+    "expanded_16": {
+      "vocabulary": "expanded",
+      "candidate_count": 15,
+      "leaves": 16,
+      "depth": 6,
+      "tree": {
+        "feature_index": 192,
+        "feature": "second_cheapest_pile_2.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "feature_index": 344,
+            "feature": "cheapest_pile_3.delta_cost",
+            "threshold": 1.5,
+            "left": {
+              "action": 10,
+              "name": "cheapest_pile_3",
+              "samples": 1757
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 1347
+            }
+          },
+          "right": {
+            "feature_index": 359,
+            "feature": "second_cheapest_pile_0.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 1569
+            },
+            "right": {
+              "action": 1,
+              "name": "fewest_dead_cards",
+              "samples": 1163
+            }
+          }
+        },
+        "right": {
+          "feature_index": 177,
+          "feature": "second_cheapest_pile_1.extra_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 191,
+            "feature": "second_cheapest_pile_2.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 247,
+              "feature": "most_constrained_card.delta_extra_cost",
+              "threshold": 4.5,
+              "left": {
+                "action": 3,
+                "name": "most_constrained_card",
+                "samples": 1649
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 5086
+              }
+            },
+            "right": {
+              "feature_index": 299,
+              "feature": "separation_within_5.delta_separation_change",
+              "threshold": 0.5,
+              "left": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 3582
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 3846
+              }
+            }
+          },
+          "right": {
+            "feature_index": 299,
+            "feature": "separation_within_5.delta_separation_change",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 316,
+              "feature": "cheapest_pile_1.delta_cost",
+              "threshold": 5.5,
+              "left": {
+                "action": 8,
+                "name": "cheapest_pile_1",
+                "samples": 3739
+              },
+              "right": {
+                "feature_index": 342,
+                "feature": "cheapest_pile_2.delta_pile_open_space_after",
+                "threshold": -0.5,
+                "left": {
+                  "feature_index": 345,
+                  "feature": "cheapest_pile_3.delta_extra_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 2132
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1598
+                  }
+                },
+                "right": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 3376
+                }
+              }
+            },
+            "right": {
+              "feature_index": 326,
+              "feature": "cheapest_pile_1.delta_pile_separation_after",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 387,
+                "feature": "second_cheapest_pile_2.delta_extra_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 1180
+                },
+                "right": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 3875
+                }
+              },
+              "right": {
+                "feature_index": 19,
+                "feature": "greedy.separation_change",
+                "threshold": 0.0,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 4310
+                },
+                "right": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 3741
+                }
+              }
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 1.0,
+        "nongreedy_coverage": 1.0,
+        "exact_agreement": 0.7768836869056328,
+        "symmetric_agreement": 0.7768836869056328,
+        "nongreedy_agreement": 0.04764128911723494
+      }
+    },
+    "expanded_32": {
+      "vocabulary": "expanded",
+      "candidate_count": 15,
+      "leaves": 32,
+      "depth": 7,
+      "tree": {
+        "feature_index": 192,
+        "feature": "second_cheapest_pile_2.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "feature_index": 344,
+            "feature": "cheapest_pile_3.delta_cost",
+            "threshold": 1.5,
+            "left": {
+              "feature_index": 275,
+              "feature": "easiest_remaining_hand.delta_extra_cost",
+              "threshold": 3.5,
+              "left": {
+                "action": 10,
+                "name": "cheapest_pile_3",
+                "samples": 354
+              },
+              "right": {
+                "action": 10,
+                "name": "cheapest_pile_3",
+                "samples": 1403
+              }
+            },
+            "right": {
+              "action": 0,
+              "name": "greedy",
+              "samples": 1347
+            }
+          },
+          "right": {
+            "feature_index": 359,
+            "feature": "second_cheapest_pile_0.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 400,
+              "feature": "second_cheapest_pile_3.delta_cost",
+              "threshold": 0.5,
+              "left": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 649
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 920
+              }
+            },
+            "right": {
+              "action": 1,
+              "name": "fewest_dead_cards",
+              "samples": 1163
+            }
+          }
+        },
+        "right": {
+          "feature_index": 177,
+          "feature": "second_cheapest_pile_1.extra_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 191,
+            "feature": "second_cheapest_pile_2.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 247,
+              "feature": "most_constrained_card.delta_extra_cost",
+              "threshold": 4.5,
+              "left": {
+                "feature_index": 180,
+                "feature": "second_cheapest_pile_1.legal_hand_placements_after",
+                "threshold": 0.5,
+                "left": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 156
+                },
+                "right": {
+                  "action": 3,
+                  "name": "most_constrained_card",
+                  "samples": 1493
+                }
+              },
+              "right": {
+                "feature_index": 149,
+                "feature": "cheapest_pile_3.extra_cost",
+                "threshold": 5.5,
+                "left": {
+                  "feature_index": 356,
+                  "feature": "cheapest_pile_3.delta_pile_open_space_after",
+                  "threshold": 11.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1345
+                  },
+                  "right": {
+                    "action": 10,
+                    "name": "cheapest_pile_3",
+                    "samples": 602
+                  }
+                },
+                "right": {
+                  "feature_index": 107,
+                  "feature": "cheapest_pile_0.extra_cost",
+                  "threshold": 3.5,
+                  "left": {
+                    "action": 7,
+                    "name": "cheapest_pile_0",
+                    "samples": 1171
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1968
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 299,
+              "feature": "separation_within_5.delta_separation_change",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 331,
+                "feature": "cheapest_pile_2.delta_extra_cost",
+                "threshold": 5.0,
+                "left": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 1227
+                },
+                "right": {
+                  "feature_index": 302,
+                  "feature": "cheapest_pile_0.delta_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 7,
+                    "name": "cheapest_pile_0",
+                    "samples": 1184
+                  },
+                  "right": {
+                    "action": 1,
+                    "name": "fewest_dead_cards",
+                    "samples": 1171
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 340,
+                "feature": "cheapest_pile_2.delta_pile_separation_after",
+                "threshold": 0.5,
+                "left": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 1868
+                },
+                "right": {
+                  "feature_index": 104,
+                  "feature": "separation_within_5.pile_open_space_after",
+                  "threshold": 18.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1272
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 706
+                  }
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 299,
+            "feature": "separation_within_5.delta_separation_change",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 316,
+              "feature": "cheapest_pile_1.delta_cost",
+              "threshold": 5.5,
+              "left": {
+                "feature_index": 5,
+                "feature": "minimum_cost_ties",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 387,
+                  "feature": "second_cheapest_pile_2.delta_extra_cost",
+                  "threshold": 3.5,
+                  "left": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 788
+                  },
+                  "right": {
+                    "feature_index": 265,
+                    "feature": "cheapest_reverse_setup.delta_cheapest_next_card",
+                    "threshold": -5.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 735
+                    },
+                    "right": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 1682
+                    }
+                  }
+                },
+                "right": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 534
+                }
+              },
+              "right": {
+                "feature_index": 342,
+                "feature": "cheapest_pile_2.delta_pile_open_space_after",
+                "threshold": -0.5,
+                "left": {
+                  "feature_index": 345,
+                  "feature": "cheapest_pile_3.delta_extra_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 2132
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 1598
+                  }
+                },
+                "right": {
+                  "feature_index": 265,
+                  "feature": "cheapest_reverse_setup.delta_cheapest_next_card",
+                  "threshold": -5.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 990
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 2386
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 326,
+              "feature": "cheapest_pile_1.delta_pile_separation_after",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 387,
+                "feature": "second_cheapest_pile_2.delta_extra_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 1180
+                },
+                "right": {
+                  "feature_index": 260,
+                  "feature": "cheapest_reverse_setup.delta_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 2780
+                  },
+                  "right": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 1095
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 19,
+                "feature": "greedy.separation_change",
+                "threshold": 0.0,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 4310
+                },
+                "right": {
+                  "feature_index": 265,
+                  "feature": "cheapest_reverse_setup.delta_cheapest_next_card",
+                  "threshold": -5.5,
+                  "left": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 1044
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 2697
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 1.0,
+        "nongreedy_coverage": 1.0,
+        "exact_agreement": 0.7863021214337966,
+        "symmetric_agreement": 0.7863021214337966,
+        "nongreedy_agreement": 0.12751050910789352
+      }
+    },
+    "expanded_64": {
+      "vocabulary": "expanded",
+      "candidate_count": 15,
+      "leaves": 64,
+      "depth": 8,
+      "tree": {
+        "feature_index": 192,
+        "feature": "second_cheapest_pile_2.card_legal_piles",
+        "threshold": 1.5,
+        "left": {
+          "feature_index": 280,
+          "feature": "easiest_remaining_hand.delta_mean_hand_cost_after",
+          "threshold": -0.08333301544189453,
+          "left": {
+            "feature_index": 344,
+            "feature": "cheapest_pile_3.delta_cost",
+            "threshold": 1.5,
+            "left": {
+              "feature_index": 275,
+              "feature": "easiest_remaining_hand.delta_extra_cost",
+              "threshold": 3.5,
+              "left": {
+                "action": 10,
+                "name": "cheapest_pile_3",
+                "samples": 354
+              },
+              "right": {
+                "feature_index": 261,
+                "feature": "cheapest_reverse_setup.delta_extra_cost",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 358,
+                  "feature": "second_cheapest_pile_0.delta_cost",
+                  "threshold": 1.0,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 298
+                  },
+                  "right": {
+                    "action": 10,
+                    "name": "cheapest_pile_3",
+                    "samples": 740
+                  }
+                },
+                "right": {
+                  "action": 10,
+                  "name": "cheapest_pile_3",
+                  "samples": 365
+                }
+              }
+            },
+            "right": {
+              "feature_index": 73,
+              "feature": "cheapest_reverse_setup.reverse_setup",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 404,
+                "feature": "second_cheapest_pile_3.delta_legal_hand_placements_after",
+                "threshold": -0.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 736
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 285
+                }
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 326
+              }
+            }
+          },
+          "right": {
+            "feature_index": 359,
+            "feature": "second_cheapest_pile_0.delta_extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 400,
+              "feature": "second_cheapest_pile_3.delta_cost",
+              "threshold": 0.5,
+              "left": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 649
+              },
+              "right": {
+                "feature_index": 107,
+                "feature": "cheapest_pile_0.extra_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 654
+                },
+                "right": {
+                  "action": 0,
+                  "name": "greedy",
+                  "samples": 266
+                }
+              }
+            },
+            "right": {
+              "feature_index": 205,
+              "feature": "second_cheapest_pile_3.extra_cost",
+              "threshold": 0.5,
+              "left": {
+                "action": 1,
+                "name": "fewest_dead_cards",
+                "samples": 822
+              },
+              "right": {
+                "action": 0,
+                "name": "greedy",
+                "samples": 341
+              }
+            }
+          }
+        },
+        "right": {
+          "feature_index": 177,
+          "feature": "second_cheapest_pile_1.extra_cost",
+          "threshold": 0.5,
+          "left": {
+            "feature_index": 191,
+            "feature": "second_cheapest_pile_2.extra_cost",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 247,
+              "feature": "most_constrained_card.delta_extra_cost",
+              "threshold": 4.5,
+              "left": {
+                "feature_index": 180,
+                "feature": "second_cheapest_pile_1.legal_hand_placements_after",
+                "threshold": 0.5,
+                "left": {
+                  "action": 9,
+                  "name": "cheapest_pile_2",
+                  "samples": 156
+                },
+                "right": {
+                  "feature_index": 188,
+                  "feature": "second_cheapest_pile_1.pile_open_space_after",
+                  "threshold": 16.5,
+                  "left": {
+                    "action": 3,
+                    "name": "most_constrained_card",
+                    "samples": 999
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 494
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 149,
+                "feature": "cheapest_pile_3.extra_cost",
+                "threshold": 5.5,
+                "left": {
+                  "feature_index": 356,
+                  "feature": "cheapest_pile_3.delta_pile_open_space_after",
+                  "threshold": 11.5,
+                  "left": {
+                    "feature_index": 342,
+                    "feature": "cheapest_pile_2.delta_pile_open_space_after",
+                    "threshold": -19.0,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 475
+                    },
+                    "right": {
+                      "action": 9,
+                      "name": "cheapest_pile_2",
+                      "samples": 870
+                    }
+                  },
+                  "right": {
+                    "action": 10,
+                    "name": "cheapest_pile_3",
+                    "samples": 602
+                  }
+                },
+                "right": {
+                  "feature_index": 107,
+                  "feature": "cheapest_pile_0.extra_cost",
+                  "threshold": 3.5,
+                  "left": {
+                    "feature_index": 356,
+                    "feature": "cheapest_pile_3.delta_pile_open_space_after",
+                    "threshold": 28.5,
+                    "left": {
+                      "feature_index": 328,
+                      "feature": "cheapest_pile_1.delta_pile_open_space_after",
+                      "threshold": -10.0,
+                      "left": {
+                        "action": 7,
+                        "name": "cheapest_pile_0",
+                        "samples": 305
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 569
+                      }
+                    },
+                    "right": {
+                      "action": 7,
+                      "name": "cheapest_pile_0",
+                      "samples": 297
+                    }
+                  },
+                  "right": {
+                    "feature_index": 269,
+                    "feature": "cheapest_reverse_setup.delta_reverse_setup",
+                    "threshold": 0.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 1525
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 443
+                    }
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 299,
+              "feature": "separation_within_5.delta_separation_change",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 331,
+                "feature": "cheapest_pile_2.delta_extra_cost",
+                "threshold": 5.0,
+                "left": {
+                  "feature_index": 269,
+                  "feature": "cheapest_reverse_setup.delta_reverse_setup",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 870
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 357
+                  }
+                },
+                "right": {
+                  "feature_index": 302,
+                  "feature": "cheapest_pile_0.delta_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "feature_index": 328,
+                    "feature": "cheapest_pile_1.delta_pile_open_space_after",
+                    "threshold": -7.0,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 515
+                    },
+                    "right": {
+                      "action": 7,
+                      "name": "cheapest_pile_0",
+                      "samples": 669
+                    }
+                  },
+                  "right": {
+                    "feature_index": 104,
+                    "feature": "separation_within_5.pile_open_space_after",
+                    "threshold": 3.5,
+                    "left": {
+                      "action": 1,
+                      "name": "fewest_dead_cards",
+                      "samples": 264
+                    },
+                    "right": {
+                      "feature_index": 149,
+                      "feature": "cheapest_pile_3.extra_cost",
+                      "threshold": 1.5,
+                      "left": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 548
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 359
+                      }
+                    }
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 340,
+                "feature": "cheapest_pile_2.delta_pile_separation_after",
+                "threshold": 0.5,
+                "left": {
+                  "feature_index": 358,
+                  "feature": "second_cheapest_pile_0.delta_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 430
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 1438
+                  }
+                },
+                "right": {
+                  "feature_index": 104,
+                  "feature": "separation_within_5.pile_open_space_after",
+                  "threshold": 18.5,
+                  "left": {
+                    "feature_index": 344,
+                    "feature": "cheapest_pile_3.delta_cost",
+                    "threshold": 1.5,
+                    "left": {
+                      "action": 10,
+                      "name": "cheapest_pile_3",
+                      "samples": 468
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 804
+                    }
+                  },
+                  "right": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 706
+                  }
+                }
+              }
+            }
+          },
+          "right": {
+            "feature_index": 299,
+            "feature": "separation_within_5.delta_separation_change",
+            "threshold": 0.5,
+            "left": {
+              "feature_index": 316,
+              "feature": "cheapest_pile_1.delta_cost",
+              "threshold": 5.5,
+              "left": {
+                "feature_index": 5,
+                "feature": "minimum_cost_ties",
+                "threshold": 1.5,
+                "left": {
+                  "feature_index": 387,
+                  "feature": "second_cheapest_pile_2.delta_extra_cost",
+                  "threshold": 3.5,
+                  "left": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 788
+                  },
+                  "right": {
+                    "feature_index": 265,
+                    "feature": "cheapest_reverse_setup.delta_cheapest_next_card",
+                    "threshold": -5.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 735
+                    },
+                    "right": {
+                      "feature_index": 51,
+                      "feature": "most_constrained_card.extra_cost",
+                      "threshold": 0.5,
+                      "left": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 340
+                      },
+                      "right": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 1342
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 117,
+                  "feature": "cheapest_pile_0.separation_change",
+                  "threshold": 0.5,
+                  "left": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 310
+                  },
+                  "right": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 224
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 342,
+                "feature": "cheapest_pile_2.delta_pile_open_space_after",
+                "threshold": -0.5,
+                "left": {
+                  "feature_index": 345,
+                  "feature": "cheapest_pile_3.delta_extra_cost",
+                  "threshold": 1.5,
+                  "left": {
+                    "feature_index": 246,
+                    "feature": "most_constrained_card.delta_cost",
+                    "threshold": 2.5,
+                    "left": {
+                      "action": 3,
+                      "name": "most_constrained_card",
+                      "samples": 800
+                    },
+                    "right": {
+                      "feature_index": 36,
+                      "feature": "best_two_card_start.cost",
+                      "threshold": 5.5,
+                      "left": {
+                        "action": 10,
+                        "name": "cheapest_pile_3",
+                        "samples": 913
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 419
+                      }
+                    }
+                  },
+                  "right": {
+                    "feature_index": 246,
+                    "feature": "most_constrained_card.delta_cost",
+                    "threshold": 2.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 674
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 924
+                    }
+                  }
+                },
+                "right": {
+                  "feature_index": 265,
+                  "feature": "cheapest_reverse_setup.delta_cheapest_next_card",
+                  "threshold": -5.5,
+                  "left": {
+                    "feature_index": 237,
+                    "feature": "best_two_card_start.delta_cheapest_next_card",
+                    "threshold": -0.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 478
+                    },
+                    "right": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 512
+                    }
+                  },
+                  "right": {
+                    "feature_index": 398,
+                    "feature": "second_cheapest_pile_2.delta_pile_open_space_after",
+                    "threshold": -3.5,
+                    "left": {
+                      "feature_index": 248,
+                      "feature": "most_constrained_card.delta_card_legal_piles",
+                      "threshold": -0.5,
+                      "left": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 1371
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 425
+                      }
+                    },
+                    "right": {
+                      "action": 9,
+                      "name": "cheapest_pile_2",
+                      "samples": 590
+                    }
+                  }
+                }
+              }
+            },
+            "right": {
+              "feature_index": 326,
+              "feature": "cheapest_pile_1.delta_pile_separation_after",
+              "threshold": 0.5,
+              "left": {
+                "feature_index": 387,
+                "feature": "second_cheapest_pile_2.delta_extra_cost",
+                "threshold": 0.5,
+                "left": {
+                  "action": 8,
+                  "name": "cheapest_pile_1",
+                  "samples": 1180
+                },
+                "right": {
+                  "feature_index": 260,
+                  "feature": "cheapest_reverse_setup.delta_cost",
+                  "threshold": 0.5,
+                  "left": {
+                    "feature_index": 5,
+                    "feature": "minimum_cost_ties",
+                    "threshold": 1.5,
+                    "left": {
+                      "feature_index": 247,
+                      "feature": "most_constrained_card.delta_extra_cost",
+                      "threshold": 0.5,
+                      "left": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 494
+                      },
+                      "right": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 1754
+                      }
+                    },
+                    "right": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 532
+                    }
+                  },
+                  "right": {
+                    "action": 8,
+                    "name": "cheapest_pile_1",
+                    "samples": 1095
+                  }
+                }
+              },
+              "right": {
+                "feature_index": 19,
+                "feature": "greedy.separation_change",
+                "threshold": 0.0,
+                "left": {
+                  "feature_index": 160,
+                  "feature": "cheapest_pile_3.pile_open_space_after",
+                  "threshold": 88.5,
+                  "left": {
+                    "feature_index": 104,
+                    "feature": "separation_within_5.pile_open_space_after",
+                    "threshold": 16.5,
+                    "left": {
+                      "action": 0,
+                      "name": "greedy",
+                      "samples": 802
+                    },
+                    "right": {
+                      "feature_index": 316,
+                      "feature": "cheapest_pile_1.delta_cost",
+                      "threshold": 5.5,
+                      "left": {
+                        "action": 8,
+                        "name": "cheapest_pile_1",
+                        "samples": 1896
+                      },
+                      "right": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 895
+                      }
+                    }
+                  },
+                  "right": {
+                    "action": 0,
+                    "name": "greedy",
+                    "samples": 717
+                  }
+                },
+                "right": {
+                  "feature_index": 265,
+                  "feature": "cheapest_reverse_setup.delta_cheapest_next_card",
+                  "threshold": -5.5,
+                  "left": {
+                    "action": 9,
+                    "name": "cheapest_pile_2",
+                    "samples": 1044
+                  },
+                  "right": {
+                    "feature_index": 300,
+                    "feature": "separation_within_5.delta_pile_open_space_after",
+                    "threshold": 0.5,
+                    "left": {
+                      "feature_index": 248,
+                      "feature": "most_constrained_card.delta_card_legal_piles",
+                      "threshold": -0.5,
+                      "left": {
+                        "action": 9,
+                        "name": "cheapest_pile_2",
+                        "samples": 1534
+                      },
+                      "right": {
+                        "action": 0,
+                        "name": "greedy",
+                        "samples": 627
+                      }
+                    },
+                    "right": {
+                      "action": 8,
+                      "name": "cheapest_pile_1",
+                      "samples": 536
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 1.0,
+        "nongreedy_coverage": 1.0,
+        "exact_agreement": 0.806784930504755,
+        "symmetric_agreement": 0.806784930504755,
+        "nongreedy_agreement": 0.33582438113031293
+      }
+    },
+    "tree_4": {
+      "kind": "tree",
+      "leaves": 4,
+      "tree": {
+        "index": 1,
+        "feature": "extra_cost",
+        "threshold": 0.5,
+        "left": {
+          "index": 2,
+          "feature": "card_legal_piles",
+          "threshold": 1.5,
+          "left": {
+            "value": 0.9143711632299701,
+            "samples": 19059
+          },
+          "right": {
+            "value": 0.7194523524123464,
+            "samples": 53392
+          }
+        },
+        "right": {
+          "index": 1,
+          "feature": "extra_cost",
+          "threshold": 4.5,
+          "left": {
+            "value": 0.25963558413719184,
+            "samples": 23325
+          },
+          "right": {
+            "value": 0.03320253923822853,
+            "samples": 80024
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7645391367959035,
+        "symmetric": 0.7728602779809802,
+        "nongreedy": 0.0
+      },
+      "text": "if extra_cost <= 0.5:\n  if card_legal_piles <= 1.5:\n    score = 0.9144\n  else:\n    score = 0.7195\nelse:\n  if extra_cost <= 4.5:\n    score = 0.2596\n  else:\n    score = 0.0332\n"
+    },
+    "tree_8": {
+      "kind": "tree",
+      "leaves": 8,
+      "tree": {
+        "index": 1,
+        "feature": "extra_cost",
+        "threshold": 0.5,
+        "left": {
+          "index": 2,
+          "feature": "card_legal_piles",
+          "threshold": 1.5,
+          "left": {
+            "value": 0.9143711632299701,
+            "samples": 19059
+          },
+          "right": {
+            "index": 33,
+            "feature": "cost_minus_lowest_other",
+            "threshold": -4.5,
+            "left": {
+              "value": 0.8963379350252129,
+              "samples": 12097
+            },
+            "right": {
+              "index": 12,
+              "feature": "pile_open_space_after",
+              "threshold": 72.5,
+              "left": {
+                "index": 29,
+                "feature": "cost_fraction_of_open_space",
+                "threshold": 0.12687234580516815,
+                "left": {
+                  "value": 0.8040531472285599,
+                  "samples": 14902
+                },
+                "right": {
+                  "value": 0.6230700610718451,
+                  "samples": 14573
+                }
+              },
+              "right": {
+                "index": 2,
+                "feature": "card_legal_piles",
+                "threshold": 2.5,
+                "left": {
+                  "value": 0.8490445859872612,
+                  "samples": 1570
+                },
+                "right": {
+                  "value": 0.5048780487804878,
+                  "samples": 10250
+                }
+              }
+            }
+          }
+        },
+        "right": {
+          "index": 1,
+          "feature": "extra_cost",
+          "threshold": 4.5,
+          "left": {
+            "value": 0.25963558413719184,
+            "samples": 23325
+          },
+          "right": {
+            "value": 0.03320253923822853,
+            "samples": 80024
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.770848573518654,
+        "symmetric": 0.7791697147037308,
+        "nongreedy": 0.0
+      },
+      "text": "if extra_cost <= 0.5:\n  if card_legal_piles <= 1.5:\n    score = 0.9144\n  else:\n    if cost_minus_lowest_other <= -4.5:\n      score = 0.8963\n    else:\n      if pile_open_space_after <= 72.5:\n        if cost_fraction_of_open_space <= 0.1269:\n          score = 0.8041\n        else:\n          score = 0.6231\n      else:\n        if card_legal_piles <= 2.5:\n          score = 0.8490\n        else:\n          score = 0.5049\nelse:\n  if extra_cost <= 4.5:\n    score = 0.2596\n  else:\n    score = 0.0332\n"
+    },
+    "tree_16": {
+      "kind": "tree",
+      "leaves": 16,
+      "tree": {
+        "index": 1,
+        "feature": "extra_cost",
+        "threshold": 0.5,
+        "left": {
+          "index": 2,
+          "feature": "card_legal_piles",
+          "threshold": 1.5,
+          "left": {
+            "value": 0.9143711632299701,
+            "samples": 19059
+          },
+          "right": {
+            "index": 33,
+            "feature": "cost_minus_lowest_other",
+            "threshold": -4.5,
+            "left": {
+              "index": 29,
+              "feature": "cost_fraction_of_open_space",
+              "threshold": 0.4472222179174423,
+              "left": {
+                "value": 0.9142782699322564,
+                "samples": 11514
+              },
+              "right": {
+                "value": 0.5420240137221269,
+                "samples": 583
+              }
+            },
+            "right": {
+              "index": 12,
+              "feature": "pile_open_space_after",
+              "threshold": 72.5,
+              "left": {
+                "index": 29,
+                "feature": "cost_fraction_of_open_space",
+                "threshold": 0.12687234580516815,
+                "left": {
+                  "value": 0.8040531472285599,
+                  "samples": 14902
+                },
+                "right": {
+                  "index": 34,
+                  "feature": "cost_minus_mean_other",
+                  "threshold": -6.166666030883789,
+                  "left": {
+                    "value": 0.7029374201787995,
+                    "samples": 7830
+                  },
+                  "right": {
+                    "index": 10,
+                    "feature": "pile_separation_after",
+                    "threshold": 63.5,
+                    "left": {
+                      "value": 0.69807391983342,
+                      "samples": 1921
+                    },
+                    "right": {
+                      "value": 0.4635006221484861,
+                      "samples": 4822
+                    }
+                  }
+                }
+              },
+              "right": {
+                "index": 2,
+                "feature": "card_legal_piles",
+                "threshold": 2.5,
+                "left": {
+                  "value": 0.8490445859872612,
+                  "samples": 1570
+                },
+                "right": {
+                  "index": 11,
+                  "feature": "separation_change",
+                  "threshold": -4.5,
+                  "left": {
+                    "value": 0.3536543124350537,
+                    "samples": 2887
+                  },
+                  "right": {
+                    "value": 0.5641722124134184,
+                    "samples": 7363
+                  }
+                }
+              }
+            }
+          }
+        },
+        "right": {
+          "index": 1,
+          "feature": "extra_cost",
+          "threshold": 4.5,
+          "left": {
+            "index": 12,
+            "feature": "pile_open_space_after",
+            "threshold": 68.5,
+            "left": {
+              "index": 12,
+              "feature": "pile_open_space_after",
+              "threshold": 16.5,
+              "left": {
+                "value": 0.14839277851166888,
+                "samples": 4542
+              },
+              "right": {
+                "index": 15,
+                "feature": "delta_extra_cost",
+                "threshold": 2.5,
+                "left": {
+                  "value": 0.4934300843302608,
+                  "samples": 5099
+                },
+                "right": {
+                  "value": 0.31224533562084494,
+                  "samples": 4663
+                }
+              }
+            },
+            "right": {
+              "value": 0.15630196208846026,
+              "samples": 9021
+            }
+          },
+          "right": {
+            "index": 14,
+            "feature": "delta_cost",
+            "threshold": 8.5,
+            "left": {
+              "value": 0.09210735270763856,
+              "samples": 18891
+            },
+            "right": {
+              "value": 0.015000081788886526,
+              "samples": 61133
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7778895391367959,
+        "symmetric": 0.7862106803218727,
+        "nongreedy": 0.08173750583839327
+      },
+      "text": "if extra_cost <= 0.5:\n  if card_legal_piles <= 1.5:\n    score = 0.9144\n  else:\n    if cost_minus_lowest_other <= -4.5:\n      if cost_fraction_of_open_space <= 0.4472:\n        score = 0.9143\n      else:\n        score = 0.5420\n    else:\n      if pile_open_space_after <= 72.5:\n        if cost_fraction_of_open_space <= 0.1269:\n          score = 0.8041\n        else:\n          if cost_minus_mean_other <= -6.167:\n            score = 0.7029\n          else:\n            if pile_separation_after <= 63.5:\n              score = 0.6981\n            else:\n              score = 0.4635\n      else:\n        if card_legal_piles <= 2.5:\n          score = 0.8490\n        else:\n          if separation_change <= -4.5:\n            score = 0.3537\n          else:\n            score = 0.5642\nelse:\n  if extra_cost <= 4.5:\n    if pile_open_space_after <= 68.5:\n      if pile_open_space_after <= 16.5:\n        score = 0.1484\n      else:\n        if delta_extra_cost <= 2.5:\n          score = 0.4934\n        else:\n          score = 0.3122\n    else:\n      score = 0.1563\n  else:\n    if delta_cost <= 8.5:\n      score = 0.0921\n    else:\n      score = 0.0150\n"
+    },
+    "tree_32": {
+      "kind": "tree",
+      "leaves": 32,
+      "tree": {
+        "index": 1,
+        "feature": "extra_cost",
+        "threshold": 0.5,
+        "left": {
+          "index": 2,
+          "feature": "card_legal_piles",
+          "threshold": 1.5,
+          "left": {
+            "index": 34,
+            "feature": "cost_minus_mean_other",
+            "threshold": -0.16666650772094727,
+            "left": {
+              "index": 34,
+              "feature": "cost_minus_mean_other",
+              "threshold": -1.6666662693023682,
+              "left": {
+                "index": 29,
+                "feature": "cost_fraction_of_open_space",
+                "threshold": 0.5053191483020782,
+                "left": {
+                  "value": 0.9462028985507246,
+                  "samples": 8625
+                },
+                "right": {
+                  "value": 0.583743842364532,
+                  "samples": 406
+                }
+              },
+              "right": {
+                "value": 0.6973630831643002,
+                "samples": 2465
+              }
+            },
+            "right": {
+              "value": 0.9665476662699987,
+              "samples": 7563
+            }
+          },
+          "right": {
+            "index": 33,
+            "feature": "cost_minus_lowest_other",
+            "threshold": -4.5,
+            "left": {
+              "index": 29,
+              "feature": "cost_fraction_of_open_space",
+              "threshold": 0.4472222179174423,
+              "left": {
+                "value": 0.9142782699322564,
+                "samples": 11514
+              },
+              "right": {
+                "value": 0.5420240137221269,
+                "samples": 583
+              }
+            },
+            "right": {
+              "index": 12,
+              "feature": "pile_open_space_after",
+              "threshold": 72.5,
+              "left": {
+                "index": 29,
+                "feature": "cost_fraction_of_open_space",
+                "threshold": 0.12687234580516815,
+                "left": {
+                  "index": 10,
+                  "feature": "pile_separation_after",
+                  "threshold": 92.5,
+                  "left": {
+                    "value": 0.7417089348419821,
+                    "samples": 7689
+                  },
+                  "right": {
+                    "index": 34,
+                    "feature": "cost_minus_mean_other",
+                    "threshold": -1.666666865348816,
+                    "left": {
+                      "value": 0.894095884075844,
+                      "samples": 6487
+                    },
+                    "right": {
+                      "index": 12,
+                      "feature": "pile_open_space_after",
+                      "threshold": 47.5,
+                      "left": {
+                        "value": 0.28846153846153844,
+                        "samples": 208
+                      },
+                      "right": {
+                        "value": 0.8088803088803089,
+                        "samples": 518
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "index": 34,
+                  "feature": "cost_minus_mean_other",
+                  "threshold": -6.166666030883789,
+                  "left": {
+                    "index": 33,
+                    "feature": "cost_minus_lowest_other",
+                    "threshold": -0.5,
+                    "left": {
+                      "index": 12,
+                      "feature": "pile_open_space_after",
+                      "threshold": 4.5,
+                      "left": {
+                        "value": 0.30416666666666664,
+                        "samples": 720
+                      },
+                      "right": {
+                        "value": 0.6795469686875416,
+                        "samples": 1501
+                      }
+                    },
+                    "right": {
+                      "value": 0.7603850953824212,
+                      "samples": 5609
+                    }
+                  },
+                  "right": {
+                    "index": 10,
+                    "feature": "pile_separation_after",
+                    "threshold": 63.5,
+                    "left": {
+                      "index": 5,
+                      "feature": "cheapest_next_card",
+                      "threshold": 7.5,
+                      "left": {
+                        "value": 0.5932773109243697,
+                        "samples": 1190
+                      },
+                      "right": {
+                        "value": 0.8686730506155951,
+                        "samples": 731
+                      }
+                    },
+                    "right": {
+                      "index": 12,
+                      "feature": "pile_open_space_after",
+                      "threshold": 4.5,
+                      "left": {
+                        "value": 0.23184152604548788,
+                        "samples": 1363
+                      },
+                      "right": {
+                        "value": 0.5547846198323215,
+                        "samples": 3459
+                      }
+                    }
+                  }
+                }
+              },
+              "right": {
+                "index": 2,
+                "feature": "card_legal_piles",
+                "threshold": 2.5,
+                "left": {
+                  "value": 0.8490445859872612,
+                  "samples": 1570
+                },
+                "right": {
+                  "index": 11,
+                  "feature": "separation_change",
+                  "threshold": -4.5,
+                  "left": {
+                    "value": 0.3536543124350537,
+                    "samples": 2887
+                  },
+                  "right": {
+                    "index": 34,
+                    "feature": "cost_minus_mean_other",
+                    "threshold": -5.333333253860474,
+                    "left": {
+                      "value": 0.6214325170318542,
+                      "samples": 5431
+                    },
+                    "right": {
+                      "value": 0.40320910973084884,
+                      "samples": 1932
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "right": {
+          "index": 1,
+          "feature": "extra_cost",
+          "threshold": 4.5,
+          "left": {
+            "index": 12,
+            "feature": "pile_open_space_after",
+            "threshold": 68.5,
+            "left": {
+              "index": 12,
+              "feature": "pile_open_space_after",
+              "threshold": 16.5,
+              "left": {
+                "index": 26,
+                "feature": "delta_pile_open_space_after",
+                "threshold": 1.5,
+                "left": {
+                  "value": 0.10754332313965341,
+                  "samples": 3924
+                },
+                "right": {
+                  "value": 0.4077669902912621,
+                  "samples": 618
+                }
+              },
+              "right": {
+                "index": 15,
+                "feature": "delta_extra_cost",
+                "threshold": 2.5,
+                "left": {
+                  "value": 0.4934300843302608,
+                  "samples": 5099
+                },
+                "right": {
+                  "value": 0.31224533562084494,
+                  "samples": 4663
+                }
+              }
+            },
+            "right": {
+              "index": 24,
+              "feature": "delta_pile_separation_after",
+              "threshold": 12.5,
+              "left": {
+                "index": 26,
+                "feature": "delta_pile_open_space_after",
+                "threshold": 64.5,
+                "left": {
+                  "index": 25,
+                  "feature": "delta_separation_change",
+                  "threshold": -1.5,
+                  "left": {
+                    "value": 0.0773405698778833,
+                    "samples": 5896
+                  },
+                  "right": {
+                    "value": 0.24242424242424243,
+                    "samples": 2211
+                  }
+                },
+                "right": {
+                  "value": 0.3841726618705036,
+                  "samples": 695
+                }
+              },
+              "right": {
+                "value": 0.6894977168949772,
+                "samples": 219
+              }
+            }
+          },
+          "right": {
+            "index": 14,
+            "feature": "delta_cost",
+            "threshold": 8.5,
+            "left": {
+              "index": 21,
+              "feature": "delta_worst_hand_cost_after",
+              "threshold": -11.5,
+              "left": {
+                "value": 0.288780487804878,
+                "samples": 1025
+              },
+              "right": {
+                "value": 0.08082391133997537,
+                "samples": 17866
+              }
+            },
+            "right": {
+              "value": 0.015000081788886526,
+              "samples": 61133
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.790508412582297,
+        "symmetric": 0.7989209948792977,
+        "nongreedy": 0.1466604390471742
+      },
+      "text": "if extra_cost <= 0.5:\n  if card_legal_piles <= 1.5:\n    if cost_minus_mean_other <= -0.1667:\n      if cost_minus_mean_other <= -1.667:\n        if cost_fraction_of_open_space <= 0.5053:\n          score = 0.9462\n        else:\n          score = 0.5837\n      else:\n        score = 0.6974\n    else:\n      score = 0.9665\n  else:\n    if cost_minus_lowest_other <= -4.5:\n      if cost_fraction_of_open_space <= 0.4472:\n        score = 0.9143\n      else:\n        score = 0.5420\n    else:\n      if pile_open_space_after <= 72.5:\n        if cost_fraction_of_open_space <= 0.1269:\n          if pile_separation_after <= 92.5:\n            score = 0.7417\n          else:\n            if cost_minus_mean_other <= -1.667:\n              score = 0.8941\n            else:\n              if pile_open_space_after <= 47.5:\n                score = 0.2885\n              else:\n                score = 0.8089\n        else:\n          if cost_minus_mean_other <= -6.167:\n            if cost_minus_lowest_other <= -0.5:\n              if pile_open_space_after <= 4.5:\n                score = 0.3042\n              else:\n                score = 0.6795\n            else:\n              score = 0.7604\n          else:\n            if pile_separation_after <= 63.5:\n              if cheapest_next_card <= 7.5:\n                score = 0.5933\n              else:\n                score = 0.8687\n            else:\n              if pile_open_space_after <= 4.5:\n                score = 0.2318\n              else:\n                score = 0.5548\n      else:\n        if card_legal_piles <= 2.5:\n          score = 0.8490\n        else:\n          if separation_change <= -4.5:\n            score = 0.3537\n          else:\n            if cost_minus_mean_other <= -5.333:\n              score = 0.6214\n            else:\n              score = 0.4032\nelse:\n  if extra_cost <= 4.5:\n    if pile_open_space_after <= 68.5:\n      if pile_open_space_after <= 16.5:\n        if delta_pile_open_space_after <= 1.5:\n          score = 0.1075\n        else:\n          score = 0.4078\n      else:\n        if delta_extra_cost <= 2.5:\n          score = 0.4934\n        else:\n          score = 0.3122\n    else:\n      if delta_pile_separation_after <= 12.5:\n        if delta_pile_open_space_after <= 64.5:\n          if delta_separation_change <= -1.5:\n            score = 0.0773\n          else:\n            score = 0.2424\n        else:\n          score = 0.3842\n      else:\n        score = 0.6895\n  else:\n    if delta_cost <= 8.5:\n      if delta_worst_hand_cost_after <= -11.5:\n        score = 0.2888\n      else:\n        score = 0.0808\n    else:\n      score = 0.0150\n"
+    },
+    "tree_64": {
+      "kind": "tree",
+      "leaves": 64,
+      "tree": {
+        "index": 1,
+        "feature": "extra_cost",
+        "threshold": 0.5,
+        "left": {
+          "index": 2,
+          "feature": "card_legal_piles",
+          "threshold": 1.5,
+          "left": {
+            "index": 34,
+            "feature": "cost_minus_mean_other",
+            "threshold": -0.16666650772094727,
+            "left": {
+              "index": 34,
+              "feature": "cost_minus_mean_other",
+              "threshold": -1.6666662693023682,
+              "left": {
+                "index": 29,
+                "feature": "cost_fraction_of_open_space",
+                "threshold": 0.5053191483020782,
+                "left": {
+                  "value": 0.9462028985507246,
+                  "samples": 8625
+                },
+                "right": {
+                  "value": 0.583743842364532,
+                  "samples": 406
+                }
+              },
+              "right": {
+                "index": 29,
+                "feature": "cost_fraction_of_open_space",
+                "threshold": 0.4154761880636215,
+                "left": {
+                  "value": 0.7574232511323603,
+                  "samples": 1987
+                },
+                "right": {
+                  "value": 0.4476987447698745,
+                  "samples": 478
+                }
+              }
+            },
+            "right": {
+              "value": 0.9665476662699987,
+              "samples": 7563
+            }
+          },
+          "right": {
+            "index": 33,
+            "feature": "cost_minus_lowest_other",
+            "threshold": -4.5,
+            "left": {
+              "index": 29,
+              "feature": "cost_fraction_of_open_space",
+              "threshold": 0.4472222179174423,
+              "left": {
+                "index": 0,
+                "feature": "cost",
+                "threshold": 6.5,
+                "left": {
+                  "value": 0.9344115896011114,
+                  "samples": 10078
+                },
+                "right": {
+                  "index": 11,
+                  "feature": "separation_change",
+                  "threshold": 0.0,
+                  "left": {
+                    "value": 0.6242038216560509,
+                    "samples": 628
+                  },
+                  "right": {
+                    "value": 0.8886138613861386,
+                    "samples": 808
+                  }
+                }
+              },
+              "right": {
+                "value": 0.5420240137221269,
+                "samples": 583
+              }
+            },
+            "right": {
+              "index": 12,
+              "feature": "pile_open_space_after",
+              "threshold": 72.5,
+              "left": {
+                "index": 29,
+                "feature": "cost_fraction_of_open_space",
+                "threshold": 0.12687234580516815,
+                "left": {
+                  "index": 10,
+                  "feature": "pile_separation_after",
+                  "threshold": 92.5,
+                  "left": {
+                    "index": 29,
+                    "feature": "cost_fraction_of_open_space",
+                    "threshold": 0.03603896126151085,
+                    "left": {
+                      "index": 5,
+                      "feature": "cheapest_next_card",
+                      "threshold": 3.5,
+                      "left": {
+                        "value": 0.7361778846153846,
+                        "samples": 1664
+                      },
+                      "right": {
+                        "value": 0.9230769230769231,
+                        "samples": 1326
+                      }
+                    },
+                    "right": {
+                      "value": 0.692487763353905,
+                      "samples": 4699
+                    }
+                  },
+                  "right": {
+                    "index": 34,
+                    "feature": "cost_minus_mean_other",
+                    "threshold": -1.666666865348816,
+                    "left": {
+                      "value": 0.894095884075844,
+                      "samples": 6487
+                    },
+                    "right": {
+                      "index": 12,
+                      "feature": "pile_open_space_after",
+                      "threshold": 47.5,
+                      "left": {
+                        "value": 0.28846153846153844,
+                        "samples": 208
+                      },
+                      "right": {
+                        "value": 0.8088803088803089,
+                        "samples": 518
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "index": 34,
+                  "feature": "cost_minus_mean_other",
+                  "threshold": -6.166666030883789,
+                  "left": {
+                    "index": 33,
+                    "feature": "cost_minus_lowest_other",
+                    "threshold": -0.5,
+                    "left": {
+                      "index": 12,
+                      "feature": "pile_open_space_after",
+                      "threshold": 4.5,
+                      "left": {
+                        "value": 0.30416666666666664,
+                        "samples": 720
+                      },
+                      "right": {
+                        "value": 0.6795469686875416,
+                        "samples": 1501
+                      }
+                    },
+                    "right": {
+                      "index": 29,
+                      "feature": "cost_fraction_of_open_space",
+                      "threshold": 0.7633053362369537,
+                      "left": {
+                        "index": 5,
+                        "feature": "cheapest_next_card",
+                        "threshold": 9.5,
+                        "left": {
+                          "index": 12,
+                          "feature": "pile_open_space_after",
+                          "threshold": 2.5,
+                          "left": {
+                            "index": 5,
+                            "feature": "cheapest_next_card",
+                            "threshold": 1.5,
+                            "left": {
+                              "value": 0.7461538461538462,
+                              "samples": 260
+                            },
+                            "right": {
+                              "value": 0.36314363143631434,
+                              "samples": 369
+                            }
+                          },
+                          "right": {
+                            "value": 0.7808750882145378,
+                            "samples": 2834
+                          }
+                        },
+                        "right": {
+                          "value": 0.899873257287706,
+                          "samples": 1578
+                        }
+                      },
+                      "right": {
+                        "value": 0.5352112676056338,
+                        "samples": 568
+                      }
+                    }
+                  },
+                  "right": {
+                    "index": 10,
+                    "feature": "pile_separation_after",
+                    "threshold": 63.5,
+                    "left": {
+                      "index": 5,
+                      "feature": "cheapest_next_card",
+                      "threshold": 7.5,
+                      "left": {
+                        "index": 12,
+                        "feature": "pile_open_space_after",
+                        "threshold": 2.5,
+                        "left": {
+                          "value": 0.4279661016949153,
+                          "samples": 472
+                        },
+                        "right": {
+                          "value": 0.7019498607242339,
+                          "samples": 718
+                        }
+                      },
+                      "right": {
+                        "value": 0.8686730506155951,
+                        "samples": 731
+                      }
+                    },
+                    "right": {
+                      "index": 12,
+                      "feature": "pile_open_space_after",
+                      "threshold": 4.5,
+                      "left": {
+                        "value": 0.23184152604548788,
+                        "samples": 1363
+                      },
+                      "right": {
+                        "index": 34,
+                        "feature": "cost_minus_mean_other",
+                        "threshold": -3.8333334922790527,
+                        "left": {
+                          "value": 0.6680080482897385,
+                          "samples": 1491
+                        },
+                        "right": {
+                          "index": 12,
+                          "feature": "pile_open_space_after",
+                          "threshold": 47.5,
+                          "left": {
+                            "index": 11,
+                            "feature": "separation_change",
+                            "threshold": -2.0,
+                            "left": {
+                              "value": 0.1171875,
+                              "samples": 384
+                            },
+                            "right": {
+                              "index": 12,
+                              "feature": "pile_open_space_after",
+                              "threshold": 16.5,
+                              "left": {
+                                "value": 0.3735294117647059,
+                                "samples": 680
+                              },
+                              "right": {
+                                "value": 0.6965699208443272,
+                                "samples": 379
+                              }
+                            }
+                          },
+                          "right": {
+                            "value": 0.6857142857142857,
+                            "samples": 525
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "right": {
+                "index": 2,
+                "feature": "card_legal_piles",
+                "threshold": 2.5,
+                "left": {
+                  "index": 34,
+                  "feature": "cost_minus_mean_other",
+                  "threshold": -1.666666865348816,
+                  "left": {
+                    "value": 0.89749430523918,
+                    "samples": 1317
+                  },
+                  "right": {
+                    "value": 0.5968379446640316,
+                    "samples": 253
+                  }
+                },
+                "right": {
+                  "index": 11,
+                  "feature": "separation_change",
+                  "threshold": -4.5,
+                  "left": {
+                    "index": 12,
+                    "feature": "pile_open_space_after",
+                    "threshold": 80.5,
+                    "left": {
+                      "value": 0.20662983425414364,
+                      "samples": 905
+                    },
+                    "right": {
+                      "index": 4,
+                      "feature": "legal_hand_placements_after",
+                      "threshold": 13.5,
+                      "left": {
+                        "value": 0.6731707317073171,
+                        "samples": 410
+                      },
+                      "right": {
+                        "value": 0.3549618320610687,
+                        "samples": 1572
+                      }
+                    }
+                  },
+                  "right": {
+                    "index": 34,
+                    "feature": "cost_minus_mean_other",
+                    "threshold": -5.333333253860474,
+                    "left": {
+                      "index": 33,
+                      "feature": "cost_minus_lowest_other",
+                      "threshold": -2.5,
+                      "left": {
+                        "index": 30,
+                        "feature": "deck_count",
+                        "threshold": 69.0,
+                        "left": {
+                          "value": 0.6213183730715287,
+                          "samples": 713
+                        },
+                        "right": {
+                          "value": 0.8859060402684564,
+                          "samples": 596
+                        }
+                      },
+                      "right": {
+                        "index": 28,
+                        "feature": "next_card_gap_same_pile",
+                        "threshold": 0.5,
+                        "left": {
+                          "value": 0.8228941684665226,
+                          "samples": 463
+                        },
+                        "right": {
+                          "value": 0.5528833014484832,
+                          "samples": 3659
+                        }
+                      }
+                    },
+                    "right": {
+                      "value": 0.40320910973084884,
+                      "samples": 1932
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "right": {
+          "index": 1,
+          "feature": "extra_cost",
+          "threshold": 4.5,
+          "left": {
+            "index": 12,
+            "feature": "pile_open_space_after",
+            "threshold": 68.5,
+            "left": {
+              "index": 12,
+              "feature": "pile_open_space_after",
+              "threshold": 16.5,
+              "left": {
+                "index": 26,
+                "feature": "delta_pile_open_space_after",
+                "threshold": 1.5,
+                "left": {
+                  "value": 0.10754332313965341,
+                  "samples": 3924
+                },
+                "right": {
+                  "value": 0.4077669902912621,
+                  "samples": 618
+                }
+              },
+              "right": {
+                "index": 15,
+                "feature": "delta_extra_cost",
+                "threshold": 2.5,
+                "left": {
+                  "index": 24,
+                  "feature": "delta_pile_separation_after",
+                  "threshold": 2.5,
+                  "left": {
+                    "index": 26,
+                    "feature": "delta_pile_open_space_after",
+                    "threshold": 5.5,
+                    "left": {
+                      "value": 0.25329428989751096,
+                      "samples": 1366
+                    },
+                    "right": {
+                      "value": 0.5677749360613811,
+                      "samples": 1955
+                    }
+                  },
+                  "right": {
+                    "index": 16,
+                    "feature": "delta_card_legal_piles",
+                    "threshold": 0.5,
+                    "left": {
+                      "index": 12,
+                      "feature": "pile_open_space_after",
+                      "threshold": 28.5,
+                      "left": {
+                        "value": 0.5909878682842288,
+                        "samples": 577
+                      },
+                      "right": {
+                        "value": 0.8609271523178808,
+                        "samples": 453
+                      }
+                    },
+                    "right": {
+                      "value": 0.43983957219251335,
+                      "samples": 748
+                    }
+                  }
+                },
+                "right": {
+                  "index": 26,
+                  "feature": "delta_pile_open_space_after",
+                  "threshold": 43.5,
+                  "left": {
+                    "index": 24,
+                    "feature": "delta_pile_separation_after",
+                    "threshold": 4.5,
+                    "left": {
+                      "index": 26,
+                      "feature": "delta_pile_open_space_after",
+                      "threshold": 0.5,
+                      "left": {
+                        "value": 0.09236234458259325,
+                        "samples": 1126
+                      },
+                      "right": {
+                        "value": 0.3090909090909091,
+                        "samples": 1650
+                      }
+                    },
+                    "right": {
+                      "index": 16,
+                      "feature": "delta_card_legal_piles",
+                      "threshold": 0.5,
+                      "left": {
+                        "index": 12,
+                        "feature": "pile_open_space_after",
+                        "threshold": 27.5,
+                        "left": {
+                          "value": 0.3347732181425486,
+                          "samples": 463
+                        },
+                        "right": {
+                          "value": 0.7035398230088495,
+                          "samples": 452
+                        }
+                      },
+                      "right": {
+                        "value": 0.2704,
+                        "samples": 625
+                      }
+                    }
+                  },
+                  "right": {
+                    "value": 0.5763688760806917,
+                    "samples": 347
+                  }
+                }
+              }
+            },
+            "right": {
+              "index": 24,
+              "feature": "delta_pile_separation_after",
+              "threshold": 12.5,
+              "left": {
+                "index": 26,
+                "feature": "delta_pile_open_space_after",
+                "threshold": 64.5,
+                "left": {
+                  "index": 25,
+                  "feature": "delta_separation_change",
+                  "threshold": -1.5,
+                  "left": {
+                    "value": 0.0773405698778833,
+                    "samples": 5896
+                  },
+                  "right": {
+                    "value": 0.24242424242424243,
+                    "samples": 2211
+                  }
+                },
+                "right": {
+                  "value": 0.3841726618705036,
+                  "samples": 695
+                }
+              },
+              "right": {
+                "value": 0.6894977168949772,
+                "samples": 219
+              }
+            }
+          },
+          "right": {
+            "index": 14,
+            "feature": "delta_cost",
+            "threshold": 8.5,
+            "left": {
+              "index": 21,
+              "feature": "delta_worst_hand_cost_after",
+              "threshold": -11.5,
+              "left": {
+                "value": 0.288780487804878,
+                "samples": 1025
+              },
+              "right": {
+                "index": 25,
+                "feature": "delta_separation_change",
+                "threshold": 12.5,
+                "left": {
+                  "value": 0.06550189765737469,
+                  "samples": 15282
+                },
+                "right": {
+                  "index": 12,
+                  "feature": "pile_open_space_after",
+                  "threshold": 26.5,
+                  "left": {
+                    "value": 0.04405286343612335,
+                    "samples": 1362
+                  },
+                  "right": {
+                    "index": 2,
+                    "feature": "card_legal_piles",
+                    "threshold": 3.5,
+                    "left": {
+                      "value": 0.4695817490494297,
+                      "samples": 526
+                    },
+                    "right": {
+                      "value": 0.19540229885057472,
+                      "samples": 696
+                    }
+                  }
+                }
+              }
+            },
+            "right": {
+              "value": 0.015000081788886526,
+              "samples": 61133
+            }
+          }
+        }
+      },
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.8117227505486466,
+        "symmetric": 0.8202267739575714,
+        "nongreedy": 0.28164409154600656
+      },
+      "text": "if extra_cost <= 0.5:\n  if card_legal_piles <= 1.5:\n    if cost_minus_mean_other <= -0.1667:\n      if cost_minus_mean_other <= -1.667:\n        if cost_fraction_of_open_space <= 0.5053:\n          score = 0.9462\n        else:\n          score = 0.5837\n      else:\n        if cost_fraction_of_open_space <= 0.4155:\n          score = 0.7574\n        else:\n          score = 0.4477\n    else:\n      score = 0.9665\n  else:\n    if cost_minus_lowest_other <= -4.5:\n      if cost_fraction_of_open_space <= 0.4472:\n        if cost <= 6.5:\n          score = 0.9344\n        else:\n          if separation_change <= 0:\n            score = 0.6242\n          else:\n            score = 0.8886\n      else:\n        score = 0.5420\n    else:\n      if pile_open_space_after <= 72.5:\n        if cost_fraction_of_open_space <= 0.1269:\n          if pile_separation_after <= 92.5:\n            if cost_fraction_of_open_space <= 0.03604:\n              if cheapest_next_card <= 3.5:\n                score = 0.7362\n              else:\n                score = 0.9231\n            else:\n              score = 0.6925\n          else:\n            if cost_minus_mean_other <= -1.667:\n              score = 0.8941\n            else:\n              if pile_open_space_after <= 47.5:\n                score = 0.2885\n              else:\n                score = 0.8089\n        else:\n          if cost_minus_mean_other <= -6.167:\n            if cost_minus_lowest_other <= -0.5:\n              if pile_open_space_after <= 4.5:\n                score = 0.3042\n              else:\n                score = 0.6795\n            else:\n              if cost_fraction_of_open_space <= 0.7633:\n                if cheapest_next_card <= 9.5:\n                  if pile_open_space_after <= 2.5:\n                    if cheapest_next_card <= 1.5:\n                      score = 0.7462\n                    else:\n                      score = 0.3631\n                  else:\n                    score = 0.7809\n                else:\n                  score = 0.8999\n              else:\n                score = 0.5352\n          else:\n            if pile_separation_after <= 63.5:\n              if cheapest_next_card <= 7.5:\n                if pile_open_space_after <= 2.5:\n                  score = 0.4280\n                else:\n                  score = 0.7019\n              else:\n                score = 0.8687\n            else:\n              if pile_open_space_after <= 4.5:\n                score = 0.2318\n              else:\n                if cost_minus_mean_other <= -3.833:\n                  score = 0.6680\n                else:\n                  if pile_open_space_after <= 47.5:\n                    if separation_change <= -2:\n                      score = 0.1172\n                    else:\n                      if pile_open_space_after <= 16.5:\n                        score = 0.3735\n                      else:\n                        score = 0.6966\n                  else:\n                    score = 0.6857\n      else:\n        if card_legal_piles <= 2.5:\n          if cost_minus_mean_other <= -1.667:\n            score = 0.8975\n          else:\n            score = 0.5968\n        else:\n          if separation_change <= -4.5:\n            if pile_open_space_after <= 80.5:\n              score = 0.2066\n            else:\n              if legal_hand_placements_after <= 13.5:\n                score = 0.6732\n              else:\n                score = 0.3550\n          else:\n            if cost_minus_mean_other <= -5.333:\n              if cost_minus_lowest_other <= -2.5:\n                if deck_count <= 69:\n                  score = 0.6213\n                else:\n                  score = 0.8859\n              else:\n                if next_card_gap_same_pile <= 0.5:\n                  score = 0.8229\n                else:\n                  score = 0.5529\n            else:\n              score = 0.4032\nelse:\n  if extra_cost <= 4.5:\n    if pile_open_space_after <= 68.5:\n      if pile_open_space_after <= 16.5:\n        if delta_pile_open_space_after <= 1.5:\n          score = 0.1075\n        else:\n          score = 0.4078\n      else:\n        if delta_extra_cost <= 2.5:\n          if delta_pile_separation_after <= 2.5:\n            if delta_pile_open_space_after <= 5.5:\n              score = 0.2533\n            else:\n              score = 0.5678\n          else:\n            if delta_card_legal_piles <= 0.5:\n              if pile_open_space_after <= 28.5:\n                score = 0.5910\n              else:\n                score = 0.8609\n            else:\n              score = 0.4398\n        else:\n          if delta_pile_open_space_after <= 43.5:\n            if delta_pile_separation_after <= 4.5:\n              if delta_pile_open_space_after <= 0.5:\n                score = 0.0924\n              else:\n                score = 0.3091\n            else:\n              if delta_card_legal_piles <= 0.5:\n                if pile_open_space_after <= 27.5:\n                  score = 0.3348\n                else:\n                  score = 0.7035\n              else:\n                score = 0.2704\n          else:\n            score = 0.5764\n    else:\n      if delta_pile_separation_after <= 12.5:\n        if delta_pile_open_space_after <= 64.5:\n          if delta_separation_change <= -1.5:\n            score = 0.0773\n          else:\n            score = 0.2424\n        else:\n          score = 0.3842\n      else:\n        score = 0.6895\n  else:\n    if delta_cost <= 8.5:\n      if delta_worst_hand_cost_after <= -11.5:\n        score = 0.2888\n      else:\n        if delta_separation_change <= 12.5:\n          score = 0.0655\n        else:\n          if pile_open_space_after <= 26.5:\n            score = 0.0441\n          else:\n            if card_legal_piles <= 3.5:\n              score = 0.4696\n            else:\n              score = 0.1954\n    else:\n      score = 0.0150\n"
+    },
+    "linear_cheapest_next_card": {
+      "kind": "linear",
+      "feature": "cheapest_next_card",
+      "feature_index": 5,
+      "weight": 0.10000000000000009,
+      "train_accuracy": 0.7564960182025029,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7604242867593269,
+        "symmetric": 0.7686539868324799,
+        "nongreedy": 0.014946286781877626
+      }
+    },
+    "linear_mean_hand_cost_after": {
+      "kind": "linear",
+      "feature": "mean_hand_cost_after",
+      "feature_index": 6,
+      "weight": 0.4500000000000002,
+      "train_accuracy": 0.7642093287827076,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7663679590343818,
+        "symmetric": 0.7746891002194587,
+        "nongreedy": 0.08734236338159738
+      }
+    },
+    "linear_dead_hand_cards_after": {
+      "kind": "linear",
+      "feature": "dead_hand_cards_after",
+      "feature_index": 3,
+      "weight": 1.0499999999999998,
+      "train_accuracy": 0.7557451649601821,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7604242867593269,
+        "symmetric": 0.7687454279444038,
+        "nongreedy": 0.0009341429238673517
+      }
+    },
+    "linear_legal_hand_placements_after": {
+      "kind": "linear",
+      "feature": "legal_hand_placements_after",
+      "feature_index": 4,
+      "weight": -1.0,
+      "train_accuracy": 0.7564050056882822,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7614301389904902,
+        "symmetric": 0.7697512801755669,
+        "nongreedy": 0.0009341429238673517
+      }
+    },
+    "linear_pile_separation_after": {
+      "kind": "linear",
+      "feature": "pile_separation_after",
+      "feature_index": 10,
+      "weight": -0.09999999999999964,
+      "train_accuracy": 0.7610693970420933,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7680138990490124,
+        "symmetric": 0.7764264813460132,
+        "nongreedy": 0.04997664642690332
+      }
+    },
+    "linear_card_legal_piles": {
+      "kind": "linear",
+      "feature": "card_legal_piles",
+      "feature_index": 2,
+      "weight": 0.050000000000000266,
+      "train_accuracy": 0.7564050056882822,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7616130212143379,
+        "symmetric": 0.7699341623994148,
+        "nongreedy": 0.0
+      }
+    },
+    "linear_next_card_gap_same_pile": {
+      "kind": "linear",
+      "feature": "next_card_gap_same_pile",
+      "feature_index": 28,
+      "weight": -0.04999999999999982,
+      "train_accuracy": 0.7604323094425484,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.764996342355523,
+        "symmetric": 0.7734089246525238,
+        "nongreedy": 0.029425502101821578
+      }
+    },
+    "fraction": {
+      "kind": "fraction",
+      "exponent": 0.25,
+      "train_accuracy": 0.7633674630261661,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7709400146305779,
+        "symmetric": 0.7796269202633505,
+        "nongreedy": 0.09995329285380664
+      }
+    },
+    "sparse_1": {
+      "kind": "sparse",
+      "columns": [
+        0
+      ],
+      "features": [
+        "cost"
+      ],
+      "weights": [
+        0.298690025705003
+      ],
+      "train_loss": 0.5672227278299127,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7605157278712509,
+        "symmetric": 0.7688368690563278,
+        "nongreedy": 0.0
+      }
+    },
+    "sparse_2": {
+      "kind": "sparse",
+      "columns": [
+        0,
+        6
+      ],
+      "features": [
+        "cost",
+        "worst_remaining_cost"
+      ],
+      "weights": [
+        0.3348829980261918,
+        0.08308930662991497
+      ],
+      "train_loss": 0.5499596046579113,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7692940746159473,
+        "symmetric": 0.7779809802487199,
+        "nongreedy": 0.06819243344231668
+      }
+    },
+    "sparse_3": {
+      "kind": "sparse",
+      "columns": [
+        0,
+        6,
+        12
+      ],
+      "features": [
+        "cost",
+        "worst_remaining_cost",
+        "separation_change"
+      ],
+      "weights": [
+        0.3454936821466631,
+        0.09089748140115264,
+        -0.03561856742031494
+      ],
+      "train_loss": 0.5360423996593328,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7794440380395026,
+        "symmetric": 0.7880395025603512,
+        "nongreedy": 0.1317141522652966
+      }
+    },
+    "sparse_4": {
+      "kind": "sparse",
+      "columns": [
+        0,
+        6,
+        12,
+        16
+      ],
+      "features": [
+        "cost",
+        "worst_remaining_cost",
+        "separation_change",
+        "fraction_of_space"
+      ],
+      "weights": [
+        0.3068069971047248,
+        0.07155222680256083,
+        -0.0633800271910647,
+        2.4300193450654177
+      ],
+      "train_loss": 0.5211615655403388,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7988295537673739,
+        "symmetric": 0.8076993416239941,
+        "nongreedy": 0.20737972909855207
+      }
+    },
+    "sparse_5": {
+      "kind": "sparse",
+      "columns": [
+        0,
+        6,
+        12,
+        16,
+        11
+      ],
+      "features": [
+        "cost",
+        "worst_remaining_cost",
+        "separation_change",
+        "fraction_of_space",
+        "card_single_pile"
+      ],
+      "weights": [
+        0.3297744996547183,
+        0.07323753828628393,
+        -0.0681408070862563,
+        1.8067614882638354,
+        -1.3221314606072374
+      ],
+      "train_loss": 0.5124540657901925,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7999268471104609,
+        "symmetric": 0.8087966349670812,
+        "nongreedy": 0.23073330219523588
+      }
+    },
+    "sparse_6": {
+      "kind": "sparse",
+      "columns": [
+        0,
+        6,
+        12,
+        16,
+        11,
+        3
+      ],
+      "features": [
+        "cost",
+        "worst_remaining_cost",
+        "separation_change",
+        "fraction_of_space",
+        "card_single_pile",
+        "log_positive_cost"
+      ],
+      "weights": [
+        0.19144005963284882,
+        0.06722733640806461,
+        -0.060933762519737956,
+        1.5282799365030408,
+        -1.4427939045682476,
+        1.1824008085887054
+      ],
+      "train_loss": 0.5039174333159899,
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7960863204096562,
+        "symmetric": 0.8047732260424286,
+        "nongreedy": 0.20270901447921533
+      }
+    },
+    "rounded_4": {
+      "kind": "sparse",
+      "columns": [
+        0,
+        6,
+        12,
+        16
+      ],
+      "features": [
+        "cost",
+        "worst_remaining_cost",
+        "separation_change",
+        "fraction_of_space"
+      ],
+      "weights": [
+        1,
+        0.25,
+        -0.2,
+        8
+      ],
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7988295537673739,
+        "symmetric": 0.8076079005120702,
+        "nongreedy": 0.21018215787015412
+      }
+    },
+    "rounded_5": {
+      "kind": "sparse",
+      "columns": [
+        0,
+        6,
+        12,
+        16,
+        11
+      ],
+      "features": [
+        "cost",
+        "worst_remaining_cost",
+        "separation_change",
+        "fraction_of_space",
+        "card_single_pile"
+      ],
+      "weights": [
+        1,
+        0.25,
+        -0.2,
+        5.5,
+        -4
+      ],
+      "validation": {
+        "states": 10936,
+        "coverage": 0.9980797366495977,
+        "exact": 0.7993782004389174,
+        "symmetric": 0.8081565471836137,
+        "nongreedy": 0.23820644558617468
+      }
+    }
+  }
+}
