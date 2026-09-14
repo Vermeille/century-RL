@@ -47,6 +47,17 @@ def test_connectfour_vertical_win():
     assert g.ended()
 
 
+def test_connectfour_display_uses_eight_character_board_lines():
+    g = ConnectFour()
+
+    lines = g.display().splitlines(keepends=True)
+
+    assert lines[:6] == ["       \n"] * 6
+    assert lines[6] == "-------\n"
+    assert lines[7] == ">O\n"
+    assert all(len(line) == 8 for line in lines[:7])
+
+
 def test_connectfour_full_column():
     g = ConnectFour()
     for _ in range(g.height // 2):

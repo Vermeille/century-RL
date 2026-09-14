@@ -73,14 +73,14 @@ def test_connectfour_horizontal_symmetry_mirrors_board_and_moves(monkeypatch):
     )
     sample = TrainingSample(
         state=(
+            "       \n"
+            "       \n"
+            "       \n"
+            "       \n"
+            "O      \n"
+            "OX X   \n"
+            "-------\n"
             ">X\n"
-            "|       |\n"
-            "|       |\n"
-            "|       |\n"
-            "|       |\n"
-            "|O      |\n"
-            "|OX X   |\n"
-            "---------\n"
             "@0\n"
             "@2\n"
             "@5"
@@ -95,14 +95,14 @@ def test_connectfour_horizontal_symmetry_mirrors_board_and_moves(monkeypatch):
 
     assert augmented is not sample
     assert augmented.state == (
+        "       \n"
+        "       \n"
+        "       \n"
+        "       \n"
+        "      O\n"
+        "   X XO\n"
+        "-------\n"
         ">X\n"
-        "|       |\n"
-        "|       |\n"
-        "|       |\n"
-        "|       |\n"
-        "|      O|\n"
-        "|   X XO|\n"
-        "---------\n"
         "@6\n"
         "@4\n"
         "@1"
@@ -119,14 +119,14 @@ def test_connectfour_horizontal_symmetry_infers_width_from_state(monkeypatch):
         "boardrl.games.connectfour.augmentations.random.random", lambda: 0.0
     )
     sample = TrainingSample(
-        state=">O\n|O   X|\n-------\n@0\n@4",
+        state="O   X\n-----\n>O\n@0\n@4",
         moves=["0", "4"],
         action_idx=0,
     )
 
     augmented = horizontal_symmetry([sample])[0]
 
-    assert augmented.state == ">O\n|X   O|\n-------\n@4\n@0"
+    assert augmented.state == "X   O\n-----\n>O\n@4\n@0"
     assert augmented.moves == ["4", "0"]
     assert augmented.action_idx == 0
 
@@ -136,7 +136,7 @@ def test_connectfour_horizontal_symmetry_can_leave_sample_unchanged(monkeypatch)
         "boardrl.games.connectfour.augmentations.random.random", lambda: 0.5
     )
     sample = TrainingSample(
-        state=">O\n|O      |\n---------\n@0\n@6",
+        state="O      \n-------\n>O\n@0\n@6",
         moves=["0", "6"],
         action_idx=0,
     )

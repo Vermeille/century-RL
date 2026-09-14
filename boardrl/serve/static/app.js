@@ -423,7 +423,7 @@ function renderTictactoe(game) {
 }
 
 function renderConnectfour(game) {
-  const boardRows = linesWithoutMoves(game).filter((line) => line.startsWith("|"));
+  const boardRows = linesWithoutMoves(game).filter((line) => /^[ OX]{7}$/.test(line));
   const columns = ["0", "1", "2", "3", "4", "5", "6"];
   return `<div class="grid-game">
     <div class="column-moves">${columns
@@ -439,7 +439,7 @@ function renderConnectfour(game) {
     <div class="grid-board">${boardRows
       .map(
         (row) =>
-          `<div class="grid-row">${[...row.slice(1, -1)]
+          `<div class="grid-row">${[...row]
             .map((cell) => {
               const markClass = cell === "X" ? "mark-x" : cell === "O" ? "mark-o" : "";
               return `<div class="grid-cell ${markClass}"><span class="cell-label">${escapeHtml(cell)}</span></div>`;

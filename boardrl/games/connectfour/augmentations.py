@@ -11,10 +11,10 @@ def _split_line_ending(line):
 
 def _board_width(lines):
     widths = {
-        len(body) - 2
+        len(body)
         for line in lines
         for body, _ending in [_split_line_ending(line)]
-        if body.startswith("|") and body.endswith("|")
+        if body and set(body) <= {" ", "O", "X"}
     }
     if len(widths) != 1:
         raise ValueError(
@@ -53,12 +53,8 @@ def horizontal_symmetry(samples):
         width = _board_width(lines)
         for idx, line in enumerate(lines):
             body, ending = _split_line_ending(line)
-            if (
-                body.startswith("|")
-                and body.endswith("|")
-                and len(body) == width + 2
-            ):
-                body = f"|{body[1:-1][::-1]}|"
+            if len(body) == width and set(body) <= {" ", "O", "X"}:
+                body = body[::-1]
             elif body.startswith("@"):
                 body = f"@{_mirror_move(body[1:], width)}"
             lines[idx] = body + ending
@@ -66,8 +62,6 @@ def horizontal_symmetry(samples):
 
         if hasattr(sample, "moves"):
             moves = sample.moves
-            sample.moves = type(moves)(
-                _mirror_move(move, width) for move in moves
-            )
+            sample.moves = type(moves)(_mirror_move(move, width) for move in moves)
 
     return augmented

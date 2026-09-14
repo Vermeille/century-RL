@@ -74,8 +74,8 @@
             let moves = [];
             
             for (let line of lines) {
-                if (line.startsWith('|')) {
-                    board.push(line.substring(1, line.length - 1).split(''));
+                if (/^[ OX]{7}$/.test(line)) {
+                    board.push(line.split(''));
                 } else if (line.startsWith('@')) {
                     moves.push(line.substring(1));
                 }

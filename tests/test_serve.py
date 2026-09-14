@@ -367,7 +367,7 @@ if (!tttHtml.includes('data-action="0"')) {
 const connect = {
   name: 'connectfour',
   moves: ['0','1','2','3','4','5','6'],
-  board_with_moves: ['>O', '|       |', '|       |', '|       |', '|       |', '|       |', '|       |', '---------', '@0', '@1'].join('\n'),
+  board_with_moves: ['       ', '       ', '       ', '       ', '       ', '       ', '-------', '>O', '@0', '@1'].join('\n'),
 };
 const connectHtml = sandbox.renderConnectfour(connect);
 if ((connectHtml.match(/grid-cell/g) || []).length !== 42) {

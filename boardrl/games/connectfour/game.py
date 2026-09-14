@@ -35,16 +35,16 @@ class ConnectFour:
             assert force in [0, 1]
             p = force
 
-        # Absolute encoding; the leading marker below indicates the side to move.
+        # Absolute encoding; the marker below indicates the side to move.
         rep = {None: " ", 0: "O", 1: "X"}
-        lines = [">" + rep[p]]
+        lines = []
         for y in range(self.height - 1, -1, -1):
-            line = "|"
+            line = ""
             for x in range(self.width):
                 line += rep[self.board[x][y]]
-            line += "|"
             lines.append(line)
-        lines.append("-" * (self.width + 2))
+        lines.append("-" * self.width)
+        lines.append(">" + rep[p])
         return "\n".join(lines) + "\n"
 
     def display_with_moves(self):
