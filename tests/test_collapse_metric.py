@@ -1,64 +1,80 @@
 from types import SimpleNamespace
 
 import pytest
+import torch
 
-from boardrl.rl.eval.selfplay import PlayerTrace, GameTrace, SelfPlayResults
 from boardrl.games.tictactoe.metrics import Metrics
+from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults
 
 
-def make_results(seqs, moves=None):
+def make_results(policies):
     games = []
-    for g_idx, seq in enumerate(seqs):
+    for moves, probabilities in policies:
         players = [PlayerTrace(seat_id=i, strategy_id=i) for i in range(2)]
-        move_list = (
-            moves[g_idx]
-            if moves is not None and g_idx < len(moves)
-            else [str(i) for i in range(max(seq) + 1 if seq else 1)]
-        )
-        for idx, action in enumerate(seq):
-            player = idx % 2
-            round_num = idx // 2
-            players[player].append(
+        for player in players:
+            player.append(
                 SimpleNamespace(
-                    action_idx=action,
-                    round=round_num,
-                    player=player,
-                    moves=move_list,
+                    action_idx=0,
+                    moves=moves,
+                    action_distribution=torch.tensor(probabilities).log(),
                 )
             )
-        for pid in range(2):
-            players[pid].append(
-                SimpleNamespace(final=True, round=len(seq) // 2, player=pid, state=" ")
+            player.append(
+                SimpleNamespace(
+                    final=True,
+                    current_diff_points=0.0,
+                    my_points=0.0,
+                    state=" ",
+                )
             )
         games.append(GameTrace(players))
     return SelfPlayResults(games)
 
 
-def test_collapse_extremes():
-    same = make_results([[0, 1, 2, 3], [0, 1, 2, 3]])
-    assert same.collapse() == pytest.approx([1.0, 1.0])
+@pytest.mark.parametrize("probabilities", ([1.0, 0.0], [0.5, 0.5]))
+def test_sensitivity_is_zero_for_state_independent_policy(probabilities):
+    results = make_results([(["a", "b"], probabilities)] * 4)
 
-    different = make_results([[0, 1], [2, 3], [4, 5]])
-    assert different.collapse() == pytest.approx([0.0, 0.0], abs=1e-6)
-
-
-def test_collapse_partial():
-    partial = make_results([[0, 1], [0, 1], [2, 3]])
-    assert partial.collapse() == pytest.approx([1 / 3, 1 / 3])
+    assert results.sensitivity() == pytest.approx([0.0, 0.0], abs=1e-6)
 
 
-def test_collapse_padding():
-    varying = make_results([[0], [0, 1, 2], [0, 1, 2, 3, 4]])
-    assert varying.collapse() == pytest.approx([5 / 9, 1 / 3])
+def test_sensitivity_is_one_for_balanced_state_dependent_one_hot_policy():
+    results = make_results(
+        [
+            (["a", "b"], [1.0, 0.0]),
+            (["a", "b"], [0.0, 1.0]),
+        ]
+    )
+
+    assert results.sensitivity() == pytest.approx([1.0, 1.0], abs=1e-6)
 
 
-def test_metrics_pushes_collapse():
-    res = make_results([[0, 1]])
-    metrics = Metrics(res)
+def test_sensitivity_preserves_partial_policy_information():
+    results = make_results(
+        [
+            (["a", "b"], [1.0, 0.0]),
+            (["a", "b"], [0.5, 0.5]),
+        ]
+    )
 
-    assert metrics.metrics()["collapse"] == [1.0, 1.0]
+    assert results.sensitivity() == pytest.approx(
+        [0.311278, 0.311278],
+        abs=1e-6,
+    )
 
 
-def test_collapse_uses_action_strings():
-    res = make_results([[0, 1], [0, 1]], moves=[["a", "b"], ["c", "d"]])
-    assert res.collapse() == pytest.approx([0.0, 0.0], abs=1e-6)
+def test_sensitivity_aligns_probabilities_by_move_string():
+    results = make_results(
+        [
+            (["a", "b"], [0.9, 0.1]),
+            (["b", "a"], [0.1, 0.9]),
+        ]
+    )
+
+    assert results.sensitivity() == pytest.approx([0.0, 0.0], abs=1e-6)
+
+
+def test_metrics_exposes_sensitivity():
+    results = make_results([(["a", "b"], [1.0, 0.0])])
+
+    assert Metrics(results).metrics()["sensitivity"] == [0.0, 0.0]

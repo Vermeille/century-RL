@@ -15,4 +15,4 @@ class Metrics(GameMetrics):
         avg_len = sum(len(h) for p in self.data for h in p) / (
             len(self.data) * len(self.data[0])
         )
-        return {"avg_len": avg_len, "collapse": self.data.collapse()}
+        return {"avg_len": avg_len, "sensitivity": self.data.sensitivity()}

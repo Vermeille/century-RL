@@ -181,6 +181,7 @@ class Metrics(GameMetrics):
             "avg_cost": avg_cost,
             "ratio_lowest_cost": ratio_lowest,
             "ten_rule_moves": Range(ten_rule_moves),
+            "sensitivity": self.data.sensitivity(),
         }
         if x_skipped:
             metrics["plays_before_x"] = Range(x_skipped)

@@ -125,7 +125,7 @@ class Metrics(GameMetrics):
 
         return {
             "avg_len": avg_len,
-            "collapse": self.data.collapse(),
+            "sensitivity": self.data.sensitivity(),
             "won_bet_ratio": _mean(won_bets),
             "avg_abs_bet_error": _mean(abs_bet_errors),
             # Equal distribution is exactly N/P as requested: round number N

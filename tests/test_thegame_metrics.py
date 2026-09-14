@@ -7,8 +7,8 @@ from boardrl.games.thegame.metrics import Metrics
 
 
 class DummyResults(list):
-    def collapse(self):
-        return [1.0]
+    def sensitivity(self):
+        return [0.0]
 
     def num_players(self):
         return 1

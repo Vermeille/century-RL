@@ -93,7 +93,7 @@ class Metrics(GameMetrics):
             "causes": self.stats_cause(),
             "avg_move_summary": self.avg_move_summary(),
             "buy_rank": self.buy_rank(),
-            "collapse": self.data.collapse(),
+            "sensitivity": self.data.sensitivity(),
         }
 
     def print_short_history(self):

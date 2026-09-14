@@ -62,9 +62,9 @@ def test_connectfour_metrics_separate_strategies():
     assert agent["points"] == Range([1.0, -1.0])
     assert agent["winning_games"] == 1
     assert agent["avg_winning_move_probability"] == pytest.approx(0.75)
-    assert agent["collapse"] == pytest.approx(1.0)
+    assert agent["sensitivity"] == pytest.approx(0.0)
     assert bot["avg_winning_move_probability"] == pytest.approx(1.0)
-    assert bot["collapse"] == pytest.approx(1.0)
+    assert bot["sensitivity"] == pytest.approx(0.0)
 
 
 def test_connectfour_winning_probability_is_nan_without_wins():

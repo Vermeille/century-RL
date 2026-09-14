@@ -124,30 +124,49 @@ class TraceGroup(list[PlayerTrace]):
     def avg_actions(self) -> float:
         return self.num_actions() / len(self)
 
-    def collapse(self) -> float:
-        """Average pairwise action-sequence similarity for this identity."""
-        sequences = [
-            [record.moves[record.action_idx] for record in trace[:-1]]
-            for trace in self
-        ]
-        n = len(sequences)
-        if n <= 1:
-            return 1.0
+    def sensitivity(self) -> float:
+        """How strongly the policy distribution depends on the observed state.
 
-        max_len = max(len(sequence) for sequence in sequences)
-        if max_len == 0:
-            return 1.0
+        This is the Jensen-Shannon divergence of the per-state policies,
+        normalized by the maximum entropy of the observed move vocabulary.
+        Move probabilities are aligned by their semantic strings, so action
+        ordering does not create artificial sensitivity.
+        """
+        records = [record for trace in self for record in trace[:-1]]
+        if not records:
+            return 0.0
 
-        total = 0.0
-        count = 0
-        for i in range(n):
-            for j in range(i + 1, n):
-                first, second = sequences[i], sequences[j]
-                matches = sum(int(a == b) for a, b in zip(first, second))
-                matches += max_len - max(len(first), len(second))
-                total += matches / max_len
-                count += 1
-        return total / count
+        marginal: dict[str, float] = {}
+        conditional_entropy = 0.0
+        for record in records:
+            if len(record.moves) != len(record.action_distribution):
+                raise ValueError(
+                    "action distribution length does not match the move list"
+                )
+            probabilities = torch.softmax(
+                torch.as_tensor(record.action_distribution).detach().float(),
+                dim=0,
+            ).cpu()
+            positive = probabilities[probabilities > 0]
+            conditional_entropy -= float((positive * positive.log()).sum())
+            for move, probability in zip(record.moves, probabilities.tolist()):
+                marginal[move] = marginal.get(move, 0.0) + probability
+
+        vocabulary_size = len(marginal)
+        if vocabulary_size <= 1:
+            return 0.0
+
+        count = len(records)
+        marginal_entropy = -sum(
+            probability / count * math.log(probability / count)
+            for probability in marginal.values()
+            if probability > 0
+        )
+        information = max(
+            0.0,
+            marginal_entropy - conditional_entropy / count,
+        )
+        return min(1.0, information / math.log(vocabulary_size))
 
 
 class TraceGroups(list[TraceGroup]):
@@ -170,8 +189,8 @@ class TraceGroups(list[TraceGroup]):
         except StopIteration as exc:
             raise KeyError(f"unknown trace identity {identity}") from exc
 
-    def collapse(self) -> list[float]:
-        return [group.collapse() for group in self]
+    def sensitivity(self) -> list[float]:
+        return [group.sensitivity() for group in self]
 
 
 class SelfPlayResults(list):
@@ -242,18 +261,9 @@ class SelfPlayResults(list):
     def num_traces(self):
         return len(self) * self.num_players()
 
-    def collapse(self) -> list[float]:
-        """Return per-seat similarity of action sequences.
-
-        For each seat, compare that seat's move sequences across games
-        using the string representation of each action. Sequences are
-        padded to the longest trace before computing the fraction of
-        matching actions, and scores are averaged over all pairs. Values
-        lie in ``[0, 1]`` with ``1.0`` for identical play traces and
-        ``0.0`` when no pair shared an action at the same step.
-        """
-
-        return self.by_seat.collapse()
+    def sensitivity(self) -> list[float]:
+        """Return policy sensitivity independently for every physical seat."""
+        return self.by_seat.sensitivity()
 
     #
     # ------------------------------------------------------------------

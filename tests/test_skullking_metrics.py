@@ -9,7 +9,7 @@ class DummyResults(list):
     def num_players(self):
         return len(self[0])
 
-    def collapse(self):
+    def sensitivity(self):
         return [0.0] * self.num_players()
 
 

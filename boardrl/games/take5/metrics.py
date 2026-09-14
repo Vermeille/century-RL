@@ -12,4 +12,4 @@ class Metrics:
         avg_len = sum(len(history) for game in self.data for history in game) / (
             len(self.data) * self.data.num_players()
         )
-        return {"avg_len": avg_len, "collapse": self.data.collapse()}
+        return {"avg_len": avg_len, "sensitivity": self.data.sensitivity()}

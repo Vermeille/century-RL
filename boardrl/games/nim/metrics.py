@@ -35,6 +35,6 @@ class Metrics(GameMetrics):
         )
         return {
             "avg_len": avg_len,
-            "collapse": self.data.collapse(),
+            "sensitivity": self.data.sensitivity(),
             "chosen_move_probability_by_match": self._chosen_move_probabilities(),
         }

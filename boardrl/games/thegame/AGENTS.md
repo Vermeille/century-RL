@@ -8,4 +8,4 @@ Simplified implementation of *The Game*. Four piles exist: two ascending startin
   - `avg_cost`: average cost of played moves;
   - `ratio_lowest_cost`: fraction of times the lowest-cost move was chosen;
   - `ten_rule_moves`: frequency of using the special 10-rule;
-  - plus a collapse metric.
+  - plus a policy sensitivity metric.

@@ -73,7 +73,7 @@ first_seat = games.by_seat.group(0)
 agent.win_rate()
 agent.points()
 agent.avg_actions()
-agent.collapse()
+agent.sensitivity()
 ```
 
 `TraceMetrics(agent).metrics()` produces the common outcome summary for one

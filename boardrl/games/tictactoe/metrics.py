@@ -21,4 +21,7 @@ class Metrics(GameMetrics):
         ratio_complete = sum(
             " " not in players[0][-1].state for players in self.data
         ) / len(self.data)
-        return {"ratio_complete": ratio_complete, "collapse": self.data.collapse()}
+        return {
+            "ratio_complete": ratio_complete,
+            "sensitivity": self.data.sensitivity(),
+        }

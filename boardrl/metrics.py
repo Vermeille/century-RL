@@ -163,7 +163,7 @@ class TraceMetrics:
             "win_rate": self.traces.win_rate(),
             "points": Range(self.traces.points()),
             "avg_actions": self.traces.avg_actions(),
-            "collapse": self.traces.collapse(),
+            "sensitivity": self.traces.sensitivity(),
         }
 
 
