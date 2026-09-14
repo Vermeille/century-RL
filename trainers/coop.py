@@ -63,6 +63,13 @@ def positive_int(value):
     return value
 
 
+def probability_float(value):
+    value = float(value)
+    if not 0 <= value <= 1:
+        raise argparse.ArgumentTypeError("must be a probability")
+    return value
+
+
 def nonnegative_int(value):
     value = int(value)
     if value < 0:
@@ -108,17 +115,16 @@ NUCLEUS_THRESHOLD = 0.95
 class RandomOpeningGameFactory:
     """Create games after a uniformly sampled number of random legal moves."""
 
-    def __init__(self, make_game, max_depth):
+    def __init__(self, make_game, move_prob):
         self.make_game = make_game
-        self.max_depth = max_depth
+        self.move_prob = move_prob
 
     def __call__(self, **kwargs):
         game = self.make_game(**kwargs)
-        depth = random.randint(0, self.max_depth) if self.max_depth else 0
-        for _ in range(depth):
+        while random.random() < self.move_prob:
             game.play_idx(random.randrange(len(game.moves)))
             if game.ended():
-                break
+                game = self.make_game(**kwargs)
         return game
 
 
@@ -210,10 +216,10 @@ def build_parser():
     )
     parser.add_argument("--rollout-games", type=positive_int, default=128)
     parser.add_argument(
-        "--random-game-depth",
-        type=nonnegative_int,
+        "--random-move-prob",
+        type=probability_float,
         default=0,
-        help="maximum uniformly sampled number of random opening moves",
+        help="init state random move probability. Play while satisfied.",
     )
     parser.add_argument(
         "--value-clip-epsilon",
@@ -562,7 +568,7 @@ def _run(args, trackio_sink):
     inference = Inference(model, batch_size=args.inference_batch_size)
     training_games = RandomOpeningGameFactory(
         game.make_game,
-        args.random_game_depth,
+        args.random_move_prob,
     )
     rollouts = RolloutRunner(
         training_games, progress=not args.no_progress, coop=game.coop
