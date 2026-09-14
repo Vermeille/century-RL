@@ -128,7 +128,7 @@ The target uses CNN, but the current uncommitted `boardrl/rl/model/cnn.py` rewri
 
 ### Self-play data structures have compatibility baggage
 
-`boardrl/rl/eval/selfplay.py` contains `PlayerTrace`, `GameTrace`, `SelfPlayResults`, legacy `games` access, both seat and strategy indexing, collapse metrics, pit helpers, a compatibility `call_strategy`, `self_play2`, `self_play`, and `pit`. For one game and two identical policy players, strategy identity is unnecessary. Use seat-indexed traces and one explicit `play_batch` API; retain only the metrics used by The Game.
+`boardrl/rl/eval/selfplay.py` contains `PlayerTrace`, `GameTrace`, `SelfPlayResults`, legacy `games` access, both seat and strategy indexing, policy-sensitivity metrics, pit helpers, a compatibility `call_strategy`, `self_play2`, `self_play`, and `pit`. For one game and two identical policy players, strategy identity is unnecessary. Use seat-indexed traces and one explicit `play_batch` API; retain only the metrics used by The Game.
 
 The current `call_strategy` catches any synchronous `TypeError` and retries with `strategy()(game)` (`:195-200`). This can hide a real programming error and makes callable strategy contracts unclear. Pick one async strategy interface.
 
