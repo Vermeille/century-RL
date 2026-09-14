@@ -3,6 +3,7 @@ import math
 from types import SimpleNamespace
 
 import pytest
+import torch
 
 from boardrl.games import games_library
 from boardrl.evaluation import Evaluation, Scoreboard
@@ -57,6 +58,7 @@ def _make_action_trace(seat_id, strategy_id, action, score):
     trace.append(
         SimpleNamespace(
             action_idx=0,
+            action_distribution=torch.zeros(1),
             moves=[action],
             reward=score,
         )

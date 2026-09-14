@@ -1,7 +1,9 @@
-import torch
-from tqdm import tqdm  # type: ignore[import-untyped]
+import math
 from collections.abc import Callable
 from typing import Awaitable, Tuple
+
+import torch
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 from boardrl.utils import Game, run_tasks
 import pyximport  # type: ignore[import-untyped]
