@@ -101,24 +101,25 @@ class PatchTransformerCNNEncoder(nn.Module):
         )
         self.tfm_out = nn.Parameter(torch.zeros(1))
 
-    def forward(self, x, mask):
-        local = self.local(x, mask)  # BDL
+    def _patchify(self, local, mask):
         length = local.shape[-1]
         padding = (-length) % self.patch_size
         if padding:
-            local_padded = F.pad(local, (0, padding))
-            mask_padded = F.pad(mask, (0, padding), value=False)
-        else:
-            local_padded = local
-            mask_padded = mask
+            local = F.pad(local, (0, padding))
+            mask = F.pad(mask, (0, padding), value=False)
 
-        patches = self.downsample(local_padded)  # BDL
-        patch_mask = mask_padded.view(
+        patches = self.downsample(local)  # BDL
+        patch_mask = mask.view(
             len(mask),
             -1,
             self.patch_size,
         ).any(dim=-1)
-        patches = patches * patch_mask.unsqueeze(1)
+        return patches * patch_mask.unsqueeze(1), patch_mask
+
+    def forward(self, x, mask):
+        local = self.local(x, mask)  # BDL
+        length = local.shape[-1]
+        patches, patch_mask = self._patchify(local, mask)
         patches = self.global_context(
             patches.transpose(1, 2),  # BLD
             patch_mask,

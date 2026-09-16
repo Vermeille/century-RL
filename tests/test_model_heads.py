@@ -1,7 +1,9 @@
+import pytest
 import torch
 
 from boardrl.games import games_library
 from boardrl.models import architectures, make, make_for_game
+from boardrl.rl.model.cnn import PatchTransformerCNNEncoder
 from boardrl.rl.model.model import Model, OutcomeValueDistribution
 from boardrl.rl.model.transformer import Transformer
 
@@ -209,6 +211,41 @@ def test_patchformer_backbone_trains_local_and_global_paths():
         parameter.grad is not None
         for parameter in model.backbone.encode.global_context.parameters()
     )
+
+
+@pytest.mark.parametrize(
+    "length,expected_patches",
+    [
+        (9, [1.0, 2.0]),
+        (16, [1.0, 2.0]),
+        (17, [1.0, 0.0, 2.0]),
+    ],
+)
+def test_patchformer_patchification_keeps_prefix_and_suffix(
+    length, expected_patches
+):
+    encoder = PatchTransformerCNNEncoder(
+        dim=2,
+        global_layers=1,
+        num_heads=1,
+        head_size=2,
+        patch_size=8,
+    )
+    with torch.no_grad():
+        encoder.downsample.weight.zero_()
+        encoder.downsample.bias.zero_()
+        encoder.downsample.weight[0, 0].fill_(1.0)
+
+    local = torch.zeros(1, 2, length)
+    local[0, 0, 0] = 1.0
+    local[0, 0, -1] = 2.0
+    mask = torch.ones(1, length, dtype=torch.bool)
+
+    patches, patch_mask = encoder._patchify(local, mask)
+
+    assert patches.shape == (1, 2, len(expected_patches))
+    assert patches[0, 0].tolist() == expected_patches
+    assert patch_mask.tolist() == [[True] * len(expected_patches)]
 
 
 def test_patchformer_scales_increase_capacity_monotonically():
