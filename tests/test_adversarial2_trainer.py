@@ -206,6 +206,15 @@ def test_batch_win_rate_controller_updates_policy_at_threshold(monkeypatch):
     assert copied == [("reference", "model")]
 
 
+def test_update_controller_signal_encodes_training_side():
+    active = SimpleNamespace(updated=True)
+    skipped = SimpleNamespace(updated=False)
+
+    assert adversarial2.update_controller_signal(skipped, active) == -1
+    assert adversarial2.update_controller_signal(active, active) == 0
+    assert adversarial2.update_controller_signal(active, skipped) == 1
+
+
 def test_batch_win_rate_controller_has_hysteresis():
     controller = adversarial2.BatchWinRateController(0.7, 0.5)
 

@@ -96,13 +96,23 @@ class BatchWinRateController:
         learner,
         progress,
     ):
-        win_rate = games.by_strategy.group(strategy_id).win_rate()
+        group = games.by_strategy.group(strategy_id)
+        win_rate = group.win_rate()
         if not self.should_update(strategy_id, win_rate):
             return ControlledUpdate(win_rate, None, paused=True)
 
         copy_weights(reference, model)
         result = learner.train(prepare(games), progress=progress)
         return ControlledUpdate(win_rate, result, paused=False)
+
+
+def update_controller_signal(agent_update, environment_update):
+    """Encode which policy was trained in this iteration.
+
+    The signal is positive when only the agent trained, negative when only
+    the environment trained, and zero when both (or neither) trained.
+    """
+    return int(agent_update.updated) - int(environment_update.updated)
 
 
 def build_parser():
@@ -490,20 +500,10 @@ def _run(args, trackio_sink):
                         "agent": agent_update.metrics,
                         "environment": environment_update.metrics,
                     },
-                    update_controller={
-                        "stop_threshold": args.stop_win_rate_threshold,
-                        "restart_threshold": args.restart_win_rate_threshold,
-                        "agent": {
-                            "batch_win_rate": agent_update.win_rate,
-                            "updated": agent_update.updated,
-                            "paused": agent_update.paused,
-                        },
-                        "environment": {
-                            "batch_win_rate": environment_update.win_rate,
-                            "updated": environment_update.updated,
-                            "paused": environment_update.paused,
-                        },
-                    },
+                    update_controller=update_controller_signal(
+                        agent_update,
+                        environment_update,
+                    ),
                 )
                 metrics.game(completed, game.make_metrics(games))
 
