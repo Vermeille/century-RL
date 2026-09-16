@@ -273,20 +273,8 @@ def _run(args, trackio_sink):
         device=args.device,
         extra_optimizers=(environment_optimizer,),
     )
-    lr_schedule_steps, exploration_schedule_steps = coop.resolve_schedule_steps(args)
+    _, exploration_schedule_steps = coop.resolve_schedule_steps(args)
     schedule_start = coop.resolve_schedule_start(args)
-    agent_schedule = coop.lr_schedulers[args.lr_schedule_shape](
-        agent_optimizer,
-        steps=lr_schedule_steps + args.warmup,
-        warmup=args.warmup,
-        min_scale=args.min_lr_scale,
-    )
-    environment_schedule = coop.lr_schedulers[args.lr_schedule_shape](
-        environment_optimizer,
-        steps=lr_schedule_steps + args.warmup,
-        warmup=args.warmup,
-        min_scale=args.min_lr_scale,
-    )
     update_controller = BatchWinRateController(
         args.stop_win_rate_threshold,
         args.restart_win_rate_threshold,
@@ -333,10 +321,12 @@ def _run(args, trackio_sink):
         coop.load_resumed_learner_state(
             agent_learner,
             state["states"]["agent_learner"],
+            iteration=state["step"],
         )
         coop.load_resumed_learner_state(
             environment_learner,
             state["states"]["environment_learner"],
+            iteration=state["step"],
         )
         if "update_controller" in state["states"]:
             update_controller.load_state_dict(state["states"]["update_controller"])
@@ -449,10 +439,6 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             pause.service()
-            schedule_position = coop.optimizer_schedule_position(step, args)
-            if schedule_position is not None:
-                agent_schedule.step(schedule_position)
-                environment_schedule.step(schedule_position)
             schedule_progress = coop.exploration_schedule_progress(
                 step,
                 args,

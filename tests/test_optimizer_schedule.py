@@ -1,5 +1,6 @@
 import math
 
+import pytest
 import torch
 
 from boardrl.training import CosineWarmupDecay, LinearWarmupDecay
@@ -26,6 +27,23 @@ def test_lr_schedule_clamps_after_final_iteration():
 
     assert schedule.step(150) == 0.0
     assert optimizer.param_groups[0]["lr"] == 0.0
+
+
+def test_lr_schedule_can_delay_decay_until_a_start_iteration():
+    _, optimizer = make_schedule(initial_lr=2.0, iterations=100)
+    schedule = LinearWarmupDecay(
+        optimizer,
+        steps=100,
+        warmup=10,
+        start=20,
+    )
+
+    assert schedule.step(0) == 0.0
+    assert schedule.step(5) == 1.0
+    assert schedule.step(10) == 2.0
+    assert schedule.step(19) == 2.0
+    assert schedule.step(20) == 2.0
+    assert schedule.step(30) == pytest.approx(2.0 * 80 / 90)
 
 
 def test_lr_schedule_supports_explicit_warmup_and_floor():

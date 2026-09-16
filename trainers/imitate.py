@@ -30,7 +30,7 @@ from boardrl.rl.model.loss import (
 from boardrl.training import (
     ComputeReturns,
     Learner,
-    LinearWarmupDecay,
+    LR_SCHEDULES,
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
@@ -140,6 +140,12 @@ def make_learner(model, args):
         betas=(args.adam_beta1, 0.999),
         weight_decay=args.weight_decay,
     )
+    lr_schedule = LR_SCHEDULES["linear"](
+        optimizer,
+        steps=args.steps,
+        warmup=args.warmup,
+        min_scale=args.min_lr_scale,
+    )
     learner = Learner(
         model,
         optimizer,
@@ -153,6 +159,7 @@ def make_learner(model, args):
         augmentations=(),
         batch_metrics=[PolicyMetrics(), ValueMetrics(), AccuracyMetrics()],
         normalize_lr=True,
+        lr_schedule=lr_schedule,
     )
     return learner, optimizer
 
@@ -181,12 +188,6 @@ def _run(args, trackio_sink):
             map_location=args.device,
         )
     learner, optimizer = make_learner(model, args)
-    schedule = LinearWarmupDecay(
-        optimizer,
-        steps=args.steps,
-        warmup=args.warmup,
-        min_scale=args.min_lr_scale,
-    )
     checkpoint_dir = (
         args.checkpoint_root / "imitate" / args.game / args.architecture / args.tag
     )
@@ -204,6 +205,7 @@ def _run(args, trackio_sink):
             map_location=args.device,
         )
         start = state["step"]
+        learner.iteration = start
 
     reference = copy.deepcopy(model).eval()
 
@@ -236,8 +238,6 @@ def _run(args, trackio_sink):
     ]
 
     for step in range(start, args.steps):
-        schedule.step(step)
-
         with inference.evaluating():
             games = rollouts.play(
                 teacher_lineup,

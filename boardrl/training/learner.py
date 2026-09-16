@@ -238,6 +238,7 @@ class Learner:
         augmentations: Sequence[Callable] = (),
         batch_metrics: Sequence[Callable] = (),
         normalize_lr: bool = False,
+        lr_schedule: "WarmupDecay | None" = None,
         offload_modules: Sequence[torch.nn.Module] = (),
     ):
         self.model = model
@@ -250,6 +251,8 @@ class Learner:
         self.augmentations = tuple(augmentations)
         self.batch_metrics = tuple(batch_metrics)
         self.normalize_lr = normalize_lr
+        self.lr_schedule = lr_schedule
+        self.iteration = 0
         self._pause = CudaOffloadPause(
             (model, *offload_modules),
             optimizer,
@@ -274,6 +277,7 @@ class Learner:
     def state_dict(self):
         return {
             "base_batches": self.base_batches,
+            "iteration": self.iteration,
             "losses": [loss.state_dict() for loss in self.losses],
         }
 
@@ -284,6 +288,7 @@ class Learner:
                 "checkpoint loss count does not match the configured learner"
             )
         self.base_batches = state["base_batches"]
+        self.iteration = state.get("iteration", 0)
         for loss, loss_state in zip(self.losses, loss_states):
             loss.load_state_dict(loss_state)
 
@@ -291,6 +296,8 @@ class Learner:
         if not samples:
             return TrainResult({}, 0, 0)
 
+        if self.lr_schedule is not None:
+            self.lr_schedule.step(self.iteration)
         self.model.train()
         updates = Updates.for_losses(self, samples)
         metrics = Averages()
@@ -335,7 +342,9 @@ class Learner:
 
         metrics.add(updates.finish())
         metrics.add({"lr": self.optimizer.param_groups[0]["lr"]})
-        return TrainResult(metrics.result(), seen, batches)
+        result = TrainResult(metrics.result(), seen, batches)
+        self.iteration += 1
+        return result
 
     def _finish_batch(self):
         if self.gradient_clip is None:
@@ -381,12 +390,14 @@ class WarmupDecay:
         steps: int,
         warmup: int | None = None,
         min_scale: float = 0.0,
+        start: int = 0,
         shape: ScheduleShape,
     ):
         self.optimizer = optimizer
         self.steps = steps
         self.warmup = min(100, steps * 0.05) if warmup is None else warmup
         self.min_scale = min_scale
+        self.start = start
         self.shape = shape
         self.initial_lrs = [group["lr"] for group in optimizer.param_groups]
 
@@ -394,13 +405,18 @@ class WarmupDecay:
         if self.warmup > 0 and step < self.warmup:
             scale = step / self.warmup
         else:
-            decay_steps = max(self.steps - self.warmup, 1)
-            progress = (step - self.warmup) / decay_steps
-            progress = min(max(progress, 0.0), 1.0)
-            scale = self.min_scale + (1 - self.min_scale) * (
-                1 - self.shape(progress)
-            )
-            scale = max(scale, self.min_scale)
+            decay_start = max(self.start, self.warmup)
+            if step < decay_start:
+                scale = 1.0
+            else:
+                step = self.warmup + step - decay_start
+                decay_steps = max(self.steps - self.warmup, 1)
+                progress = (step - self.warmup) / decay_steps
+                progress = min(max(progress, 0.0), 1.0)
+                scale = self.min_scale + (1 - self.min_scale) * (
+                    1 - self.shape(progress)
+                )
+                scale = max(scale, self.min_scale)
         for initial_lr, group in zip(self.initial_lrs, self.optimizer.param_groups):
             group["lr"] = initial_lr * scale
         return self.optimizer.param_groups[0]["lr"]
@@ -409,12 +425,13 @@ class WarmupDecay:
 class LinearWarmupDecay(WarmupDecay):
     """Backward-compatible linear warmup/decay scheduler."""
 
-    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0):
+    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0, start=0):
         super().__init__(
             optimizer,
             steps=steps,
             warmup=warmup,
             min_scale=min_scale,
+            start=start,
             shape=SCHEDULE_SHAPES["linear"],
         )
 
@@ -422,11 +439,18 @@ class LinearWarmupDecay(WarmupDecay):
 class CosineWarmupDecay(WarmupDecay):
     """Warm up linearly, then decay with a half cosine."""
 
-    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0):
+    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0, start=0):
         super().__init__(
             optimizer,
             steps=steps,
             warmup=warmup,
             min_scale=min_scale,
+            start=start,
             shape=SCHEDULE_SHAPES["cosine"],
         )
+
+
+LR_SCHEDULES = {
+    "linear": LinearWarmupDecay,
+    "cosine": CosineWarmupDecay,
+}

@@ -10,7 +10,6 @@ import trainers.coop as coop
 from trainers.coop import (
     apply_optimizer_hyperparameters,
     build_parser,
-    optimizer_schedule_position,
     resolve_schedule_steps,
     run,
 )
@@ -326,20 +325,6 @@ def test_coop_cli_supports_cosine_lr_schedule():
     )
 
     assert args.lr_schedule_shape == "cosine"
-
-
-def test_delayed_lr_decay_keeps_initial_warmup_at_the_start_of_training():
-    args = build_parser().parse_args(
-        ["--warmup", "20", "--lr-schedule-start", "480"]
-    )
-
-    assert optimizer_schedule_position(0, args) == 0
-    assert optimizer_schedule_position(19, args) == 19
-    assert optimizer_schedule_position(20, args) == 20
-    assert optimizer_schedule_position(21, args) is None
-    assert optimizer_schedule_position(479, args) is None
-    assert optimizer_schedule_position(480, args) == 20
-    assert optimizer_schedule_position(599, args) == 139
 
 
 def test_coop_resume_and_initialize_are_mutually_exclusive():

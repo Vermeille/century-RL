@@ -38,9 +38,8 @@ from boardrl.rl.model.loss import (
 )
 from boardrl.training import (
     ComputeReturns,
-    CosineWarmupDecay,
     Learner,
-    LinearWarmupDecay,
+    LR_SCHEDULES,
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
@@ -48,12 +47,6 @@ from boardrl.training import (
     ValueMetrics,
     SCHEDULE_SHAPES,
 )
-
-
-lr_schedulers = {
-    "linear": LinearWarmupDecay,
-    "cosine": CosineWarmupDecay,
-}
 
 
 def positive_int(value):
@@ -186,19 +179,19 @@ def build_parser():
         "--lr-schedule-start",
         type=nonnegative_int,
         help=(
-            "global step at which the learning-rate schedule starts; defaults to "
-            "--lr-schedule-start-percent of --steps"
+            "learner update iteration at which learning-rate decay starts; defaults "
+            "to --lr-schedule-start-percent of --steps"
         ),
     )
     parser.add_argument(
         "--lr-schedule-start-percent",
         type=percentage,
         default=50,
-        help="default learning-rate schedule start as a percentage of --steps",
+        help="default learning-rate decay start as a percentage of --steps",
     )
     parser.add_argument(
         "--lr-schedule-shape",
-        choices=sorted(lr_schedulers),
+        choices=sorted(LR_SCHEDULES),
         default="cosine",
         help="shape of the learning-rate decay",
     )
@@ -388,16 +381,6 @@ def exploration_schedule_progress(step, args, schedule_start, schedule_steps):
     return progress
 
 
-def optimizer_schedule_position(step, args):
-    """Map a global step to warmup/decay-local scheduler time."""
-    if step <= args.warmup:
-        return step
-    decay_start = max(resolve_lr_schedule_start(args), args.warmup)
-    if step >= decay_start:
-        return args.warmup + step - decay_start
-    return None
-
-
 def make_learner(model, reference, game, args):
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -405,6 +388,14 @@ def make_learner(model, reference, game, args):
         betas=(args.adam_beta1, args.adam_beta2),
         eps=args.adam_eps,
         weight_decay=args.weight_decay,
+    )
+    lr_schedule_steps, _ = resolve_schedule_steps(args)
+    lr_schedule = LR_SCHEDULES[args.lr_schedule_shape](
+        optimizer,
+        steps=lr_schedule_steps + args.warmup,
+        warmup=args.warmup,
+        min_scale=args.min_lr_scale,
+        start=resolve_lr_schedule_start(args),
     )
     if args.exploration_controller == "thermostat":
         exploration_loss = ScheduledPerplexity(
@@ -461,6 +452,7 @@ def make_learner(model, reference, game, args):
             ValueMetrics(),
         ],
         normalize_lr=False,
+        lr_schedule=lr_schedule,
         offload_modules=(reference,),
     )
     return learner, optimizer
@@ -478,8 +470,10 @@ def apply_optimizer_hyperparameters(optimizer, args):
         )
 
 
-def load_resumed_learner_state(learner, state):
+def load_resumed_learner_state(learner, state, *, iteration=None):
     learner.load_state_dict(state)
+    if "iteration" not in state and iteration is not None:
+        learner.iteration = iteration
 
 
 def run(args):
@@ -508,13 +502,7 @@ def _run(args, trackio_sink):
         )
     reference = copy.deepcopy(model).eval()
     learner, optimizer = make_learner(model, reference, game, args)
-    lr_schedule_steps, exploration_schedule_steps = resolve_schedule_steps(args)
-    schedule = lr_schedulers[args.lr_schedule_shape](
-        optimizer,
-        steps=lr_schedule_steps + args.warmup,
-        warmup=args.warmup,
-        min_scale=args.min_lr_scale,
-    )
+    _, exploration_schedule_steps = resolve_schedule_steps(args)
     checkpoint_dir = (
         args.checkpoint_root / "coop" / args.game / args.architecture / args.tag
     )
@@ -557,6 +545,7 @@ def _run(args, trackio_sink):
         load_resumed_learner_state(
             learner,
             state["states"]["learner"],
+            iteration=state["step"],
         )
         apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
@@ -633,9 +622,6 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             learner.safe_point()
-            schedule_position = optimizer_schedule_position(step, args)
-            if schedule_position is not None:
-                schedule.step(schedule_position)
             schedule_progress = exploration_schedule_progress(
                 step, args, schedule_start, exploration_schedule_steps
             )

@@ -14,6 +14,7 @@ from boardrl.training import (
     ComputeReturns,
     DoubleQTargets,
     Learner,
+    LinearWarmupDecay,
     Pipeline,
     ReplayBuffer,
     Select,
@@ -264,6 +265,37 @@ def test_learner_reports_optimizer_learning_rate():
     assert result.metrics["lr"] == pytest.approx(2e-4)
 
 
+def test_learner_owns_and_advances_lr_schedule_per_train_call():
+    model = toy()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    learner = Learner(
+        model,
+        optimizer,
+        [ImitationCELoss()],
+        batch_size=1,
+        device="cpu",
+        lr_schedule=LinearWarmupDecay(optimizer, steps=4, warmup=0),
+    )
+    sample = TrainingSample(
+        state="board\n@left\n@right",
+        action_idx=0,
+        action_distribution=torch.tensor([2.0, -1.0]),
+        next=None,
+    )
+
+    first = learner.train([sample])
+    assert first.metrics["lr"] == pytest.approx(1e-3)
+    assert learner.iteration == 1
+
+    second = learner.train([sample])
+    assert second.metrics["lr"] == pytest.approx(0.75e-3)
+    assert learner.iteration == 2
+
+    skipped = learner.train([])
+    assert skipped.samples == 0
+    assert learner.iteration == 2
+
+
 def test_policy_metrics_average_per_sample_perplexity_on_device():
     policy = [torch.tensor([0.0, 0.0]), torch.tensor([0.0, 1.0, 2.0])]
 
@@ -316,6 +348,7 @@ def test_learner_restores_its_losses_and_batch_baseline():
         normalize_lr=True,
     )
     saved.base_batches = 17
+    saved.iteration = 7
     saved_loss.update_strength(measured_ppl=0.0, target_ppl=0.5)
 
     restored_model = toy()
@@ -332,6 +365,7 @@ def test_learner_restores_its_losses_and_batch_baseline():
     restored.load_state_dict(saved.state_dict())
 
     assert restored.base_batches == 17
+    assert restored.iteration == 7
     assert restored_loss.entropy.strength == saved_loss.entropy.strength
     assert restored_loss.ppl_ema == saved_loss.ppl_ema
 

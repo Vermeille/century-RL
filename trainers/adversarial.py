@@ -32,6 +32,7 @@ from boardrl.rl.model.loss import ImitationCELoss
 from boardrl.training import (
     ComputeReturns,
     Learner,
+    LR_SCHEDULES,
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
@@ -188,6 +189,14 @@ def make_average_learner(model, game, args):
         eps=args.adam_eps,
         weight_decay=args.weight_decay,
     )
+    lr_schedule_steps, _ = coop.resolve_schedule_steps(args)
+    lr_schedule = LR_SCHEDULES[args.lr_schedule_shape](
+        optimizer,
+        steps=lr_schedule_steps + args.warmup,
+        warmup=args.warmup,
+        min_scale=args.min_lr_scale,
+        start=coop.resolve_lr_schedule_start(args),
+    )
     learner = Learner(
         model,
         optimizer,
@@ -199,6 +208,7 @@ def make_average_learner(model, game, args):
         augmentations=game.augmentations,
         batch_metrics=[PolicyMetrics(nucleus_threshold=NUCLEUS_THRESHOLD)],
         normalize_lr=False,
+        lr_schedule=lr_schedule,
     )
     return learner, optimizer
 
@@ -278,20 +288,8 @@ def _run(args, trackio_sink):
         extra_optimizers=(average_optimizer,),
     )
 
-    lr_schedule_steps, exploration_schedule_steps = coop.resolve_schedule_steps(args)
+    _, exploration_schedule_steps = coop.resolve_schedule_steps(args)
     schedule_start = coop.resolve_schedule_start(args)
-    best_response_schedule = coop.lr_schedulers[args.lr_schedule_shape](
-        best_response_optimizer,
-        steps=lr_schedule_steps + args.warmup,
-        warmup=args.warmup,
-        min_scale=args.min_lr_scale,
-    )
-    average_schedule = coop.lr_schedulers[args.lr_schedule_shape](
-        average_optimizer,
-        steps=lr_schedule_steps + args.warmup,
-        warmup=args.warmup,
-        min_scale=args.min_lr_scale,
-    )
 
     checkpoint_dir = (
         args.checkpoint_root / "adversarial" / args.game / args.architecture / args.tag
@@ -337,8 +335,11 @@ def _run(args, trackio_sink):
         coop.load_resumed_learner_state(
             best_response_learner,
             state["states"]["best_response_learner"],
+            iteration=state["step"],
         )
         average_learner.load_state_dict(state["states"]["average_learner"])
+        if "iteration" not in state["states"]["average_learner"]:
+            average_learner.iteration = state["step"]
         reservoir.load_state_dict(state["states"]["reservoir"])
         coop.apply_optimizer_hyperparameters(best_response_optimizer, args)
         apply_average_optimizer_hyperparameters(average_optimizer, args)
@@ -460,11 +461,6 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             pause.service()
-            schedule_position = coop.optimizer_schedule_position(step, args)
-            if schedule_position is not None:
-                best_response_schedule.step(schedule_position)
-                average_schedule.step(schedule_position)
-
             schedule_progress = coop.exploration_schedule_progress(
                 step, args, schedule_start, exploration_schedule_steps
             )
