@@ -229,9 +229,115 @@ def test_batch_win_rate_controller_has_hysteresis():
 def test_batch_win_rate_controller_restores_paused_policies():
     controller = adversarial2.BatchWinRateController(0.7, 0.5)
     controller.should_update(1, 0.8)
+    controller.schedule_progress[0] = 0.25
+    controller.completed_strategy_ids.add(1)
     restored = adversarial2.BatchWinRateController(0.7, 0.5)
 
     restored.load_state_dict(controller.state_dict())
 
     assert not restored.is_paused(0)
     assert restored.is_paused(1)
+    assert restored.progress(0) == 0.25
+    assert restored.is_complete(1)
+
+
+def test_batch_win_rate_controller_freezes_completed_policy(monkeypatch):
+    games = SelfPlayResults(
+        [GameTrace([_trace(0, 0, "agent"), _trace(1, 1, "environment")])]
+    )
+    games[0].by_strategy[0][-1].current_diff_points = 1.0
+    games[0].by_strategy[1][-1].current_diff_points = -1.0
+    calls = []
+    result = SimpleNamespace(metrics={}, samples=1)
+    learner = SimpleNamespace(
+        train=lambda samples, *, progress: calls.append(progress) or result,
+    )
+    monkeypatch.setattr(adversarial2, "copy_weights", lambda reference, model: None)
+    controller = adversarial2.BatchWinRateController(
+        1.0,
+        0.5,
+        progress_step=1.0,
+        complete_on_first_update=True,
+    )
+
+    first = controller.update(
+        games,
+        0,
+        model=None,
+        reference=None,
+        prepare=lambda value: value,
+        learner=learner,
+    )
+    second = controller.update(
+        games,
+        0,
+        model=None,
+        reference=None,
+        prepare=lambda value: value,
+        learner=learner,
+    )
+
+    assert first.updated
+    assert controller.is_complete(0)
+    assert not second.updated
+    assert calls == [0.0]
+
+
+def test_batch_win_rate_controller_trains_through_progress_one(monkeypatch):
+    games = SelfPlayResults(
+        [GameTrace([_trace(0, 0, "agent"), _trace(1, 1, "environment")])]
+    )
+    games[0].by_strategy[0][-1].current_diff_points = 1.0
+    games[0].by_strategy[1][-1].current_diff_points = -1.0
+    calls = []
+    result = SimpleNamespace(metrics={}, samples=1)
+    learner = SimpleNamespace(
+        train=lambda samples, *, progress: calls.append(progress) or result,
+    )
+    monkeypatch.setattr(adversarial2, "copy_weights", lambda reference, model: None)
+    controller = adversarial2.BatchWinRateController(
+        1.0,
+        0.5,
+        progress_step=0.5,
+    )
+
+    for _ in range(3):
+        controller.update(
+            games,
+            0,
+            model=None,
+            reference=None,
+            prepare=lambda value: value,
+            learner=learner,
+        )
+
+    assert calls == [0.0, 0.5, 1.0]
+    assert controller.is_complete(0)
+
+
+def test_completed_environment_forces_agent_update(monkeypatch):
+    games = SelfPlayResults(
+        [GameTrace([_trace(0, 0, "agent"), _trace(1, 1, "environment")])]
+    )
+    games[0].by_strategy[0][-1].current_diff_points = 1.0
+    games[0].by_strategy[1][-1].current_diff_points = -1.0
+    result = SimpleNamespace(metrics={}, samples=1)
+    learner = SimpleNamespace(train=lambda samples, *, progress: result)
+    monkeypatch.setattr(adversarial2, "copy_weights", lambda reference, model: None)
+    controller = adversarial2.BatchWinRateController(0.7, 0.5)
+    controller.paused_strategy_ids.add(0)
+    controller.completed_strategy_ids.add(1)
+
+    update = controller.update(
+        games,
+        0,
+        model=None,
+        reference=None,
+        prepare=lambda value: value,
+        learner=learner,
+        force=controller.is_complete(1),
+    )
+
+    assert update.updated
+    assert not update.paused
+    assert not controller.is_paused(0)

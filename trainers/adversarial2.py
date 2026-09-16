@@ -55,7 +55,13 @@ class ControlledUpdate:
 class BatchWinRateController:
     """Pause dominant policies until their batch win rate falls sufficiently."""
 
-    def __init__(self, stop_threshold, restart_threshold, progress_step=0.0):
+    def __init__(
+        self,
+        stop_threshold,
+        restart_threshold,
+        progress_step=0.0,
+        complete_on_first_update=False,
+    ):
         if restart_threshold >= stop_threshold:
             raise ValueError(
                 "restart win-rate threshold must be below stop threshold"
@@ -63,17 +69,21 @@ class BatchWinRateController:
         self.stop_threshold = stop_threshold
         self.restart_threshold = restart_threshold
         self.progress_step = progress_step
+        self.complete_on_first_update = complete_on_first_update
         self.paused_strategy_ids = set()
+        self.completed_strategy_ids = set()
         self.schedule_progress = {}
 
     def state_dict(self):
         return {
             "paused_strategy_ids": sorted(self.paused_strategy_ids),
+            "completed_strategy_ids": sorted(self.completed_strategy_ids),
             "schedule_progress": self.schedule_progress,
         }
 
     def load_state_dict(self, state):
         self.paused_strategy_ids = set(state["paused_strategy_ids"])
+        self.completed_strategy_ids = set(state.get("completed_strategy_ids", ()))
         self.schedule_progress = dict(state.get("schedule_progress", {}))
 
     def is_paused(self, strategy_id):
@@ -94,6 +104,9 @@ class BatchWinRateController:
     def progress(self, strategy_id):
         return self.schedule_progress.get(strategy_id, 0.0)
 
+    def is_complete(self, strategy_id):
+        return strategy_id in self.completed_strategy_ids
+
     def update(
         self,
         games,
@@ -104,10 +117,15 @@ class BatchWinRateController:
         prepare,
         learner,
         progress=None,
+        force=False,
     ):
         group = games.by_strategy.group(strategy_id)
         win_rate = group.win_rate()
-        if not self.should_update(strategy_id, win_rate):
+        if self.is_complete(strategy_id):
+            return ControlledUpdate(win_rate, None, paused=False)
+        if force:
+            self.paused_strategy_ids.discard(strategy_id)
+        elif not self.should_update(strategy_id, win_rate):
             return ControlledUpdate(win_rate, None, paused=True)
 
         copy_weights(reference, model)
@@ -115,10 +133,14 @@ class BatchWinRateController:
             progress = self.progress(strategy_id)
         result = learner.train(prepare(games), progress=progress)
         if result is not None and getattr(result, "samples", 1) > 0:
-            self.schedule_progress[strategy_id] = min(
-                self.progress(strategy_id) + self.progress_step,
-                1.0,
-            )
+            if progress >= 1.0 or self.complete_on_first_update:
+                self.completed_strategy_ids.add(strategy_id)
+                self.schedule_progress[strategy_id] = 1.0
+            else:
+                self.schedule_progress[strategy_id] = min(
+                    self.progress(strategy_id) + self.progress_step,
+                    1.0,
+                )
         return ControlledUpdate(win_rate, result, paused=False)
 
 
@@ -293,7 +315,10 @@ def _run(args, trackio_sink):
         args.stop_win_rate_threshold,
         args.restart_win_rate_threshold,
         progress_step=1 / max(args.steps - 1, 1),
+        complete_on_first_update=args.steps == 1,
     )
+    if args.steps <= 0:
+        update_controller.completed_strategy_ids.update((0, 1))
 
     checkpoint_dir = (
         args.checkpoint_root / "adversarial2" / args.game / args.architecture / args.tag
@@ -457,7 +482,9 @@ def _run(args, trackio_sink):
         evaluate(start)
         pause.service()
 
-        for step in range(start, args.steps):
+        completed = start
+        while not update_controller.is_complete(0):
+            step = completed
             pause.service()
             with agent_inference.evaluating(), environment_inference.evaluating():
                 games = rollouts.play(
@@ -476,6 +503,7 @@ def _run(args, trackio_sink):
                 reference=agent_reference,
                 prepare=prepare_agent,
                 learner=agent_learner,
+                force=update_controller.is_complete(1),
             )
             pause.service()
             environment_update = update_controller.update(
@@ -526,7 +554,7 @@ def _run(args, trackio_sink):
         pause.service()
         final_path = save(
             checkpoints,
-            args.steps,
+            completed,
             agent,
             environment,
             agent_optimizer,
@@ -539,10 +567,10 @@ def _run(args, trackio_sink):
         pause.service()
         if (
             args.save_best
-            and args.steps != start
-            and args.steps % args.evaluation_every != 0
+            and completed != start
+            and completed % args.evaluation_every != 0
         ):
-            evaluate(args.steps)
+            evaluate(completed)
             pause.service()
     return final_path
 
