@@ -80,25 +80,6 @@ class Reservoir:
             if index < self.capacity:
                 self.samples[index] = item
 
-    def add_random(self, samples, count: int):
-        """Insert a fixed-size random quota from one BR iteration.
-
-        Sampling without replacement preserves diversity when the rollout is
-        large enough. Smaller rollouts are sampled with replacement so every
-        BR iteration contributes the same total reservoir weight.
-        """
-        if count <= 0:
-            raise ValueError("count must be positive")
-        samples = list(samples)
-        if not samples:
-            return 0
-        if len(samples) >= count:
-            selected = self.rng.sample(samples, count)
-        else:
-            selected = self.rng.choices(samples, k=count)
-        self.add(selected)
-        return len(selected)
-
     def sample(self, count: int) -> list[TrainingSample]:
         count = min(count, len(self.samples))
         if count == 0:
@@ -379,7 +360,7 @@ def _run(args, trackio_sink):
     )
     training_games = coop.RandomOpeningGameFactory(
         game.make_game,
-        args.random_game_depth,
+        args.random_move_prob,
     )
     rollouts = RolloutRunner(
         training_games,
@@ -524,31 +505,25 @@ def _run(args, trackio_sink):
                     rotate=True,
                     description="rollouts vs best response",
                 )
-                fixed_opponent_rollouts = rollouts.play(
-                    [best_response_player, fixed_player],
-                    games=fixed_opponent_games,
-                    max_steps=args.rollout_max_steps,
-                    rotate=True,
-                    description="rollouts vs fixed opponent",
-                )
                 games = type(average_opponent_rollouts)(
                     list(average_opponent_rollouts)
                     + list(best_response_opponent_rollouts)
-                    + list(fixed_opponent_rollouts)
                 )
                 best_response_games = type(average_opponent_rollouts)(
                     list(average_opponent_rollouts.only_strategy([0]))
-                    + list(best_response_opponent_rollouts.only_strategy([0, 1]))
-                    + list(fixed_opponent_rollouts.only_strategy([0]))
+                    + list(best_response_opponent_rollouts.only_strategy([0]))
                 )
 
             pause.service()
             compute_rollout_returns(games)
             copy_weights(reference, best_response)
             reinforcement_samples = reinforcement_targets(best_response_games)
-            reservoir_inserted = reservoir.add_random(
-                reinforcement_samples,
-                round(args.reservoir_insert_ratio * args.average_samples_per_update),
+            reservoir_inserted = reservoir.add(
+                reinforcement_targets(
+                    type(average_opponent_rollouts)(
+                        average_opponent_rollouts.only_strategy([0])
+                    )
+                )
             )
             best_response_result = best_response_learner.train(
                 reinforcement_samples,
@@ -567,10 +542,6 @@ def _run(args, trackio_sink):
                 if average_opponent_games:
                     rollout_log["best_response_vs_average"] = {
                         "win_rate": average_opponent_rollouts.win_rate(0),
-                    }
-                if fixed_opponent_games:
-                    rollout_log["best_response_vs_fixed"] = {
-                        "win_rate": fixed_opponent_rollouts.win_rate(0),
                     }
                 metrics.log(
                     completed,

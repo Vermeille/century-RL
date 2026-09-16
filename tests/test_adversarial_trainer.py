@@ -19,7 +19,7 @@ class CountingGame:
         self.played = []
 
     def ended(self):
-        return len(self.played) == 2
+        return False
 
     def play_idx(self, index):
         self.played.append(index)
@@ -121,42 +121,6 @@ def test_reservoir_stores_policy_distribution_not_sampled_action():
     assert torch.equal(sample.action_distribution, torch.tensor([2.0, -1.0, 0.5]))
 
 
-def test_reservoir_add_random_uses_exact_quota_without_replacement():
-    samples = [
-        TrainingSample(
-            state=f"state-{index}",
-            action_distribution=torch.tensor([float(index), 0.0]),
-        )
-        for index in range(10)
-    ]
-    reservoir = Reservoir(20, seed=7)
-
-    inserted = reservoir.add_random(samples, 4)
-
-    assert inserted == 4
-    assert reservoir.seen == 4
-    assert len(reservoir) == 4
-    assert len({state for state, _ in reservoir.samples}) == 4
-
-
-def test_reservoir_add_random_oversamples_to_exact_quota():
-    samples = [
-        TrainingSample(
-            state=f"state-{index}",
-            action_distribution=torch.tensor([float(index), 0.0]),
-        )
-        for index in range(2)
-    ]
-    reservoir = Reservoir(20, seed=7)
-
-    inserted = reservoir.add_random(samples, 8)
-
-    assert inserted == 8
-    assert reservoir.seen == 8
-    assert len(reservoir) == 8
-    assert {state for state, _ in reservoir.samples} == {"state-0", "state-1"}
-
-
 def test_adversarial_trainer_defaults_to_nfsp_connect_four():
     args = build_parser().parse_args([])
 
@@ -168,28 +132,28 @@ def test_adversarial_trainer_defaults_to_nfsp_connect_four():
     assert args.adam_beta1 == 0.9
     assert args.adam_beta2 == 0.95
     assert args.adam_eps == 1e-5
-    assert args.random_game_depth == 0
+    assert args.random_move_prob == 0
 
 
-def test_random_opening_factory_plays_uniformly_sampled_legal_prefix(monkeypatch):
-    depths = iter([0, 1, 3])
-    monkeypatch.setattr(coop.random, "randint", lambda start, end: next(depths))
+def test_random_opening_factory_plays_while_probability_holds(monkeypatch):
+    random_values = iter([0.9, 0.1, 0.9, 0.1, 0.1, 0.1, 0.9])
+    monkeypatch.setattr(coop.random, "random", lambda: next(random_values))
     monkeypatch.setattr(coop.random, "randrange", lambda count: count - 1)
-    factory = coop.RandomOpeningGameFactory(CountingGame, max_depth=3)
+    factory = coop.RandomOpeningGameFactory(CountingGame, move_prob=0.5)
 
     games = [factory(num_players=2) for _ in range(3)]
 
     assert [game.num_players for game in games] == [2, 2, 2]
-    assert [game.played for game in games] == [[], [1], [1, 1]]
+    assert [game.played for game in games] == [[], [1], [1, 1, 1]]
 
 
 def test_disabled_random_opening_does_not_consume_rng(monkeypatch):
     monkeypatch.setattr(
         coop.random,
-        "randint",
-        lambda start, end: pytest.fail("disabled wrapper consumed RNG"),
+        "random",
+        lambda: pytest.fail("disabled wrapper consumed RNG"),
     )
 
-    game = coop.RandomOpeningGameFactory(CountingGame, max_depth=0)(num_players=2)
+    game = coop.RandomOpeningGameFactory(CountingGame, move_prob=0)(num_players=2)
 
     assert game.played == []

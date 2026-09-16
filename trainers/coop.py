@@ -113,7 +113,7 @@ NUCLEUS_THRESHOLD = 0.95
 
 
 class RandomOpeningGameFactory:
-    """Create games after a uniformly sampled number of random legal moves."""
+    """Create games after a probabilistic prefix of random legal moves."""
 
     def __init__(self, make_game, move_prob):
         self.make_game = make_game
@@ -121,7 +121,7 @@ class RandomOpeningGameFactory:
 
     def __call__(self, **kwargs):
         game = self.make_game(**kwargs)
-        while random.random() < self.move_prob:
+        while self.move_prob and random.random() < self.move_prob:
             game.play_idx(random.randrange(len(game.moves)))
             if game.ended():
                 game = self.make_game(**kwargs)
@@ -584,7 +584,7 @@ def _run(args, trackio_sink):
         ToSamples(),
         ReferenceTargets(
             reference,
-            batch_size=args.learner_batch_size,
+            batch_size=args.inference_batch_size,
             discount=args.discount,
             gae_lambda=args.gae_lambda,
             value_lambda=args.value_lambda,
