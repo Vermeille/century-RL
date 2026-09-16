@@ -127,6 +127,28 @@ def test_checkpoints_support_multiple_models(tmp_path):
         assert torch.equal(expected, restored)
 
 
+def test_checkpoint_pruning_is_relative_to_current_iteration(tmp_path):
+    model = toy()
+
+    # Simulate stale checkpoints left by a previous run that reached a later
+    # iteration before the current run restarted in the same directory.
+    Checkpoints(tmp_path).save(1575, {"current": model})
+    Checkpoints(tmp_path).save(1800, {"current": model})
+
+    checkpoints = Checkpoints(tmp_path, keep=2)
+    checkpoints.save(25, {"current": model})
+
+    assert [path.name for path in checkpoints.paths] == ["step-25.pth"]
+
+    checkpoints.save(50, {"current": model})
+    checkpoints.save(75, {"current": model})
+
+    assert [path.name for path in checkpoints.paths] == [
+        "step-50.pth",
+        "step-75.pth",
+    ]
+
+
 def test_checkpoints_restore_training_state(tmp_path):
     class State:
         def __init__(self, value):

@@ -17,10 +17,15 @@ class Checkpoints:
 
     @property
     def paths(self) -> list[Path]:
-        def key(path):
-            match = re.search(r"(\d+)$", path.stem)
-            return int(match.group(1)) if match else -1
-        return sorted(self.directory.glob(f"{self.prefix}-*.pth"), key=key)
+        return sorted(
+            self.directory.glob(f"{self.prefix}-*.pth"),
+            key=self._step,
+        )
+
+    @staticmethod
+    def _step(path: Path) -> int:
+        match = re.search(r"(\d+)$", path.stem)
+        return int(match.group(1)) if match else -1
 
     @property
     def latest(self) -> Path | None:
@@ -63,7 +68,7 @@ class Checkpoints:
         }
         path = self.directory / f"{self.prefix}-{step}.pth"
         torch.save(payload, path)
-        self._prune()
+        self._prune(step)
         return path
 
     def load(
@@ -92,8 +97,20 @@ class Checkpoints:
             stateful.load_state_dict(saved_states[name])
         return payload
 
-    def _prune(self):
+    def _prune(self, current_step: int):
         if self.keep is None:
             return
-        for path in self.paths[:-self.keep]:
+
+        # A checkpoint directory can be reused after an interrupted run. In
+        # that case it may contain checkpoints from a later iteration of the
+        # previous run. They must not win retention simply because their step
+        # number is larger than the current run's step. Treat checkpoints
+        # beyond the current iteration as stale and remove them first.
+        paths = self.paths
+        for path in paths:
+            if self._step(path) > current_step:
+                path.unlink()
+
+        current_paths = [path for path in paths if self._step(path) <= current_step]
+        for path in current_paths[:-self.keep]:
             path.unlink()
