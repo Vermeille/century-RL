@@ -32,7 +32,7 @@ from boardrl.rl.model.loss import ImitationCELoss
 from boardrl.training import (
     ComputeReturns,
     Learner,
-    LR_SCHEDULES,
+    LearningRateScheduler,
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
@@ -191,12 +191,13 @@ def make_average_learner(model, game, args):
     )
     lr_schedule_steps, _ = coop.resolve_schedule_steps(args)
     lr_start = coop.resolve_lr_schedule_start(args)
-    lr_schedule = LR_SCHEDULES[args.lr_schedule_shape](
+    lr_schedule = LearningRateScheduler(
         optimizer,
         start=coop.training_progress(lr_start, args),
         end=coop.training_progress(lr_start + lr_schedule_steps, args),
         warmup=coop.training_progress(args.warmup, args),
         min_scale=args.min_lr_scale,
+        shape=args.lr_schedule_shape,
     )
     learner = Learner(
         model,

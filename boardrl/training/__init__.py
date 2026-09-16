@@ -13,8 +13,8 @@ from .postprocess import (
 from .learner import (
     CosineWarmupDecay,
     Learner,
+    LearningRateScheduler,
     LinearWarmupDecay,
-    LR_SCHEDULES,
     PolicyMetrics,
     TrainResult,
     ValueMetrics,
@@ -29,7 +29,7 @@ __all__ = [
     "DropFields",
     "Learner",
     "LinearWarmupDecay",
-    "LR_SCHEDULES",
+    "LearningRateScheduler",
     "PolicyMetrics",
     "Pipeline",
     "ReplayBuffer",

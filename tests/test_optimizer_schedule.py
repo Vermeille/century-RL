@@ -3,7 +3,12 @@ import math
 import pytest
 import torch
 
-from boardrl.training import CosineWarmupDecay, LinearWarmupDecay, Scheduler
+from boardrl.training import (
+    CosineWarmupDecay,
+    LearningRateScheduler,
+    LinearWarmupDecay,
+    Scheduler,
+)
 
 
 def make_schedule(initial_lr=1.0, iterations=100):
@@ -112,3 +117,11 @@ def test_cosine_lr_schedule_uses_half_cosine_decay():
     assert schedule.step(0.0) == 1.0
     assert math.isclose(schedule.step(0.5), 0.6)
     assert schedule.step(1.0) == 0.2
+
+
+def test_learning_rate_scheduler_accepts_shape_by_name():
+    parameter = torch.nn.Parameter(torch.tensor(0.0))
+    optimizer = torch.optim.SGD([parameter], lr=1.0)
+    schedule = LearningRateScheduler(optimizer, shape="cosine", min_scale=0.2)
+
+    assert schedule.step(0.5) == pytest.approx(0.6)

@@ -353,12 +353,31 @@ class Learner:
         return norm
 
 
-class WarmupDecay:
+class LearningRateScheduler:
     """Apply a normalized :class:`Scheduler` to optimizer learning rates."""
 
-    def __init__(self, optimizer, *, schedule: Scheduler):
+    def __init__(
+        self,
+        optimizer,
+        *,
+        start=0.0,
+        end=1.0,
+        warmup=0.0,
+        min_scale=0.0,
+        shape="linear",
+        curve=1.0,
+        schedule=None,
+    ):
         self.optimizer = optimizer
-        self.schedule = schedule
+        self.schedule = schedule or Scheduler(
+            start=start,
+            end=end,
+            warmup=warmup,
+            shape=shape,
+            curve=curve,
+            start_value=1.0,
+            end_value=min_scale,
+        )
         self.initial_lrs = [group["lr"] for group in optimizer.param_groups]
 
     def step(self, progress: float) -> float:
@@ -368,41 +387,36 @@ class WarmupDecay:
         return self.optimizer.param_groups[0]["lr"]
 
 
-class LinearWarmupDecay(WarmupDecay):
+class WarmupDecay(LearningRateScheduler):
+    """Compatibility wrapper for callers providing a Scheduler directly."""
+
+    def __init__(self, optimizer, *, schedule: Scheduler):
+        super().__init__(optimizer, schedule=schedule)
+
+
+class LinearWarmupDecay(LearningRateScheduler):
     """Apply a linear normalized schedule to optimizer learning rates."""
 
     def __init__(self, optimizer, *, start=0.0, end=1.0, warmup=0.0, min_scale=0.0):
         super().__init__(
             optimizer,
-            schedule=Scheduler(
-                start=start,
-                end=end,
-                warmup=warmup,
-                shape="linear",
-                start_value=1.0,
-                end_value=min_scale,
-            ),
+            start=start,
+            end=end,
+            warmup=warmup,
+            min_scale=min_scale,
+            shape="linear",
         )
 
 
-class CosineWarmupDecay(WarmupDecay):
+class CosineWarmupDecay(LearningRateScheduler):
     """Apply a cosine normalized schedule to optimizer learning rates."""
 
     def __init__(self, optimizer, *, start=0.0, end=1.0, warmup=0.0, min_scale=0.0):
         super().__init__(
             optimizer,
-            schedule=Scheduler(
-                start=start,
-                end=end,
-                warmup=warmup,
-                shape="cosine",
-                start_value=1.0,
-                end_value=min_scale,
-            ),
+            start=start,
+            end=end,
+            warmup=warmup,
+            min_scale=min_scale,
+            shape="cosine",
         )
-
-
-LR_SCHEDULES = {
-    "linear": LinearWarmupDecay,
-    "cosine": CosineWarmupDecay,
-}
