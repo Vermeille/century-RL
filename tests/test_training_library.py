@@ -14,10 +14,10 @@ from boardrl.training import (
     ComputeReturns,
     DoubleQTargets,
     Learner,
-    LinearWarmupDecay,
     Pipeline,
     ReplayBuffer,
     Select,
+    Scheduler,
     ToSamples,
     TrainingSample,
 )
@@ -274,7 +274,7 @@ def test_learner_applies_lr_schedule_from_training_progress():
         [ImitationCELoss()],
         batch_size=1,
         device="cpu",
-        lr_schedule=LinearWarmupDecay(optimizer, end=1.0, warmup=0),
+        lr_schedule=Scheduler(start_value=1.0, end_value=0.0),
     )
     sample = TrainingSample(
         state="board\n@left\n@right",

@@ -32,10 +32,10 @@ from boardrl.rl.model.loss import ImitationCELoss
 from boardrl.training import (
     ComputeReturns,
     Learner,
-    LearningRateScheduler,
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
+    Scheduler,
     ToSamples,
 )
 from boardrl.training.cuda_pause import CudaOffloadPause
@@ -191,13 +191,14 @@ def make_average_learner(model, game, args):
     )
     lr_schedule_steps, _ = coop.resolve_schedule_steps(args)
     lr_start = coop.resolve_lr_schedule_start(args)
-    lr_schedule = LearningRateScheduler(
-        optimizer,
-        start=coop.training_progress(lr_start, args),
-        end=coop.training_progress(lr_start + lr_schedule_steps, args),
-        warmup=coop.training_progress(args.warmup, args),
-        min_scale=args.min_lr_scale,
+    lr_schedule = Scheduler.from_steps(
+        total_steps=args.steps,
+        start_step=lr_start,
+        end_step=lr_start + lr_schedule_steps,
+        warmup_steps=args.warmup,
         shape=args.lr_schedule_shape,
+        start_value=1.0,
+        end_value=args.min_lr_scale,
     )
     learner = Learner(
         model,

@@ -30,7 +30,7 @@ from boardrl.rl.model.loss import (
 from boardrl.training import (
     ComputeReturns,
     Learner,
-    LearningRateScheduler,
+    Scheduler,
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
@@ -140,13 +140,13 @@ def make_learner(model, args):
         betas=(args.adam_beta1, 0.999),
         weight_decay=args.weight_decay,
     )
-    denominator = max(args.steps - 1, 1)
-    lr_schedule = LearningRateScheduler(
-        optimizer,
-        end=1.0,
-        warmup=min(args.warmup / denominator, 1.0),
-        min_scale=args.min_lr_scale,
+    lr_schedule = Scheduler.from_steps(
+        total_steps=args.steps,
+        end_step=args.steps - 1,
+        warmup_steps=args.warmup,
         shape="linear",
+        start_value=1.0,
+        end_value=args.min_lr_scale,
     )
     learner = Learner(
         model,

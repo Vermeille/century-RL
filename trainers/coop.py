@@ -39,7 +39,6 @@ from boardrl.rl.model.loss import (
 from boardrl.training import (
     ComputeReturns,
     Learner,
-    LearningRateScheduler,
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
@@ -403,13 +402,14 @@ def make_learner(model, reference, game, args):
     )
     lr_schedule_steps, _ = resolve_schedule_steps(args)
     lr_start = resolve_lr_schedule_start(args)
-    lr_schedule = LearningRateScheduler(
-        optimizer,
-        start=training_progress(lr_start, args),
-        end=training_progress(lr_start + lr_schedule_steps, args),
-        warmup=training_progress(args.warmup, args),
-        min_scale=args.min_lr_scale,
+    lr_schedule = Scheduler.from_steps(
+        total_steps=args.steps,
+        start_step=lr_start,
+        end_step=lr_start + lr_schedule_steps,
+        warmup_steps=args.warmup,
         shape=args.lr_schedule_shape,
+        start_value=1.0,
+        end_value=args.min_lr_scale,
     )
     exploration_schedule = make_exploration_schedule(args)
     if args.exploration_controller == "thermostat":

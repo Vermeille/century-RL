@@ -239,7 +239,7 @@ class Learner:
         augmentations: Sequence[Callable] = (),
         batch_metrics: Sequence[Callable] = (),
         normalize_lr: bool = False,
-        lr_schedule: "WarmupDecay | None" = None,
+        lr_schedule: "Scheduler | None" = None,
         offload_modules: Sequence[torch.nn.Module] = (),
     ):
         self.model = model
@@ -253,6 +253,7 @@ class Learner:
         self.batch_metrics = tuple(batch_metrics)
         self.normalize_lr = normalize_lr
         self.lr_schedule = lr_schedule
+        self.lr_initial_lrs = [group["lr"] for group in optimizer.param_groups]
         self._pause = CudaOffloadPause(
             (model, *offload_modules),
             optimizer,
@@ -295,7 +296,9 @@ class Learner:
             return TrainResult({}, 0, 0)
 
         if self.lr_schedule is not None:
-            self.lr_schedule.step(progress)
+            scale = self.lr_schedule.to_schedule(progress)
+            for initial_lr, group in zip(self.lr_initial_lrs, self.optimizer.param_groups):
+                group["lr"] = initial_lr * scale
         self.model.train()
         updates = Updates.for_losses(self, samples)
         metrics = Averages()
