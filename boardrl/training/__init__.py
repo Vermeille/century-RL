@@ -18,9 +18,9 @@ from .learner import (
     PolicyMetrics,
     TrainResult,
     ValueMetrics,
-    SCHEDULE_SHAPES,
     normalized_nucleus_size,
 )
+from boardrl.schedules import SCHEDULE_SHAPES, Scheduler
 
 __all__ = [
     "ComputeReturns",
@@ -40,6 +40,7 @@ __all__ = [
     "TrainResult",
     "ValueMetrics",
     "SCHEDULE_SHAPES",
+    "Scheduler",
     "collate",
     "normalized_nucleus_size",
     "samples_from",

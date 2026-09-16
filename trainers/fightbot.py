@@ -85,8 +85,6 @@ def _run(args, trackio_sink):
         )
     reference = copy.deepcopy(model).eval()
     learner, optimizer = coop.make_learner(model, reference, game, args)
-    _, exploration_schedule_steps = coop.resolve_schedule_steps(args)
-    schedule_start = coop.resolve_schedule_start(args)
 
     checkpoint_dir = (
         args.checkpoint_root / "fightbot" / args.game / args.architecture / args.tag
@@ -110,6 +108,7 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/rl/eval/selfplay.py",
             repo_root / "boardrl/training/learner.py",
+            repo_root / "boardrl/schedules.py",
             repo_root / "boardrl/training/postprocess.py",
             repo_root / "boardrl/training/returns.py",
         ),
@@ -127,7 +126,6 @@ def _run(args, trackio_sink):
         coop.load_resumed_learner_state(
             learner,
             state["states"]["learner"],
-            iteration=state["step"],
         )
         coop.apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
@@ -209,9 +207,7 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             learner.safe_point()
-            schedule_progress = coop.exploration_schedule_progress(
-                step, args, schedule_start, exploration_schedule_steps
-            )
+            schedule_progress = coop.training_progress(step, args)
 
             if step != start and step % args.evaluation_every == 0:
                 evaluate(step)

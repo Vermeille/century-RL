@@ -265,7 +265,7 @@ def test_learner_reports_optimizer_learning_rate():
     assert result.metrics["lr"] == pytest.approx(2e-4)
 
 
-def test_learner_owns_and_advances_lr_schedule_per_train_call():
+def test_learner_applies_lr_schedule_from_training_progress():
     model = toy()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     learner = Learner(
@@ -274,7 +274,7 @@ def test_learner_owns_and_advances_lr_schedule_per_train_call():
         [ImitationCELoss()],
         batch_size=1,
         device="cpu",
-        lr_schedule=LinearWarmupDecay(optimizer, steps=4, warmup=0),
+        lr_schedule=LinearWarmupDecay(optimizer, end=1.0, warmup=0),
     )
     sample = TrainingSample(
         state="board\n@left\n@right",
@@ -283,17 +283,15 @@ def test_learner_owns_and_advances_lr_schedule_per_train_call():
         next=None,
     )
 
-    first = learner.train([sample])
+    first = learner.train([sample], progress=0.0)
     assert first.metrics["lr"] == pytest.approx(1e-3)
-    assert learner.iteration == 1
 
-    second = learner.train([sample])
+    second = learner.train([sample], progress=0.25)
     assert second.metrics["lr"] == pytest.approx(0.75e-3)
-    assert learner.iteration == 2
 
-    skipped = learner.train([])
+    skipped = learner.train([], progress=0.5)
     assert skipped.samples == 0
-    assert learner.iteration == 2
+    assert learner.optimizer.param_groups[0]["lr"] == pytest.approx(0.75e-3)
 
 
 def test_policy_metrics_average_per_sample_perplexity_on_device():
@@ -348,7 +346,6 @@ def test_learner_restores_its_losses_and_batch_baseline():
         normalize_lr=True,
     )
     saved.base_batches = 17
-    saved.iteration = 7
     saved_loss.update_strength(measured_ppl=0.0, target_ppl=0.5)
 
     restored_model = toy()
@@ -365,7 +362,6 @@ def test_learner_restores_its_losses_and_batch_baseline():
     restored.load_state_dict(saved.state_dict())
 
     assert restored.base_batches == 17
-    assert restored.iteration == 7
     assert restored_loss.entropy.strength == saved_loss.entropy.strength
     assert restored_loss.ppl_ema == saved_loss.ppl_ema
 

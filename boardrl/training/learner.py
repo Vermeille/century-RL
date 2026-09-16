@@ -14,6 +14,7 @@ from boardrl.rl.model.loss import Loss
 from boardrl.rl.utils import explained_variance, pearson_corr
 from boardrl.training.cuda_pause import CudaOffloadPause
 from boardrl.training.sample import TrainingSample
+from boardrl.schedules import Scheduler
 from boardrl.utils import chunk
 
 
@@ -252,7 +253,6 @@ class Learner:
         self.batch_metrics = tuple(batch_metrics)
         self.normalize_lr = normalize_lr
         self.lr_schedule = lr_schedule
-        self.iteration = 0
         self._pause = CudaOffloadPause(
             (model, *offload_modules),
             optimizer,
@@ -277,7 +277,6 @@ class Learner:
     def state_dict(self):
         return {
             "base_batches": self.base_batches,
-            "iteration": self.iteration,
             "losses": [loss.state_dict() for loss in self.losses],
         }
 
@@ -288,7 +287,6 @@ class Learner:
                 "checkpoint loss count does not match the configured learner"
             )
         self.base_batches = state["base_batches"]
-        self.iteration = state.get("iteration", 0)
         for loss, loss_state in zip(self.losses, loss_states):
             loss.load_state_dict(loss_state)
 
@@ -297,7 +295,7 @@ class Learner:
             return TrainResult({}, 0, 0)
 
         if self.lr_schedule is not None:
-            self.lr_schedule.step(self.iteration)
+            self.lr_schedule.step(progress)
         self.model.train()
         updates = Updates.for_losses(self, samples)
         metrics = Averages()
@@ -342,9 +340,7 @@ class Learner:
 
         metrics.add(updates.finish())
         metrics.add({"lr": self.optimizer.param_groups[0]["lr"]})
-        result = TrainResult(metrics.result(), seen, batches)
-        self.iteration += 1
-        return result
+        return TrainResult(metrics.result(), seen, batches)
 
     def _finish_batch(self):
         if self.gradient_clip is None:
@@ -357,96 +353,52 @@ class Learner:
         return norm
 
 
-class ScheduleShape:
-    """Interpolation shape mapping normalized progress from zero to one."""
-
-    def __call__(self, progress: float) -> float:
-        raise NotImplementedError
-
-
-class LinearScheduleShape(ScheduleShape):
-    def __call__(self, progress: float) -> float:
-        return progress
-
-
-class CosineScheduleShape(ScheduleShape):
-    def __call__(self, progress: float) -> float:
-        return 0.5 * (1.0 - math.cos(math.pi * progress))
-
-
-SCHEDULE_SHAPES = {
-    "linear": LinearScheduleShape(),
-    "cosine": CosineScheduleShape(),
-}
-
-
 class WarmupDecay:
-    """Optimizer warmup followed by a shaped decay to a floor."""
+    """Apply a normalized :class:`Scheduler` to optimizer learning rates."""
 
-    def __init__(
-        self,
-        optimizer,
-        *,
-        steps: int,
-        warmup: int | None = None,
-        min_scale: float = 0.0,
-        start: int = 0,
-        shape: ScheduleShape,
-    ):
+    def __init__(self, optimizer, *, schedule: Scheduler):
         self.optimizer = optimizer
-        self.steps = steps
-        self.warmup = min(100, steps * 0.05) if warmup is None else warmup
-        self.min_scale = min_scale
-        self.start = start
-        self.shape = shape
+        self.schedule = schedule
         self.initial_lrs = [group["lr"] for group in optimizer.param_groups]
 
-    def step(self, step: int) -> float:
-        if self.warmup > 0 and step < self.warmup:
-            scale = step / self.warmup
-        else:
-            decay_start = max(self.start, self.warmup)
-            if step < decay_start:
-                scale = 1.0
-            else:
-                step = self.warmup + step - decay_start
-                decay_steps = max(self.steps - self.warmup, 1)
-                progress = (step - self.warmup) / decay_steps
-                progress = min(max(progress, 0.0), 1.0)
-                scale = self.min_scale + (1 - self.min_scale) * (
-                    1 - self.shape(progress)
-                )
-                scale = max(scale, self.min_scale)
+    def step(self, progress: float) -> float:
+        scale = self.schedule.to_schedule(progress)
         for initial_lr, group in zip(self.initial_lrs, self.optimizer.param_groups):
             group["lr"] = initial_lr * scale
         return self.optimizer.param_groups[0]["lr"]
 
 
 class LinearWarmupDecay(WarmupDecay):
-    """Backward-compatible linear warmup/decay scheduler."""
+    """Apply a linear normalized schedule to optimizer learning rates."""
 
-    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0, start=0):
+    def __init__(self, optimizer, *, start=0.0, end=1.0, warmup=0.0, min_scale=0.0):
         super().__init__(
             optimizer,
-            steps=steps,
-            warmup=warmup,
-            min_scale=min_scale,
-            start=start,
-            shape=SCHEDULE_SHAPES["linear"],
+            schedule=Scheduler(
+                start=start,
+                end=end,
+                warmup=warmup,
+                shape="linear",
+                start_value=1.0,
+                end_value=min_scale,
+            ),
         )
 
 
 class CosineWarmupDecay(WarmupDecay):
-    """Warm up linearly, then decay with a half cosine."""
+    """Apply a cosine normalized schedule to optimizer learning rates."""
 
-    def __init__(self, optimizer, *, steps, warmup=None, min_scale=0.0, start=0):
+    def __init__(self, optimizer, *, start=0.0, end=1.0, warmup=0.0, min_scale=0.0):
         super().__init__(
             optimizer,
-            steps=steps,
-            warmup=warmup,
-            min_scale=min_scale,
-            start=start,
-            shape=SCHEDULE_SHAPES["cosine"],
+            schedule=Scheduler(
+                start=start,
+                end=end,
+                warmup=warmup,
+                shape="cosine",
+                start_value=1.0,
+                end_value=min_scale,
+            ),
         )
 
 

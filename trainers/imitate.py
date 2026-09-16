@@ -140,10 +140,11 @@ def make_learner(model, args):
         betas=(args.adam_beta1, 0.999),
         weight_decay=args.weight_decay,
     )
+    denominator = max(args.steps - 1, 1)
     lr_schedule = LR_SCHEDULES["linear"](
         optimizer,
-        steps=args.steps,
-        warmup=args.warmup,
+        end=1.0,
+        warmup=min(args.warmup / denominator, 1.0),
         min_scale=args.min_lr_scale,
     )
     learner = Learner(
@@ -205,7 +206,6 @@ def _run(args, trackio_sink):
             map_location=args.device,
         )
         start = state["step"]
-        learner.iteration = start
 
     reference = copy.deepcopy(model).eval()
 
@@ -247,7 +247,9 @@ def _run(args, trackio_sink):
             )
 
         reference.load_state_dict(model.state_dict())
-        result = learner.train(prepare(games), progress=step / args.steps)
+        result = learner.train(
+            prepare(games), progress=step / max(args.steps - 1, 1)
+        )
         completed = step + 1
 
         if completed % 1 == 0:

@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from boardrl.rl.model.utils import js_div, jeffreys_div
+from boardrl.schedules import Scheduler
 from boardrl.utils import RegisterByName
 
 loss_from_string = RegisterByName()
@@ -644,15 +645,20 @@ class LinearRegularizer(Loss):
         regularizer_factory: Callable[[float], Loss],
         start: float,
         end: float = 0.0,
+        schedule: Scheduler | None = None,
     ):
         if start < 0.0 or end < 0.0:
             raise ValueError("regularizer strengths must be non-negative")
         self.start = start
         self.end = end
+        self.schedule = schedule
         self.regularizer = regularizer_factory(start)
 
     def strength(self, progress: float) -> float:
-        progress = max(0.0, min(1.0, progress))
+        if self.schedule is not None:
+            progress = self.schedule.to_schedule(progress)
+        else:
+            progress = max(0.0, min(1.0, progress))
         return self.start * (1.0 - progress) + self.end * progress
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
@@ -669,18 +675,18 @@ class LinearEntropyBonus(LinearRegularizer):
     supports_off_policy = True
     supports_partial_trajectories = True
 
-    def __init__(self, start: float, end: float = 0.0):
-        super().__init__(EntropyBonus, start, end)
+    def __init__(self, start: float, end: float = 0.0, schedule=None):
+        super().__init__(EntropyBonus, start, end, schedule)
 
 
 class LinearReverseEntropyBonus(LinearRegularizer):
-    def __init__(self, start: float, end: float = 0.0):
-        super().__init__(ReverseEntropyBonus, start, end)
+    def __init__(self, start: float, end: float = 0.0, schedule=None):
+        super().__init__(ReverseEntropyBonus, start, end, schedule)
 
 
 class LinearSymmetricUniformKLPenalty(LinearRegularizer):
-    def __init__(self, start: float, end: float = 0.0):
-        super().__init__(SymmetricUniformKLPenalty, start, end)
+    def __init__(self, start: float, end: float = 0.0, schedule=None):
+        super().__init__(SymmetricUniformKLPenalty, start, end, schedule)
 
 
 class LinearSupportFloorPenalty(LinearRegularizer):
@@ -689,11 +695,13 @@ class LinearSupportFloorPenalty(LinearRegularizer):
         floor_mass: float = 0.01,
         start: float = 0.001,
         end: float = 0.0,
+        schedule=None,
     ):
         super().__init__(
             lambda strength: SupportFloorPenalty(floor_mass, strength),
             start,
             end,
+            schedule,
         )
 
 
@@ -713,6 +721,7 @@ class ScheduledPerplexity(Loss):
         ppl_beta: float = 0.99,
         deadband: float = 0.02,
         regularizer_factory: Callable[[float], Loss] = EntropyBonus,
+        schedule: Scheduler | None = None,
     ):
         assert start >= 0.0
         assert end >= 0.0
@@ -724,6 +733,7 @@ class ScheduledPerplexity(Loss):
 
         self.start = start
         self.end = end
+        self.schedule = schedule
 
         self.init_strength = init_strength
         self.baseline_strength = init_strength * baseline_ratio
@@ -830,7 +840,10 @@ class ScheduledPerplexity(Loss):
         return values.mean()
 
     def target_ppl(self, progress: float) -> float:
-        assert 0.0 <= progress <= 1.0
+        if self.schedule is not None:
+            progress = self.schedule.to_schedule(progress)
+        else:
+            assert 0.0 <= progress <= 1.0
         return self.start * (1.0 - progress) + self.end * progress
 
     def update_strength(self, measured_ppl: float, target_ppl: float):

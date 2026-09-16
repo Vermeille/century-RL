@@ -190,12 +190,13 @@ def make_average_learner(model, game, args):
         weight_decay=args.weight_decay,
     )
     lr_schedule_steps, _ = coop.resolve_schedule_steps(args)
+    lr_start = coop.resolve_lr_schedule_start(args)
     lr_schedule = LR_SCHEDULES[args.lr_schedule_shape](
         optimizer,
-        steps=lr_schedule_steps + args.warmup,
-        warmup=args.warmup,
+        start=coop.training_progress(lr_start, args),
+        end=coop.training_progress(lr_start + lr_schedule_steps, args),
+        warmup=coop.training_progress(args.warmup, args),
         min_scale=args.min_lr_scale,
-        start=coop.resolve_lr_schedule_start(args),
     )
     learner = Learner(
         model,
@@ -288,9 +289,6 @@ def _run(args, trackio_sink):
         extra_optimizers=(average_optimizer,),
     )
 
-    _, exploration_schedule_steps = coop.resolve_schedule_steps(args)
-    schedule_start = coop.resolve_schedule_start(args)
-
     checkpoint_dir = (
         args.checkpoint_root / "adversarial" / args.game / args.architecture / args.tag
     )
@@ -312,6 +310,7 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/rollouts.py",
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/training/learner.py",
+            repo_root / "boardrl/schedules.py",
             repo_root / "boardrl/training/postprocess.py",
             repo_root / "boardrl/training/returns.py",
         ),
@@ -335,11 +334,8 @@ def _run(args, trackio_sink):
         coop.load_resumed_learner_state(
             best_response_learner,
             state["states"]["best_response_learner"],
-            iteration=state["step"],
         )
         average_learner.load_state_dict(state["states"]["average_learner"])
-        if "iteration" not in state["states"]["average_learner"]:
-            average_learner.iteration = state["step"]
         reservoir.load_state_dict(state["states"]["reservoir"])
         coop.apply_optimizer_hyperparameters(best_response_optimizer, args)
         apply_average_optimizer_hyperparameters(average_optimizer, args)
@@ -461,9 +457,7 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             pause.service()
-            schedule_progress = coop.exploration_schedule_progress(
-                step, args, schedule_start, exploration_schedule_steps
-            )
+            schedule_progress = coop.training_progress(step, args)
 
             with best_response_inference.evaluating(), average_inference.evaluating():
                 best_response_player = best_response_inference.policy()

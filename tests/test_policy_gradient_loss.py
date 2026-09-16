@@ -17,6 +17,7 @@ from boardrl.rl.model.loss import (
     BootstrapValueMSELoss,
     BootstrapValueLogProbLoss,
 )
+from boardrl.training import Scheduler
 
 
 def test_entropy_regularizer_zero_grad_at_uniform():
@@ -179,6 +180,18 @@ def test_scheduled_perplexity_can_use_reverse_entropy():
     )
 
     assert type(loss.regularizer) is ReverseEntropyBonus
+
+
+def test_scheduled_perplexity_uses_a_progress_scheduler():
+    loss = ScheduledPerplexity(
+        start=1.0,
+        end=0.5,
+        schedule=Scheduler(start=0.25, end=0.75),
+    )
+
+    assert loss.target_ppl(0.0) == 1.0
+    assert loss.target_ppl(0.5) == 0.75
+    assert loss.target_ppl(1.0) == 0.5
 
 
 def test_linear_entropy_bonus_interpolates_strength():

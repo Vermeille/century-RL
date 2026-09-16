@@ -46,6 +46,7 @@ from boardrl.training import (
     ToSamples,
     ValueMetrics,
     SCHEDULE_SHAPES,
+    Scheduler,
 )
 
 
@@ -370,15 +371,26 @@ def resolve_lr_schedule_start(args):
     return args.steps * args.lr_schedule_start_percent // 100
 
 
-def exploration_schedule_progress(step, args, schedule_start, schedule_steps):
-    progress = min(
-        max((step - schedule_start) / schedule_steps, 0.0),
-        1.0,
-    )
+def training_progress(step, args):
+    return min(max(step / max(args.steps - 1, 1), 0.0), 1.0)
+
+
+def make_exploration_schedule(args):
+    _, schedule_steps = resolve_schedule_steps(args)
+    start = resolve_schedule_start(args)
     if args.exploration_controller == "thermostat":
-        progress **= args.perplexity_curve
-        return SCHEDULE_SHAPES[args.perplexity_schedule_shape](progress)
-    return progress
+        shape = args.perplexity_schedule_shape
+        curve = args.perplexity_curve
+    else:
+        shape = "linear"
+        curve = 1.0
+    return Scheduler.from_steps(
+        total_steps=args.steps,
+        start_step=start,
+        end_step=start + schedule_steps,
+        shape=shape,
+        curve=curve,
+    )
 
 
 def make_learner(model, reference, game, args):
@@ -390,13 +402,15 @@ def make_learner(model, reference, game, args):
         weight_decay=args.weight_decay,
     )
     lr_schedule_steps, _ = resolve_schedule_steps(args)
+    lr_start = resolve_lr_schedule_start(args)
     lr_schedule = LR_SCHEDULES[args.lr_schedule_shape](
         optimizer,
-        steps=lr_schedule_steps + args.warmup,
-        warmup=args.warmup,
+        start=training_progress(lr_start, args),
+        end=training_progress(lr_start + lr_schedule_steps, args),
+        warmup=training_progress(args.warmup, args),
         min_scale=args.min_lr_scale,
-        start=resolve_lr_schedule_start(args),
     )
+    exploration_schedule = make_exploration_schedule(args)
     if args.exploration_controller == "thermostat":
         exploration_loss = ScheduledPerplexity(
             start=args.perplexity_start,
@@ -407,6 +421,7 @@ def make_learner(model, reference, game, args):
             ppl_beta=0.98,
             deadband=0.02,
             regularizer_factory=exploration_regularizers[args.exploration_regularizer],
+            schedule=exploration_schedule,
         )
     else:
         exploration_loss = linear_exploration_regularizers[
@@ -414,6 +429,7 @@ def make_learner(model, reference, game, args):
         ](
             start=args.entropy_strength,
             end=args.entropy_strength * args.entropy_baseline_ratio,
+            schedule=exploration_schedule,
         )
 
     losses = [
@@ -470,10 +486,8 @@ def apply_optimizer_hyperparameters(optimizer, args):
         )
 
 
-def load_resumed_learner_state(learner, state, *, iteration=None):
+def load_resumed_learner_state(learner, state):
     learner.load_state_dict(state)
-    if "iteration" not in state and iteration is not None:
-        learner.iteration = iteration
 
 
 def run(args):
@@ -502,7 +516,6 @@ def _run(args, trackio_sink):
         )
     reference = copy.deepcopy(model).eval()
     learner, optimizer = make_learner(model, reference, game, args)
-    _, exploration_schedule_steps = resolve_schedule_steps(args)
     checkpoint_dir = (
         args.checkpoint_root / "coop" / args.game / args.architecture / args.tag
     )
@@ -528,6 +541,7 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/games/strategies.py",
             repo_root / "boardrl/games/thegame/game.py",
             repo_root / "boardrl/training/learner.py",
+            repo_root / "boardrl/schedules.py",
             repo_root / "boardrl/training/postprocess.py",
             repo_root / "boardrl/training/returns.py",
         ),
@@ -545,7 +559,6 @@ def _run(args, trackio_sink):
         load_resumed_learner_state(
             learner,
             state["states"]["learner"],
-            iteration=state["step"],
         )
         apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
@@ -567,7 +580,6 @@ def _run(args, trackio_sink):
     if trackio_sink is not None:
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
-    schedule_start = resolve_schedule_start(args)
     prepare = Pipeline(
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),
@@ -622,9 +634,7 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             learner.safe_point()
-            schedule_progress = exploration_schedule_progress(
-                step, args, schedule_start, exploration_schedule_steps
-            )
+            schedule_progress = training_progress(step, args)
 
             if step != start and step % args.evaluation_every == 0:
                 evaluate(step)

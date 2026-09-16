@@ -45,7 +45,7 @@ class ControlledUpdate:
 
     @property
     def updated(self):
-        return self.result is not None
+        return self.result is not None and getattr(self.result, "samples", 1) > 0
 
     @property
     def metrics(self):
@@ -55,20 +55,26 @@ class ControlledUpdate:
 class BatchWinRateController:
     """Pause dominant policies until their batch win rate falls sufficiently."""
 
-    def __init__(self, stop_threshold, restart_threshold):
+    def __init__(self, stop_threshold, restart_threshold, progress_step=0.0):
         if restart_threshold >= stop_threshold:
             raise ValueError(
                 "restart win-rate threshold must be below stop threshold"
             )
         self.stop_threshold = stop_threshold
         self.restart_threshold = restart_threshold
+        self.progress_step = progress_step
         self.paused_strategy_ids = set()
+        self.schedule_progress = {}
 
     def state_dict(self):
-        return {"paused_strategy_ids": sorted(self.paused_strategy_ids)}
+        return {
+            "paused_strategy_ids": sorted(self.paused_strategy_ids),
+            "schedule_progress": self.schedule_progress,
+        }
 
     def load_state_dict(self, state):
         self.paused_strategy_ids = set(state["paused_strategy_ids"])
+        self.schedule_progress = dict(state.get("schedule_progress", {}))
 
     def is_paused(self, strategy_id):
         return strategy_id in self.paused_strategy_ids
@@ -85,6 +91,9 @@ class BatchWinRateController:
             return False
         return True
 
+    def progress(self, strategy_id):
+        return self.schedule_progress.get(strategy_id, 0.0)
+
     def update(
         self,
         games,
@@ -94,7 +103,7 @@ class BatchWinRateController:
         reference,
         prepare,
         learner,
-        progress,
+        progress=None,
     ):
         group = games.by_strategy.group(strategy_id)
         win_rate = group.win_rate()
@@ -102,7 +111,14 @@ class BatchWinRateController:
             return ControlledUpdate(win_rate, None, paused=True)
 
         copy_weights(reference, model)
+        if progress is None:
+            progress = self.progress(strategy_id)
         result = learner.train(prepare(games), progress=progress)
+        if result is not None and getattr(result, "samples", 1) > 0:
+            self.schedule_progress[strategy_id] = min(
+                self.progress(strategy_id) + self.progress_step,
+                1.0,
+            )
         return ControlledUpdate(win_rate, result, paused=False)
 
 
@@ -273,11 +289,10 @@ def _run(args, trackio_sink):
         device=args.device,
         extra_optimizers=(environment_optimizer,),
     )
-    _, exploration_schedule_steps = coop.resolve_schedule_steps(args)
-    schedule_start = coop.resolve_schedule_start(args)
     update_controller = BatchWinRateController(
         args.stop_win_rate_threshold,
         args.restart_win_rate_threshold,
+        progress_step=1 / max(args.steps - 1, 1),
     )
 
     checkpoint_dir = (
@@ -302,6 +317,7 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/rl/eval/selfplay.py",
             repo_root / "boardrl/training/learner.py",
+            repo_root / "boardrl/schedules.py",
             repo_root / "boardrl/training/postprocess.py",
             repo_root / "boardrl/training/returns.py",
         ),
@@ -321,15 +337,19 @@ def _run(args, trackio_sink):
         coop.load_resumed_learner_state(
             agent_learner,
             state["states"]["agent_learner"],
-            iteration=state["step"],
         )
         coop.load_resumed_learner_state(
             environment_learner,
             state["states"]["environment_learner"],
-            iteration=state["step"],
         )
         if "update_controller" in state["states"]:
             update_controller.load_state_dict(state["states"]["update_controller"])
+            if not update_controller.schedule_progress:
+                resumed_progress = coop.training_progress(state["step"], args)
+                update_controller.schedule_progress = {
+                    0: resumed_progress,
+                    1: resumed_progress,
+                }
         coop.apply_optimizer_hyperparameters(agent_optimizer, args)
         coop.apply_optimizer_hyperparameters(environment_optimizer, args)
         start = state["step"]
@@ -439,13 +459,6 @@ def _run(args, trackio_sink):
 
         for step in range(start, args.steps):
             pause.service()
-            schedule_progress = coop.exploration_schedule_progress(
-                step,
-                args,
-                schedule_start,
-                exploration_schedule_steps,
-            )
-
             with agent_inference.evaluating(), environment_inference.evaluating():
                 games = rollouts.play(
                     [agent_inference.policy(), environment_inference.policy()],
@@ -463,7 +476,6 @@ def _run(args, trackio_sink):
                 reference=agent_reference,
                 prepare=prepare_agent,
                 learner=agent_learner,
-                progress=schedule_progress,
             )
             pause.service()
             environment_update = update_controller.update(
@@ -473,7 +485,6 @@ def _run(args, trackio_sink):
                 reference=environment_reference,
                 prepare=prepare_environment,
                 learner=environment_learner,
-                progress=schedule_progress,
             )
             pause.service()
             completed = step + 1
