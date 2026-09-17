@@ -497,14 +497,22 @@ def test_coop_resume_restores_model_optimizer_and_learner_state(
 
     loaded = {}
 
-    def make_model(name):
-        del name
+    def make_model(architecture, game):
+        del architecture, game
         model = _CheckpointModel()
         loaded["model"] = model
         return model
 
-    def make_learner(model, reference, game, args):
-        del reference
+    class RecordingReferenceTargets:
+        def __init__(self, model, **kwargs):
+            del kwargs
+            loaded["target_model"] = model
+
+        def __call__(self, samples):
+            loaded["target_model_training"] = loaded["target_model"].training
+            return samples
+
+    def make_learner(model, game, args):
         del game, args
         optimizer = torch.optim.AdamW(model.parameters(), lr=0.1)
         learner = _StatefulLearner("fresh")
@@ -512,8 +520,9 @@ def test_coop_resume_restores_model_optimizer_and_learner_state(
         loaded["learner"] = learner
         return learner, optimizer
 
-    monkeypatch.setattr(coop, "make", make_model)
+    monkeypatch.setattr(coop, "make_for_game", make_model)
     monkeypatch.setattr(coop, "make_learner", make_learner)
+    monkeypatch.setattr(coop, "ReferenceTargets", RecordingReferenceTargets)
 
     args = build_parser().parse_args(
         [
@@ -524,7 +533,7 @@ def test_coop_resume_restores_model_optimizer_and_learner_state(
             "--device",
             "cpu",
             "--steps",
-            "4",
+            "5",
             "--evaluation-games",
             "1",
             "--checkpoint-root",
@@ -540,6 +549,8 @@ def test_coop_resume_restores_model_optimizer_and_learner_state(
     run(args)
 
     assert torch.equal(loaded["model"].weight, source_model.weight)
+    assert loaded["target_model"] is loaded["model"]
+    assert not loaded["target_model_training"]
     assert loaded["learner"].state == {"marker": "saved"}
     source_state = next(iter(source_optimizer.state_dict()["state"].values()))
     loaded_state = next(iter(loaded["optimizer"].state_dict()["state"].values()))

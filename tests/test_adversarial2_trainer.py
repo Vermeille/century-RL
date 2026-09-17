@@ -64,7 +64,8 @@ def test_environment_schedule_changes_only_environment_learner_args(monkeypatch)
     args = adversarial2.build_parser().parse_args([])
     received = []
 
-    def fake_make_learner(model, reference, game, learner_args):
+    def fake_make_learner(model, game, learner_args, *, offload_modules):
+        assert len(offload_modules) == 1
         received.append(learner_args)
         return model, object()
 

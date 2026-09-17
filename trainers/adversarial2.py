@@ -218,7 +218,9 @@ def make_strategy_learner(
         learner_args.perplexity_end = perplexity_end
     if entropy_strength is not None:
         learner_args.entropy_strength = entropy_strength
-    return coop.make_learner(model, reference, game, learner_args)
+    return coop.make_learner(
+        model, game, learner_args, offload_modules=(reference,)
+    )
 
 
 def make_prepare(reference, args, strategy_id):

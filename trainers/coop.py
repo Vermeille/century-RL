@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import os
 import random
 from pathlib import Path
@@ -23,7 +22,7 @@ from boardrl import (
 )
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
-from boardrl.models import architectures, copy_weights, make_for_game
+from boardrl.models import architectures, make_for_game
 from boardrl.rl.model.loss import (
     AdaptiveKLPenalty,
     BootstrapValueLogProbLoss,
@@ -205,7 +204,7 @@ def build_parser():
         "--learner-batch-size",
         type=positive_int,
         default=384,
-        help="batch size for reference targets and PPO updates",
+        help="batch size for value targets and PPO updates",
     )
     parser.add_argument("--rollout-games", type=positive_int, default=128)
     parser.add_argument(
@@ -392,7 +391,7 @@ def make_exploration_schedule(args):
     )
 
 
-def make_learner(model, reference, game, args):
+def make_learner(model, game, args, *, offload_modules=()):
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
@@ -470,7 +469,7 @@ def make_learner(model, reference, game, args):
         ],
         normalize_lr=False,
         lr_schedule=lr_schedule,
-        offload_modules=(reference,),
+        offload_modules=offload_modules,
     )
     return learner, optimizer
 
@@ -515,8 +514,7 @@ def _run(args, trackio_sink):
             models={"current": model},
             map_location=args.device,
         )
-    reference = copy.deepcopy(model).eval()
-    learner, optimizer = make_learner(model, reference, game, args)
+    learner, optimizer = make_learner(model, game, args)
     checkpoint_dir = (
         args.checkpoint_root / "coop" / args.game / args.architecture / args.tag
     )
@@ -563,7 +561,6 @@ def _run(args, trackio_sink):
         )
         apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
-        copy_weights(reference, model)
         if args.save_best and best_checkpoints.latest:
             best_state = best_checkpoints.load(map_location="cpu")
             best_score = best_state["metadata"]["evaluation_points"]
@@ -585,7 +582,7 @@ def _run(args, trackio_sink):
         ComputeReturns(args.discount, reward_scale=game.reward_rescale),
         ToSamples(),
         ReferenceTargets(
-            reference,
+            model,
             batch_size=args.inference_batch_size,
             discount=args.discount,
             gae_lambda=args.gae_lambda,
@@ -651,8 +648,9 @@ def _run(args, trackio_sink):
                 )
             learner.safe_point()
 
-            copy_weights(reference, model)
-            result = learner.train(prepare(games), progress=schedule_progress)
+            with inference.evaluating():
+                samples = prepare(games)
+            result = learner.train(samples, progress=schedule_progress)
             learner.safe_point()
             completed = step + 1
 

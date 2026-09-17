@@ -278,9 +278,9 @@ def _run(args, trackio_sink):
 
     best_response_learner, best_response_optimizer = coop.make_learner(
         best_response,
-        reference,
         game,
         args,
+        offload_modules=(reference,),
     )
     average_learner, average_optimizer = make_average_learner(average, game, args)
     reservoir = Reservoir(args.reservoir_capacity, seed=args.seed + 1)

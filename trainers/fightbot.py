@@ -84,7 +84,9 @@ def _run(args, trackio_sink):
             map_location=args.device,
         )
     reference = copy.deepcopy(model).eval()
-    learner, optimizer = coop.make_learner(model, reference, game, args)
+    learner, optimizer = coop.make_learner(
+        model, game, args, offload_modules=(reference,)
+    )
 
     checkpoint_dir = (
         args.checkpoint_root / "fightbot" / args.game / args.architecture / args.tag
