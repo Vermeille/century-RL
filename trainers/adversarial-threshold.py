@@ -1,4 +1,4 @@
-"""Two-policy adversarial PPO training with asymmetric exploration targets."""
+"""Two-policy adversarial PPO balanced by frozen-reference thresholds."""
 
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ from boardrl.training import (
     ToSamples,
 )
 from boardrl.training.cuda_pause import CudaOffloadPause
+from boardrl.utils import chunk
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,7 @@ class ControlledUpdate:
 
 
 class BatchWinRateController:
-    """Pause dominant policies until their batch win rate falls sufficiently."""
+    """Freeze dominant policies' references until their win rate falls."""
 
     def __init__(
         self,
@@ -63,9 +64,7 @@ class BatchWinRateController:
         complete_on_first_update=False,
     ):
         if restart_threshold >= stop_threshold:
-            raise ValueError(
-                "restart win-rate threshold must be below stop threshold"
-            )
+            raise ValueError("restart win-rate threshold must be below stop threshold")
         self.stop_threshold = stop_threshold
         self.restart_threshold = restart_threshold
         self.progress_step = progress_step
@@ -123,15 +122,24 @@ class BatchWinRateController:
         win_rate = group.win_rate()
         if self.is_complete(strategy_id):
             return ControlledUpdate(win_rate, None, paused=False)
+        was_paused = self.is_paused(strategy_id)
         if force:
             self.paused_strategy_ids.discard(strategy_id)
-        elif not self.should_update(strategy_id, win_rate):
-            return ControlledUpdate(win_rate, None, paused=True)
+            paused = False
+        else:
+            paused = not self.should_update(strategy_id, win_rate)
+        if not paused:
+            copy_weights(reference, model)
 
-        copy_weights(reference, model)
         if progress is None:
             progress = self.progress(strategy_id)
-        result = learner.train(prepare(games), progress=progress)
+        released_reference = was_paused and not paused
+        result = learner.train(
+            prepare(games, reference_is_current=not paused),
+            progress=progress,
+            reference_frozen=paused,
+            reference_released=released_reference,
+        )
         if result is not None and getattr(result, "samples", 1) > 0:
             if progress >= 1.0 or self.complete_on_first_update:
                 self.completed_strategy_ids.add(strategy_id)
@@ -141,16 +149,17 @@ class BatchWinRateController:
                     self.progress(strategy_id) + self.progress_step,
                     1.0,
                 )
-        return ControlledUpdate(win_rate, result, paused=False)
+        return ControlledUpdate(win_rate, result, paused=paused)
 
 
 def update_controller_signal(agent_update, environment_update):
-    """Encode which policy was trained in this iteration.
+    """Encode which policy reference was refreshed in this iteration.
 
-    The signal is positive when only the agent trained, negative when only
-    the environment trained, and zero when both (or neither) trained.
+    The signal is positive when only the agent reference was refreshed,
+    negative when only the environment reference was refreshed, and zero
+    when both (or neither) were refreshed.
     """
-    return int(agent_update.updated) - int(environment_update.updated)
+    return int(not agent_update.paused) - int(not environment_update.paused)
 
 
 def build_parser():
@@ -158,7 +167,7 @@ def build_parser():
     parser.description = __doc__
     parser.set_defaults(
         game="connectfour",
-        tag="adversarial2",
+        tag="adversarial-threshold",
         opponent_eval_strategy="tactical_random",
         perplexity_schedule_shape="cosine",
     )
@@ -185,8 +194,8 @@ def build_parser():
         type=coop.probability_float,
         default=0.7,
         help=(
-            "pause a policy's PPO updates when its current batch win rate "
-            "exceeds this threshold"
+            "freeze a policy's PPO/KL reference when its current batch win "
+            "rate exceeds this threshold"
         ),
     )
     parser.add_argument(
@@ -194,8 +203,8 @@ def build_parser():
         type=coop.probability_float,
         default=0.5,
         help=(
-            "restart a paused policy's PPO updates when its current batch "
-            "win rate falls below this threshold"
+            "resume refreshing a frozen policy reference when its current "
+            "batch win rate falls below this threshold"
         ),
     )
     return parser
@@ -218,25 +227,133 @@ def make_strategy_learner(
         learner_args.perplexity_end = perplexity_end
     if entropy_strength is not None:
         learner_args.entropy_strength = entropy_strength
-    return coop.make_learner(
+    learner, optimizer = coop.make_learner(
         model, game, learner_args, offload_modules=(reference,)
     )
+    if learner_args.exploration_controller == "thermostat":
+        learner = PerplexityHandoffLearner(learner, learner.losses[1])
+    else:
+        learner = ReferenceAwareLearner(learner)
+    return learner, optimizer
 
 
-def make_prepare(reference, args, strategy_id):
+class ReferenceAwareLearner:
+    """Accept reference lifecycle state without changing the shared learner."""
+
+    def __init__(self, learner):
+        self.learner = learner
+
+    def state_dict(self):
+        return self.learner.state_dict()
+
+    def load_state_dict(self, state):
+        self.learner.load_state_dict(state)
+
+    def train(
+        self,
+        samples,
+        *,
+        progress,
+        reference_frozen,
+        reference_released,
+    ):
+        del reference_frozen, reference_released
+        return self.learner.train(samples, progress=progress)
+
+
+class PerplexityHandoffLearner(ReferenceAwareLearner):
+    """Keep the perplexity thermostat stable across frozen KL handoffs."""
+
+    def __init__(self, learner, perplexity):
+        super().__init__(learner)
+        self.perplexity = perplexity
+
+    def train(
+        self,
+        samples,
+        *,
+        progress,
+        reference_frozen,
+        reference_released,
+    ):
+        baseline = self.perplexity.baseline_strength
+        ppl_beta = self.perplexity.ppl_beta
+        try:
+            if reference_frozen or reference_released:
+                # The stale KL anchor contributes to policy diversity. Do not
+                # let the thermostat mistake that help for excess strength.
+                self.perplexity.baseline_strength = (
+                    self.perplexity.regularizer.strength
+                )
+            if reference_released:
+                # Make the release update react to its current PPL instead of
+                # the EMA maintained while the stale KL anchor was active.
+                self.perplexity.ppl_ema = None
+                self.perplexity.ppl_beta = 0.0
+            return self.learner.train(samples, progress=progress)
+        finally:
+            self.perplexity.baseline_strength = baseline
+            self.perplexity.ppl_beta = ppl_beta
+
+
+class FrozenReferencePolicy:
+    """Replace the KL anchor with predictions from a frozen reference model."""
+
+    def __init__(self, model, *, batch_size):
+        self.model = model
+        self.batch_size = batch_size
+        self.reference_is_current = False
+
+    def __call__(self, samples):
+        if self.reference_is_current:
+            return samples
+
+        was_training = self.model.training
+        self.model.eval()
+        try:
+            with torch.no_grad():
+                for batch in chunk(samples, self.batch_size):
+                    predictions = self.model(
+                        [sample.state for sample in batch]
+                    ).unbatched()
+                    for sample, prediction in zip(batch, predictions):
+                        sample.reference_policy = prediction.policy[0]
+        finally:
+            self.model.train(was_training)
+        return samples
+
+
+class PolicyTargetPipeline(Pipeline):
+    """Pass controller reference state to the policy-target pipeline step."""
+
+    def __init__(self, *steps, policy_targets):
+        super().__init__(*steps, policy_targets)
+        self.policy_targets = policy_targets
+
+    def __call__(self, value, *, reference_is_current):
+        self.policy_targets.reference_is_current = reference_is_current
+        return super().__call__(value)
+
+
+def make_prepare(model, reference, args, strategy_id):
     """Build PPO targets for one stable rollout strategy identity."""
 
-    return Pipeline(
+    policy_targets = FrozenReferencePolicy(
+        reference,
+        batch_size=args.inference_batch_size,
+    )
+    return PolicyTargetPipeline(
         Select(strategies=[strategy_id]),
         ToSamples(),
         ReferenceTargets(
-            reference,
+            model,
             batch_size=args.inference_batch_size,
             discount=args.discount,
             gae_lambda=args.gae_lambda,
             value_lambda=args.value_lambda,
             reuse_rollout_predictions=False,
         ),
+        policy_targets=policy_targets,
     )
 
 
@@ -254,7 +371,7 @@ def initialize_models(path, agent, environment, device):
             environment.load_state_dict(models[name])
             return
     raise KeyError(
-        "checkpoint contains neither adversarial2 policies nor a supported "
+        "checkpoint contains neither adversarial policies nor a supported "
         "single-policy model"
     )
 
@@ -277,7 +394,7 @@ def _run(args, trackio_sink):
     coop.seed_everything(args.seed)
     game = games_library(args.game)
     if game.coop:
-        raise ValueError("adversarial2.py requires a non-cooperative game")
+        raise ValueError("adversarial-threshold.py requires a non-cooperative game")
 
     agent = make_for_game(args.architecture, game).to(args.device)
     environment = make_for_game(args.architecture, game).to(args.device)
@@ -323,7 +440,11 @@ def _run(args, trackio_sink):
         update_controller.completed_strategy_ids.update((0, 1))
 
     checkpoint_dir = (
-        args.checkpoint_root / "adversarial2" / args.game / args.architecture / args.tag
+        args.checkpoint_root
+        / "adversarial-threshold"
+        / args.game
+        / args.architecture
+        / args.tag
     )
     checkpoints = Checkpoints(
         checkpoint_dir,
@@ -424,8 +545,13 @@ def _run(args, trackio_sink):
 
     # Rollout strategy IDs are list positions: agent=0, environment=1. They
     # remain stable when physical seats rotate.
-    prepare_agent = make_prepare(agent_reference, args, 0)
-    prepare_environment = make_prepare(environment_reference, args, 1)
+    prepare_agent = make_prepare(agent, agent_reference, args, 0)
+    prepare_environment = make_prepare(
+        environment,
+        environment_reference,
+        args,
+        1,
+    )
 
     def evaluate(step):
         nonlocal best_score
@@ -600,7 +726,7 @@ def save(
             "update_controller": update_controller,
         },
         metadata={
-            "trainer": "adversarial2",
+            "trainer": "adversarial-threshold",
             "algorithm": "two-policy-ppo",
             "game": args.game,
             "architecture": args.architecture,
