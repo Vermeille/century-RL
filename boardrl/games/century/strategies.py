@@ -1,3 +1,5 @@
+from collections import Counter
+
 import torch
 
 from boardrl.utils import RegisterByName, Game
@@ -11,7 +13,12 @@ _MIN_ACTION_POTENTIAL = 6.0
 _MAX_ENGINE_CARDS = 5
 _ACTION_POTENTIAL_WEIGHT = 0.75
 _CLAIM_BONUS = 2.0
+_VICTORY_POINT_WEIGHT = 1.0
+_VICTORY_PROGRESS_WEIGHT = 2.0
+_AFFORDABLE_VICTORY_BONUS = 100.0
 _REJECT_SCORE = -1e9
+
+_SPICE_VALUES = {"Y": 1, "R": 2, "G": 3, "B": 4}
 
 
 def _card_potential(card):
@@ -24,12 +31,32 @@ def _card_potential(card):
     return float(max(1, 10 // max(spent_size, gained_size)) * gain)
 
 
+def _victory_progress(stock, victory_cards):
+    """Score how close ``stock`` is to its most attractive visible victory."""
+    available = Counter(stock)
+    return max(
+        _VICTORY_POINT_WEIGHT * card.points
+        - sum(
+            _SPICE_VALUES[spice] * max(0, count - available[spice])
+            for spice, count in Counter(card.cost).items()
+        )
+        for card in victory_cards
+    )
+
+
 @strategy_from_string.register("tempo_greedy")
 class TempoGreedyStrategy:
     """One-ply Century baseline using only observable game objects."""
 
     def _score_harvest(self, g, move, stock_value):
-        return g.preview_stock(move).weighted_value() - stock_value
+        stock = g.get_player(g.current_player()).stock
+        victory_cards = g.visible_victory()
+        next_stock = g.preview_stock(move)
+        stock_gain = next_stock.weighted_value() - stock_value
+        progress = _victory_progress(next_stock, victory_cards) - _victory_progress(
+            stock, victory_cards
+        )
+        return stock_gain + _VICTORY_PROGRESS_WEIGHT * progress
 
     def _score_rest(self, player):
         return 2.0 + 0.75 * player.discard_count()
@@ -48,7 +75,9 @@ class TempoGreedyStrategy:
                 )
             return (1000.0 if diff > 0 else 500.0 if diff == 0 else -1000.0) + diff
 
-        return card.points + stock_delta + _CLAIM_BONUS
+        # An affordable victory is the payoff for all preceding engine work.
+        # Do not let another small resource gain postpone it indefinitely.
+        return _AFFORDABLE_VICTORY_BONUS + card.points + stock_delta + _CLAIM_BONUS
 
     def _score_action_purchase(self, g, move, player, stock_value):
         if len(player.hand) + player.discard_count() >= _MAX_ENGINE_CARDS:
