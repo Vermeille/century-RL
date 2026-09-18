@@ -1,8 +1,12 @@
 import asyncio
 import inspect
+import random
 
 from boardrl.games import games_library
-from boardrl.games.century.strategies import TempoGreedyStrategy
+from boardrl.games.century.strategies import (
+    TempoGreedyStrategy,
+    _victory_progress,
+)
 
 
 def _century():
@@ -52,3 +56,34 @@ def test_tempo_greedy_returns_a_deterministic_legal_move():
     assert probs.sum().item() == 1.0
     assert (probs == 1).sum().item() == 1
     assert set(info["scores"]) == set(g.moves)
+
+
+def test_victory_progress_values_points_and_weighted_shortfall():
+    class Card:
+        def __init__(self, cost, points):
+            self.cost = cost
+            self.points = points
+
+    cards = [Card("RR", 6), Card("GB", 12)]
+
+    assert _victory_progress("RR", cards) == 6
+    assert _victory_progress("G", cards) == 8
+
+
+def test_tempo_greedy_claims_an_affordable_victory_immediately():
+    random_state = random.getstate()
+    random.seed(0)
+    try:
+        g = _century()
+    finally:
+        random.setstate(random_state)
+
+    for _ in range(300):
+        if any(move.startswith("V") for move in g.moves):
+            policy, _ = asyncio.run(TempoGreedyStrategy()(g))
+            selected = g.moves[policy.argmax().item()]
+            assert selected.startswith("V")
+            return
+        g.play_str(g.moves[-1])
+
+    raise AssertionError("failed to reach an affordable victory")
