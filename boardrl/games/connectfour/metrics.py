@@ -15,18 +15,13 @@ class StrategyMetrics(TraceMetrics):
         if not winning_traces:
             return float("nan")
         probabilities = [
-            torch.softmax(trace[-2].action_distribution, 0)[
-                trace[-2].action_idx
-            ].item()
+            torch.softmax(trace[-2].action_distribution, 0)[trace[-2].action_idx].item()
             for trace in winning_traces
         ]
         return sum(probabilities) / len(probabilities)
 
     def metrics(self):
         return super().metrics() | {
-            "winning_games": sum(
-                trace[-1].current_diff_points > 0 for trace in self.traces
-            ),
             "avg_winning_move_probability": self.winning_move_probability(),
         }
 
@@ -51,9 +46,7 @@ class Metrics(GameMetrics):
             print()
 
     def metrics(self):
-        terminal_games = sum(
-            game.by_seat[0][-1].terminal for game in self.data
-        )
+        terminal_games = sum(game.by_seat[0][-1].terminal for game in self.data)
         draws = sum(
             game.by_seat[0][-1].terminal
             and game.by_seat[0][-1].current_diff_points == 0
@@ -63,9 +56,7 @@ class Metrics(GameMetrics):
             "terminal_rate": terminal_games / len(self.data),
             "draw_rate": draws / len(self.data),
             "avg_game_actions": sum(
-                max(len(trace) - 1, 0)
-                for game in self.data
-                for trace in game.by_seat
+                max(len(trace) - 1, 0) for game in self.data for trace in game.by_seat
             )
             / len(self.data),
             "strategy": GroupedTraceMetrics(
