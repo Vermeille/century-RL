@@ -253,13 +253,13 @@ def _run(args, trackio_sink):
         )
         completed = step + 1
 
-        if completed % 1 == 0:
+        if step % 1 == 0:
             metrics.log(
-                completed,
+                step,
                 rollout=rollout_metrics(games, coop=game.coop),
                 train=result.metrics,
             )
-            metrics.game(completed, game.make_metrics(games))
+            metrics.game(step, game.make_metrics(games))
 
         if completed % args.save_every == 0:
             save(checkpoints, completed, model, optimizer, args)

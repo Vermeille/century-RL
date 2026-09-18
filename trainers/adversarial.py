@@ -529,14 +529,14 @@ def _run(args, trackio_sink):
             pause.service()
             completed = step + 1
 
-            if completed % 5 == 0:
+            if step % 5 == 0:
                 rollout_log = rollout_metrics(games, coop=False)
                 if average_opponent_games:
                     rollout_log["best_response_vs_average"] = {
                         "win_rate": average_opponent_rollouts.win_rate(0),
                     }
                 metrics.log(
-                    completed,
+                    step,
                     rollout=rollout_log,
                     nfsp={
                         "reservoir_size": len(reservoir),
@@ -562,7 +562,7 @@ def _run(args, trackio_sink):
                         },
                     },
                 )
-                metrics.game(completed, game.make_metrics(games))
+                metrics.game(step, game.make_metrics(games))
 
             # Evaluate post-update so evaluation step N matches step-N.pth.
             if completed % args.evaluation_every == 0:

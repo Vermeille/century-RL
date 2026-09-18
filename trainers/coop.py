@@ -654,13 +654,13 @@ def _run(args, trackio_sink):
             learner.safe_point()
             completed = step + 1
 
-            if completed % 5 == 0:
+            if step % 5 == 0:
                 metrics.log(
-                    completed,
+                    step,
                     rollout=rollout_metrics(games, coop=game.coop),
                     train=result.metrics,
                 )
-                metrics.game(completed, game.make_metrics(games))
+                metrics.game(step, game.make_metrics(games))
 
             if completed % args.save_every == 0:
                 save(checkpoints, completed, model, optimizer, learner, args)

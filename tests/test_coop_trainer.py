@@ -471,6 +471,10 @@ def test_coop_saves_final_checkpoint_when_steps_is_not_save_multiple(
     state = Checkpoints(path.parent, prefix="step").load(path)
     assert path.name == "step-3.pth"
     assert state["step"] == 3
+    logger = _RecordingMetricLogger.instances[0]
+    assert logger.logs[1][0] == 0
+    assert set(logger.logs[1][1]) == {"rollout", "train"}
+    assert logger.games == [0]
 
 
 def test_coop_resume_restores_model_optimizer_and_learner_state(

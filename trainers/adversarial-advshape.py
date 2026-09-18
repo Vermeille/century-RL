@@ -405,16 +405,16 @@ def _run(args, trackio_sink):
             pause.service()
             completed = step + 1
 
-            if completed % 5 == 0:
+            if step % 5 == 0:
                 metrics.log(
-                    completed,
+                    step,
                     rollout=rollout_metrics(games, coop=False),
                     train={
                         "agent": agent_result.metrics,
                         "environment": environment_result.metrics,
                     },
                 )
-                metrics.game(completed, game.make_metrics(games))
+                metrics.game(step, game.make_metrics(games))
 
             if completed % args.evaluation_every == 0:
                 evaluate(completed)
