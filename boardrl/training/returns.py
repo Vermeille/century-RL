@@ -13,13 +13,6 @@ def discount(rews: Iterable, discount_factor: float) -> float:
     return sum(discount_factor**i * r.reward for i, r in enumerate(rews))
 
 
-def rescale(history: list, scale: float) -> None:
-    """Scale ``current_diff_points`` of each log by ``scale``."""
-
-    for log in history:
-        log.current_diff_points *= scale
-
-
 def set_next(history: list) -> None:
     """Link each log in ``history`` to its successor via ``next`` attribute."""
 
@@ -27,14 +20,23 @@ def set_next(history: list) -> None:
         log.next = history[i + 1]
 
 
-def set_rewards(history: list) -> None:
-    """Populate ``reward`` fields from ``current_diff_points`` differences."""
+def set_rewards(history: list, scale: float = 1.0) -> None:
+    """Populate scaled point-delta rewards without modifying recorded points."""
 
     history[-1].reward = 0
     for i in range(len(history) - 1):
-        history[i].reward = (
+        history[i].reward = scale * (
             history[i + 1].current_diff_points - history[i].current_diff_points
         )
+
+
+def set_episodic_rewards(history: list) -> None:
+    """Populate a terminal outcome reward without changing point scores."""
+
+    for log in history:
+        log.reward = 0.0
+    if history[-1].terminal and len(history) > 1:
+        history[-2].reward = history[-1].episodic_utility
 
 
 def entropy_reward(history: list, strength: float) -> None:
@@ -84,7 +86,7 @@ def compute_returns(
     discount_factor: float,
     *,
     entropy_reward_scale: float | None = None,
-    reward_rescale: float | None = None,
+    reward_fn: Callable[[list], None] = set_rewards,
 ) -> None:
     """Compute rewards, returns and scores for a batch of games.
 
@@ -98,9 +100,7 @@ def compute_returns(
                 continue
 
             fns: list[Callable[[list], None]] = []
-            if reward_rescale is not None:
-                fns.append(partial(rescale, scale=reward_rescale))
-            fns.extend([set_next, set_rewards])
+            fns.extend([set_next, reward_fn])
             if entropy_reward_scale is not None:
                 fns.append(partial(entropy_reward, strength=entropy_reward_scale))
             fns.append(partial(set_returns, discount_factor=discount_factor))

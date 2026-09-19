@@ -21,6 +21,7 @@ class GuessNumber:
         """
         assert num_symbols > 0
         assert num_players == 2
+        self.num_players = num_players
         self.num_symbols = num_symbols
         self.secret = secret or random.randint(1, max_number)
         self.max_number = max_number

@@ -10,7 +10,7 @@ from typing import Any
 import torch
 
 from boardrl.rl.eval.selfplay import SelfPlayResults
-from boardrl.training.returns import annotate_with_model, compute_returns
+from boardrl.training.returns import annotate_with_model, compute_returns, set_rewards
 from boardrl.training.sample import TrainingSample
 from boardrl.utils import chunk
 
@@ -34,17 +34,23 @@ class Pipeline:
 
 
 class ComputeReturns:
-    def __init__(self, discount, *, entropy_bonus=None, reward_scale=None):
+    def __init__(
+        self,
+        discount,
+        *,
+        entropy_bonus=None,
+        reward_fn=set_rewards,
+    ):
         self.discount = discount
         self.entropy_bonus = entropy_bonus
-        self.reward_scale = reward_scale
+        self.reward_fn = reward_fn
 
     def __call__(self, games: SelfPlayResults) -> SelfPlayResults:
         compute_returns(
             games,
             self.discount,
             entropy_reward_scale=self.entropy_bonus,
-            reward_rescale=self.reward_scale,
+            reward_fn=self.reward_fn,
         )
         return games
 

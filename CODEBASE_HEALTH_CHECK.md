@@ -203,4 +203,3 @@ Before making algorithmic changes, establish these gates:
 - `uv run pytest tests/test_config.py tests/test_model_configs.py -q`: 6 passed, 1 failed; CNN-large parameter metadata mismatch described above.
 - `uv run python -m compileall -q boardrl main.py run_pit.py experiments scripts profiler.py train-tokenizer.py`: passed.
 - `ruff` could not be run through `uv` because the environment attempted to access a read-only uv cache; no lint result is claimed.
-

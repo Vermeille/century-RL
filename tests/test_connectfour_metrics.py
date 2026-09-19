@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from boardrl.games.connectfour.metrics import Metrics
-from boardrl.metrics import Range, Trackio
+from boardrl.metrics import Trackio
 from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults
 
 
@@ -59,12 +59,17 @@ def test_connectfour_metrics_separate_strategies():
     agent = metrics["strategy"]["0"]
     bot = metrics["strategy"]["1"]
     assert agent["win_rate"] == pytest.approx(0.5)
-    assert agent["points"] == Range([1.0, -1.0])
-    assert agent["winning_games"] == 1
+    assert "points" not in agent
     assert agent["avg_winning_move_probability"] == pytest.approx(0.75)
     assert agent["sensitivity"] == pytest.approx(0.0)
     assert bot["avg_winning_move_probability"] == pytest.approx(1.0)
     assert bot["sensitivity"] == pytest.approx(0.0)
+
+
+def test_connectfour_metrics_omit_points():
+    strategies = Metrics(_rotated_results()).metrics()["strategy"]
+
+    assert all("points" not in metrics for metrics in strategies.values())
 
 
 def test_connectfour_winning_probability_is_nan_without_wins():
@@ -101,7 +106,6 @@ def test_connectfour_winning_probability_ignores_unrecorded_opening_win():
 
     strategy = Metrics(results).metrics()["strategy"]["0"]
 
-    assert strategy["winning_games"] == 2
     assert strategy["avg_winning_move_probability"] == pytest.approx(0.75)
 
     opening_only = SelfPlayResults([results[-1]])

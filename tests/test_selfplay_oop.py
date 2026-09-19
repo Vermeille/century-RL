@@ -6,9 +6,62 @@ import pytest
 import torch
 
 from boardrl.games import games_library
+from boardrl.games.semantics import CooperativeOutcome, OutcomeScores, PointScores
 from boardrl.evaluation import Evaluation, Scoreboard
 from boardrl.metrics import rollout_metrics
-from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults, pit
+from boardrl.rl.eval.selfplay import EndState, GameTrace, PlayerTrace, SelfPlayResults, pit
+
+
+class _TerminalGame:
+    def __init__(self, points, *, won=False, ended=True):
+        self._points = points if isinstance(points, list) else [points, 0]
+        self._won = won
+        self._ended = ended
+        self.num_players = len(self._points)
+
+    def display(self, force=-1):
+        return "terminal"
+
+    def ended(self):
+        return self._ended
+
+    def points_for(self, player):
+        return self._points[player]
+
+    def diff_points_for(self, player):
+        opponents = self._points[:player] + self._points[player + 1 :]
+        return self._points[player] - max(opponents)
+
+    def won(self):
+        return self._won
+
+    def round(self):
+        return 3
+
+
+def test_end_state_keeps_points_separate_from_competitive_utility():
+    end = EndState(_TerminalGame([17, 3]), 0)
+
+    assert end.my_points == 17
+    assert end.current_diff_points == 14
+    assert end.episodic_utility == 1.0
+
+
+def test_end_state_uses_relative_rank_when_all_points_are_negative():
+    winner = EndState(_TerminalGame([-3, -8]), 0)
+    loser = EndState(_TerminalGame([-3, -8]), 1)
+
+    assert winner.episodic_utility == 1.0
+    assert loser.episodic_utility == -1.0
+
+
+def test_end_state_uses_cooperative_win_condition_for_utility():
+    end = EndState(
+        _TerminalGame([17, 17], won=False), 0, outcome=CooperativeOutcome()
+    )
+
+    assert end.my_points == 17
+    assert end.episodic_utility == -1.0
 
 
 def test_selfplay_oop_indexing_and_filters():
@@ -167,7 +220,10 @@ def test_adversarial_win_rate_is_for_first_strategy_and_draws_are_half() -> None
     evaluation = Evaluation(("first", "second"), results)
 
     assert evaluation.win_rate() == pytest.approx(0.5)
-    assert rollout_metrics(results)["win_rate"] == pytest.approx(0.5)
+    assert rollout_metrics(results, scores=OutcomeScores())["win_rate"] == pytest.approx(
+        0.5
+    )
+    assert "points" not in rollout_metrics(results, scores=OutcomeScores())
 
 
 def test_cooperative_win_rate_is_shared_objective_success() -> None:
@@ -178,11 +234,17 @@ def test_cooperative_win_rate_is_shared_objective_success() -> None:
         ]
     )
 
-    evaluation = Evaluation(("first", "first"), results, coop=True)
+    evaluation = Evaluation(
+        ("first", "first"), results, outcome=CooperativeOutcome()
+    )
 
     assert evaluation.win_rate() == pytest.approx(0.5)
     assert evaluation.win_rate(1) == pytest.approx(0.5)
-    assert rollout_metrics(results, coop=True)["win_rate"] == pytest.approx(0.5)
+    assert rollout_metrics(
+        results, outcome=CooperativeOutcome(), scores=PointScores()
+    )[
+        "win_rate"
+    ] == pytest.approx(0.5)
 
 
 def test_thegame_won_requires_empty_deck_and_hands() -> None:

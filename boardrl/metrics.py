@@ -9,6 +9,7 @@ from pathlib import Path
 
 import torch
 
+from boardrl.games.semantics import CompetitiveOutcome
 from boardrl.rl.eval.selfplay import TraceGroup, TraceGroups
 
 
@@ -155,45 +156,52 @@ class GameMetrics:
 class TraceMetrics:
     """Common metrics for one explicit seat or strategy identity."""
 
-    def __init__(self, traces: TraceGroup):
+    def __init__(self, traces: TraceGroup, *, scores):
         self.traces = traces
+        self.scores = scores
 
     def metrics(self) -> dict[str, object]:
-        return {
+        metrics = {
             "win_rate": self.traces.win_rate(),
-            "points": Range(self.traces.points()),
             "avg_actions": self.traces.avg_actions(),
             "sensitivity": self.traces.sensitivity(),
         }
+        return metrics | self.scores.trace_metrics(self.traces)
 
 
 class GroupedTraceMetrics:
     """Apply a metric object independently to every identity in a grouping."""
 
-    def __init__(self, groups: TraceGroups, metric_type=TraceMetrics):
+    def __init__(
+        self, groups: TraceGroups, metric_type=TraceMetrics, *, scores
+    ):
         self.groups = groups
         self.metric_type = metric_type
+        self.scores = scores
 
     def metrics(self) -> dict[str, object]:
         return {
-            str(group.identity): self.metric_type(group).metrics()
+            str(group.identity): self.metric_type(
+                group, scores=self.scores
+            ).metrics()
             for group in self.groups
         }
 
 
-def rollout_metrics(results, *, coop: bool = False) -> dict[str, object]:
+def rollout_metrics(
+    results, *, scores, outcome=None
+) -> dict[str, object]:
     """Game-independent rollout statistics."""
     if not results:
         return {"games": 0, "samples": 0}
     strategies = results.by_strategy
     first = strategies.group(0)
+    outcome = outcome or CompetitiveOutcome()
     metrics = {
         "games": len(results),
         "samples": results.num_samples(),
-        "win_rate": first.win_rate(),
+        "win_rate": outcome.win_rate(results, 0),
         "avg_reward": [strategy.avg_reward() for strategy in strategies],
-        "points": Range(first.points()),
     }
-    if coop:
-        metrics["win_rate"] = results.objective_win_rate()
+    metrics.update(scores.trace_metrics(first))
     return metrics

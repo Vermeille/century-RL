@@ -98,9 +98,11 @@ def test_outcome_value_distribution_projects_fractional_targets():
 
 def test_game_descriptor_selects_value_head_family():
     outcome_model = make_for_game("toy", games_library("tictactoe"))
+    points_scored_outcome_model = make_for_game("toy", games_library("century"))
     points_model = make_for_game("toy", games_library("thegame"))
 
     assert outcome_model.rewards.out[2].out_features == 3
+    assert points_scored_outcome_model.rewards.out[2].out_features == 3
     assert points_model.rewards.out[2].out_features == 2
 
 

@@ -18,7 +18,6 @@ from boardrl import (
     Evaluator,
     Inference,
     MetricLogger,
-    Range,
     RolloutRunner,
     RunInfo,
     make_trackio,
@@ -27,7 +26,6 @@ from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
 from boardrl.models import make_for_game
 from boardrl.training import (
-    ComputeReturns,
     Pipeline,
     ReferenceTargets,
     Select,
@@ -239,6 +237,8 @@ def _run(args, trackio_sink):
             repo_root / "trainers/coop.py",
             repo_root / "boardrl/models.py",
             repo_root / "boardrl/rollouts.py",
+            repo_root / "boardrl/games/__init__.py",
+            repo_root / "boardrl/games/semantics.py",
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/rl/eval/selfplay.py",
             repo_root / "boardrl/training/learner.py",
@@ -291,12 +291,12 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         training_games,
         progress=not args.no_progress,
-        coop=False,
+        outcome=game.outcome,
     )
     evaluator = Evaluator(
         game.make_game,
         progress=not args.no_progress,
-        coop=False,
+        outcome=game.outcome,
     )
     evaluation_opponent = game.strategy_from_string(args.opponent_eval_strategy)
 
@@ -305,10 +305,7 @@ def _run(args, trackio_sink):
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
 
-    compute_returns = ComputeReturns(
-        args.discount,
-        reward_scale=game.reward_rescale,
-    )
+    compute_returns = game.rewards.make_returns(args.discount)
 
     # Rollout strategy IDs are list positions: agent=0, environment=1. They
     # remain stable when physical seats rotate.
@@ -348,15 +345,15 @@ def _run(args, trackio_sink):
             evaluation={
                 "agent": {
                     "win_rate": agent_evaluation.win_rate(),
-                    "points": Range(agent_evaluation.rollouts.my_points(0)),
+                    **game.scores.evaluation_metrics(agent_evaluation),
                 },
                 "environment": {
                     "win_rate": environment_evaluation.win_rate(),
-                    "points": Range(environment_evaluation.rollouts.my_points(0)),
+                    **game.scores.evaluation_metrics(environment_evaluation),
                 },
             },
         )
-        score = agent_evaluation.avg_points()
+        score = game.rewards.evaluation_score(agent_evaluation)
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -408,7 +405,9 @@ def _run(args, trackio_sink):
             if step % 5 == 0:
                 metrics.log(
                     step,
-                    rollout=rollout_metrics(games, coop=False),
+                    rollout=rollout_metrics(
+                        games, outcome=game.outcome, scores=game.scores
+                    ),
                     train={
                         "agent": agent_result.metrics,
                         "environment": environment_result.metrics,

@@ -12,11 +12,11 @@ AGENT_PPL_START="${AGENT_PPL_START:-5}"
 AGENT_PPL_END="${AGENT_PPL_END:-1}"
 ENVIRONMENT_PPL_START="${ENVIRONMENT_PPL_START:-5.}"
 ENVIRONMENT_PPL_END="${ENVIRONMENT_PPL_END:-3.}"
-STOP_WIN_RATE_THRESHOLD="${STOP_WIN_RATE_THRESHOLD:-0.7}"
-RESTART_WIN_RATE_THRESHOLD="${RESTART_WIN_RATE_THRESHOLD:-0.5}"
-TAG="${TAG:-adversarial-threshold}"
+AGENT_THRESHOLD="${AGENT_THRESHOLD:-0.98}"
+ENVIRONMENT_THRESHOLD="${ENVIRONMENT_THRESHOLD:-0.7}"
+TAG="${TAG:-adversarial-advshape}"
 
-# NFSP-only arguments from train_connectfour.sh have no adversarial-threshold equivalent:
+# NFSP-only arguments have no adversarial-advshape equivalent:
 #   --anticipatory 0.5
 #   --average-learning-rate 4e-4  # both PPO optimizers use --learning-rate
 #   --reservoir-capacity 1000000
@@ -29,6 +29,8 @@ exec uv run python trainers/adversarial-advshape.py \
   --perplexity-end "$AGENT_PPL_END" \
   --environment-perplexity-start "$ENVIRONMENT_PPL_START" \
   --environment-perplexity-end "$ENVIRONMENT_PPL_END" \
+  --agent-threshold "$AGENT_THRESHOLD" \
+  --environment-threshold "$ENVIRONMENT_THRESHOLD" \
   --learning-rate 6e-4 \
   --kl-strength 0.01 \
   --kl-target 0.05 \

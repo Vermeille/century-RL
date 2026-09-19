@@ -18,7 +18,6 @@ from boardrl import (
     Evaluator,
     Inference,
     MetricLogger,
-    Range,
     RolloutRunner,
     RunInfo,
     make_trackio,
@@ -27,7 +26,6 @@ from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
 from boardrl.models import copy_weights, make_for_game
 from boardrl.training import (
-    ComputeReturns,
     Learner,
     Pipeline,
     ReferenceTargets,
@@ -109,6 +107,8 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/rollouts.py",
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/rl/eval/selfplay.py",
+            repo_root / "boardrl/games/__init__.py",
+            repo_root / "boardrl/games/semantics.py",
             repo_root / "boardrl/training/learner.py",
             repo_root / "boardrl/schedules.py",
             repo_root / "boardrl/training/postprocess.py",
@@ -140,12 +140,12 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         game.make_game,
         progress=not args.no_progress,
-        coop=False,
+        outcome=game.outcome,
     )
     evaluator = Evaluator(
         game.make_game,
         progress=not args.no_progress,
-        coop=False,
+        outcome=game.outcome,
     )
     training_opponent = game.strategy_from_string(args.opponent_bot)
     evaluation_opponent = game.strategy_from_string(args.opponent_eval_strategy)
@@ -158,7 +158,7 @@ def _run(args, trackio_sink):
     # model's strategy identity before flattening so the fixed bot can never
     # contribute a training sample, even when seats are rotated.
     prepare = Pipeline(
-        ComputeReturns(args.discount, reward_scale=game.reward_rescale),
+        game.rewards.make_returns(args.discount),
         Select(strategies=[0]),
         ToSamples(),
         ReferenceTargets(
@@ -186,10 +186,10 @@ def _run(args, trackio_sink):
             step,
             evaluation={
                 "win_rate": evaluation.win_rate(),
-                "points": Range(evaluation.rollouts.my_points(0)),
+                **game.scores.evaluation_metrics(evaluation),
             },
         )
-        score = evaluation.avg_points()
+        score = game.rewards.evaluation_score(evaluation)
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -233,7 +233,9 @@ def _run(args, trackio_sink):
             if step % 5 == 0:
                 metrics.log(
                     step,
-                    rollout=rollout_metrics(games, coop=False),
+                    rollout=rollout_metrics(
+                        games, outcome=game.outcome, scores=game.scores
+                    ),
                     train=result.metrics,
                 )
                 metrics.game(step, game.make_metrics(games))

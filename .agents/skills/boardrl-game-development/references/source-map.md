@@ -14,7 +14,9 @@ protocol is ambiguous. Paths are relative to the repository root.
 - `boardrl/games/<name>/augmentations.py`: optional transformations of
   `TrainingSample` objects.
 - `boardrl/games/__init__.py`: `GameDesc`, `games_library`, lazy imports,
-  `reward_rescale`, `coop`, and augmentation selection.
+  composed semantics, and augmentation selection.
+- `boardrl/games/semantics.py`: point reporting, competitive/cooperative
+  outcomes, reward construction, value-head selection, and evaluation ranking.
 - `boardrl/utils/__init__.py`: the `Game` protocol consumed by rollouts and
   strategies.
 - `boardrl/rl/eval/selfplay.py`: `Record`, `EndState`, `GameTrace`,
@@ -76,10 +78,12 @@ constructor when the registered descriptor is a wrapper. `GameDesc` stores:
 
 ```text
 make_game, strategy_from_string, make_metrics, augmentations,
-reward_rescale, coop
+scores, outcome, rewards
 ```
 
-`reward_rescale` is consumed by training code; it is not cosmetic. Custom
+`scores` controls point metrics, `outcome` owns terminal success semantics,
+and `rewards` owns return processing, value-head selection, and evaluation
+ranking. Custom
 strategies should be merged into a copy because mutating the shared default
 registry leaks game-specific entries to other games.
 
@@ -128,4 +132,3 @@ the real `display_with_moves()` format.
   `tests/test_action_augmentation.py`.
 - Web state and renderers: `tests/test_serve.py` and
   `tests/test_serve_tictactoe.py`.
-

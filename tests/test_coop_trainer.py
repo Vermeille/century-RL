@@ -5,7 +5,6 @@ import pytest
 import torch
 
 from boardrl.checkpoints import Checkpoints
-from boardrl.metrics import Range
 import trainers.coop as coop
 from trainers.coop import (
     apply_optimizer_hyperparameters,
@@ -33,8 +32,8 @@ class _FakeEvaluation:
 class _FakeEvaluator:
     calls = []
 
-    def __init__(self, make_game, *, progress, coop=False):
-        del make_game, progress, coop
+    def __init__(self, make_game, *, progress, outcome=None, coop=False):
+        del make_game, progress, outcome, coop
 
     def compare(self, players, *, names, games, max_steps, rotate=True):
         del players, names, games, max_steps, rotate
@@ -43,8 +42,8 @@ class _FakeEvaluator:
 
 
 class _FakeRolloutRunner:
-    def __init__(self, make_game, *, progress, coop=False):
-        del make_game, progress, coop
+    def __init__(self, make_game, *, progress, outcome=None, coop=False):
+        del make_game, progress, outcome, coop
 
     def play(self, players, *, games, max_steps, rotate=True):
         del players, games, max_steps, rotate
@@ -432,7 +431,7 @@ def test_coop_evaluates_and_logs_before_zero_steps(
 
     assert _FakeEvaluator.calls == [0]
     assert _RecordingMetricLogger.instances[0].logs == [
-        (0, {"evaluation": {"win_rate": 1.0, "points": Range([1.0])}})
+        (0, {"evaluation": {"win_rate": 1.0}})
     ]
 
 

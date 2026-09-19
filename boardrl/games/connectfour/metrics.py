@@ -1,6 +1,7 @@
 import torch
 import crayons  # type: ignore[import-untyped]
 from boardrl.metrics import GameMetrics, GroupedTraceMetrics, TraceMetrics
+from boardrl.games.semantics import OutcomeScores
 
 
 class StrategyMetrics(TraceMetrics):
@@ -60,6 +61,6 @@ class Metrics(GameMetrics):
             )
             / len(self.data),
             "strategy": GroupedTraceMetrics(
-                self.data.by_strategy, StrategyMetrics
+                self.data.by_strategy, StrategyMetrics, scores=OutcomeScores()
             ).metrics(),
         }

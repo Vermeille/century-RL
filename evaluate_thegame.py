@@ -82,7 +82,7 @@ def evaluate(
 ) -> dict:
     seed_everything(seed)
     evaluation = Evaluator(
-        game.make_game, progress=progress, coop=game.coop
+        game.make_game, progress=progress, outcome=game.outcome
     ).compare(
         [player, player],
         names=[name, name],

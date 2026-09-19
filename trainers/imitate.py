@@ -16,7 +16,6 @@ from boardrl import (
     Inference,
     MetricLogger,
     make_trackio,
-    Range,
     RolloutRunner,
     RunInfo,
 )
@@ -28,7 +27,6 @@ from boardrl.rl.model.loss import (
     CELoss,
 )
 from boardrl.training import (
-    ComputeReturns,
     Learner,
     Scheduler,
     Pipeline,
@@ -195,7 +193,17 @@ def _run(args, trackio_sink):
     )
     checkpoints = Checkpoints(checkpoint_dir, prefix="step")
 
-    run_info = RunInfo.capture(args, __file__)
+    repo_root = Path(__file__).resolve().parents[1]
+    run_info = RunInfo.capture(
+        args,
+        __file__,
+        additional_sources=(
+            repo_root / "boardrl/games/__init__.py",
+            repo_root / "boardrl/games/semantics.py",
+            repo_root / "boardrl/models.py",
+            repo_root / "boardrl/training/returns.py",
+        ),
+    )
     run_info.save(checkpoint_dir)
 
     start = 0
@@ -212,17 +220,17 @@ def _run(args, trackio_sink):
 
     inference = Inference(model, batch_size=args.batch_size)
     rollouts = RolloutRunner(
-        game.make_game, progress=not args.no_progress, coop=game.coop
+        game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
     evaluator = Evaluator(
-        game.make_game, progress=not args.no_progress, coop=game.coop
+        game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
     prepare = Pipeline(
-        ComputeReturns(args.discount, reward_scale=game.reward_rescale),
+        game.rewards.make_returns(args.discount),
         ToSamples(),
         ReferenceTargets(
             reference,
@@ -256,7 +264,9 @@ def _run(args, trackio_sink):
         if step % 1 == 0:
             metrics.log(
                 step,
-                rollout=rollout_metrics(games, coop=game.coop),
+                rollout=rollout_metrics(
+                    games, outcome=game.outcome, scores=game.scores
+                ),
                 train=result.metrics,
             )
             metrics.game(step, game.make_metrics(games))
@@ -271,6 +281,7 @@ def _run(args, trackio_sink):
         evaluator,
         metrics,
         args,
+        game,
     )
     if not args.pretrain:
         return trained_path
@@ -287,7 +298,7 @@ def _run(args, trackio_sink):
     )
 
 
-def log_gameplay_evaluation(step, inference, evaluator, metrics, args):
+def log_gameplay_evaluation(step, inference, evaluator, metrics, args, game):
     with inference.evaluating():
         player = inference.policy(temperature=args.eval_temperature)
         evaluation = evaluator.compare(
@@ -300,7 +311,7 @@ def log_gameplay_evaluation(step, inference, evaluator, metrics, args):
         step,
         evaluation={
             "win_rate": evaluation.win_rate(),
-            "points": Range(evaluation.rollouts.my_points(0)),
+            **game.scores.evaluation_metrics(evaluation),
         },
     )
 

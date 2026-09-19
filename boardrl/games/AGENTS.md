@@ -45,6 +45,11 @@ Expose the game to the rest of the library by registering it in
 
 ```python
 from boardrl.games.strategies import strategy_from_string
+from boardrl.games.semantics import (
+    CompetitiveOutcome,
+    PointScores,
+    TerminalOutcomeRewards,
+)
 
 @games_library.register("mygame")
 class MyGame(GameDesc):
@@ -56,7 +61,14 @@ class MyGame(GameDesc):
         )  # optional
 
         strats = my_strats.copy().update(strategy_from_string)
-        super().__init__(Game, strats, Metrics)
+        super().__init__(
+            Game,
+            strats,
+            Metrics,
+            scores=PointScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
+        )
 ```
 
 For simpler games without custom strategies, pass `strategy_from_string` from

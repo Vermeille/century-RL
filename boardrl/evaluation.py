@@ -3,22 +3,21 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from boardrl.rl.eval.selfplay import SelfPlayResults
 from boardrl.rollouts import RolloutRunner
+from boardrl.games.semantics import CompetitiveOutcome
 
 
 @dataclass(frozen=True)
 class Evaluation:
     names: tuple[str, ...]
     rollouts: SelfPlayResults
-    coop: bool = False
+    outcome: object = field(default_factory=CompetitiveOutcome)
 
     def win_rate(self, player=0) -> float:
-        if self.coop:
-            return self.rollouts.objective_win_rate()
-        return self.rollouts.by_strategy.group(player).win_rate()
+        return self.outcome.win_rate(self.rollouts, player)
 
     def avg_points(self, player=0) -> float:
         return self.rollouts.by_strategy.group(player).avg_points()
@@ -29,9 +28,11 @@ class Evaluation:
 
 
 class Evaluator:
-    def __init__(self, make_game, *, progress=True, coop: bool = False):
-        self.runner = RolloutRunner(make_game, progress=progress, coop=coop)
-        self.coop = coop
+    def __init__(self, make_game, *, progress=True, outcome=None, coop: bool = False):
+        self.runner = RolloutRunner(
+            make_game, progress=progress, outcome=outcome, coop=coop
+        )
+        self.outcome = self.runner.outcome
 
     def compare(
         self,
@@ -50,7 +51,7 @@ class Evaluator:
             rotate=rotate,
             description="evaluation",
         )
-        return Evaluation(names, results, coop=self.coop)
+        return Evaluation(names, results, outcome=self.outcome)
 
 
 class Scoreboard:

@@ -6,6 +6,7 @@ import torch
 from tqdm import tqdm  # type: ignore[import-untyped]
 
 from boardrl.utils import Game, run_tasks
+from boardrl.games.semantics import CompetitiveOutcome
 import pyximport  # type: ignore[import-untyped]
 
 pyximport.install()
@@ -22,6 +23,7 @@ class Record:
         self.action_idx = action
         self.current_diff_points = game.diff_points()
         self.my_points = game.points()
+        self.episodic_utility = 0.0
         self.terminal = False
         self.truncated = False
         self.player = game.current_player()
@@ -51,17 +53,16 @@ class Record:
 
 
 class EndState:
-    def __init__(self, game: Game, player: int, *, coop: bool = False):
+    def __init__(self, game: Game, player: int, *, outcome=None):
+        outcome = outcome or CompetitiveOutcome()
         self.state = game.display(force=player)
         self.terminal = game.ended()
         self.truncated = not self.terminal
         self.cause = "proper" if self.terminal else "toolong"
         self.my_points = game.points_for(player)
         self.current_diff_points = game.diff_points_for(player)
-        if coop:
-            self.won = game.won() if self.terminal else False
-        else:
-            self.won = None
+        self.won = outcome.won(game, self.terminal)
+        self.episodic_utility = outcome.utility(game, player, self.terminal)
         self.player = player
         self.round = game.round()
 
@@ -102,10 +103,21 @@ class TraceGroup(list[PlayerTrace]):
     def points(self) -> list[float]:
         return [trace[-1].current_diff_points for trace in self]
 
+    def outcomes(self) -> list[float]:
+        return [
+            getattr(
+                trace[-1],
+                "episodic_utility",
+                float(trace[-1].current_diff_points > 0)
+                - float(trace[-1].current_diff_points < 0),
+            )
+            for trace in self
+        ]
+
     def wins(self) -> list[float]:
         return [
-            1.0 if points > 0 else (0.5 if points == 0 else 0.0)
-            for points in self.points()
+            1.0 if outcome > 0 else (0.5 if outcome == 0 else 0.0)
+            for outcome in self.outcomes()
         ]
 
     def win_rate(self) -> float:
@@ -308,8 +320,9 @@ async def play_game(
     game: Game,
     strategies: list[Strategy],
     max_len: int,
-    coop: bool = False,
+    outcome=None,
 ):
+    outcome = outcome or CompetitiveOutcome()
     for _ in range(max_len):
         if game.ended():
             break
@@ -321,7 +334,7 @@ async def play_game(
         yield rec
         game.play_idx(action)
     for p in range(len(strategies)):
-        yield EndState(game, p, coop=coop)
+        yield EndState(game, p, outcome=outcome)
 
 
 @torch.no_grad()
@@ -331,7 +344,7 @@ def self_play2(
     max_len: int,
     rotate: bool = True,
     desc: str | None = "playing games",
-    coop: bool = False,
+    outcome=None,
 ):
     n_games = len(strategies)
     data: list[GameTrace | None] = [None] * n_games
@@ -350,9 +363,7 @@ def self_play2(
                 for i in range(n_players)
             ]
             game = make_game(num_players=n_players)
-            async for record in play_game(
-                game, mixed_strategies, max_len, coop=coop
-            ):
+            async for record in play_game(game, mixed_strategies, max_len, outcome=outcome):
                 traces[record.player].append(record)
             data[idx] = GameTrace(traces)
             pbar.update(1)
@@ -370,7 +381,7 @@ def self_play(
     max_len: int,
     rotate: bool = True,
     desc: str = "playing games",
-    coop: bool = False,
+    outcome=None,
 ):
     return self_play2(
         make_game,
@@ -378,7 +389,7 @@ def self_play(
         max_len,
         rotate,
         desc=desc,
-        coop=coop,
+        outcome=outcome,
     )
 
 
@@ -390,7 +401,7 @@ def pit(
     max_len,
     *,
     rotate: bool = True,
-    coop: bool = False,
+    outcome=None,
 ):
     return self_play(
         make_game,
@@ -399,5 +410,5 @@ def pit(
         max_len,
         rotate=rotate,
         desc="pit",
-        coop=coop,
+        outcome=outcome,
     )

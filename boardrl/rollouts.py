@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from functools import singledispatch
 
 from boardrl.games.strategies import PolicySamplingStrategy
+from boardrl.games.semantics import CompetitiveOutcome, CooperativeOutcome
 from boardrl.rl.eval.selfplay import SelfPlayResults, Strategy, self_play2
 from boardrl.utils import BatchProcessor
 
@@ -67,10 +68,20 @@ class Inference:
 class RolloutRunner:
     """Play batches of games from explicit Python player lineups."""
 
-    def __init__(self, make_game, *, progress: bool = True, coop: bool = False):
+    def __init__(
+        self,
+        make_game,
+        *,
+        progress: bool = True,
+        outcome=None,
+        coop: bool = False,
+    ):
         self.make_game = make_game
         self.progress = progress
         self.coop = coop
+        self.outcome = outcome or (
+            CooperativeOutcome() if coop else CompetitiveOutcome()
+        )
 
     def play(
         self,
@@ -91,5 +102,5 @@ class RolloutRunner:
             max_steps,
             rotate=rotate,
             desc=description if self.progress else None,
-            coop=self.coop,
+            outcome=self.outcome,
         )

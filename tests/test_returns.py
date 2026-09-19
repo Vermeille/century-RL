@@ -1,20 +1,29 @@
 import math
+from functools import partial
 from types import SimpleNamespace
 
 import torch
 
 from boardrl.training import TrainingSample
-from boardrl.training.returns import compute_returns
+from boardrl.training.returns import compute_returns, set_episodic_rewards, set_rewards
 from boardrl.training.returns import annotate_with_model
 
 
 class Log:
     """Minimal log object for testing ``compute_returns``."""
 
-    def __init__(self, current_diff_points, *, terminal=False, truncated=False):
+    def __init__(
+        self,
+        current_diff_points,
+        *,
+        terminal=False,
+        truncated=False,
+        episodic_utility=0.0,
+    ):
         self.current_diff_points = current_diff_points
         self.terminal = terminal
         self.truncated = truncated
+        self.episodic_utility = episodic_utility
 
 
 def make_history(points, *, terminal=True, truncated=False):
@@ -25,16 +34,18 @@ def make_history(points, *, terminal=True, truncated=False):
     return logs
 
 
-def test_reward_rescale():
+def test_reward_scale_does_not_modify_points_or_score():
     history = make_history([0.0, 1.0, 2.0])
     games = [[history]]
 
-    compute_returns(games, 1.0, reward_rescale=0.5)
+    compute_returns(games, 1.0, reward_fn=partial(set_rewards, scale=0.5))
 
     assert history[0].reward == 0.5
     assert history[1].reward == 0.5
     assert history[0].returns == 1.0
     assert history[1].returns == 0.5
+    assert [log.current_diff_points for log in history] == [0.0, 1.0, 2.0]
+    assert history[0].score == 2.0
 
 
 def test_terminal_vs_non_terminal():
@@ -50,6 +61,18 @@ def test_terminal_vs_non_terminal():
     compute_returns([[non_term_hist]], 1.0)
     assert math.isnan(non_term_hist[0].returns)
     assert math.isnan(non_term_hist[0].score)
+
+
+def test_episodic_rewards_preserve_point_scores():
+    history = make_history([0.0, 4.0, 17.0])
+    history[-1].episodic_utility = 1.0
+
+    compute_returns([[history]], 1.0, reward_fn=set_episodic_rewards)
+
+    assert history[0].reward == 0.0
+    assert history[1].reward == 1.0
+    assert history[0].returns == 1.0
+    assert history[0].score == 17.0
 
 
 def test_truncated_is_not_a_terminal_return_or_score():

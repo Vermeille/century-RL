@@ -10,6 +10,14 @@ from boardrl.games.take5.game import Take5 as Take5Game
 from boardrl.games.skullking.game import SkullKing as SkullKingGame
 from boardrl.games.regicide.game import Regicide as RegicideGame
 from boardrl.games.hanabi.game import Hanabi as HanabiGame
+from boardrl.games.semantics import (
+    CompetitiveOutcome,
+    CooperativeOutcome,
+    OutcomeScores,
+    PointScores,
+    TerminalOutcomeRewards,
+    PointDeltaRewards,
+)
 
 
 class GameDesc:
@@ -20,17 +28,18 @@ class GameDesc:
         metrics_class,
         augmentations=(),
         *,
-        reward_rescale: float,
-        points_based: bool,
-        coop: bool = False,
+        scores,
+        outcome,
+        rewards,
     ):
         self.make_game = game_class
         self.strategy_from_string = strategy_from_string
         self.make_metrics = metrics_class
         self.augmentations = tuple(augmentations)
-        self.reward_rescale = reward_rescale
-        self.points_based = points_based
-        self.coop = coop
+        self.scores = scores
+        self.outcome = outcome
+        self.rewards = rewards
+        self.coop = outcome.cooperative
 
 
 games_library = RegisterByName()
@@ -57,8 +66,9 @@ class Century(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=0.01,
-            points_based=True,
+            scores=PointScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -73,8 +83,9 @@ class TicTacToe(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-            points_based=False,
+            scores=OutcomeScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -94,8 +105,9 @@ class ConnectFour(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions, horizontal_symmetry),
-            reward_rescale=1.0,
-            points_based=False,
+            scores=OutcomeScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -114,8 +126,9 @@ class Sum(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-            points_based=True,
+            scores=PointScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -134,9 +147,9 @@ class TheGame(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions, shuffle_hand),
-            reward_rescale=0.1,
-            points_based=True,
-            coop=True,
+            scores=PointScores(),
+            outcome=CooperativeOutcome(),
+            rewards=PointDeltaRewards(scale=0.1),
         )
 
 
@@ -150,9 +163,9 @@ class GuessNumber(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=0.1,
-            points_based=True,
-            coop=True,
+            scores=PointScores(),
+            outcome=CooperativeOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -166,8 +179,9 @@ class RPS(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-            points_based=False,
+            scores=OutcomeScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -186,8 +200,9 @@ class Nim(GameDesc):
             strats,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-            points_based=False,
+            scores=OutcomeScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -201,8 +216,9 @@ class Take5(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-            points_based=True,
+            scores=PointScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -216,8 +232,9 @@ class SkullKing(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-            points_based=True,
+            scores=PointScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -231,9 +248,9 @@ class Regicide(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=0.01,
-            points_based=True,
-            coop=True,
+            scores=PointScores(),
+            outcome=CooperativeOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 
 
@@ -247,7 +264,7 @@ class Hanabi(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=0.1,
-            points_based=True,
-            coop=True,
+            scores=PointScores(),
+            outcome=CooperativeOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )

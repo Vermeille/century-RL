@@ -20,7 +20,6 @@ from boardrl import (
     Evaluator,
     Inference,
     MetricLogger,
-    Range,
     RolloutRunner,
     RunInfo,
     make_trackio,
@@ -30,7 +29,6 @@ from boardrl.metrics import rollout_metrics
 from boardrl.models import copy_weights, make_for_game
 from boardrl.rl.model.loss import ImitationCELoss
 from boardrl.training import (
-    ComputeReturns,
     Learner,
     Pipeline,
     PolicyMetrics,
@@ -310,6 +308,8 @@ def _run(args, trackio_sink):
             repo_root / "trainers/coop.py",
             repo_root / "boardrl/models.py",
             repo_root / "boardrl/rollouts.py",
+            repo_root / "boardrl/games/__init__.py",
+            repo_root / "boardrl/games/semantics.py",
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/training/learner.py",
             repo_root / "boardrl/schedules.py",
@@ -364,12 +364,12 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         training_games,
         progress=not args.no_progress,
-        coop=False,
+        outcome=game.outcome,
     )
     evaluator = Evaluator(
         game.make_game,
         progress=not args.no_progress,
-        coop=False,
+        outcome=game.outcome,
     )
 
     sinks = [Console()]
@@ -377,10 +377,7 @@ def _run(args, trackio_sink):
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
 
-    compute_rollout_returns = ComputeReturns(
-        args.discount,
-        reward_scale=game.reward_rescale,
-    )
+    compute_rollout_returns = game.rewards.make_returns(args.discount)
     reinforcement_targets = Pipeline(
         ToSamples(),
         ReferenceTargets(
@@ -421,12 +418,12 @@ def _run(args, trackio_sink):
             evaluation={
                 "average_vs_fixed": {
                     "win_rate": average_evaluation.win_rate(),
-                    "points": Range(average_evaluation.rollouts.my_points(0)),
+                    **game.scores.evaluation_metrics(average_evaluation),
                 },
                 "best_response_vs_fixed": {
                     "win_rate": best_response_fixed_evaluation.win_rate(),
-                    "points": Range(
-                        best_response_fixed_evaluation.rollouts.my_points(0)
+                    **game.scores.evaluation_metrics(
+                        best_response_fixed_evaluation
                     ),
                 },
             },
@@ -436,7 +433,7 @@ def _run(args, trackio_sink):
             },
         )
 
-        score = best_response_fixed_evaluation.avg_points()
+        score = game.rewards.evaluation_score(best_response_fixed_evaluation)
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -530,7 +527,9 @@ def _run(args, trackio_sink):
             completed = step + 1
 
             if step % 5 == 0:
-                rollout_log = rollout_metrics(games, coop=False)
+                rollout_log = rollout_metrics(
+                    games, outcome=game.outcome, scores=game.scores
+                )
                 if average_opponent_games:
                     rollout_log["best_response_vs_average"] = {
                         "win_rate": average_opponent_rollouts.win_rate(0),

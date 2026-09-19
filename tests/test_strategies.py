@@ -8,6 +8,12 @@ import pytest
 import torch
 
 from boardrl.games import games_library
+from boardrl.games.semantics import (
+    OutcomeScores,
+    PointDeltaRewards,
+    PointScores,
+    TerminalOutcomeRewards,
+)
 from boardrl.games.strategies import PolicySamplingStrategy
 from boardrl.rl.model.model import NormalValueDistribution, PolicyValue
 from boardrl.utils import BatchProcessor, ModelPool
@@ -108,18 +114,13 @@ def test_connectfour_keeps_default_and_game_specific_strategies():
     assert "tactical_random" in registry
 
 
-@pytest.mark.parametrize(
-    "game_name,expected_scale",
-    [
-        ("tictactoe", 1.0),
-        ("connectfour", 1.0),
-        ("thegame", 0.01),
-        ("century", 0.01),
-        ("guessnumber", 0.1),
-    ],
-)
-def test_game_descriptor_reward_rescale(game_name, expected_scale):
-    assert games_library(game_name).reward_rescale == expected_scale
+def test_thegame_point_delta_reward_scale():
+    expected_scale = 0.1
+    game_name = "thegame"
+    rewards = games_library(game_name).rewards
+
+    assert type(rewards) is PointDeltaRewards
+    assert rewards.scale == expected_scale
 
 
 @pytest.mark.parametrize(
@@ -148,4 +149,18 @@ def test_game_descriptor_coop(game_name, expected_coop):
     ],
 )
 def test_game_descriptor_value_semantics(game_name, expected_points_based):
-    assert games_library(game_name).points_based is expected_points_based
+    expected_type = PointScores if expected_points_based else OutcomeScores
+    assert type(games_library(game_name).scores) is expected_type
+
+
+@pytest.mark.parametrize(
+    "game_name,expected_type",
+    [
+        ("thegame", PointDeltaRewards),
+        ("century", TerminalOutcomeRewards),
+        ("take5", TerminalOutcomeRewards),
+        ("tictactoe", TerminalOutcomeRewards),
+    ],
+)
+def test_game_descriptor_reward_semantics(game_name, expected_type):
+    assert type(games_library(game_name).rewards) is expected_type

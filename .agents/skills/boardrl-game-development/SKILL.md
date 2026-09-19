@@ -115,14 +115,15 @@ class MyGame(GameDesc):
             strategy_from_string,
             Metrics,
             augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-            coop=False,
+            scores=PointScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
         )
 ```
 
 Match the existing style exactly: lazy-import game modules inside the
 descriptor, use `partial` when registry arguments configure construction, and
-set an intentional `reward_rescale`. If custom strategies exist, copy and
+compose explicit score, outcome, and reward semantics. If custom strategies exist, copy and
 merge them with the defaults so `random`, `argmax`, and
 `policy_sampling` remain available:
 

@@ -8,10 +8,10 @@ set +a
 
 # The agent and environment use independent perplexity targets over the same
 # cosine schedule window.
-AGENT_PPL_START="${AGENT_PPL_START:-0.5}"
-AGENT_PPL_END="${AGENT_PPL_END:-0}"
-ENVIRONMENT_PPL_START="${ENVIRONMENT_PPL_START:-0.75}"
-ENVIRONMENT_PPL_END="${ENVIRONMENT_PPL_END:-0.2}"
+AGENT_PPL_START="${AGENT_PPL_START:-5}"
+AGENT_PPL_END="${AGENT_PPL_END:-1}"
+ENVIRONMENT_PPL_START="${ENVIRONMENT_PPL_START:-5.}"
+ENVIRONMENT_PPL_END="${ENVIRONMENT_PPL_END:-3.}"
 AGENT_THRESHOLD="${AGENT_THRESHOLD:-0.98}"
 ENVIRONMENT_THRESHOLD="${ENVIRONMENT_THRESHOLD:-0.7}"
 TAG="${TAG:-adversarial-advshape}"
@@ -38,10 +38,10 @@ exec uv run python trainers/adversarial-advshape.py \
   --value-lambda 1 \
   --adam-beta1 0.5 \
   --adam-beta2 0.95 \
-  --inference-batch-size 128 \
-  --learner-batch-size 64 \
-  --rollout-games 128 \
-  --evaluation-games 128 \
+  --inference-batch-size 1024 \
+  --learner-batch-size 2048 \
+  --rollout-games 512 \
+  --evaluation-games 512 \
   --gradient-clip 10000 \
   --opponent-eval-strategy tempo_greedy \
   --entropy-strength 0.1 \

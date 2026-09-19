@@ -34,7 +34,7 @@ def main():
         else checkpoint_player(path, args.batch_size, args.temperature)
     )
     game = games_library(args.game)
-    result = Evaluator(game.make_game, coop=game.coop).compare(
+    result = Evaluator(game.make_game, outcome=game.outcome).compare(
         [make_player(args.player1), make_player(args.player2)],
         names=[args.player1 or "random", args.player2 or "random"],
         games=args.games,

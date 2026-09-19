@@ -27,9 +27,9 @@ def make(name, **overrides):
 
 
 def make_for_game(name, game, **overrides):
-    """Build an architecture with the value semantics declared by its game."""
+    """Build an architecture matching the game's configured reward semantics."""
 
-    return make(name, points_based=game.points_based, **overrides)
+    return make(name, points_based=game.rewards.points_value_head, **overrides)
 
 
 @architecture("toy")

@@ -16,7 +16,6 @@ from boardrl import (
     Inference,
     MetricLogger,
     make_trackio,
-    Range,
     RolloutRunner,
     RunInfo,
 )
@@ -36,7 +35,6 @@ from boardrl.rl.model.loss import (
     SymmetricUniformKLPenalty,
 )
 from boardrl.training import (
-    ComputeReturns,
     Learner,
     Pipeline,
     PolicyMetrics,
@@ -311,7 +309,7 @@ def build_parser():
     parser.add_argument("--kl-target", type=float, default=0.05)
     parser.add_argument("--kl-strength", type=float, default=0.05)
     parser.add_argument("--ppo-clip", type=float, default=0.2)
-    parser.add_argument("--eval-temperature", type=float, default=0.02)
+    parser.add_argument("--eval-temperature", type=float, default=1.0)
     parser.add_argument("--warmup", type=nonnegative_int, default=20)
     parser.add_argument("--min-lr-scale", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=0)
@@ -537,6 +535,8 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/rl/model/model.py",
             repo_root / "boardrl/rl/model/transformer.py",
             repo_root / "boardrl/rl/eval/selfplay.py",
+            repo_root / "boardrl/games/__init__.py",
+            repo_root / "boardrl/games/semantics.py",
             repo_root / "boardrl/games/strategies.py",
             repo_root / "boardrl/games/thegame/game.py",
             repo_root / "boardrl/training/learner.py",
@@ -571,15 +571,17 @@ def _run(args, trackio_sink):
         args.random_move_prob,
     )
     rollouts = RolloutRunner(
-        training_games, progress=not args.no_progress, coop=game.coop
+        training_games, progress=not args.no_progress, outcome=game.outcome
     )
-    evaluator = Evaluator(game.make_game, progress=not args.no_progress, coop=game.coop)
+    evaluator = Evaluator(
+        game.make_game, progress=not args.no_progress, outcome=game.outcome
+    )
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
     metrics = MetricLogger(*sinks)
     prepare = Pipeline(
-        ComputeReturns(args.discount, reward_scale=game.reward_rescale),
+        game.rewards.make_returns(args.discount),
         ToSamples(),
         ReferenceTargets(
             model,
@@ -608,10 +610,10 @@ def _run(args, trackio_sink):
             step,
             evaluation={
                 "win_rate": evaluation.win_rate(),
-                "points": Range(evaluation.rollouts.my_points(0)),
+                **game.scores.evaluation_metrics(evaluation),
             },
         )
-        score = evaluation.avg_points()
+        score = game.rewards.evaluation_score(evaluation)
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -657,7 +659,9 @@ def _run(args, trackio_sink):
             if step % 5 == 0:
                 metrics.log(
                     step,
-                    rollout=rollout_metrics(games, coop=game.coop),
+                    rollout=rollout_metrics(
+                        games, outcome=game.outcome, scores=game.scores
+                    ),
                     train=result.metrics,
                 )
                 metrics.game(step, game.make_metrics(games))
