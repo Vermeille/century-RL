@@ -72,14 +72,13 @@ def _remap_hand_move(move, old_to_new):
     return f"{match.group(1)}H{old_to_new[old_index]}{match.group(3)}"
 
 
-def shuffle_owned_cards(samples):
-    """Shuffle Century's current player's hand and discard representations.
+def shuffle_hand(samples):
+    """Shuffle Century's current player's hand representation.
 
-    Hand and discard ordering has no game semantics. Hand indices do appear in
-    legal moves, so every ``H{i}`` move is renamed to follow the shuffled card.
-    Legal-action order itself is unchanged, therefore action-indexed training
-    metadata (chosen action, policy distributions, reference policies) remains
-    aligned and does not need to be permuted.
+    Hand ordering has no game semantics. Hand indices do appear in legal moves,
+    so every ``H{i}`` move is renamed to follow the shuffled card. Legal-action
+    order itself is unchanged, therefore action-indexed training metadata does
+    not need to be permuted.
     """
 
     augmented = []
@@ -88,9 +87,7 @@ def shuffle_owned_cards(samples):
         augmented.append(sample)
 
         lines = sample.state.splitlines(keepends=True)
-        owned_positions = _owned_region(lines)
-        old_to_new = _shuffle_card_group(lines, owned_positions, "H")
-        _shuffle_card_group(lines, owned_positions, "D")
+        old_to_new = _shuffle_card_group(lines, _owned_region(lines), "H")
 
         if old_to_new:
             for i, line in enumerate(lines):
@@ -102,6 +99,26 @@ def shuffle_owned_cards(samples):
                 moves = [_remap_hand_move(move, old_to_new) for move in sample.moves]
                 sample.moves = type(sample.moves)(moves)
 
+        sample.state = "".join(lines)
+
+    return augmented
+
+
+def shuffle_discard(samples):
+    """Shuffle Century's current player's discard representation.
+
+    Discard ordering has no game semantics and discarded cards are not
+    referenced by legal moves, so only the ``D{i}`` card descriptors need to be
+    permuted.
+    """
+
+    augmented = []
+    for sample in samples:
+        sample = copy(sample)
+        augmented.append(sample)
+
+        lines = sample.state.splitlines(keepends=True)
+        _shuffle_card_group(lines, _owned_region(lines), "D")
         sample.state = "".join(lines)
 
     return augmented
