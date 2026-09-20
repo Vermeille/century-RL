@@ -50,7 +50,7 @@ class Century(GameDesc):
     # Century is defined in Cython so inspect can't find the signature
     # so we have to repeat the arguments here and it sucks
     def __init__(self, goal_cards: int = -1, num_players: int = 2):
-        from boardrl.games.century.augmentations import shuffle_owned_cards
+        from boardrl.games.century.augmentations import shuffle_discard, shuffle_hand
         from boardrl.games.century.strategies import (
             strategy_from_string as century_strategy_from_string,
         )
@@ -66,7 +66,7 @@ class Century(GameDesc):
             partial(CenturyGame, goal_cards=goal_cards, num_players=num_players),
             strats,
             Metrics,
-            augmentations=(shuffle_actions, shuffle_owned_cards),
+            augmentations=(shuffle_actions, shuffle_hand, shuffle_discard),
             scores=PointScores(),
             outcome=CompetitiveOutcome(),
             rewards=TerminalOutcomeRewards(),
