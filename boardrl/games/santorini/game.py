@@ -1,4 +1,3 @@
-from itertools import combinations
 import random
 
 
@@ -6,6 +5,7 @@ class Santorini:
     SIZE = 5
     DOME = 4
     WORKERS_PER_PLAYER = 2
+    SETUP_ACTIONS = 4
 
     def __init__(self, num_players: int = 2):
         assert num_players == 2
@@ -57,13 +57,17 @@ class Santorini:
         return g
 
     def round(self):
-        return max(self.turn - 2, 0) // 2
+        return max(self.turn - self.SETUP_ACTIONS, 0) // 2
 
     def current_player(self):
-        return self.turn % 2
+        if self.turn < self.WORKERS_PER_PLAYER:
+            return 0
+        if self.turn < self.SETUP_ACTIONS:
+            return 1
+        return (self.turn - self.SETUP_ACTIONS) % 2
 
     def _setup(self):
-        return self.turn < 2
+        return self.turn < self.SETUP_ACTIONS
 
     def _occupied(self):
         return {
@@ -74,14 +78,11 @@ class Santorini:
         }
 
     def _setup_moves(self):
-        available = [
-            index
-            for index in range(self.SIZE * self.SIZE)
-            if index not in self._occupied()
-        ]
+        occupied = self._occupied()
         return [
-            f"P:{self._coord(first)},{self._coord(second)}"
-            for first, second in combinations(available, 2)
+            f"P:{self._coord(index)}"
+            for index in range(self.SIZE * self.SIZE)
+            if index not in occupied
         ]
 
     def _normal_moves(self, player):
@@ -168,8 +169,9 @@ class Santorini:
         player = self.current_player()
 
         if self._setup():
-            first, second = move[2:].split(",")
-            self.workers[player] = [self._index(first), self._index(second)]
+            position = self._index(move[2:])
+            worker = self.workers[player].index(None)
+            self.workers[player][worker] = position
             self.turn += 1
             self._refresh_moves()
             return
