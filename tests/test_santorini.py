@@ -11,8 +11,10 @@ from boardrl.games.semantics import (
 
 def setup_game():
     game = Santorini()
-    game.play_str("P:a1,e5")
-    game.play_str("P:e1,a5")
+    game.play_str("P:a1")
+    game.play_str("P:e5")
+    game.play_str("P:e1")
+    game.play_str("P:a5")
     return game
 
 
@@ -28,21 +30,31 @@ def test_registration_and_initial_setup():
 
     assert game.current_player() == 0
     assert game.round() == 0
-    assert len(game.moves) == 300
-    assert game.moves[0] == "P:a1,b1"
-    assert game.display_with_moves().count("@") == 300
+    assert len(game.moves) == 25
+    assert game.moves[0] == "P:a1"
+    assert game.display_with_moves().count("@") == 25
+    assert len(game.display_with_moves()) < 2048
 
 
-def test_setup_places_both_workers_in_one_action():
+def test_setup_places_two_workers_for_each_player_in_order():
     game = Santorini()
-    game.play_str("P:a1,e5")
 
+    game.play_str("P:a1")
+    assert game.current_player() == 0
+    assert len(game.moves) == 24
+
+    game.play_str("P:e5")
     assert game.current_player() == 1
     assert game.workers[0] == [game._index("a1"), game._index("e5")]
-    assert len(game.moves) == 253
+    assert len(game.moves) == 23
 
-    game.play_str("P:e1,a5")
+    game.play_str("P:e1")
+    assert game.current_player() == 1
+    assert len(game.moves) == 22
+
+    game.play_str("P:a5")
     assert game.current_player() == 0
+    assert game.workers[1] == [game._index("e1"), game._index("a5")]
     assert game.round() == 0
     assert all(not move.startswith("P:") for move in game.moves)
 
@@ -60,8 +72,8 @@ def test_move_and_build_can_use_vacated_space():
 
 def test_cannot_climb_more_than_one_level_or_move_onto_dome():
     game = Santorini()
-    game.play_str("P:b2,e5")
-    game.play_str("P:e1,a5")
+    for move in ("P:b2", "P:e5", "P:e1", "P:a5"):
+        game.play_str(move)
 
     game.heights[game._index("c3")] = 2
     game.heights[game._index("a2")] = game.DOME
@@ -73,8 +85,8 @@ def test_cannot_climb_more_than_one_level_or_move_onto_dome():
 
 def test_moving_up_to_level_three_wins_without_build():
     game = Santorini()
-    game.play_str("P:b2,e5")
-    game.play_str("P:e1,a5")
+    for move in ("P:b2", "P:e5", "P:e1", "P:a5"):
+        game.play_str(move)
 
     game.heights[game._index("b2")] = 2
     game.heights[game._index("c3")] = 3
@@ -115,8 +127,8 @@ def test_copy_is_independent():
 
     assert game.workers != copied.workers
     assert game.heights != copied.heights
-    assert game.turn == 2
-    assert copied.turn == 3
+    assert game.turn == 4
+    assert copied.turn == 5
 
 
 def test_illegal_move_is_rejected():
@@ -133,4 +145,4 @@ def test_random_playouts_terminate():
 
         assert game.ended()
         assert game.winner() in (0, 1)
-        assert game.turn <= 128
+        assert game.turn <= 130
