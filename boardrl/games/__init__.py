@@ -269,3 +269,20 @@ class Hanabi(GameDesc):
             outcome=CooperativeOutcome(),
             rewards=TerminalOutcomeRewards(),
         )
+
+
+@games_library.register("santorini")
+class Santorini(GameDesc):
+    def __init__(self):
+        from boardrl.games.santorini.game import Santorini as SantoriniGame
+        from boardrl.games.santorini.metrics import Metrics
+
+        super().__init__(
+            SantoriniGame,
+            strategy_from_string,
+            Metrics,
+            augmentations=(shuffle_actions,),
+            scores=OutcomeScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
+        )
