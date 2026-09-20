@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, get_type_hints
 import inspect
 
 
@@ -20,17 +20,27 @@ class RegisterByName:
             if inspect.isclass(source) and "__init__" in source.__dict__:
                 sig = inspect.signature(source.__init__)
                 params = sig.parameters
+                annotated = source.__init__
             else:
                 sig = inspect.signature(source)
                 params = sig.parameters
+                annotated = source
+
+            try:
+                type_hints = get_type_hints(annotated)
+            except (NameError, TypeError):
+                type_hints = {}
 
             arg_info = None
             if params is not None:
                 arg_info = {
                     name: (
-                        param.annotation
-                        if param.annotation != inspect.Parameter.empty
-                        else lambda x: x,
+                        type_hints.get(
+                            name,
+                            param.annotation
+                            if param.annotation != inspect.Parameter.empty
+                            else lambda x: x,
+                        ),
                         param.default
                         if param.default != inspect.Parameter.empty
                         else None,

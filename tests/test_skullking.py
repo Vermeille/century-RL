@@ -188,13 +188,13 @@ def test_tigress_is_a_single_card_with_pirate_and_escape_actions():
 
 def test_diff_points_is_margin_to_best_opponent_for_competitive_evaluation():
     game = SkullKing(num_players=4, num_rounds=1)
-    game.points = [200, 100, -20, -50]
+    game.the_points = [200, 100, -20, -50]
 
     assert game.diff_points_for(0) == 100
     assert game.diff_points_for(1) == -100
     assert game.diff_points_for(2) == -220
 
-    game.points = [-20, -20, -50, -80]
+    game.the_points = [-20, -20, -50, -80]
     assert game.diff_points_for(0) == 0
     assert game.diff_points_for(1) == 0
     assert game.diff_points_for(2) == -30

@@ -209,10 +209,10 @@ def test_coop_cli_separates_inference_and_learner_batch_sizes():
     assert args.learner_batch_size == 1024
 
 
-def test_coop_cli_defaults_to_two_sigma_value_clipping():
+def test_coop_cli_defaults_to_no_value_clipping():
     args = build_parser().parse_args([])
 
-    assert args.value_clip_epsilon == 2.0
+    assert args.value_clip_epsilon is None
 
 
 def test_coop_cli_can_disable_value_clipping():

@@ -35,9 +35,9 @@ def test_ace_association_and_combo_moves():
     game.phase = ATTACK
     _refresh(game)
 
-    assert "play:AC+8D" in game.moves
-    assert "play:2H+2D" in game.moves
-    assert "play:2H+2D+2C" in game.moves
+    assert "AC+8D" in game.moves
+    assert "2H+2D" in game.moves
+    assert "2H+2D+2C" in game.moves
 
 
 def test_club_doubles_damage_but_enemy_suit_is_immune():
@@ -50,7 +50,7 @@ def test_club_doubles_damage_but_enemy_suit_is_immune():
 
     game.enemy = Card("J", "H")
     _refresh(game)
-    game.play_str("play:10C")
+    game.play_str("10C")
     assert game.defeated_hp == 20
 
     game = Regicide(2)
@@ -66,7 +66,7 @@ def test_club_doubles_damage_but_enemy_suit_is_immune():
     game.discard = []
     _refresh(game)
 
-    game.play_str("play:10C")
+    game.play_str("10C")
     assert game.enemy_damage == 10
     assert game.phase == DEFEND
 
@@ -87,7 +87,7 @@ def test_perfect_execution_puts_enemy_on_top_of_tavern():
     game.phase = ATTACK
     _refresh(game)
 
-    game.play_str("play:10C")
+    game.play_str("10C")
 
     assert game.enemy == next_enemy
     assert game.tavern[-1] == enemy
@@ -109,9 +109,9 @@ def test_spade_shields_become_retroactive_after_joker():
     game.phase = ATTACK
     _refresh(game)
 
-    game.play_str("play:5S")
+    game.play_str("5S")
     assert game.effective_enemy_attack() == 10
-    game.play_str("discard:10H")
+    game.play_str("10H")
 
     assert game.current_player() == 1
     game.play_str("joker:P1")
@@ -130,12 +130,12 @@ def test_defense_is_one_atomic_subset_action():
     game.defense_remaining = 10
     _refresh(game)
 
-    assert "discard:3D+7S" in game.moves
-    assert "discard:3D+9H" in game.moves
-    assert "discard:3D" not in game.moves
-    assert "discard:7S" not in game.moves
+    assert "3D+7S" in game.moves
+    assert "3D+9H" in game.moves
+    assert "3D" not in game.moves
+    assert "7S" not in game.moves
 
-    game.play_str("discard:3D+7S")
+    game.play_str("3D+7S")
     assert game.phase == ATTACK
     assert game.current_player() == 1
     assert Card("3", "D") in game.discard

@@ -115,7 +115,7 @@ def test_successful_play_advances_firework_and_draws():
     assert "la p1 p R1 ok" in game.display()
 
 
-def test_fatal_misplay_ends_game_and_scores_zero():
+def test_fatal_misplay_ends_game_and_preserves_raw_score():
     game = Hanabi(num_players=2, mode="mini")
     game.fireworks["R"] = 3
     game.fireworks["Y"] = 2
@@ -128,9 +128,9 @@ def test_fatal_misplay_ends_game_and_scores_zero():
     assert game.life_tokens == 0
     assert game.ended()
     assert game.moves == []
-    assert game.score() == 0
-    assert game.points() == 0
-    assert game.points_for(0) == 0
+    assert game.score() == 5
+    assert game.points() == 5
+    assert game.points_for(0) == 5
     assert sum(game.fireworks.values()) == 5
     assert Card("R", 5) in game.discard
 

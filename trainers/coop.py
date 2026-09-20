@@ -214,7 +214,7 @@ def build_parser():
     parser.add_argument(
         "--value-clip-epsilon",
         type=optional_positive_float,
-        default=3.0,
+        default=None,
         help=(
             "clip TD(lambda) targets to this many rollout value standard deviations; "
             "use 'none' to disable"
