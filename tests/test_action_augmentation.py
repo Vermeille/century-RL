@@ -62,7 +62,7 @@ def test_shuffle_actions_supports_distribution_only_imitation_samples(monkeypatc
 
     augmented = shuffle_actions([sample])[0]
 
-    assert not hasattr(augmented, "action_idx")
+    assert augmented.action_idx is None
     assert augmented.state == "position\n@third\n@second\n@first"
     assert torch.equal(augmented.action_distribution, torch.tensor([3.0, 2.0, 1.0]))
 
