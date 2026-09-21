@@ -59,8 +59,6 @@ def normalized_nucleus_size(
 @dataclass(frozen=True)
 class TrainResult:
     metrics: dict[str, float]
-    samples: int
-    batches: int
 
 
 class PolicyMetrics:
@@ -281,7 +279,7 @@ class Learner:
 
     def train(self, samples: Sequence[TrainingSample], *, progress=0.0) -> TrainResult:
         if not samples:
-            return TrainResult({}, 0, 0)
+            return TrainResult({})
 
         if self.lr_schedule is not None:
             scale = self.lr_schedule.to_schedule(progress)
@@ -294,8 +292,6 @@ class Learner:
             else RolloutUpdate(self, samples)
         )
         metrics = Averages()
-        batches = 0
-        seen = 0
 
         updates.start()
 
@@ -330,12 +326,10 @@ class Learner:
                     for metric_group in self.batch_metrics:
                         metrics.add(metric_group(policy, value, batch))
                     metrics.add(updates.end_batch())
-                batches += 1
-                seen += len(raw_batch)
 
         metrics.add(updates.finish())
         metrics.add({"lr": self.optimizer.param_groups[0]["lr"]})
-        return TrainResult(metrics.result(), seen, batches)
+        return TrainResult(metrics.result())
 
     def _finish_batch(self):
         if self.gradient_clip is None:
