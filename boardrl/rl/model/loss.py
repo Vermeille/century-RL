@@ -589,50 +589,6 @@ class EntropyBonus(Loss):
         return LossResult(self.strength * terms.sum() / len(sample.action_idx))
 
 
-@loss_from_string.register("support_floor")
-class SupportFloorPenalty(Loss):
-    """Keep every legal action above a small probability floor.
-
-    Unlike Shannon entropy, the log-probability hinge keeps a finite recovery
-    gradient for actions whose probability has effectively collapsed to zero.
-    It becomes exactly inactive once every legal action reaches
-    ``floor_mass / number_of_legal_actions``, so it does not continuously pull
-    a sufficiently supported policy toward uniformity.
-    """
-
-    needs_reference_policy_value = False
-    supports_off_policy = True
-    supports_partial_trajectories = True
-
-    def __init__(self, floor_mass: float = 0.01, strength: float = 0.001):
-        if not 0.0 < floor_mass < 1.0:
-            raise ValueError("support floor mass must be between zero and one")
-        if strength < 0.0:
-            raise ValueError("support floor strength must be non-negative")
-        self.floor_mass = floor_mass
-        self.strength = strength
-
-    def __call__(self, pred_policy, pred_value, sample, training_state):
-        padded = pack_cached(pred_policy, training_state, "pred_policy")
-        mask = torch.isfinite(padded)
-        action_counts = mask.sum(dim=1)
-        log_probs = F.log_softmax(padded, dim=1)
-        target_log_probs = math.log(self.floor_mass) - action_counts.float().log()
-        shortfall = torch.where(
-            mask,
-            (target_log_probs[:, None] - log_probs).clamp_min(0.0),
-            torch.zeros_like(log_probs),
-        )
-        per_state = shortfall.sum(dim=1) / action_counts
-        violation_fraction = (
-            ((shortfall > 0.0).sum(dim=1) / action_counts).float().mean()
-        )
-        return LossResult(
-            self.strength * per_state.mean(),
-            metrics={"violation_fraction": violation_fraction},
-        )
-
-
 class LinearRegularizer(Loss):
     """Linearly decay the strength of another policy regularizer."""
 
@@ -687,22 +643,6 @@ class LinearReverseEntropyBonus(LinearRegularizer):
 class LinearSymmetricUniformKLPenalty(LinearRegularizer):
     def __init__(self, start: float, end: float = 0.0, schedule=None):
         super().__init__(SymmetricUniformKLPenalty, start, end, schedule)
-
-
-class LinearSupportFloorPenalty(LinearRegularizer):
-    def __init__(
-        self,
-        floor_mass: float = 0.01,
-        start: float = 0.001,
-        end: float = 0.0,
-        schedule=None,
-    ):
-        super().__init__(
-            lambda strength: SupportFloorPenalty(floor_mass, strength),
-            start,
-            end,
-            schedule,
-        )
 
 
 @loss_from_string.register("scheduled_perplexity")
