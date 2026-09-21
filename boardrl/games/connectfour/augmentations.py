@@ -48,6 +48,8 @@ def horizontal_symmetry(samples):
 
         if random.random() >= 0.5:
             continue
+        if sample.state is None:
+            raise ValueError("sample state is required for Connect Four symmetry")
 
         lines = sample.state.splitlines(keepends=True)
         width = _board_width(lines)
@@ -60,8 +62,7 @@ def horizontal_symmetry(samples):
             lines[idx] = body + ending
         sample.state = "".join(lines)
 
-        if hasattr(sample, "moves"):
-            moves = sample.moves
-            sample.moves = type(moves)(_mirror_move(move, width) for move in moves)
+        if sample.moves is not None:
+            sample.moves = [_mirror_move(move, width) for move in sample.moves]
 
     return augmented
