@@ -79,7 +79,10 @@ def _apply_transform(samples, transform_factory):
 
         sample.state = _transform_state(sample.state, transform)
         if sample.moves is not None:
-            sample.moves = [_transform_move(move, transform) for move in sample.moves]
+            moves = sample.moves
+            sample.moves = type(moves)(
+                _transform_move(move, transform) for move in moves
+            )
 
     return augmented
 
