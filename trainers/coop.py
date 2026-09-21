@@ -11,13 +11,13 @@ import torch
 
 from boardrl import (
     Checkpoints,
-    Console,
     Evaluator,
     Inference,
-    MetricLogger,
-    make_trackio,
     RolloutRunner,
     RunInfo,
+    default_metric_logger,
+    seed_everything,
+    trackio_run,
 )
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
@@ -39,10 +39,10 @@ from boardrl.training import (
     Pipeline,
     PolicyMetrics,
     ReferenceTargets,
-    ToSamples,
-    ValueMetrics,
     SCHEDULE_SHAPES,
     Scheduler,
+    ToSamples,
+    ValueMetrics,
 )
 
 
@@ -333,17 +333,6 @@ def build_parser():
     return parser
 
 
-def seed_everything(seed):
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-    from boardrl.cyutils import init_seed
-
-    init_seed(seed)
-
-
 def resolve_schedule_steps(args):
     schedule_start = resolve_schedule_start(args)
     exploration_end = args.steps * args.schedule_end_percent // 100
@@ -492,17 +481,13 @@ def load_resumed_learner_state(learner, state):
 
 
 def run(args):
-    trackio_sink = make_trackio(
+    with trackio_run(
         project=args.game if args.trackio else None,
         name=args.tag,
         server_url=args.trackio_url,
         config=vars(args),
-    )
-    try:
+    ) as trackio_sink:
         return _run(args, trackio_sink)
-    finally:
-        if trackio_sink is not None:
-            trackio_sink.finish()
 
 
 def _run(args, trackio_sink):
@@ -527,28 +512,7 @@ def _run(args, trackio_sink):
     best_checkpoints = Checkpoints(checkpoint_dir, prefix="best", keep=1)
     best_score = float("-inf")
 
-    repo_root = Path(__file__).resolve().parents[1]
-    run_info = RunInfo.capture(
-        args,
-        __file__,
-        additional_sources=(
-            repo_root / "boardrl/models.py",
-            repo_root / "boardrl/rl/model/cnn.py",
-            repo_root / "boardrl/rl/model/loss.py",
-            repo_root / "boardrl/rl/model/model.py",
-            repo_root / "boardrl/rl/model/transformer.py",
-            repo_root / "boardrl/rollouts.py",
-            repo_root / "boardrl/games/__init__.py",
-            repo_root / "boardrl/games/semantics.py",
-            repo_root / "boardrl/games/strategies.py",
-            repo_root / "boardrl/games/thegame/game.py",
-            repo_root / "boardrl/training/learner.py",
-            repo_root / "boardrl/schedules.py",
-            repo_root / "boardrl/training/postprocess.py",
-            repo_root / "boardrl/training/returns.py",
-        ),
-    )
-    run_info.save(checkpoint_dir)
+    RunInfo.capture(args, __file__).save(checkpoint_dir)
 
     start = 0
     if args.resume:
@@ -579,10 +543,7 @@ def _run(args, trackio_sink):
     evaluator = Evaluator(
         game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
-    sinks = [Console()]
-    if trackio_sink is not None:
-        sinks.append(trackio_sink)
-    metrics = MetricLogger(*sinks)
+    metrics = default_metric_logger(trackio_sink)
     prepare = Pipeline(
         game.rewards.make_returns(args.discount),
         ToSamples(),
