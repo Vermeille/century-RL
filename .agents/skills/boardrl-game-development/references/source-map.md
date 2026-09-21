@@ -7,8 +7,7 @@ protocol is ambiguous. Paths are relative to the repository root.
 
 - `boardrl/games/<name>/game.py`: mutable game state, legal moves, transition
   rules, displays, scores, copying, and random playout.
-- `boardrl/games/<name>/metrics.py`: `GameMetrics` adapter over
-  `SelfPlayResults`.
+- `boardrl/games/<name>/metrics.py`: `GameMetrics` adapter over `Rollouts`.
 - `boardrl/games/<name>/strategies.py`: optional `RegisterByName` entries;
   merge them with `boardrl/games/strategies.py` defaults.
 - `boardrl/games/<name>/augmentations.py`: optional transformations of
@@ -19,10 +18,9 @@ protocol is ambiguous. Paths are relative to the repository root.
   outcomes, reward construction, value-head selection, and evaluation ranking.
 - `boardrl/utils/__init__.py`: the `Game` protocol consumed by rollouts and
   strategies.
-- `boardrl/rl/eval/selfplay.py`: `Record`, `EndState`, `GameTrace`,
-  `SelfPlayResults`, `play_game`, and sampling by action index.
-- `boardrl/rollouts.py`: `RolloutRunner` and batched `Inference` around an
-  explicit player lineup.
+- `boardrl/rollouts.py`: the rollout data model (`Record`, `EndState`, traces,
+  `Rollouts`), canonical `play_games` executor, configured `RolloutRunner`, and
+  batched `Inference`.
 - `boardrl/evaluation.py`: `Evaluator`, `Evaluation`, and optional
   head-to-head `Scoreboard`.
 - `boardrl/metrics.py`: `GameMetrics`, generic `rollout_metrics`, console
@@ -39,13 +37,14 @@ protocol is ambiguous. Paths are relative to the repository root.
 
 ```text
 GameDesc.make_game
-  -> RolloutRunner / self_play2
-  -> strategy(game.display_with_moves(), game.moves)
+  -> RolloutRunner (optional lineup/factory convenience)
+  -> play_games
+  -> strategy(game)
   -> distribution[action_idx]
   -> Record(game, ...)
   -> game.play_idx(action_idx)
   -> EndState(game, player)
-  -> SelfPlayResults -> Evaluation / GameMetrics / Learner
+  -> Rollouts -> Evaluation / GameMetrics / Learner
 ```
 
 `Record` snapshots `state`, `moves`, `action_distribution`, `action_idx`,
@@ -83,9 +82,8 @@ scores, outcome, rewards
 
 `scores` controls point metrics, `outcome` owns terminal success semantics,
 and `rewards` owns return processing, value-head selection, and evaluation
-ranking. Custom
-strategies should be merged into a copy because mutating the shared default
-registry leaks game-specific entries to other games.
+ranking. Custom strategies should be merged into a copy because mutating the
+shared default registry leaks game-specific entries to other games.
 
 ## Display and action rules
 
@@ -100,12 +98,12 @@ must remain a valid fallback.
 
 `GameDesc.coop` marks games such as `thegame` and `guessnumber`, but inspect
 the current rollout/evaluation implementation before changing semantics:
-generic `SelfPlayResults.win_rate` is based on per-strategy terminal
-`current_diff_points`, while `EndState` distinguishes proper terminal games
-from `max_steps` truncation. If a change introduces or repairs game-level
-objective success, trace and test the descriptor flag, end-state representation,
-rollout aggregation, `Evaluation.win_rate`, and trainer logging together. A
-truncated game is not a successful terminal outcome.
+`Rollouts` groups traces by strategy and seat, while `EndState` distinguishes
+proper terminal games from `max_steps` truncation. If a change introduces or
+repairs game-level objective success, trace and test the descriptor flag,
+end-state representation, rollout aggregation, `Evaluation.win_rate`, and
+trainer logging together. A truncated game is not a successful terminal
+outcome.
 
 ## Server contract
 
@@ -126,9 +124,7 @@ the real `display_with_moves()` format.
 - Copy and phase invariants: `tests/test_thegame_copy.py` and game tests.
 - Metrics: `tests/test_thegame_metrics.py`, `tests/test_metrics.py`.
 - Registry, descriptors, and strategy smoke: `tests/test_strategies.py`.
-- Rollouts, trace indexing, truncation, and evaluation:
-  `tests/test_selfplay_oop.py`.
-- Action ordering and augmentation metadata:
-  `tests/test_action_augmentation.py`.
+- Rollouts, trace indexing, truncation, and evaluation: `tests/test_rollouts.py`.
+- Action ordering and augmentation metadata: `tests/test_action_augmentation.py`.
 - Web state and renderers: `tests/test_serve.py` and
   `tests/test_serve_tictactoe.py`.
