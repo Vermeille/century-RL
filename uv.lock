@@ -147,7 +147,7 @@ requires-dist = [
     { name = "pytest-timeout" },
     { name = "torch" },
     { name = "tqdm" },
-    { name = "trackio", marker = "extra == 'trackio'" },
+    { name = "trackio", marker = "extra == 'trackio'", specifier = ">=0.38.1" },
 ]
 provides-extras = ["trackio"]
 
@@ -1601,7 +1601,7 @@ wheels = [
 
 [[package]]
 name = "trackio"
-version = "0.33.0"
+version = "0.38.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "brotli" },
@@ -1615,7 +1615,7 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/7d/7043a27770f191726eab01da0543262a386ca75d4541f6fa2c89ee86786b/trackio-0.33.0-py3-none-any.whl", hash = "sha256:277340507ac46c02c06900c1d680129bdb528223c8110b0b6bc9326bb9f0891d", size = 1995782, upload-time = "2026-07-24T19:12:46.104Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/4f/46c6e822068d3d9d4111304b1c722ac491cda2f130e92fd8fe78eb0261d1/trackio-0.38.1-py3-none-any.whl", hash = "sha256:fc470e76ac3affcb63fe5c448ceb758c508e4bbb5d40fc51b74c9c60c8ee0a18", size = 3080375, upload-time = "2026-09-17T17:49:18.018Z" },
 ]
 
 [[package]]

@@ -186,6 +186,16 @@ def run(args):
             trackio_sink.finish()
 
 
+def checkpoint_directory(args):
+    return (
+        args.checkpoint_root
+        / "adversarial-advshape"
+        / args.game
+        / args.architecture
+        / args.tag
+    )
+
+
 def _run(args, trackio_sink):
     coop.seed_everything(args.seed)
     game = games_library(args.game)
@@ -216,6 +226,9 @@ def _run(args, trackio_sink):
         entropy_strength=args.environment_entropy_strength,
     )
 
+    # Both learners share one SIGTSTP handler. A learner-local context for
+    # each would overwrite the other handler; the aggregate pause owns both
+    # models and optimizer states instead.
     pause = CudaOffloadPause(
         (agent, environment),
         agent_optimizer,
@@ -223,13 +236,7 @@ def _run(args, trackio_sink):
         extra_optimizers=(environment_optimizer,),
     )
 
-    checkpoint_dir = (
-        args.checkpoint_root
-        / "adversarial-advshape"
-        / args.game
-        / args.architecture
-        / args.tag
-    )
+    checkpoint_dir = checkpoint_directory(args)
     checkpoints = Checkpoints(
         checkpoint_dir,
         prefix="step",

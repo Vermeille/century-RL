@@ -21,7 +21,7 @@ dependencies = [
 dev = ["mypy"]
 
 [project.optional-dependencies]
-trackio = ["trackio"]
+trackio = ["trackio>=0.38.1"]
 
 [build-system]
 requires = ["setuptools", "wheel", "Cython"]

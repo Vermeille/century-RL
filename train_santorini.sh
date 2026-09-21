@@ -8,10 +8,10 @@ set +a
 
 # The agent and environment use independent perplexity targets over the same
 # cosine schedule window.
-AGENT_PPL_START="${AGENT_PPL_START:-3}"
+AGENT_PPL_START="${AGENT_PPL_START:-6}"
 AGENT_PPL_END="${AGENT_PPL_END:-1}"
-ENVIRONMENT_PPL_START="${ENVIRONMENT_PPL_START:-3}"
-ENVIRONMENT_PPL_END="${ENVIRONMENT_PPL_END:-1.5}"
+ENVIRONMENT_PPL_START="${ENVIRONMENT_PPL_START:-6}"
+ENVIRONMENT_PPL_END="${ENVIRONMENT_PPL_END:-3}"
 AGENT_THRESHOLD="${AGENT_THRESHOLD:-0.7}"
 ENVIRONMENT_THRESHOLD="${ENVIRONMENT_THRESHOLD:-0.7}"
 TAG="${TAG:-adversarial-advshape}"
@@ -22,7 +22,7 @@ TAG="${TAG:-adversarial-advshape}"
 #   --reservoir-capacity 1000000
 
 trainer_args=(
-  --game skullking,num_players=2,num_rounds=5
+  --game santorini
   --random-move-prob 0.
   --steps 600
   --perplexity-start "$AGENT_PPL_START"
@@ -34,13 +34,13 @@ trainer_args=(
   --learning-rate 6e-4
   --kl-strength 0.01
   --kl-target 0.05
-  --gae-lambda 0.
-  --value-lambda 0.8
+  --gae-lambda 0.5
+  --value-lambda 0.9
   --adam-beta1 0.9
   --adam-beta2 0.95
   --inference-batch-size 256
   --learner-batch-size 128
-  --rollout-games 128
+  --rollout-games 64
   --evaluation-games 128
   --gradient-clip 10000
   --opponent-eval-strategy random

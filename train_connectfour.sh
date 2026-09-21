@@ -21,7 +21,7 @@ TAG="${TAG:-adversarial-advshape}"
 #   --average-learning-rate 4e-4  # both PPO optimizers use --learning-rate
 #   --reservoir-capacity 1000000
 
-exec uv run python trainers/adversarial-advshape.py \
+trainer_args=(
   --game connectfour \
   --random-move-prob 0. \
   --steps 1800 \
@@ -51,5 +51,16 @@ exec uv run python trainers/adversarial-advshape.py \
   --tag "$TAG" \
   --trackio \
   --no-progress \
-  --value-clip-epsilon none \
+  --value-clip-epsilon none
   "$@"
+)
+trainer_command=(
+  uv run --extra trackio python trainers/adversarial-advshape.py "${trainer_args[@]}"
+)
+
+if [[ ${ARENA:-1} == 0 ]]; then
+  exec "${trainer_command[@]}"
+fi
+
+checkpoint_dir=$(uv run python trainers/arena.py checkpoint-dir -- "${trainer_args[@]}")
+exec trainers/run_with_arena.sh "$checkpoint_dir" "${trainer_command[@]}"
