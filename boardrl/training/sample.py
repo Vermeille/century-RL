@@ -6,7 +6,7 @@ from typing import Protocol
 import torch
 
 
-class NextState(Protocol):
+class RolloutEndpoint(Protocol):
     state: str
     terminal: bool
     truncated: bool
@@ -42,7 +42,7 @@ class TrainingSample:
     score: Scalar | None = None
     reward: Scalar | None = None
     returns: Scalar | None = None
-    next: NextState | None = None
+    next: TrainingSample | RolloutEndpoint | None = None
     terminal: Flag = False
     truncated: Flag = False
 
