@@ -13,11 +13,13 @@ else:
 
 from boardrl import (
     Checkpoints,
+    Console,
     Evaluator,
     Inference,
+    MetricLogger,
     RolloutRunner,
     RunInfo,
-    default_metric_logger,
+    make_trackio,
     seed_everything,
     trackio_run,
 )
@@ -53,6 +55,7 @@ def run(args):
         name=args.tag,
         server_url=args.trackio_url,
         config=vars(args),
+        factory=make_trackio,
     ) as trackio_sink:
         return _run(args, trackio_sink)
 
@@ -120,7 +123,10 @@ def _run(args, trackio_sink):
     )
     training_opponent = game.strategy_from_string(args.opponent_bot)
     evaluation_opponent = game.strategy_from_string(args.opponent_eval_strategy)
-    metrics = default_metric_logger(trackio_sink)
+    sinks = [Console()]
+    if trackio_sink is not None:
+        sinks.append(trackio_sink)
+    metrics = MetricLogger(*sinks)
 
     # Compute returns while both player traces are still present. Select the
     # model's strategy identity before flattening so the fixed bot can never
