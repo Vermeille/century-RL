@@ -405,8 +405,11 @@ def test_coop_zero_step_smoke(tmp_path: Path) -> None:
     }
     run_info = path.parent / "run.txt"
     assert run_info.exists()
-    assert '"game": "tictactoe"' in run_info.read_text()
-    assert "Cooperative PPO training from scratch" in run_info.read_text()
+    text = run_info.read_text()
+    assert '"game": "tictactoe"' in text
+    assert "trainers/coop.py" in text
+    assert "Git commit" in text
+    assert "Dirty diff" in text
 
 
 def test_coop_evaluates_and_logs_before_zero_steps(
