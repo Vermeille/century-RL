@@ -16,23 +16,18 @@ else:
 
 from boardrl import (
     Checkpoints,
-    Console,
     Evaluator,
     Inference,
-    MetricLogger,
     RolloutRunner,
     RunInfo,
-    make_trackio,
+    default_metric_logger,
+    seed_everything,
+    trackio_run,
 )
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
 from boardrl.models import make_for_game
-from boardrl.training import (
-    Pipeline,
-    ReferenceTargets,
-    Select,
-    ToSamples,
-)
+from boardrl.training import Pipeline, ReferenceTargets, Select, ToSamples
 from boardrl.training.cuda_pause import CudaOffloadPause
 
 
@@ -170,20 +165,14 @@ def run(args):
         # Trackio's resume API selects by project/name. Tags are checkpoint
         # directory names and are intentionally reusable, so give each process
         # a unique Trackio name and persist it in run.txt for the arena.
-        args.trackio_run_name = (
-            f"{args.tag}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
-        )
-    trackio_sink = make_trackio(
+        args.trackio_run_name = f"{args.tag}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+    with trackio_run(
         project=args.game if args.trackio else None,
         name=getattr(args, "trackio_run_name", args.tag),
         server_url=args.trackio_url,
         config=vars(args),
-    )
-    try:
+    ) as trackio_sink:
         return _run(args, trackio_sink)
-    finally:
-        if trackio_sink is not None:
-            trackio_sink.finish()
 
 
 def checkpoint_directory(args):
@@ -197,7 +186,7 @@ def checkpoint_directory(args):
 
 
 def _run(args, trackio_sink):
-    coop.seed_everything(args.seed)
+    seed_everything(args.seed)
     game = games_library(args.game)
     if game.coop:
         raise ValueError("adversarial-advshape.py requires a non-cooperative game")
@@ -212,11 +201,7 @@ def _run(args, trackio_sink):
             args.device,
         )
 
-    agent_learner, agent_optimizer = make_strategy_learner(
-        agent,
-        game,
-        args,
-    )
+    agent_learner, agent_optimizer = make_strategy_learner(agent, game, args)
     environment_learner, environment_optimizer = make_strategy_learner(
         environment,
         game,
@@ -245,23 +230,7 @@ def _run(args, trackio_sink):
     best_checkpoints = Checkpoints(checkpoint_dir, prefix="best", keep=1)
     best_score = float("-inf")
 
-    repo_root = Path(__file__).resolve().parents[1]
-    RunInfo.capture(
-        args,
-        __file__,
-        additional_sources=(
-            repo_root / "trainers/coop.py",
-            repo_root / "boardrl/models.py",
-            repo_root / "boardrl/rollouts.py",
-            repo_root / "boardrl/games/__init__.py",
-            repo_root / "boardrl/games/semantics.py",
-            repo_root / "boardrl/rl/model/loss.py",
-            repo_root / "boardrl/training/learner.py",
-            repo_root / "boardrl/schedules.py",
-            repo_root / "boardrl/training/postprocess.py",
-            repo_root / "boardrl/training/returns.py",
-        ),
-    ).save(checkpoint_dir)
+    RunInfo.capture(args, __file__).save(checkpoint_dir)
 
     start = 0
     if args.resume:
@@ -315,11 +284,7 @@ def _run(args, trackio_sink):
     )
     evaluation_opponent = game.strategy_from_string(args.opponent_eval_strategy)
 
-    sinks = [Console()]
-    if trackio_sink is not None:
-        sinks.append(trackio_sink)
-    metrics = MetricLogger(*sinks)
-
+    metrics = default_metric_logger(trackio_sink)
     compute_returns = game.rewards.make_returns(args.discount)
 
     # Rollout strategy IDs are list positions: agent=0, environment=1. They
