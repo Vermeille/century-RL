@@ -7,7 +7,7 @@ import json
 import random
 import subprocess
 import sys
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,7 +15,7 @@ from typing import Protocol
 
 import torch
 
-from boardrl.metrics import Console, MetricLogger, Trackio, make_trackio
+from boardrl.metrics import Trackio, make_trackio
 
 
 class TextSink(Protocol):
@@ -109,10 +109,11 @@ def trackio_run(
     name: str | None = None,
     server_url: str | None = None,
     config: Mapping[str, object] | None = None,
+    factory: Callable[..., Trackio | None] = make_trackio,
 ) -> Iterator[Trackio | None]:
     """Create and reliably finish an optional Trackio run."""
 
-    sink = make_trackio(
+    sink = factory(
         project=project,
         name=name,
         server_url=server_url,
@@ -123,9 +124,3 @@ def trackio_run(
     finally:
         if sink is not None:
             sink.finish()
-
-
-def default_metric_logger(trackio: Trackio | None = None) -> MetricLogger:
-    """Console metrics plus an optional persistent Trackio sink."""
-
-    return MetricLogger(Console(), *(() if trackio is None else (trackio,)))
