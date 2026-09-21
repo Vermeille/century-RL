@@ -11,8 +11,8 @@ class BatchProcessor:
     have elapsed since the first item of the pending batch was queued.
 
     ``process_fn`` is called with ``List[Any]`` and must return an object that
-    provides ``.unbatched()`` to iterate per-input results (same contract as the
-    existing implementation). ``process_fn`` can be sync or async.
+    provides ``.unbatched()`` to iterate per-input results. ``process_fn`` can
+    be sync or async.
     """
 
     def __init__(
@@ -27,27 +27,23 @@ class BatchProcessor:
         self.timeout = float(timeout)
         self.model_name = model_name
 
-        # Async machinery is started lazily and bound to the current event loop.
-        # If a new loop is encountered, we assume the old one has finished and
-        # start fresh bound to the new loop.
         self._queue: asyncio.Queue[tuple[Any, asyncio.Future]] | None = None
         self._runner: asyncio.Task | None = None
         self._owner_loop: asyncio.AbstractEventLoop | None = None
         self._closed = False
 
-    # ------------------------------- internals -------------------------------
     def _ensure_started(self, loop: asyncio.AbstractEventLoop) -> None:
         if self._owner_loop is loop and self._runner is not None and not self._runner.done():
             return
-        # Start fresh for this loop
         self._queue = asyncio.Queue()
         self._owner_loop = loop
         self._runner = asyncio.create_task(self._loop(self._queue))
-        # Clean references when the runner exits
+
         def _cleanup(_):
             self._queue = None
             self._runner = None
             self._owner_loop = None
+
         self._runner.add_done_callback(_cleanup)
 
     async def _maybe_await(self, x):
@@ -69,7 +65,7 @@ class BatchProcessor:
                 for fut, res in zip(futures, results.unbatched()):
                     if not fut.cancelled():
                         fut.set_result(res)
-            except Exception as e:  # propagate errors to all pending futures
+            except Exception as e:
                 for fut in futures:
                     if not fut.cancelled():
                         fut.set_exception(e)
@@ -84,11 +80,9 @@ class BatchProcessor:
                     pending.append(item)
                     deadline = loop.time() + self.timeout
                 else:
-                    # Stop conditions for flushing
                     if len(pending) >= self.batch_size:
                         await flush()
                         continue
-                    # Otherwise, keep collecting with timeout to cap latency
                     assert deadline is not None
                     timeout_left = max(0.0, deadline - loop.time())
                     try:
@@ -98,11 +92,9 @@ class BatchProcessor:
                         await flush()
             except asyncio.CancelledError:
                 break
-        # Final flush on shutdown
         if pending:
             await flush()
 
-    # --------------------------------- API ----------------------------------
     async def __call__(self, data: Any):
         if self._closed:
             raise RuntimeError("BatchProcessor is closed")
@@ -128,28 +120,4 @@ def run_tasks(tasks):
     async def do():
         return await asyncio.gather(*[asyncio.create_task(t) for t in tasks])
 
-    ret = asyncio.run(do())
-    return ret
-
-
-class CachedBatchProcessor(BatchProcessor):
-    def __init__(
-        self,
-        batch_size: int,
-        process_fn: Callable[[List[Any]], Any],
-        timeout: float = 1.0,
-        cache_size: int = 100,
-    ):
-        super().__init__(batch_size, process_fn, timeout)
-        self.cache: dict[Any, Any] = {}
-        self.cache_size = cache_size
-
-    async def __call__(self, data: Any):
-        if data in self.cache:
-            return self.cache[data]
-        result = await super().__call__(data)
-        if len(self.cache) >= self.cache_size:
-            # pop arbitrary item (LRU is unnecessary for current usage)
-            self.cache.popitem()
-        self.cache[data] = result
-        return result
+    return asyncio.run(do())
