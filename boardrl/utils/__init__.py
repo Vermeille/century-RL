@@ -1,21 +1,18 @@
 import torch
 from typing import Protocol
 from torch._dynamo.decorators import skip
-from boardrl.utils.batchprocessor import BatchProcessor, run_tasks, CachedBatchProcessor
+from boardrl.utils.batchprocessor import BatchProcessor, run_tasks
 from boardrl.utils.modelpool import ModelPool
 from boardrl.utils.registerbyname import RegisterByName
-from boardrl.utils.pythonexec import PythonExec
 
 
 __all__ = [
     "BatchProcessor",
     "run_tasks",
-    "CachedBatchProcessor",
     "ModelPool",
     "RegisterByName",
     "entropy",
     "Game",
-    "PythonExec",
 ]
 
 
