@@ -5,15 +5,14 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from boardrl.rl.eval.selfplay import SelfPlayResults
-from boardrl.rollouts import RolloutRunner
 from boardrl.games.semantics import CompetitiveOutcome
+from boardrl.rollouts import RolloutRunner, Rollouts
 
 
 @dataclass(frozen=True)
 class Evaluation:
     names: tuple[str, ...]
-    rollouts: SelfPlayResults
+    rollouts: Rollouts
     outcome: object = field(default_factory=CompetitiveOutcome)
 
     def win_rate(self, player=0) -> float:
@@ -70,7 +69,11 @@ class Scoreboard:
                 for j, second in enumerate(names):
                     if i == j:
                         continue
-                    score = 1.0 if points[i] > points[j] else 0.5 if points[i] == points[j] else 0.0
+                    score = (
+                        1.0
+                        if points[i] > points[j]
+                        else 0.5 if points[i] == points[j] else 0.0
+                    )
                     aggregate = self._scores[first][second]
                     aggregate[0] += score
                     aggregate[1] += 1
