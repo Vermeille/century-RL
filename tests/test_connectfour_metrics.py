@@ -6,7 +6,7 @@ import torch
 
 from boardrl.games.connectfour.metrics import Metrics
 from boardrl.metrics import Trackio
-from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults
+from boardrl.rollouts import GameTrace, PlayerTrace, Rollouts
 
 
 def _trace(seat, strategy, move, probabilities, score):
@@ -31,7 +31,7 @@ def _trace(seat, strategy, move, probabilities, score):
 
 
 def _rotated_results():
-    return SelfPlayResults(
+    return Rollouts(
         [
             GameTrace(
                 [
@@ -108,7 +108,7 @@ def test_connectfour_winning_probability_ignores_unrecorded_opening_win():
 
     assert strategy["avg_winning_move_probability"] == pytest.approx(0.75)
 
-    opening_only = SelfPlayResults([results[-1]])
+    opening_only = Rollouts([results[-1]])
     opening_probability = Metrics(opening_only).metrics()["strategy"]["0"][
         "avg_winning_move_probability"
     ]
