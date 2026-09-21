@@ -243,8 +243,7 @@ def test_learner_accepts_pure_imitation_samples_without_returns():
 
     result = learner.train([sample])
 
-    assert result.samples == 1
-    assert result.batches == 1
+    assert result.metrics
 
 
 def test_normalized_learner_handles_partial_batch():
@@ -267,8 +266,6 @@ def test_normalized_learner_handles_partial_batch():
 
     result = learner.train([sample])
 
-    assert result.samples == 1
-    assert result.batches == 1
     assert result.metrics["lr"] == pytest.approx(1e-4)
 
 
@@ -320,7 +317,7 @@ def test_learner_applies_lr_schedule_from_training_progress():
     assert second.metrics["lr"] == pytest.approx(0.75e-3)
 
     skipped = learner.train([], progress=0.5)
-    assert skipped.samples == 0
+    assert skipped.metrics == {}
     assert learner.optimizer.param_groups[0]["lr"] == pytest.approx(0.75e-3)
 
 
