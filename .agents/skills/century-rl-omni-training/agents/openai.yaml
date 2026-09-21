@@ -1,0 +1,4 @@
+interface:
+  display_name: "Century RL Omni Training"
+  short_description: "Train Omni The Game models without fooling yourself"
+  default_prompt: "Use $century-rl-omni-training to plan or diagnose an Omni PPO training run with Trackio-backed, variance-aware evaluation."
