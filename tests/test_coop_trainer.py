@@ -269,6 +269,15 @@ def test_coop_cli_reads_trackio_url_from_environment(monkeypatch):
     assert args.trackio_url == "https://trackio.example"
 
 
+def test_coop_cli_prefers_trackio_server_url_from_environment(monkeypatch):
+    monkeypatch.setenv("TRACKIO_SERVER_URL", "https://server.example")
+    monkeypatch.setenv("TRACKIO_URL", "https://legacy.example")
+
+    args = build_parser().parse_args([])
+
+    assert args.trackio_url == "https://server.example"
+
+
 def test_coop_cli_can_anneal_entropy_strength_to_zero():
     args = build_parser().parse_args(["--entropy-baseline-ratio", "0"])
 

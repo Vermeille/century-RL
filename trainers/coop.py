@@ -311,7 +311,7 @@ def build_parser():
     parser.add_argument("--ppo-clip", type=float, default=0.2)
     parser.add_argument("--eval-temperature", type=float, default=1.0)
     parser.add_argument("--warmup", type=nonnegative_int, default=20)
-    parser.add_argument("--min-lr-scale", type=float, default=1.0)
+    parser.add_argument("--min-lr-scale", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--checkpoint-root", type=Path, default=Path("checkpoints/schedule-search")
@@ -326,7 +326,10 @@ def build_parser():
     parser.add_argument("--no-progress", action="store_true")
     parser.add_argument("--tag", default="coop")
     parser.add_argument("--trackio", action="store_true")
-    parser.add_argument("--trackio-url", default=os.environ.get("TRACKIO_URL"))
+    parser.add_argument(
+        "--trackio-url",
+        default=os.environ.get("TRACKIO_SERVER_URL", os.environ.get("TRACKIO_URL")),
+    )
     return parser
 
 
