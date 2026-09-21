@@ -98,9 +98,10 @@ def shuffle_hand(samples):
                     lines[i] = _remap_hand_move(body, old_to_new) + ending
 
             if sample.moves is not None:
-                sample.moves = [
-                    _remap_hand_move(move, old_to_new) for move in sample.moves
-                ]
+                moves = sample.moves
+                sample.moves = type(moves)(
+                    _remap_hand_move(move, old_to_new) for move in moves
+                )
 
         sample.state = "".join(lines)
 
