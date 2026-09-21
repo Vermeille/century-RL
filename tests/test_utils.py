@@ -18,7 +18,7 @@ if "boardrl.cyutils" not in sys.modules:
     setattr(cyutils, "fast_sample", lambda x: 0)
     sys.modules["boardrl.cyutils"] = cyutils
 
-from boardrl.utils import BatchProcessor, RegisterByName, chunk
+from boardrl.utils import BatchProcessor, RegisterByName, chunk, parse_spec
 import torch
 from boardrl.rl.utils import pearson_corr, explained_variance
 
@@ -60,6 +60,36 @@ def test_batch_processor_timeouts():
     assert results == [0, 2, 4]
 
 
+def test_parse_spec_string():
+    assert parse_spec("foo, x=1, path=a=b") == (
+        "foo",
+        {"x": "1", "path": "a=b"},
+    )
+
+
+def test_parse_spec_mapping_does_not_mutate_input():
+    spec = {"name": "foo", "x": 1}
+
+    assert parse_spec(spec) == ("foo", {"x": 1})
+    assert spec == {"name": "foo", "x": 1}
+
+
+@pytest.mark.parametrize(
+    "spec,match",
+    [
+        ("", "name"),
+        (",x=1", "name"),
+        ("foo,x", "Invalid spec argument"),
+        ("foo,=1", "Invalid spec argument"),
+        ("foo,x=1,x=2", "Duplicate spec argument"),
+        ({"x": 1}, "requires a 'name'"),
+    ],
+)
+def test_parse_spec_rejects_malformed_specs(spec, match):
+    with pytest.raises(ValueError, match=match):
+        parse_spec(spec)
+
+
 def test_register_by_name_basic():
     registry = RegisterByName()
 
@@ -75,6 +105,45 @@ def test_register_by_name_basic():
 
     inst2 = registry("foo,x=5")
     assert inst2.x == 5 and inst2.y == "bar"
+
+
+def test_register_by_name_required_and_unknown_arguments_are_values_errors():
+    registry = RegisterByName()
+
+    @registry.register("foo")
+    class Foo:
+        def __init__(self, x: int):
+            self.x = x
+
+    with pytest.raises(ValueError, match="Missing required argument x"):
+        registry("foo")
+    with pytest.raises(ValueError, match="Unknown argument.*y"):
+        registry("foo,x=1,y=2")
+
+
+def test_register_by_name_explicit_injection_overrides_spec_value():
+    registry = RegisterByName()
+
+    @registry.register("foo")
+    class Foo:
+        def __init__(self, x):
+            self.x = x
+
+    injected = object()
+    assert registry("foo,x=from-spec", x=injected).x is injected
+
+
+def test_register_by_name_rejects_invalid_bool():
+    registry = RegisterByName()
+
+    @registry.register("foo")
+    class Foo:
+        def __init__(self, enabled: bool = False):
+            self.enabled = enabled
+
+    assert registry("foo,enabled=True").enabled is True
+    with pytest.raises(ValueError, match="Invalid value for enabled"):
+        registry("foo,enabled=yes")
 
 
 @pytest.mark.parametrize(
