@@ -11,7 +11,7 @@ def _reorder(value, order, field_name):
         )
     if isinstance(value, torch.Tensor):
         return value[order]
-    return [value[i] for i in order]
+    return type(value)(value[i] for i in order)
 
 
 def shuffle_actions(samples):
