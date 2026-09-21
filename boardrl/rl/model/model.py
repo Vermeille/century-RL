@@ -424,7 +424,7 @@ class Model(nn.Module):
             return out, enc
 
 
-def load_model(model_path, name=None):
+def load_model(model_path, name=None, *, device=None):
     ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
     name = name or next(iter(ckpt["models"]))
     config = ckpt["model_specs"][name]
@@ -440,7 +440,9 @@ def load_model(model_path, name=None):
         points_based=config["points_based"],
     )
     model.load_state_dict(state)
-    if torch.cuda.is_available():
+    if device is not None:
+        model.to(device)
+    elif torch.cuda.is_available():
         model.cuda()
     model.eval()
     return model

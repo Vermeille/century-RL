@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -192,6 +193,35 @@ def test_checkpoint_can_be_loaded_as_a_rollout_model(tmp_path):
     loaded = load_model(path)
 
     assert loaded.spec() == model.spec()
+
+
+def test_load_model_can_explicitly_stay_on_cpu(tmp_path, monkeypatch):
+    model = toy()
+    path = Checkpoints(tmp_path).save(1, {"current": model})
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+
+    loaded = load_model(path, device="cpu")
+
+    assert next(loaded.parameters()).device.type == "cpu"
+
+
+def test_atomic_checkpoint_failure_preserves_previous_file(tmp_path, monkeypatch):
+    model = toy()
+    checkpoints = Checkpoints(tmp_path)
+    path = checkpoints.save(1, {"current": model})
+    previous = path.read_bytes()
+
+    def interrupted_save(payload, temporary):
+        Path(temporary).write_bytes(b"partial")
+        raise RuntimeError("interrupted")
+
+    monkeypatch.setattr(torch, "save", interrupted_save)
+
+    with pytest.raises(RuntimeError, match="interrupted"):
+        checkpoints.save(1, {"current": model})
+
+    assert path.read_bytes() == previous
+    assert not list(tmp_path.glob(".*.tmp"))
 
 
 def test_learner_accepts_pure_imitation_samples_without_returns():

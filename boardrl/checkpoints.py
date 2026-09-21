@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import os
 import random
 import re
+import uuid
+from pathlib import Path
 
 import torch
+
+
+def atomic_torch_save(payload, path: str | Path) -> Path:
+    """Publish a torch payload without exposing a partially written file."""
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    try:
+        torch.save(payload, temporary)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path
 
 
 class Checkpoints:
@@ -67,7 +83,7 @@ class Checkpoints:
             "metadata": dict(metadata or {}),
         }
         path = self.directory / f"{self.prefix}-{step}.pth"
-        torch.save(payload, path)
+        atomic_torch_save(payload, path)
         self._prune(step)
         return path
 
