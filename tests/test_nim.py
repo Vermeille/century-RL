@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from boardrl.games import games_library
 from boardrl.games.nim.game import Nim
 from boardrl.games.nim.metrics import Metrics
-from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults
+from boardrl.rollouts import GameTrace, PlayerTrace, Rollouts
 
 
 def test_nim_registered_with_arguments():
@@ -141,7 +141,7 @@ def test_nim_metrics_reports_per_match_choice_probability():
         _end(1),
     ])
 
-    metrics = Metrics(SelfPlayResults([game1, game2]))
+    metrics = Metrics(Rollouts([game1, game2]))
 
     assert metrics.metrics()["chosen_move_probability_by_match"] == [
         0.5,
