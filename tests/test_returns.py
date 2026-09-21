@@ -49,14 +49,12 @@ def test_reward_scale_does_not_modify_points_or_score():
 
 
 def test_terminal_vs_non_terminal():
-    # Terminal case
     terminal_hist = make_history([0.0, 1.0, 2.0], terminal=True)
     compute_returns([[terminal_hist]], 1.0)
     assert terminal_hist[0].returns == 2.0
     assert terminal_hist[1].returns == 1.0
     assert terminal_hist[0].score == 2.0
 
-    # Non-terminal case
     non_term_hist = make_history([0.0, 1.0, 2.0], terminal=False)
     compute_returns([[non_term_hist]], 1.0)
     assert math.isnan(non_term_hist[0].returns)
@@ -130,10 +128,10 @@ def test_annotate_with_model_can_use_cached_rollout_references():
     assert torch.isclose(normalized.std(), torch.tensor(1.0), atol=1e-3)
     assert first.reference_value_stddev == 1.25
     assert second.reference_value_stddev == 1.5
-    assert end.reference_value == 0
+    assert vars(end) == {"terminal": True, "truncated": False}
 
 
-def test_annotate_with_model_bootstraps_truncated_endpoint():
+def test_annotate_with_model_bootstraps_truncated_endpoint_without_mutating_it():
     class Prediction:
         def __init__(self, value):
             self.policy = [torch.tensor([0.2, 0.3])]
@@ -170,8 +168,8 @@ def test_annotate_with_model_bootstraps_truncated_endpoint():
         value_lambda=1.0,
     )
 
-    assert end.reference_value == 12.0
-    assert end.reference_value_stddev == 0.5
-    assert end.td_lambda == 12.0
+    assert last.next_reference_value == 12.0
+    assert last.next_reference_max_q == 0.7
     assert last.td_lambda == 14.0
     assert first.td_lambda == 15.0
+    assert vars(end) == {"state": "cutoff", "terminal": False, "truncated": True}
