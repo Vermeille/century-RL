@@ -24,6 +24,8 @@ from boardrl.games.santorini.augmentations import (
 )
 from boardrl.games.santorini.game import Santorini as SantoriniGame
 from boardrl.games.skullking.game import SkullKing as SkullKingGame
+from boardrl.games.splendor.game import Splendor as SplendorGame
+from boardrl.games.splendor.semantics import SplendorOutcome
 from boardrl.games.sum.game import Sum as SumGame
 from boardrl.games.sum.strategies import strategy_from_string as sum_strategy_from_string
 from boardrl.games.take5.game import Take5 as Take5Game
@@ -262,4 +264,14 @@ register_game(
     scores=OutcomeScores(),
     outcome=CompetitiveOutcome(),
     rewards=TerminalOutcomeRewards(),
+)
+
+register_game(
+    "splendor",
+    SplendorGame,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=SplendorOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=SplendorGame,
 )
