@@ -13,7 +13,7 @@ class RolloutEndpoint(Protocol):
 
 
 State = str | list[str]
-Moves = list[str] | list[list[str]]
+Moves = list[str] | tuple[str, ...] | list[list[str]]
 ActionIndex = int | torch.Tensor
 Policy = torch.Tensor | list[torch.Tensor]
 Scalar = float | torch.Tensor
