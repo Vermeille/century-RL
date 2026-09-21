@@ -94,15 +94,19 @@ def test_ten_rule_moves_is_per_card_and_excludes_non_card_actions():
     assert list(ten_rule_moves.values) == [1]
 
 
-def test_thegame_metrics_self_play_runs():
+def test_thegame_metrics_rollout_runs():
     from boardrl.games.thegame.game import TheGame
     from boardrl.games.thegame.strategies import strategy_from_string
-    from boardrl.rl.eval.selfplay import self_play
+    from boardrl.rollouts import play_games
 
     make_game = lambda num_players: TheGame(num_players=num_players)
-    strat = lambda: strategy_from_string("lowest_cost")
-    results = self_play(
-        make_game, [strat, strat], n_games=1, max_len=10, rotate=False, desc=""
+    players = [strategy_from_string("lowest_cost"), strategy_from_string("lowest_cost")]
+    results = play_games(
+        make_game,
+        [players],
+        max_steps=10,
+        rotate=False,
+        description=None,
     )
     metrics = Metrics(results)
     assert metrics.metrics()
