@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import os
 from pathlib import Path
+import uuid
 
 import torch
 
@@ -136,7 +138,7 @@ def make_prepare(model, args, strategy_id, threshold):
             discount=args.discount,
             gae_lambda=args.gae_lambda,
             value_lambda=args.value_lambda,
-            reuse_rollout_predictions=False,
+            reuse_rollout_predictions=True,
         ),
         strategy_id=strategy_id,
         threshold=threshold,
@@ -164,9 +166,16 @@ def initialize_models(path, agent, environment, device):
 
 
 def run(args):
+    if args.trackio:
+        # Trackio's resume API selects by project/name.  Tags are checkpoint
+        # directory names and are intentionally reusable, so give each process
+        # a unique Trackio name and persist it in run.txt for the arena.
+        args.trackio_run_name = (
+            f"{args.tag}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+        )
     trackio_sink = make_trackio(
         project=args.game if args.trackio else None,
-        name=args.tag,
+        name=getattr(args, "trackio_run_name", args.tag),
         server_url=args.trackio_url,
         config=vars(args),
     )

@@ -108,6 +108,7 @@ class PolicySamplingStrategy:
         nn_out = await self.nn(state)
         raw_policy = nn_out.policy[0].cpu()
         raw_value = nn_out.value.mean.cpu()[0]
+        raw_value_stddev = nn_out.value.stddev.cpu()[0]
         policy = raw_policy / self.temperature
         if self.epsilon != 0.0:
             policy = torch.softmax(policy, dim=0)
@@ -120,6 +121,7 @@ class PolicySamplingStrategy:
             "state": state,
             "reference_policy": raw_policy,
             "reference_value": raw_value.item(),
+            "reference_value_stddev": raw_value_stddev.item(),
             "reference_max_q": (raw_value + (raw_policy - raw_policy.mean()).max()).item(),
         }
         if self.include_moves:

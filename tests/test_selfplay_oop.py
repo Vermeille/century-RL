@@ -9,7 +9,14 @@ from boardrl.games import games_library
 from boardrl.games.semantics import CooperativeOutcome, OutcomeScores, PointScores
 from boardrl.evaluation import Evaluation, Scoreboard
 from boardrl.metrics import rollout_metrics
-from boardrl.rl.eval.selfplay import EndState, GameTrace, PlayerTrace, SelfPlayResults, pit
+from boardrl.rl.eval.selfplay import (
+    EndState,
+    GameTrace,
+    PlayerTrace,
+    Record,
+    SelfPlayResults,
+    pit,
+)
 
 
 class _TerminalGame:
@@ -37,6 +44,35 @@ class _TerminalGame:
 
     def round(self):
         return 3
+
+
+def test_record_preserves_complete_rollout_reference_values():
+    game = SimpleNamespace(
+        moves=["a", "b"],
+        diff_points=lambda: 3,
+        points=lambda: 5,
+        current_player=lambda: 0,
+        round=lambda: 7,
+    )
+    record = Record(
+        game,
+        torch.tensor([0.1, 0.2]),
+        1,
+        {
+            "state": "position\n@a\n@b",
+            "reference_policy": torch.tensor([0.3, 0.4]),
+            "reference_value": 2.0,
+            "reference_value_stddev": 1.25,
+            "reference_max_q": 2.05,
+        },
+    )
+    record.score = 3.0
+    record.reward = 1.0
+    record.returns = 1.0
+
+    sample = record.training_sample()
+
+    assert sample.reference_value_stddev == pytest.approx(1.25)
 
 
 def test_end_state_keeps_points_separate_from_competitive_utility():

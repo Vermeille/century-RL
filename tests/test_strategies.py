@@ -90,7 +90,10 @@ def test_policy_sampling_epsilon_uses_dirichlet_noise(monkeypatch):
     async def model(_state):
         return SimpleNamespace(
             policy=[torch.tensor([0.0, 0.0, 0.0])],
-            value=SimpleNamespace(mean=torch.tensor([0.0])),
+            value=SimpleNamespace(
+                mean=torch.tensor([0.0]),
+                stddev=torch.tensor([1.25]),
+            ),
         )
 
     game = SimpleNamespace(
@@ -102,9 +105,10 @@ def test_policy_sampling_epsilon_uses_dirichlet_noise(monkeypatch):
     strat = PolicySamplingStrategy(
         model, epsilon=1.0, dirichlet_alpha=0.7, include_moves=False
     )
-    policy, _ = asyncio.run(strat(game))
+    policy, info = asyncio.run(strat(game))
 
     assert torch.allclose(policy.exp(), torch.tensor([0.1, 0.2, 0.7]))
+    assert info["reference_value_stddev"] == pytest.approx(1.25)
 
 
 def test_connectfour_keeps_default_and_game_specific_strategies():

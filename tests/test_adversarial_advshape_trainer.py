@@ -38,6 +38,44 @@ def test_defaults_to_requested_advantage_thresholds():
     assert args.environment_threshold == 0.7
 
 
+def test_trackio_run_name_is_unique_for_each_process(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        adversarial_advshape,
+        "make_trackio",
+        lambda **kwargs: calls.append(kwargs) or SimpleNamespace(finish=lambda: None),
+    )
+    monkeypatch.setattr(adversarial_advshape, "_run", lambda args, sink: None)
+
+    args = adversarial_advshape.build_parser().parse_args(
+        ["--trackio", "--tag", "same-tag"]
+    )
+    adversarial_advshape.run(args)
+
+    assert calls[0]["name"] == args.trackio_run_name
+    assert calls[0]["name"].startswith("same-tag-")
+
+
+def test_prepare_reuses_complete_rollout_predictions():
+    args = SimpleNamespace(
+        inference_batch_size=8,
+        discount=1.0,
+        gae_lambda=0.0,
+        value_lambda=1.0,
+    )
+
+    prepare = adversarial_advshape.make_prepare(
+        object(), args, strategy_id=0, threshold=0.7
+    )
+    reference_targets = next(
+        step
+        for step in prepare.steps
+        if isinstance(step, adversarial_advshape.ReferenceTargets)
+    )
+
+    assert reference_targets.reuse_rollout_predictions
+
+
 def test_advantage_shaping_uses_strategy_batch_win_rate():
     games = SelfPlayResults(
         [

@@ -30,7 +30,12 @@ class Record:
         self.round = game.round()
         self._training_info = {
             key: info[key]
-            for key in ("reference_policy", "reference_value", "reference_max_q")
+            for key in (
+                "reference_policy",
+                "reference_value",
+                "reference_value_stddev",
+                "reference_max_q",
+            )
             if key in info
         }
 
