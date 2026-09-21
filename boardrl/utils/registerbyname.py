@@ -52,10 +52,12 @@ def _coerce(value, arg_type):
 class RegisterByName:
     def __init__(self):
         self.registry = {}
+        self.required = {}
 
     def copy(self):
         new_register = RegisterByName()
         new_register.registry = self.registry.copy()
+        new_register.required = {name: args.copy() for name, args in self.required.items()}
         return new_register
 
     def register(self, name, args_from=None):
@@ -73,6 +75,13 @@ class RegisterByName:
             except (NameError, TypeError):
                 type_hints = {}
 
+            relevant = {
+                arg_name: param
+                for arg_name, param in params.items()
+                if arg_name != "self"
+                and param.kind
+                not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+            }
             arg_info = {
                 arg_name: (
                     type_hints.get(
@@ -81,15 +90,19 @@ class RegisterByName:
                         if param.annotation != inspect.Parameter.empty
                         else _identity,
                     ),
-                    param.default,
+                    param.default
+                    if param.default != inspect.Parameter.empty
+                    else None,
                 )
-                for arg_name, param in params.items()
-                if arg_name != "self"
-                and param.kind
-                not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+                for arg_name, param in relevant.items()
             }
 
             self.registry[name] = (cls, arg_info)
+            self.required[name] = {
+                arg_name
+                for arg_name, param in relevant.items()
+                if param.default == inspect.Parameter.empty
+            }
             cls._registry_name = name
             return cls
 
@@ -97,6 +110,9 @@ class RegisterByName:
 
     def update(self, other: "RegisterByName"):
         self.registry.update(other.registry)
+        self.required.update(
+            {name: args.copy() for name, args in other.required.items()}
+        )
         return self
 
     def __contains__(self, spec):
@@ -129,7 +145,7 @@ class RegisterByName:
                         f"Invalid value for {arg_name} in {name}: {value!r}"
                     ) from exc
                 continue
-            if default is inspect.Parameter.empty:
+            if arg_name in self.required[name]:
                 raise ValueError(f"Missing required argument {arg_name} for {name}")
             init_args[arg_name] = default
 
@@ -139,5 +155,5 @@ class RegisterByName:
         for name, (_, args) in self.registry.items():
             rendered = name
             for arg, (_, default) in args.items():
-                rendered += f",{arg}={'?' if default is inspect.Parameter.empty else default}"
+                rendered += f",{arg}={'?' if arg in self.required[name] else default}"
             print(rendered)
