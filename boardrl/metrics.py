@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 
 from boardrl.games.semantics import CompetitiveOutcome
-from boardrl.rl.eval.selfplay import TraceGroup, TraceGroups
+from boardrl.rollouts import TraceGroup, TraceGroups
 
 
 @dataclass(frozen=True)
