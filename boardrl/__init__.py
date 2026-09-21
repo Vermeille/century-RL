@@ -13,7 +13,7 @@ from .metrics import (
     make_trackio,
 )
 from .rollouts import Inference, RolloutRunner, Rollouts, play_games
-from .run import RunInfo
+from .run import RunInfo, default_metric_logger, seed_everything, trackio_run
 
 __all__ = [
     "Checkpoints",
@@ -31,6 +31,9 @@ __all__ = [
     "Scoreboard",
     "Trackio",
     "TraceMetrics",
+    "default_metric_logger",
     "make_trackio",
     "play_games",
+    "seed_everything",
+    "trackio_run",
 ]
