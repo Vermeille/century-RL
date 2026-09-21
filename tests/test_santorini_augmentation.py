@@ -109,6 +109,8 @@ def test_horizontal_and_vertical_flips_transform_directions(monkeypatch):
     game = Santorini()
     for move in ("P:a1", "P:e5", "P:e1", "P:a5"):
         game.play_str(move)
+    assert "a1>r+l" in game.moves
+    assert "e5>ul+ul" in game.moves
     sample = TrainingSample(state=game.display_with_moves(), moves=list(game.moves))
 
     monkeypatch.setattr(
@@ -117,10 +119,10 @@ def test_horizontal_and_vertical_flips_transform_directions(monkeypatch):
     horizontal = horizontal_symmetry([sample])[0]
     vertical = vertical_symmetry([sample])[0]
 
-    assert "e1>l+r" in horizontal.moves  # a1>r+l mirrored left/right
-    assert "a5>r+l" in vertical.moves  # a1>r+l mirrored top/bottom
-    assert "e5>dr+dr" in horizontal.moves  # a5>dl+dl mirrored left/right
-    assert "a1>ur+ur" in vertical.moves  # a5>dl+dl mirrored top/bottom
+    assert "e1>l+r" in horizontal.moves
+    assert "a5>ur+ur" in horizontal.moves
+    assert "a5>r+l" in vertical.moves
+    assert "e1>dl+dl" in vertical.moves
 
 
 def test_symmetry_augmentations_can_be_identity(monkeypatch):
