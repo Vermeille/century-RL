@@ -57,6 +57,7 @@ def test_run_info_captures_commit_status_and_dirty_diff(tmp_path: Path) -> None:
     executable.write_text("print('after')\n")
     info = RunInfo.capture(argparse.Namespace(game="thegame"), executable)
 
+    assert info.entrypoint == Path("trainer.py")
     assert info.git_commit == commit
     assert " M trainer.py" in info.git_status
     assert "-print('before')" in info.git_diff
