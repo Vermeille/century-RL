@@ -2,14 +2,12 @@ import torch
 from typing import Protocol
 from torch._dynamo.decorators import skip
 from boardrl.utils.batchprocessor import BatchProcessor, run_tasks
-from boardrl.utils.modelpool import ModelPool
 from boardrl.utils.registerbyname import RegisterByName
 
 
 __all__ = [
     "BatchProcessor",
     "run_tasks",
-    "ModelPool",
     "RegisterByName",
     "entropy",
     "Game",
