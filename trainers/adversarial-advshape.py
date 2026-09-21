@@ -167,7 +167,7 @@ def initialize_models(path, agent, environment, device):
 
 def run(args):
     if args.trackio:
-        # Trackio's resume API selects by project/name.  Tags are checkpoint
+        # Trackio's resume API selects by project/name. Tags are checkpoint
         # directory names and are intentionally reusable, so give each process
         # a unique Trackio name and persist it in run.txt for the arena.
         args.trackio_run_name = (
@@ -256,7 +256,6 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/games/__init__.py",
             repo_root / "boardrl/games/semantics.py",
             repo_root / "boardrl/rl/model/loss.py",
-            repo_root / "boardrl/rl/eval/selfplay.py",
             repo_root / "boardrl/training/learner.py",
             repo_root / "boardrl/schedules.py",
             repo_root / "boardrl/training/postprocess.py",
