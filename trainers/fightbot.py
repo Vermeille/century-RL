@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-from pathlib import Path
 
 import torch
 
@@ -14,24 +13,18 @@ else:
 
 from boardrl import (
     Checkpoints,
-    Console,
     Evaluator,
     Inference,
-    MetricLogger,
     RolloutRunner,
     RunInfo,
-    make_trackio,
+    default_metric_logger,
+    seed_everything,
+    trackio_run,
 )
 from boardrl.games import games_library
 from boardrl.metrics import rollout_metrics
 from boardrl.models import copy_weights, make_for_game
-from boardrl.training import (
-    Learner,
-    Pipeline,
-    ReferenceTargets,
-    Select,
-    ToSamples,
-)
+from boardrl.training import Learner, Pipeline, ReferenceTargets, Select, ToSamples
 
 
 def build_parser():
@@ -55,21 +48,17 @@ def build_parser():
 
 
 def run(args):
-    trackio_sink = make_trackio(
+    with trackio_run(
         project=args.game if args.trackio else None,
         name=args.tag,
         server_url=args.trackio_url,
         config=vars(args),
-    )
-    try:
+    ) as trackio_sink:
         return _run(args, trackio_sink)
-    finally:
-        if trackio_sink is not None:
-            trackio_sink.finish()
 
 
 def _run(args, trackio_sink):
-    coop.seed_everything(args.seed)
+    seed_everything(args.seed)
     game = games_library(args.game)
     if game.coop:
         raise ValueError("fightbot.py requires a non-cooperative game")
@@ -97,24 +86,7 @@ def _run(args, trackio_sink):
     best_checkpoints = Checkpoints(checkpoint_dir, prefix="best", keep=1)
     best_score = float("-inf")
 
-    repo_root = Path(__file__).resolve().parents[1]
-    run_info = RunInfo.capture(
-        args,
-        __file__,
-        additional_sources=(
-            repo_root / "trainers/coop.py",
-            repo_root / "boardrl/models.py",
-            repo_root / "boardrl/rollouts.py",
-            repo_root / "boardrl/rl/model/loss.py",
-            repo_root / "boardrl/games/__init__.py",
-            repo_root / "boardrl/games/semantics.py",
-            repo_root / "boardrl/training/learner.py",
-            repo_root / "boardrl/schedules.py",
-            repo_root / "boardrl/training/postprocess.py",
-            repo_root / "boardrl/training/returns.py",
-        ),
-    )
-    run_info.save(checkpoint_dir)
+    RunInfo.capture(args, __file__).save(checkpoint_dir)
 
     start = 0
     if args.resume:
@@ -148,10 +120,7 @@ def _run(args, trackio_sink):
     )
     training_opponent = game.strategy_from_string(args.opponent_bot)
     evaluation_opponent = game.strategy_from_string(args.opponent_eval_strategy)
-    sinks = [Console()]
-    if trackio_sink is not None:
-        sinks.append(trackio_sink)
-    metrics = MetricLogger(*sinks)
+    metrics = default_metric_logger(trackio_sink)
 
     # Compute returns while both player traces are still present. Select the
     # model's strategy identity before flattening so the fixed bot can never
