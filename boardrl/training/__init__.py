@@ -2,13 +2,11 @@ from .sample import TrainingSample, collate
 from .postprocess import (
     ComputeReturns,
     DoubleQTargets,
-    DropFields,
     Pipeline,
     ReplayBuffer,
     ReferenceTargets,
     Select,
     ToSamples,
-    samples_from,
 )
 from .learner import (
     CosineWarmupDecay,
@@ -26,7 +24,6 @@ __all__ = [
     "ComputeReturns",
     "CosineWarmupDecay",
     "DoubleQTargets",
-    "DropFields",
     "Learner",
     "LinearWarmupDecay",
     "LearningRateScheduler",
@@ -43,5 +40,4 @@ __all__ = [
     "Scheduler",
     "collate",
     "normalized_nucleus_size",
-    "samples_from",
 ]
