@@ -4,6 +4,16 @@ import random
 import torch
 
 
+def _reorder(value, order, field_name):
+    if len(value) != len(order):
+        raise ValueError(
+            f"{field_name} has length {len(value)}, expected {len(order)}"
+        )
+    if isinstance(value, torch.Tensor):
+        return value[order]
+    return [value[i] for i in order]
+
+
 def shuffle_actions(samples):
     """Return copies of samples with randomized legal-action order.
 
@@ -16,6 +26,8 @@ def shuffle_actions(samples):
     for sample in samples:
         sample = copy(sample)
         augmented.append(sample)
+        if sample.state is None:
+            raise ValueError("sample state is required for action shuffling")
         lines = sample.state.splitlines(keepends=True)
         action_positions = [
             position for position, line in enumerate(lines) if line.startswith("@")
@@ -43,7 +55,7 @@ def shuffle_actions(samples):
             lines[position] = action_lines[old_idx] + ending
         sample.state = "".join(lines)
 
-        if hasattr(sample, "action_idx"):
+        if sample.action_idx is not None:
             old_action_idx = sample.action_idx
             if not 0 <= old_action_idx < len(action_positions):
                 raise ValueError(
@@ -52,18 +64,18 @@ def shuffle_actions(samples):
                 )
             sample.action_idx = action_order.index(old_action_idx)
 
-        for field in ("moves", "action_distribution", "reference_policy"):
-            if not hasattr(sample, field):
-                continue
-            value = getattr(sample, field)
-            if len(value) != len(action_order):
-                raise ValueError(
-                    f"{field} has length {len(value)}, expected "
-                    f"{len(action_order)}"
-                )
-            if isinstance(value, torch.Tensor):
-                value = value[action_order]
-            else:
-                value = type(value)(value[i] for i in action_order)
-            setattr(sample, field, value)
+        if sample.moves is not None:
+            sample.moves = _reorder(sample.moves, action_order, "moves")
+        if sample.action_distribution is not None:
+            sample.action_distribution = _reorder(
+                sample.action_distribution,
+                action_order,
+                "action_distribution",
+            )
+        if sample.reference_policy is not None:
+            sample.reference_policy = _reorder(
+                sample.reference_policy,
+                action_order,
+                "reference_policy",
+            )
     return augmented
