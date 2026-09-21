@@ -4,7 +4,9 @@ from importlib import import_module
 from boardrl.utils import RegisterByName
 from boardrl.games.augmentations import shuffle_actions
 from boardrl.games.strategies import strategy_from_string
-from boardrl.games.connectfour.augmentations import horizontal_symmetry as connectfour_horizontal_symmetry
+from boardrl.games.connectfour.augmentations import (
+    horizontal_symmetry as connectfour_horizontal_symmetry,
+)
 from boardrl.games.connectfour.game import ConnectFour as ConnectFourGame
 from boardrl.games.connectfour.strategies import (
     strategy_from_string as connectfour_strategy_from_string,
@@ -30,6 +32,7 @@ from boardrl.games.thegame.game import TheGame as TheGameGame
 from boardrl.games.thegame.strategies import (
     strategy_from_string as thegame_strategy_from_string,
 )
+from boardrl.games.tictactoe.game import TicTacToe as TicTacToeGame
 from boardrl.games.semantics import (
     CompetitiveOutcome,
     CooperativeOutcome,
@@ -142,7 +145,7 @@ class Century(GameDesc):
 
 register_game(
     "tictactoe",
-    __import__("boardrl.games.tictactoe.game", fromlist=["TicTacToe"]).TicTacToe,
+    TicTacToeGame,
     augmentations=(shuffle_actions,),
     scores=OutcomeScores(),
     outcome=CompetitiveOutcome(),
