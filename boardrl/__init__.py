@@ -12,7 +12,7 @@ from .metrics import (
     Trackio,
     make_trackio,
 )
-from .rollouts import Inference, RolloutRunner
+from .rollouts import Inference, RolloutRunner, Rollouts, play_games
 from .run import RunInfo
 
 __all__ = [
@@ -26,9 +26,11 @@ __all__ = [
     "MetricLogger",
     "Range",
     "RolloutRunner",
+    "Rollouts",
     "RunInfo",
     "Scoreboard",
     "Trackio",
     "TraceMetrics",
     "make_trackio",
+    "play_games",
 ]
