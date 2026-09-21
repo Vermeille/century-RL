@@ -1,29 +1,71 @@
-from typing import Tuple, get_type_hints
 import inspect
+from collections.abc import Mapping
+from typing import Any, get_type_hints
+
+
+def parse_spec(spec: str | Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Parse ``name,key=value`` specs without doing registry-specific work."""
+    if isinstance(spec, Mapping):
+        kwargs = dict(spec)
+        try:
+            name = kwargs.pop("name")
+        except KeyError as exc:
+            raise ValueError("Spec mapping requires a 'name' field") from exc
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Spec name must be a non-empty string")
+        return name.strip(), kwargs
+
+    if not isinstance(spec, str):
+        raise ValueError(f"Invalid spec: {spec!r} (type: {type(spec).__name__})")
+
+    name, *parts = spec.split(",")
+    name = name.strip()
+    if not name:
+        raise ValueError("Spec name cannot be empty")
+
+    kwargs: dict[str, str] = {}
+    for part in parts:
+        key, separator, value = part.partition("=")
+        key = key.strip()
+        if not separator or not key:
+            raise ValueError(f"Invalid spec argument: {part!r}")
+        if key in kwargs:
+            raise ValueError(f"Duplicate spec argument: {key}")
+        kwargs[key] = value.strip()
+    return name, kwargs
+
+
+def _identity(value):
+    return value
+
+
+def _coerce(value, arg_type):
+    if arg_type is bool:
+        if isinstance(value, bool):
+            return value
+        if value not in ("True", "False"):
+            raise ValueError("expected True or False")
+        return value == "True"
+    return arg_type(value)
 
 
 class RegisterByName:
-    def __init__(self, arg_readers=None):
+    def __init__(self):
         self.registry = {}
-        self.arg_readers = arg_readers or {}
 
     def copy(self):
         new_register = RegisterByName()
         new_register.registry = self.registry.copy()
-        new_register.arg_readers = self.arg_readers.copy()
         return new_register
 
     def register(self, name, args_from=None):
         def foo(cls):
             source = cls if args_from is None else args_from
-            # If registering a class, prefer its __init__ signature
             if inspect.isclass(source) and "__init__" in source.__dict__:
-                sig = inspect.signature(source.__init__)
-                params = sig.parameters
+                params = inspect.signature(source.__init__).parameters
                 annotated = source.__init__
             else:
-                sig = inspect.signature(source)
-                params = sig.parameters
+                params = inspect.signature(source).parameters
                 annotated = source
 
             try:
@@ -31,25 +73,21 @@ class RegisterByName:
             except (NameError, TypeError):
                 type_hints = {}
 
-            arg_info = None
-            if params is not None:
-                arg_info = {
-                    name: (
-                        type_hints.get(
-                            name,
-                            param.annotation
-                            if param.annotation != inspect.Parameter.empty
-                            else lambda x: x,
-                        ),
-                        param.default
-                        if param.default != inspect.Parameter.empty
-                        else None,
-                    )
-                    for name, param in params.items()
-                    if name != "self"
-                }
-            else:
-                arg_info = {}
+            arg_info = {
+                arg_name: (
+                    type_hints.get(
+                        arg_name,
+                        param.annotation
+                        if param.annotation != inspect.Parameter.empty
+                        else _identity,
+                    ),
+                    param.default,
+                )
+                for arg_name, param in params.items()
+                if arg_name != "self"
+                and param.kind
+                not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+            }
 
             self.registry[name] = (cls, arg_info)
             cls._registry_name = name
@@ -59,67 +97,47 @@ class RegisterByName:
 
     def update(self, other: "RegisterByName"):
         self.registry.update(other.registry)
-        self.arg_readers.update(other.arg_readers)
         return self
 
-    def __contains__(self, descr):
-        name, _ = self._read(descr)
+    def __contains__(self, spec):
+        name, _ = parse_spec(spec)
         return name in self.registry
 
-    def _read(self, descr: str | dict) -> Tuple[str, dict]:
-        if isinstance(descr, str):
-            name, *arg_list = descr.split(",")
-            args = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_list}
-        elif isinstance(descr, dict):
-            descr = dict(descr)
-            args = descr
-            name = args.pop("name")
-        else:
-            raise ValueError(f"Invalid description: {descr} (type: {type(descr)})")
-        return name, args
-
-    def __call__(self, descr_string, **provided_args):
-        name, args = self._read(descr_string)
+    def __call__(self, spec, **provided_args):
+        name, args = parse_spec(spec)
 
         if name not in self.registry:
             raise ValueError(f"Unknown class: {name}")
 
         klass, arg_info = self.registry[name]
+        unknown = set(args) - set(arg_info)
+        if unknown:
+            unknown_args = ", ".join(sorted(unknown))
+            raise ValueError(f"Unknown argument(s) for {name}: {unknown_args}")
+
         init_args = {}
-
-        for arg_name in args.keys():
-            assert arg_name in arg_info, f"Unknown argument {arg_name} for {name}"
-
         for arg_name, (arg_type, default) in arg_info.items():
-            try:
-                if arg_name in self.arg_readers:
-                    init_args[arg_name] = self.arg_readers[arg_name](
-                        args.get(arg_name, None),
-                        default,
-                        provided_args.get(arg_name, None),
-                    )
-                elif arg_name in provided_args:
-                    init_args[arg_name] = provided_args[arg_name]
-                elif arg_name in args:
-                    if arg_type is bool:
-                        assert args[arg_name] in ["True", "False"]
-                        init_args[arg_name] = args[arg_name] == "True"
-                    else:
-                        init_args[arg_name] = arg_type(args[arg_name])
-                else:
-                    init_args[arg_name] = default
-            except Exception as e:
-                raise ValueError(
-                    f"Error processing argument {arg_name} ({repr(arg_type)}({args[arg_name]})) for {name} : {e}"
-                ) from e
+            if arg_name in provided_args:
+                init_args[arg_name] = provided_args[arg_name]
+                continue
+            if arg_name in args:
+                value = args[arg_name]
+                try:
+                    init_args[arg_name] = _coerce(value, arg_type)
+                except Exception as exc:
+                    raise ValueError(
+                        f"Invalid value for {arg_name} in {name}: {value!r}"
+                    ) from exc
+                continue
+            if default is inspect.Parameter.empty:
+                raise ValueError(f"Missing required argument {arg_name} for {name}")
+            init_args[arg_name] = default
 
         return klass(**init_args)
 
     def display(self):
-        for fun, args in self.registry.items():
-            fun_display = fun
-            for arg, (_, default) in args[1].items():
-                if default == inspect.Parameter.empty:
-                    default = "?"
-                fun_display += f",{arg}={default}"
-            print(fun_display)
+        for name, (_, args) in self.registry.items():
+            rendered = name
+            for arg, (_, default) in args.items():
+                rendered += f",{arg}={'?' if default is inspect.Parameter.empty else default}"
+            print(rendered)
