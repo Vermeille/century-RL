@@ -3,6 +3,7 @@
 from functools import partial
 from typing import Callable, Iterable
 from boardrl.rl.eval.selfplay import SelfPlayResults
+from boardrl.training.sample import TrainingSample
 from boardrl.utils import chunk
 
 import torch
@@ -112,7 +113,7 @@ def compute_returns(
 
 def annotate_with_model(
     model,
-    trainset,
+    trainset: list[TrainingSample],
     bs,
     gamma,
     gae_lambda,
@@ -122,103 +123,118 @@ def annotate_with_model(
 ):
     with torch.no_grad():
 
-        def is_terminal(sample):
-            return sample.terminal
-
-        def is_truncated(sample):
-            return sample.truncated
-
         def eval_states(states):
             out = []
             for batch in chunk(states, bs):
                 out.extend(model(batch).unbatched())
             return out
 
-        # The final state of a truncated trace is not itself a training
-        # sample, but it is the bootstrap state for the preceding action.
-        # Evaluate it alongside the rollout samples when its cached value is
-        # unavailable.
-        evaluation_samples = list(trainset)
-        evaluation_samples.extend(
-            sample.next
-            for sample in trainset
-            if sample.next is not None and is_truncated(sample.next)
-        )
-        unique_samples = list(
-            {id(sample): sample for sample in evaluation_samples}.values()
-        )
         if use_cached_rollout:
             missing_samples = [
-                s
-                for s in unique_samples
-                if not all(
-                    hasattr(s, key)
-                    for key in (
-                        "reference_policy",
-                        "reference_value",
-                        "reference_value_stddev",
-                        "reference_max_q",
+                sample
+                for sample in trainset
+                if any(
+                    value is None
+                    for value in (
+                        sample.reference_policy,
+                        sample.reference_value,
+                        sample.reference_value_stddev,
+                        sample.reference_max_q,
                     )
                 )
             ]
         else:
-            missing_samples = unique_samples
-        preds = eval_states([s.state for s in missing_samples])
+            missing_samples = list(trainset)
+
+        preds = eval_states([sample.state for sample in missing_samples])
         for sample, pv in zip(missing_samples, preds):
             sample.reference_policy = pv.policy[0]
             sample.reference_value = pv.value.mean.item()
             sample.reference_value_stddev = pv.value.stddev.item()
             sample.reference_max_q = pv.q_value()[0].max().item()
 
+        truncated = [
+            sample
+            for sample in trainset
+            if sample.next is not None and sample.next.truncated
+        ]
+        truncated_preds = eval_states([sample.next.state for sample in truncated])
+        for sample, pv in zip(truncated, truncated_preds):
+            sample.next_reference_value = pv.value.mean.item()
+            sample.next_reference_max_q = pv.q_value()[0].max().item()
+
         for sample in trainset:
             if sample.next is None:
                 continue
-            if is_terminal(sample.next):
-                sample.next.reference_value = 0
-                sample.next.reference_max_q = 0
-                sample.next.advantage = 0
-                sample.next.td_lambda = 0
-                sample.next.gae = 0
-                sample.next.normalized_gae = 0
-            elif is_truncated(sample.next):
-                # At a cutoff the game has not ended. The endpoint value is
-                # therefore the base case for TD(lambda), while its GAE is
-                # zero because there is no action/advantage at the endpoint.
-                sample.next.td_lambda = sample.next.reference_value
-                sample.next.gae = 0
-                sample.next.normalized_gae = 0
 
-        def compute_gae(s):
-            if hasattr(s, "gae"):
-                return s.gae
-            s.gae = s.advantage + gae_lambda * gamma * compute_gae(s.next)
-            return s.gae
-
-        def compute_td_lambda(s):
-            if hasattr(s, "td_lambda"):
-                return s.td_lambda
-            s.td_lambda = (
-                s.reward
-                + gamma * (1 - value_lambda) * s.next_reference_value
-                + gamma * value_lambda * compute_td_lambda(s.next)
-            )
-            return s.td_lambda
-
-        for sample in trainset:
-            if sample.next:
+            if sample.next.terminal:
+                sample.next_reference_value = 0.0
+                sample.next_reference_max_q = 0.0
+            elif sample.next.truncated:
+                pass
+            else:
+                if not isinstance(sample.next, TrainingSample):
+                    raise TypeError("non-terminal next state must be a TrainingSample")
                 sample.next_reference_value = sample.next.reference_value
                 sample.next_reference_max_q = sample.next.reference_max_q
-                sample.advantage = (
-                    sample.reward
-                    + gamma * sample.next_reference_value
-                    - sample.reference_value
-                )
+
+            if sample.reference_value is None or sample.next_reference_value is None:
+                raise ValueError("reference values must be populated before advantages")
+            if sample.reward is None:
+                raise ValueError("reward must be populated before advantages")
+            sample.advantage = (
+                sample.reward
+                + gamma * sample.next_reference_value
+                - sample.reference_value
+            )
+
+        def compute_gae(sample: TrainingSample):
+            if sample.gae is not None:
+                return sample.gae
+            if sample.advantage is None:
+                raise ValueError("advantage must be populated before GAE")
+
+            if (
+                sample.next is None
+                or sample.next.terminal
+                or sample.next.truncated
+            ):
+                tail = 0.0
+            else:
+                if not isinstance(sample.next, TrainingSample):
+                    raise TypeError("non-terminal next state must be a TrainingSample")
+                tail = compute_gae(sample.next)
+            sample.gae = sample.advantage + gae_lambda * gamma * tail
+            return sample.gae
+
+        def compute_td_lambda(sample: TrainingSample):
+            if sample.td_lambda is not None:
+                return sample.td_lambda
+            if sample.reward is None or sample.next_reference_value is None:
+                raise ValueError("reward and next value must be populated before TD(lambda)")
+
+            if sample.next is None or sample.next.terminal:
+                tail = 0.0
+            elif sample.next.truncated:
+                tail = sample.next_reference_value
+            else:
+                if not isinstance(sample.next, TrainingSample):
+                    raise TypeError("non-terminal next state must be a TrainingSample")
+                tail = compute_td_lambda(sample.next)
+
+            sample.td_lambda = (
+                sample.reward
+                + gamma * (1 - value_lambda) * sample.next_reference_value
+                + gamma * value_lambda * tail
+            )
+            return sample.td_lambda
+
         for sample in trainset:
-            if sample.next:
+            if sample.next is not None:
                 compute_td_lambda(sample)
                 compute_gae(sample)
 
-        gae_values = torch.tensor([s.gae for s in trainset])
+        gae_values = torch.tensor([sample.gae for sample in trainset])
         # Use the complete on-policy batch to keep the normalized advantages
         # at unit scale. Estimating the scale after trimming the tails amplified
         # rare wins against strong opponents instead of making them robust.
