@@ -2,7 +2,7 @@
 
 from functools import partial
 from typing import Callable, Iterable
-from boardrl.rl.eval.selfplay import SelfPlayResults
+from boardrl.rollouts import Rollouts
 from boardrl.training.sample import TrainingSample
 from boardrl.utils import chunk
 
@@ -83,7 +83,7 @@ def set_score(history: list) -> None:
 
 
 def compute_returns(
-    games: SelfPlayResults,
+    games: Rollouts,
     discount_factor: float,
     *,
     entropy_reward_scale: float | None = None,
