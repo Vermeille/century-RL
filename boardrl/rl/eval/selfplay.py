@@ -222,9 +222,6 @@ class SelfPlayResults(list):
     def __init__(self, games: list[GameTrace]):
         super().__init__(games)
 
-    # ------------------------------------------------------------------
-    # Convenience accessors
-    # ------------------------------------------------------------------
     def only_player(self, players: list[int]):
         return SelfPlayResults(
             [
@@ -284,10 +281,6 @@ class SelfPlayResults(list):
         """Return policy sensitivity independently for every physical seat."""
         return self.by_seat.sensitivity()
 
-    #
-    # ------------------------------------------------------------------
-    # Metrics previously provided by ``PitResults``
-    # ------------------------------------------------------------------
     def my_games(self, num: int, *, by: str = "strategy"):
         return list(self.grouped(by).group(num))
 
@@ -394,26 +387,5 @@ def self_play(
         max_len,
         rotate,
         desc=desc,
-        outcome=outcome,
-    )
-
-
-@torch.no_grad()
-def pit(
-    make_game,
-    strategies,
-    n_games,
-    max_len,
-    *,
-    rotate: bool = True,
-    outcome=None,
-):
-    return self_play(
-        make_game,
-        strategies,
-        n_games,
-        max_len,
-        rotate=rotate,
-        desc="pit",
         outcome=outcome,
     )
