@@ -11,11 +11,13 @@ import torch
 
 from boardrl import (
     Checkpoints,
+    Console,
     Evaluator,
     Inference,
+    MetricLogger,
     RolloutRunner,
     RunInfo,
-    default_metric_logger,
+    make_trackio,
     seed_everything,
     trackio_run,
 )
@@ -486,6 +488,7 @@ def run(args):
         name=args.tag,
         server_url=args.trackio_url,
         config=vars(args),
+        factory=make_trackio,
     ) as trackio_sink:
         return _run(args, trackio_sink)
 
@@ -543,7 +546,10 @@ def _run(args, trackio_sink):
     evaluator = Evaluator(
         game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
-    metrics = default_metric_logger(trackio_sink)
+    sinks = [Console()]
+    if trackio_sink is not None:
+        sinks.append(trackio_sink)
+    metrics = MetricLogger(*sinks)
     prepare = Pipeline(
         game.rewards.make_returns(args.discount),
         ToSamples(),
