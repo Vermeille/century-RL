@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from boardrl.games.rps.game import RockPaperScissors
 from boardrl.games.rps.metrics import Metrics
-from boardrl.rl.eval.selfplay import PlayerTrace, GameTrace, SelfPlayResults
+from boardrl.rollouts import GameTrace, PlayerTrace, Rollouts
 
 
 def make_results():
@@ -44,7 +44,7 @@ def make_results():
     )
     players[0].append(end0)
     players[1].append(end1)
-    return SelfPlayResults([GameTrace(players)])
+    return Rollouts([GameTrace(players)])
 
 
 def test_hidden_decisions():
