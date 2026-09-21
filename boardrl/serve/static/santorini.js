@@ -1,6 +1,24 @@
 let santoriniSelection = { source: null, destination: null };
 let santoriniRevision = null;
 
+const santoriniDeltas = {
+  u: [0, -1],
+  d: [0, 1],
+  l: [-1, 0],
+  r: [1, 0],
+  ul: [-1, -1],
+  ur: [1, -1],
+  dl: [-1, 1],
+  dr: [1, 1],
+};
+
+function santoriniStep(coord, direction) {
+  const [dx, dy] = santoriniDeltas[direction];
+  const col = coord.charCodeAt(0) - 97 + dx;
+  const row = Number(coord[1]) - 1 + dy;
+  return `${String.fromCharCode(97 + col)}${row + 1}`;
+}
+
 function parseSantorini(game) {
   const data = {
     phase: "play",
@@ -42,9 +60,18 @@ function parseSantoriniMove(move) {
     return { setup: move.slice(2), source: null, destination: null, build: null };
   }
 
-  const [movement, build = null] = move.split("+");
-  const [source, destination] = movement.split(">");
-  return { setup: null, source, destination, build };
+  const [movement, buildDirection = null] = move.split("+");
+  const [source, moveDirection] = movement.split(">");
+  const destination = santoriniStep(source, moveDirection);
+  const build = buildDirection ? santoriniStep(destination, buildDirection) : null;
+  return {
+    setup: null,
+    source,
+    destination,
+    build,
+    moveDirection,
+    buildDirection,
+  };
 }
 
 function santoriniMoveMass(moves) {
