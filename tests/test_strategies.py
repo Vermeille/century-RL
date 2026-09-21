@@ -16,7 +16,7 @@ from boardrl.games.semantics import (
 )
 from boardrl.games.strategies import PolicySamplingStrategy
 from boardrl.rl.model.model import NormalValueDistribution, PolicyValue
-from boardrl.utils import BatchProcessor, ModelPool
+from boardrl.utils import BatchProcessor
 
 
 def toy_process(games: list[str]) -> PolicyValue:
@@ -25,13 +25,13 @@ def toy_process(games: list[str]) -> PolicyValue:
     return PolicyValue(policies, value)
 
 
-def instantiate(name: str, registry, pool):
+def instantiate(name: str, registry, predictor):
     _, arg_info = registry.registry[name]
     params = []
     provided = {}
     for arg, (typ, default) in arg_info.items():
         if arg == "model":
-            provided["model"] = pool
+            provided["model"] = predictor
         elif default is None:
             if typ is float:
                 params.append(f"{arg}=1.0")
@@ -62,8 +62,8 @@ for game_name in games_library.registry:
 def test_strategy_game_smoke(game_name, strat_name):
     desc = games_library(game_name)
     registry = desc.strategy_from_string
-    pool = ModelPool(BatchProcessor(1, toy_process), 1, 0)
-    strat = instantiate(strat_name, registry, pool)
+    predictor = BatchProcessor(1, toy_process)
+    strat = instantiate(strat_name, registry, predictor)
     g = desc.make_game()
 
     async def play_all():
