@@ -16,7 +16,7 @@ def test_configurable_game_keeps_constructor_arguments():
 
 
 def test_fixed_registration_does_not_expose_internal_constructor_arguments():
-    with pytest.raises(AssertionError, match="Unknown argument num_players"):
+    with pytest.raises(ValueError, match="Unknown argument.*num_players"):
         games_library("tictactoe,num_players=2")
 
 
