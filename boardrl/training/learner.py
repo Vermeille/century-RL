@@ -6,7 +6,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 import math
 import random
-from typing import ClassVar
 
 import torch
 
@@ -124,20 +123,9 @@ class Averages:
 
 
 class Updates:
-    modes: ClassVar[dict[bool, type["Updates"]]] = {}
-
-    def __init_subclass__(cls, *, reusable, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.modes[reusable] = cls
-
     def __init__(self, learner, samples):
         self.learner = learner
         self.samples = samples
-
-    @classmethod
-    def for_losses(cls, learner, samples):
-        reusable = all(loss.supports_off_policy for loss in learner.losses)
-        return cls.modes[reusable](learner, samples)
 
     def start(self):
         pass
@@ -149,7 +137,7 @@ class Updates:
         return {}
 
 
-class BatchUpdates(Updates, reusable=True):
+class BatchUpdates(Updates):
     def __init__(self, learner, samples):
         super().__init__(learner, samples)
         self.lr_scale = 1.0
@@ -196,7 +184,7 @@ class BatchUpdates(Updates, reusable=True):
         return {"lr_scale": self.lr_scale}
 
 
-class RolloutUpdate(Updates, reusable=False):
+class RolloutUpdate(Updates):
     epochs = 1
 
     def start(self):
@@ -239,7 +227,7 @@ class Learner:
         augmentations: Sequence[Callable] = (),
         batch_metrics: Sequence[Callable] = (),
         normalize_lr: bool = False,
-        lr_schedule: "Scheduler | None" = None,
+        lr_schedule: Scheduler | None = None,
         offload_modules: Sequence[torch.nn.Module] = (),
     ):
         self.model = model
@@ -300,7 +288,11 @@ class Learner:
             for initial_lr, group in zip(self.lr_initial_lrs, self.optimizer.param_groups):
                 group["lr"] = initial_lr * scale
         self.model.train()
-        updates = Updates.for_losses(self, samples)
+        updates = (
+            BatchUpdates(self, samples)
+            if all(loss.supports_off_policy for loss in self.losses)
+            else RolloutUpdate(self, samples)
+        )
         metrics = Averages()
         batches = 0
         seen = 0
@@ -354,72 +346,3 @@ class Learner:
             )
         self.optimizer.step()
         return norm
-
-
-class LearningRateScheduler:
-    """Apply a normalized :class:`Scheduler` to optimizer learning rates."""
-
-    def __init__(
-        self,
-        optimizer,
-        *,
-        start=0.0,
-        end=1.0,
-        warmup=0.0,
-        min_scale=0.0,
-        shape="linear",
-        curve=1.0,
-        schedule=None,
-    ):
-        self.optimizer = optimizer
-        self.schedule = schedule or Scheduler(
-            start=start,
-            end=end,
-            warmup=warmup,
-            shape=shape,
-            curve=curve,
-            start_value=1.0,
-            end_value=min_scale,
-        )
-        self.initial_lrs = [group["lr"] for group in optimizer.param_groups]
-
-    def step(self, progress: float) -> float:
-        scale = self.schedule.to_schedule(progress)
-        for initial_lr, group in zip(self.initial_lrs, self.optimizer.param_groups):
-            group["lr"] = initial_lr * scale
-        return self.optimizer.param_groups[0]["lr"]
-
-
-class WarmupDecay(LearningRateScheduler):
-    """Compatibility wrapper for callers providing a Scheduler directly."""
-
-    def __init__(self, optimizer, *, schedule: Scheduler):
-        super().__init__(optimizer, schedule=schedule)
-
-
-class LinearWarmupDecay(LearningRateScheduler):
-    """Apply a linear normalized schedule to optimizer learning rates."""
-
-    def __init__(self, optimizer, *, start=0.0, end=1.0, warmup=0.0, min_scale=0.0):
-        super().__init__(
-            optimizer,
-            start=start,
-            end=end,
-            warmup=warmup,
-            min_scale=min_scale,
-            shape="linear",
-        )
-
-
-class CosineWarmupDecay(LearningRateScheduler):
-    """Apply a cosine normalized schedule to optimizer learning rates."""
-
-    def __init__(self, optimizer, *, start=0.0, end=1.0, warmup=0.0, min_scale=0.0):
-        super().__init__(
-            optimizer,
-            start=start,
-            end=end,
-            warmup=warmup,
-            min_scale=min_scale,
-            shape="cosine",
-        )
