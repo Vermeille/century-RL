@@ -274,6 +274,11 @@ class Hanabi(GameDesc):
 @games_library.register("santorini")
 class Santorini(GameDesc):
     def __init__(self):
+        from boardrl.games.santorini.augmentations import (
+            horizontal_symmetry,
+            rotation_symmetry,
+            vertical_symmetry,
+        )
         from boardrl.games.santorini.game import Santorini as SantoriniGame
         from boardrl.games.santorini.metrics import Metrics
 
@@ -281,7 +286,12 @@ class Santorini(GameDesc):
             SantoriniGame,
             strategy_from_string,
             Metrics,
-            augmentations=(shuffle_actions,),
+            augmentations=(
+                shuffle_actions,
+                horizontal_symmetry,
+                vertical_symmetry,
+                rotation_symmetry,
+            ),
             scores=OutcomeScores(),
             outcome=CompetitiveOutcome(),
             rewards=TerminalOutcomeRewards(),
