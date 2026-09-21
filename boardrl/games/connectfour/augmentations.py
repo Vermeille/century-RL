@@ -63,6 +63,7 @@ def horizontal_symmetry(samples):
         sample.state = "".join(lines)
 
         if sample.moves is not None:
-            sample.moves = [_mirror_move(move, width) for move in sample.moves]
+            moves = sample.moves
+            sample.moves = type(moves)(_mirror_move(move, width) for move in moves)
 
     return augmented
