@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults
+from boardrl.rollouts import GameTrace, PlayerTrace, Rollouts
 
 
 def load_trainer(filename, module_name):
@@ -77,7 +77,7 @@ def test_prepare_reuses_complete_rollout_predictions():
 
 
 def test_advantage_shaping_uses_strategy_batch_win_rate():
-    games = SelfPlayResults(
+    games = Rollouts(
         [
             GameTrace([trace(0, 1.0), trace(1, -1.0)]),
             GameTrace([trace(0, -1.0), trace(1, 1.0)]),
@@ -103,7 +103,7 @@ def test_advantage_shaping_uses_strategy_batch_win_rate():
 
 
 def test_advantage_shaping_reverses_above_threshold():
-    games = SelfPlayResults(
+    games = Rollouts(
         [GameTrace([trace(0, 1.0), trace(1, -1.0)])]
     )
     sample = SimpleNamespace(gae=2.0, normalized_gae=-3.0)
