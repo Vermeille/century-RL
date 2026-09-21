@@ -35,47 +35,39 @@ Trackio, and future sinks are supplied automatically. Examples can be found in
 ## 3. Strategies (optional)
 Game-specific strategies may be provided in `strategies.py`. Define a
 `strategy_from_string` registry using `RegisterByName`, mirroring the pattern in
-[`sum/strategies.py`](sum/strategies.py). When registering the game, merge this
-registry with the default one from `boardrl/games/strategies` so both sets of
-strategies are available.
+[`sum/strategies.py`](sum/strategies.py). Pass that registry to `register_game`;
+it is copied and merged with the default strategies automatically.
 
 ## 4. Register the Game
-Expose the game to the rest of the library by registering it in
-`boardrl/games/__init__.py` using `games_library.register` and `GameDesc`:
+Conventional Python games are registered declaratively in
+`boardrl/games/__init__.py` with `register_game`. The helper loads the sibling
+`metrics.Metrics` lazily, builds the `GameDesc`, and merges an optional custom
+strategy registry with the defaults.
 
 ```python
-from boardrl.games.strategies import strategy_from_string
-from boardrl.games.semantics import (
-    CompetitiveOutcome,
-    PointScores,
-    TerminalOutcomeRewards,
+from boardrl.games.mygame.game import MyGame
+from boardrl.games.mygame.strategies import strategy_from_string as my_strategies
+
+register_game(
+    "mygame",
+    MyGame,
+    strategies=my_strategies,  # omit when there are no custom strategies
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=MyGame,  # include only when constructor args belong in the game spec
 )
-
-@games_library.register("mygame")
-class MyGame(GameDesc):
-    def __init__(self):
-        from boardrl.games.mygame.game import MyGame as Game
-        from boardrl.games.mygame.metrics import Metrics
-        from boardrl.games.mygame.strategies import (
-            strategy_from_string as my_strats,
-        )  # optional
-
-        strats = my_strats.copy().update(strategy_from_string)
-        super().__init__(
-            Game,
-            strats,
-            Metrics,
-            scores=PointScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
 ```
 
-For simpler games without custom strategies, pass `strategy_from_string` from
-`boardrl/games/strategies` directly.
+Omit `args_from` for games whose constructor options are implementation details
+rather than public registry arguments. For example, the rollout engine may pass
+`num_players` to `make_game` without making `num_players` part of the textual
+game specification.
 
-Use existing games such as `tictactoe`, `connectfour`, and `sum` as templates
-when building new ones.
+Use a custom `GameDesc` factory only when ordinary registration cannot describe
+the game. Century remains the main example because its Cython class cannot be
+introspected normally and requires custom import/setup work.
 
 ## 5. Web UI
 Games may expose a small web interface for manual play. Place a
