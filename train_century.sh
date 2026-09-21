@@ -2,9 +2,11 @@
 set -euo pipefail
 
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
-set -a
-source .env
-set +a
+if [[ -f .env ]]; then
+  set -a
+  source .env
+  set +a
+fi
 
 # The agent and environment use independent perplexity targets over the same
 # cosine schedule window.
