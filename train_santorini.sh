@@ -16,11 +16,6 @@ AGENT_THRESHOLD="${AGENT_THRESHOLD:-0.7}"
 ENVIRONMENT_THRESHOLD="${ENVIRONMENT_THRESHOLD:-0.7}"
 TAG="${TAG:-adversarial-advshape}"
 
-# NFSP-only arguments have no adversarial-advshape equivalent:
-#   --anticipatory 0.5
-#   --average-learning-rate 4e-4  # both PPO optimizers use --learning-rate
-#   --reservoir-capacity 1000000
-
 trainer_args=(
   --game santorini
   --random-move-prob 0.
