@@ -30,7 +30,9 @@ def test_run_info_publishes_and_saves_the_same_text(tmp_path: Path) -> None:
     assert "(not a git checkout)" in path.read_text()
 
 
-def test_run_info_captures_commit_status_and_dirty_diff(tmp_path: Path) -> None:
+def test_run_info_captures_commit_and_dirty_status_without_source_snapshot(
+    tmp_path: Path,
+) -> None:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(
         ["git", "config", "user.email", "tests@example.com"],
@@ -60,6 +62,7 @@ def test_run_info_captures_commit_status_and_dirty_diff(tmp_path: Path) -> None:
     assert info.entrypoint == Path("trainer.py")
     assert info.git_commit == commit
     assert " M trainer.py" in info.git_status
-    assert "-print('before')" in info.git_diff
-    assert "+print('after')" in info.git_diff
     assert commit in info.text
+    assert "print('before')" not in info.text
+    assert "print('after')" not in info.text
+    assert "launcher responsibility" in info.text
