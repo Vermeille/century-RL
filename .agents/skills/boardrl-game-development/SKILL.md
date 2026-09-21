@@ -1,6 +1,6 @@
 ---
 name: boardrl-game-development
-description: Implement, modify, review, and integrate games in the BoardRL repository. Use for adding a new game, changing game rules or state, defining game metrics or strategies, wiring a game into the registry, adding action augmentations or web rendering, and tracing how game objects interact with rollouts, self-play, evaluation, training, serving, and tests.
+description: Implement, modify, review, and integrate games in the BoardRL repository. Use for adding a new game, changing game rules or state, defining game metrics or strategies, wiring a game into the registry, adding action augmentations or web rendering, and tracing how game objects interact with rollouts, evaluation, training, serving, and tests.
 ---
 
 # BoardRL Game Development
@@ -35,7 +35,7 @@ refactors. Preserve unrelated worktree changes and artifacts.
 2. Implement the game protocol below and write deterministic rule tests before
    wiring training or serving.
 3. Register the game lazily in `boardrl/games/__init__.py` with a `GameDesc`.
-4. Run registry, strategy, self-play, metrics, and server smoke tests. Add
+4. Run registry, strategy, rollout, metrics, and server smoke tests. Add
    renderer tests only if `static/app.js` changes.
 
 ### Change an existing game
@@ -51,11 +51,12 @@ changes move strings, action ordering, visibility, player count, or scoring.
 
 For registration changes, inspect `GameDesc`, `RegisterByName`, and all callers
 of `games_library`. For training changes, inspect `Record`, `EndState`,
-`SelfPlayResults`, and `RolloutRunner`. For cooperative outcome changes, trace
-the `coop` flag through game descriptors, rollout/evaluation metrics, and
-trainer callers; the flag alone does not automatically redefine win rate. For
-web changes, follow `boardrl/serve/README.md` and preserve the generic raw-text
-renderer and canonical `moves` payload.
+`Rollouts`, and `RolloutRunner` in `boardrl/rollouts.py`. For cooperative
+outcome changes, trace the `coop` flag through game descriptors,
+rollout/evaluation metrics, and trainer callers; the flag alone does not
+automatically redefine win rate. For web changes, follow
+`boardrl/serve/README.md` and preserve the generic raw-text renderer and
+canonical `moves` payload.
 
 ## Implement the game protocol
 
@@ -78,7 +79,7 @@ Make the following attributes and methods correct at every reachable state:
 - `ended() -> bool`: report true for every terminal rule outcome, including
   draws, exhausted resources, or a stuck active player as appropriate.
 - `points_for(player)`, `points()`, `diff_points_for(player)`, and
-  `diff_points()`: provide the score values consumed by self-play and
+  `diff_points()`: provide the score values consumed by rollouts and
   evaluation. Keep the meaning explicit for wins, losses, ties, cooperative
   objectives, and truncation.
 - `copy()`: return an independent state copy with no shared mutable board,
@@ -144,10 +145,12 @@ values; sinks flatten nested names, and `Range` is available for compact
 distribution summaries. Use game-specific metrics for rule health and
 collapse, not as a replacement for the framework's generic rollout metrics.
 
-Strategies must return `(distribution, info)`, where the one-dimensional
-distribution length equals `len(game.moves)`. Use `RegisterByName` for
-game-specific strategy constructors and test every registered strategy against
-the game's initial state and a short legal rollout.
+Strategies must implement `async strategy(game)` and return
+`(distribution, info)`, where the one-dimensional distribution length equals
+`len(game.moves)`. Strategy factories belong in registry or lineup construction
+code, not inside rollout execution. Use `RegisterByName` for game-specific
+strategy constructors and test every registered strategy against the game's
+initial state and a short legal rollout.
 
 Register `shuffle_actions` when action-order augmentation is valid. It
 permutes `@` lines and must apply the same permutation to `moves`,
@@ -162,7 +165,7 @@ Run the smallest useful checks first, then broaden:
 
 ```bash
 uv run pytest tests/test_games.py
-uv run pytest tests/test_strategies.py tests/test_selfplay_oop.py tests/test_action_augmentation.py
+uv run pytest tests/test_strategies.py tests/test_rollouts.py tests/test_action_augmentation.py
 uv run pytest tests/test_serve.py tests/test_serve_tictactoe.py
 node --check boardrl/serve/static/app.js
 ```
