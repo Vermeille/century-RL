@@ -74,13 +74,12 @@ def _apply_transform(samples, transform_factory):
         transform = transform_factory()
         if transform is None:
             continue
+        if sample.state is None:
+            raise ValueError("sample state is required for Santorini symmetry")
 
         sample.state = _transform_state(sample.state, transform)
-        if hasattr(sample, "moves"):
-            moves = sample.moves
-            sample.moves = type(moves)(
-                _transform_move(move, transform) for move in moves
-            )
+        if sample.moves is not None:
+            sample.moves = [_transform_move(move, transform) for move in sample.moves]
 
     return augmented
 
