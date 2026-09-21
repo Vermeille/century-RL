@@ -85,6 +85,8 @@ def shuffle_hand(samples):
     for sample in samples:
         sample = copy(sample)
         augmented.append(sample)
+        if sample.state is None:
+            raise ValueError("sample state is required for Century hand shuffling")
 
         lines = sample.state.splitlines(keepends=True)
         old_to_new = _shuffle_card_group(lines, _owned_region(lines), "H")
@@ -95,9 +97,10 @@ def shuffle_hand(samples):
                 if body.startswith("@H"):
                     lines[i] = _remap_hand_move(body, old_to_new) + ending
 
-            if hasattr(sample, "moves"):
-                moves = [_remap_hand_move(move, old_to_new) for move in sample.moves]
-                sample.moves = type(sample.moves)(moves)
+            if sample.moves is not None:
+                sample.moves = [
+                    _remap_hand_move(move, old_to_new) for move in sample.moves
+                ]
 
         sample.state = "".join(lines)
 
@@ -116,6 +119,8 @@ def shuffle_discard(samples):
     for sample in samples:
         sample = copy(sample)
         augmented.append(sample)
+        if sample.state is None:
+            raise ValueError("sample state is required for Century discard shuffling")
 
         lines = sample.state.splitlines(keepends=True)
         _shuffle_card_group(lines, _owned_region(lines), "D")
