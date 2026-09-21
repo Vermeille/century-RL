@@ -59,8 +59,8 @@ terminal trace is useful. Use existing metrics modules as the shape reference;
 the framework supplies console and visualization sinks.
 
 Add `strategies.py` only when the game needs game-specific strategies. Register
-them with `RegisterByName`, and merge that registry with
-`boardrl.games.strategies.strategy_from_string` during game registration so the
+them with `RegisterByName`; pass the registry to `register_game`, which copies
+and merges it with `boardrl.games.strategies.strategy_from_string` so the
 default strategies remain available.
 
 Add `augmentations.py` only for transformations that preserve game semantics
@@ -70,40 +70,55 @@ adding a new renderer or server-side game branch.
 
 ## Register the Game
 
-Update `boardrl/games/__init__.py` with a `GameDesc` registration.
+Update `boardrl/games/__init__.py` with a declarative `register_game(...)` call.
+The helper resolves the sibling `metrics.Metrics` class lazily and builds the
+`GameDesc` for conventional Python games.
 
-- Use `@games_library.register("<game_name>")` for a game with no constructor
-  options.
-- For configurable games, follow the repository's `args_from=<GameClass>`
-  pattern and forward parsed arguments with `partial` or `*args, **kwargs`.
-- Import game-specific modules lazily inside the descriptor constructor, as
-  existing registrations do.
-- Pass the current `GameDesc` constructor's required values, including metrics,
-  augmentations, and reward scaling. Inspect the live signature rather than
-  copying an older registration verbatim.
-- Keep the shared strategy registry available even when custom strategies are
-  added.
+- Pass the game class directly.
+- Pass `args_from=GameClass` only when constructor parameters should be exposed
+  in textual specs such as `nim,num_stones=5,max_pick=2`.
+- Omit `args_from` when constructor parameters are internal; the rollout engine
+  can still pass values such as `num_players` directly to `make_game`.
+- Pass a game-specific strategy registry with `strategies=` when one exists.
+- Keep score semantics, outcome semantics, rewards, and augmentations explicit.
+- Use a custom `GameDesc` factory only for a genuinely exceptional integration
+  such as Century's Cython setup.
 
 For a simple game, the registration should have the same essential shape as:
 
 ```python
-@games_library.register("mygame")
-class MyGame(GameDesc):
-    def __init__(self):
-        from boardrl.games.mygame.game import MyGame as Game
-        from boardrl.games.mygame.metrics import Metrics
+from boardrl.games.mygame.game import MyGame
 
-        super().__init__(
-            Game,
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            reward_rescale=1.0,
-        )
+register_game(
+    "mygame",
+    MyGame,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+)
 ```
 
-Adjust the example to the current codebase and game needs; do not blindly add
-optional modules or parameters.
+For a configurable game with custom strategies:
+
+```python
+from boardrl.games.mygame.game import MyGame
+from boardrl.games.mygame.strategies import strategy_from_string as my_strategies
+
+register_game(
+    "mygame",
+    MyGame,
+    strategies=my_strategies,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=MyGame,
+)
+```
+
+Adjust the example to the game needs; do not add a descriptor subclass merely
+to forward constructor arguments or merge registries.
 
 ## Test the Addition
 
