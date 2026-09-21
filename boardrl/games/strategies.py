@@ -1,25 +1,10 @@
 import torch
 from inspect import signature
-from urllib.parse import unquote
 
-from boardrl.utils import Game, ModelPool, RegisterByName
-
-
-def get_model(arg_str, default, provided_arg):
-    """Resolve the model argument for strategy creation.
-
-    ``arg_str`` is the model specification from the strategy string.  If a
-    :class:`ModelPool` is supplied as ``provided_arg`` the resolution is
-    delegated to it, allowing ``model=this``, paths, or ``recent-N`` specs to
-    share caching and batching behaviour.  When no pool is supplied, fall back
-    to loading a model directly from ``arg_str``.
-    """
-
-    assert isinstance(provided_arg, ModelPool)
-    return provided_arg(unquote(arg_str) if arg_str is not None else None)
+from boardrl.utils import Game, RegisterByName
 
 
-strategy_from_string = RegisterByName(arg_readers={"model": get_model})
+strategy_from_string = RegisterByName()
 
 
 def one_hot(i, n, *, smooth=0.0):
