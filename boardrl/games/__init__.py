@@ -73,6 +73,10 @@ def _metrics_for(game_class):
     return import_module(f"{package}.metrics").Metrics
 
 
+def _no_registry_args():
+    pass
+
+
 def register_game(
     name,
     game_class,
@@ -101,19 +105,11 @@ def register_game(
             rewards=rewards,
         )
 
-    if args_from is None:
-        def factory():
-            return descriptor()
-
-        registered = games_library.register(name)(factory)
-    else:
-        def factory(**kwargs):
-            return descriptor(**kwargs)
-
-        registered = games_library.register(name, args_from=args_from)(factory)
-
-    registered.__name__ = f"{name}_game_desc"
-    return registered
+    descriptor.__name__ = f"{name}_game_desc"
+    return games_library.register(
+        name,
+        args_from=args_from or _no_registry_args,
+    )(descriptor)
 
 
 @games_library.register("century")
