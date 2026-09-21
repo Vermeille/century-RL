@@ -16,7 +16,8 @@ import pyximport  # type: ignore[import-untyped]
 pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
 from boardrl.games import games_library
 from boardrl.cyutils import fast_sample  # type: ignore[import-not-found]
-from boardrl.utils import ModelPool
+from boardrl.rl.model import load_model
+from boardrl.utils import BatchProcessor
 
 
 parser = argparse.ArgumentParser()
@@ -150,12 +151,12 @@ class Strategies:
     ):
         self.game_desc = game_desc or get_session().game_desc
         self.game_name = game_name or current_game_name
-        self.strategies = self.populate_strategies()
         self.cache: list[tuple[str, Any]] = []
         self.cache_len = cache_len
-        # ModelPool handles loading models and batching inference similar to
-        # the training setup in ``main.py``.
-        self.pool = ModelPool(None, batch_size, timeout)
+        self.batch_size = batch_size
+        self.timeout = timeout
+        self.model_paths: dict[str, str] = {}
+        self.strategies = self.populate_strategies()
 
     def populate_strategies(self):
         strategies = []
@@ -164,12 +165,11 @@ class Strategies:
         for model_path in Path(".").rglob("*.pth"):
             if not self.model_matches_game(model_path):
                 continue
-            # strategies.append(f"argmax:{model_path}")
             # Strategy descriptions use commas as argument separators, while
             # checkpoint run directories may themselves contain commas.
-            strategies.append(
-                f"policy_sampling,model={quote(str(model_path), safe='/')}"
-            )
+            name = f"policy_sampling,model={quote(str(model_path), safe='/')}"
+            strategies.append(name)
+            self.model_paths[name] = str(model_path)
 
         strategies = natsorted(strategies)
         strategies += [
@@ -200,13 +200,24 @@ class Strategies:
         for cache_name, strategy in self.cache:
             if cache_name == name:
                 return strategy
-        self.cache = self.cache[-self.cache_len :]
-        # Use the shared ModelPool when instantiating strategies so model
-        # arguments are resolved correctly.
-        self.cache.append(
-            (name, self.game_desc.strategy_from_string(name, model=self.pool))
-        )
-        return self.cache[-1][1]
+
+        kwargs = {}
+        model_path = self.model_paths.get(name)
+        if model_path is not None:
+            model = load_model(model_path)
+            model.eval()
+            kwargs["model"] = BatchProcessor(
+                self.batch_size,
+                model,
+                timeout=self.timeout,
+                model_name=model_path,
+            )
+
+        strategy = self.game_desc.strategy_from_string(name, **kwargs)
+        self.cache.append((name, strategy))
+        if len(self.cache) > self.cache_len:
+            self.cache.pop(0)
+        return strategy
 
 
 sessions: dict[str, GameSession] = {}
