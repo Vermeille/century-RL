@@ -7,7 +7,6 @@ from fastapi import HTTPException
 
 from boardrl.serve import serve
 from boardrl.serve.serve import Strategies
-from boardrl.utils import ModelPool
 
 
 def run_static_renderer_check(script: str):
@@ -88,9 +87,26 @@ def test_populate_strategies_finds_nested_checkpoint_model(tmp_path, monkeypatch
     assert strategy_name in s.strategies
 
     loaded_paths = []
-    s.pool = ModelPool(None, 1, 0)
-    s.pool._load = lambda model_path: loaded_paths.append(model_path) or object()
-    s.get_strategy(strategy_name)
+
+    class DummyModel:
+        def __init__(self):
+            self.evaluated = False
+
+        def eval(self):
+            self.evaluated = True
+
+    model = DummyModel()
+    monkeypatch.setattr(
+        serve,
+        "load_model",
+        lambda model_path: loaded_paths.append(model_path) or model,
+    )
+
+    strategy = s.get_strategy(strategy_name)
+    assert loaded_paths == [str(nested_model.relative_to(tmp_path))]
+    assert strategy.nn.process_fn is model
+    assert model.evaluated
+    assert s.get_strategy(strategy_name) is strategy
     assert loaded_paths == [str(nested_model.relative_to(tmp_path))]
 
 
