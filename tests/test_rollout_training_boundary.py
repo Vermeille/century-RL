@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, Record, SelfPlayResults
+from boardrl.rollouts import GameTrace, PlayerTrace, Record, Rollouts
 from boardrl.training import ToSamples
 
 
@@ -36,7 +36,7 @@ def test_to_samples_converts_rollout_metadata_into_training_fields():
     trace = PlayerTrace(seat_id=0, strategy_id=0)
     trace.extend([record, end])
 
-    samples = ToSamples()(SelfPlayResults([GameTrace([trace])]))
+    samples = ToSamples()(Rollouts([GameTrace([trace])]))
 
     assert len(samples) == 1
     sample = samples[0]
