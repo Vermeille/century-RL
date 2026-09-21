@@ -17,6 +17,33 @@ from boardrl.utils import chunk
 
 Processor = Callable[[Any], Any]
 
+_SAMPLE_METADATA_FIELDS = (
+    "reference_policy",
+    "reference_value",
+    "reference_value_stddev",
+    "reference_max_q",
+)
+
+
+def _sample_from_record(record) -> TrainingSample:
+    metadata = {
+        key: record.metadata[key]
+        for key in _SAMPLE_METADATA_FIELDS
+        if key in record.metadata
+    }
+    return TrainingSample(
+        state=record.state,
+        action_idx=record.action_idx,
+        action_distribution=record.action_distribution,
+        score=float(record.score),
+        reward=float(record.reward),
+        returns=record.returns,
+        next=None,
+        terminal=False,
+        truncated=False,
+        **metadata,
+    )
+
 
 class Pipeline:
     """Compose post-processing objects and ordinary callables."""
@@ -83,7 +110,7 @@ class ToSamples:
                     continue
                 previous = None
                 for record in trace[:-1]:
-                    sample = record.training_sample()
+                    sample = _sample_from_record(record)
                     if previous is not None:
                         previous.next = sample
                     samples.append(sample)
