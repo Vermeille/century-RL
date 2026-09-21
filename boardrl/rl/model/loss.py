@@ -894,7 +894,7 @@ class ScheduledPerplexity(Loss):
         progress = training_state["progress"]
         target = self.target_ppl(progress)
 
-        ppl_tensor = self.normalized_perplexity(pred_policy, training_state)
+        ppl_tensor = self.perplexity(pred_policy, training_state)
         ppl = ppl_tensor.detach().item()
 
         # Optional escape hatch: useful if this loss is called during eval/logging.
