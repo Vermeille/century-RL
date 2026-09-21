@@ -267,7 +267,6 @@ class CNNBackbone(Backbone):
         super().__init__()
         assert head_size is None and num_heads is None
         self.embed = init(nn.Embedding(128, dim, padding_idx=0))
-        self.norm = nn.LayerNorm(dim)
         self.encode = CNNEncoder(dim=dim, num_layers=num_layers)
 
     def forward(self, tokens, attn_mask):
