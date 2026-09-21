@@ -9,7 +9,7 @@ from typing import Any
 
 import torch
 
-from boardrl.rl.eval.selfplay import SelfPlayResults
+from boardrl.rollouts import Rollouts
 from boardrl.training.returns import annotate_with_model, compute_returns, set_rewards
 from boardrl.training.sample import TrainingSample
 from boardrl.utils import chunk
@@ -72,7 +72,7 @@ class ComputeReturns:
         self.entropy_bonus = entropy_bonus
         self.reward_fn = reward_fn
 
-    def __call__(self, games: SelfPlayResults) -> SelfPlayResults:
+    def __call__(self, games: Rollouts) -> Rollouts:
         compute_returns(
             games,
             self.discount,
@@ -91,7 +91,7 @@ class Select:
         self.seats = list(seats) if seats is not None else None
         self.strategies = list(strategies) if strategies is not None else None
 
-    def __call__(self, games: SelfPlayResults) -> SelfPlayResults:
+    def __call__(self, games: Rollouts) -> Rollouts:
         if self.seats is not None:
             return games.only_player(self.seats)
         if self.strategies is not None:
@@ -102,7 +102,7 @@ class Select:
 class ToSamples:
     """Flatten player trajectories into linked training samples."""
 
-    def __call__(self, games: SelfPlayResults) -> list[TrainingSample]:
+    def __call__(self, games: Rollouts) -> list[TrainingSample]:
         samples = []
         for game in games:
             for trace in game:
