@@ -46,7 +46,7 @@ class _TerminalGame:
         return 3
 
 
-def test_record_preserves_complete_rollout_reference_values():
+def test_record_preserves_strategy_metadata_without_training_conversion():
     game = SimpleNamespace(
         moves=["a", "b"],
         diff_points=lambda: 3,
@@ -60,19 +60,18 @@ def test_record_preserves_complete_rollout_reference_values():
         1,
         {
             "state": "position\n@a\n@b",
+            "moves": {"a": 0.3, "b": 0.7},
             "reference_policy": torch.tensor([0.3, 0.4]),
             "reference_value": 2.0,
             "reference_value_stddev": 1.25,
             "reference_max_q": 2.05,
         },
     )
-    record.score = 3.0
-    record.reward = 1.0
-    record.returns = 1.0
 
-    sample = record.training_sample()
-
-    assert sample.reference_value_stddev == pytest.approx(1.25)
+    assert record.metadata["reference_value_stddev"] == pytest.approx(1.25)
+    assert "state" not in record.metadata
+    assert "moves" not in record.metadata
+    assert not hasattr(record, "training_sample")
 
 
 def test_end_state_keeps_points_separate_from_competitive_utility():
