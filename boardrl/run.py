@@ -39,13 +39,12 @@ def _git(cwd: Path, *args: str) -> str | None:
 
 @dataclass(frozen=True)
 class RunInfo:
-    """Arguments and exact repository state needed to identify a run."""
+    """Small, durable identity for a training run."""
 
     entrypoint: Path
     arguments: Mapping[str, object]
     git_commit: str | None
     git_status: str
-    git_diff: str
 
     @classmethod
     def capture(
@@ -56,7 +55,7 @@ class RunInfo:
         path = Path(entrypoint or sys.argv[0]).resolve()
         root_text = _git(path.parent, "rev-parse", "--show-toplevel")
         if root_text is None:
-            return cls(path, dict(vars(arguments)), None, "", "")
+            return cls(path, dict(vars(arguments)), None, "")
 
         root = Path(root_text)
         try:
@@ -68,7 +67,6 @@ class RunInfo:
             dict(vars(arguments)),
             _git(root, "rev-parse", "HEAD"),
             _git(root, "status", "--short") or "",
-            _git(root, "diff", "--binary", "HEAD") or "",
         )
 
     @property
@@ -76,13 +74,13 @@ class RunInfo:
         arguments = json.dumps(self.arguments, indent=2, sort_keys=True, default=str)
         commit = self.git_commit or "(not a git checkout)"
         status = self.git_status or ("(clean)" if self.git_commit else "(unavailable)")
-        diff = self.git_diff or ("(clean)" if self.git_commit else "(unavailable)")
         return (
             f"Entrypoint\n==========\n{self.entrypoint}\n\n"
             f"Arguments\n=========\n{arguments}\n\n"
             f"Git commit\n==========\n{commit}\n\n"
             f"Git status\n==========\n{status}\n\n"
-            f"Dirty diff\n==========\n{diff}\n"
+            "Dirty diff\n==========\n"
+            "(not captured here; launcher responsibility)\n"
         )
 
     def publish(self, sink: TextSink, *, name: str = "run") -> None:
