@@ -9,10 +9,7 @@ from .postprocess import (
     ToSamples,
 )
 from .learner import (
-    CosineWarmupDecay,
     Learner,
-    LearningRateScheduler,
-    LinearWarmupDecay,
     PolicyMetrics,
     TrainResult,
     ValueMetrics,
@@ -22,11 +19,8 @@ from boardrl.schedules import SCHEDULE_SHAPES, Scheduler
 
 __all__ = [
     "ComputeReturns",
-    "CosineWarmupDecay",
     "DoubleQTargets",
     "Learner",
-    "LinearWarmupDecay",
-    "LearningRateScheduler",
     "PolicyMetrics",
     "Pipeline",
     "ReplayBuffer",
