@@ -16,13 +16,8 @@ AGENT_THRESHOLD="${AGENT_THRESHOLD:-0.98}"
 ENVIRONMENT_THRESHOLD="${ENVIRONMENT_THRESHOLD:-0.7}"
 TAG="${TAG:-adversarial-advshape}"
 
-# NFSP-only arguments have no adversarial-advshape equivalent:
-#   --anticipatory 0.5
-#   --average-learning-rate 4e-4  # both PPO optimizers use --learning-rate
-#   --reservoir-capacity 1000000
-
 trainer_args=(
-  --game century \
+  --game take5,num_players=2 \
   --random-move-prob 0. \
   --steps 1800 \
   --perplexity-start "$AGENT_PPL_START" \
@@ -43,7 +38,7 @@ trainer_args=(
   --rollout-games 512 \
   --evaluation-games 512 \
   --gradient-clip 10000 \
-  --opponent-eval-strategy tempo_greedy \
+  --opponent-eval-strategy random \
   --entropy-strength 0.1 \
   --environment-entropy-strength 0.5 \
   --evaluation-every 10 \
