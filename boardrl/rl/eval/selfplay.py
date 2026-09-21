@@ -18,6 +18,9 @@ class Record:
         self.state = info.get("state")
         if self.state is None:
             self.state = game.display_with_moves()
+        self.metadata = {
+            key: value for key, value in info.items() if key not in ("state", "moves")
+        }
         self.moves = game.moves[:]
         self.action_distribution = action_distribution
         self.action_idx = action
@@ -28,33 +31,6 @@ class Record:
         self.truncated = False
         self.player = game.current_player()
         self.round = game.round()
-        self._training_info = {
-            key: info[key]
-            for key in (
-                "reference_policy",
-                "reference_value",
-                "reference_value_stddev",
-                "reference_max_q",
-            )
-            if key in info
-        }
-
-    def training_sample(self):
-        """Convert this rollout record without exposing recorder internals."""
-        from boardrl.training.sample import TrainingSample
-
-        return TrainingSample(
-            state=self.state,
-            action_idx=self.action_idx,
-            action_distribution=self.action_distribution,
-            score=float(self.score),
-            reward=float(self.reward),
-            returns=self.returns,
-            next=None,
-            terminal=False,
-            truncated=False,
-            **self._training_info,
-        )
 
 
 class EndState:
