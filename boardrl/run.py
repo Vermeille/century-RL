@@ -59,8 +59,12 @@ class RunInfo:
             return cls(path, dict(vars(arguments)), None, "", "")
 
         root = Path(root_text)
+        try:
+            recorded_entrypoint = path.relative_to(root)
+        except ValueError:
+            recorded_entrypoint = path
         return cls(
-            path,
+            recorded_entrypoint,
             dict(vars(arguments)),
             _git(root, "rev-parse", "HEAD"),
             _git(root, "status", "--short") or "",
