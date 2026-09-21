@@ -1,15 +1,35 @@
+from functools import partial
+from importlib import import_module
+
 from boardrl.utils import RegisterByName
 from boardrl.games.augmentations import shuffle_actions
 from boardrl.games.strategies import strategy_from_string
-from functools import partial
-from boardrl.games.thegame.game import TheGame as TheGameGame
+from boardrl.games.connectfour.augmentations import horizontal_symmetry as connectfour_horizontal_symmetry
+from boardrl.games.connectfour.game import ConnectFour as ConnectFourGame
+from boardrl.games.connectfour.strategies import (
+    strategy_from_string as connectfour_strategy_from_string,
+)
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
-from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
-from boardrl.games.nim.game import Nim as NimGame
-from boardrl.games.take5.game import Take5 as Take5Game
-from boardrl.games.skullking.game import SkullKing as SkullKingGame
-from boardrl.games.regicide.game import Regicide as RegicideGame
 from boardrl.games.hanabi.game import Hanabi as HanabiGame
+from boardrl.games.nim.game import Nim as NimGame
+from boardrl.games.nim.strategies import strategy_from_string as nim_strategy_from_string
+from boardrl.games.regicide.game import Regicide as RegicideGame
+from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
+from boardrl.games.santorini.augmentations import (
+    horizontal_symmetry as santorini_horizontal_symmetry,
+    rotation_symmetry as santorini_rotation_symmetry,
+    vertical_symmetry as santorini_vertical_symmetry,
+)
+from boardrl.games.santorini.game import Santorini as SantoriniGame
+from boardrl.games.skullking.game import SkullKing as SkullKingGame
+from boardrl.games.sum.game import Sum as SumGame
+from boardrl.games.sum.strategies import strategy_from_string as sum_strategy_from_string
+from boardrl.games.take5.game import Take5 as Take5Game
+from boardrl.games.thegame.augmentations import shuffle_hand
+from boardrl.games.thegame.game import TheGame as TheGameGame
+from boardrl.games.thegame.strategies import (
+    strategy_from_string as thegame_strategy_from_string,
+)
 from boardrl.games.semantics import (
     CompetitiveOutcome,
     CooperativeOutcome,
@@ -45,6 +65,54 @@ class GameDesc:
 games_library = RegisterByName()
 
 
+def _metrics_for(game_class):
+    package = game_class.__module__.rsplit(".", 1)[0]
+    return import_module(f"{package}.metrics").Metrics
+
+
+def register_game(
+    name,
+    game_class,
+    *,
+    strategies=None,
+    augmentations=(),
+    scores,
+    outcome,
+    rewards,
+    args_from=None,
+):
+    """Register a conventional Python game without a descriptor subclass."""
+
+    def descriptor(**game_kwargs):
+        game_strategies = strategy_from_string
+        if strategies is not None:
+            game_strategies = strategies.copy().update(strategy_from_string)
+        make_game = partial(game_class, **game_kwargs) if game_kwargs else game_class
+        return GameDesc(
+            make_game,
+            game_strategies,
+            _metrics_for(game_class),
+            augmentations=augmentations,
+            scores=scores,
+            outcome=outcome,
+            rewards=rewards,
+        )
+
+    if args_from is None:
+        def factory():
+            return descriptor()
+
+        registered = games_library.register(name)(factory)
+    else:
+        def factory(**kwargs):
+            return descriptor(**kwargs)
+
+        registered = games_library.register(name, args_from=args_from)(factory)
+
+    registered.__name__ = f"{name}_game_desc"
+    return registered
+
+
 @games_library.register("century")
 class Century(GameDesc):
     # Century is defined in Cython so inspect can't find the signature
@@ -58,7 +126,6 @@ class Century(GameDesc):
         import pyximport  # type: ignore
 
         pyximport.install(setup_args={"script_args": ["--cython-cplus"]})
-        # If pyximport is available, try importing the compiled/compilable engine
         from boardrl.games.century.engine import Century as CenturyGame  # type: ignore
 
         strats = century_strategy_from_string.copy().update(strategy_from_string)
@@ -73,226 +140,127 @@ class Century(GameDesc):
         )
 
 
-@games_library.register("tictactoe")
-class TicTacToe(GameDesc):
-    def __init__(self):
-        from boardrl.games.tictactoe.game import TicTacToe
-        from boardrl.games.tictactoe.metrics import Metrics
+register_game(
+    "tictactoe",
+    __import__("boardrl.games.tictactoe.game", fromlist=["TicTacToe"]).TicTacToe,
+    augmentations=(shuffle_actions,),
+    scores=OutcomeScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+)
 
-        super().__init__(
-            TicTacToe,
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=OutcomeScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
+register_game(
+    "connectfour",
+    ConnectFourGame,
+    strategies=connectfour_strategy_from_string,
+    augmentations=(shuffle_actions, connectfour_horizontal_symmetry),
+    scores=OutcomeScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+)
 
+register_game(
+    "sum",
+    SumGame,
+    strategies=sum_strategy_from_string,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+)
 
-@games_library.register("connectfour")
-class ConnectFour(GameDesc):
-    def __init__(self):
-        from boardrl.games.connectfour.augmentations import horizontal_symmetry
-        from boardrl.games.connectfour.game import ConnectFour
-        from boardrl.games.connectfour.metrics import Metrics
-        from boardrl.games.connectfour.strategies import (
-            strategy_from_string as connectfour_strategy_from_string,
-        )
+register_game(
+    "thegame",
+    TheGameGame,
+    strategies=thegame_strategy_from_string,
+    augmentations=(shuffle_actions, shuffle_hand),
+    scores=PointScores(),
+    outcome=CooperativeOutcome(),
+    rewards=PointDeltaRewards(scale=0.1),
+    args_from=TheGameGame,
+)
 
-        strats = connectfour_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(
-            ConnectFour,
-            strats,
-            Metrics,
-            augmentations=(shuffle_actions, horizontal_symmetry),
-            scores=OutcomeScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
+register_game(
+    "guessnumber",
+    GuessNumberGame,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CooperativeOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=GuessNumberGame,
+)
 
+register_game(
+    "rps",
+    RockPaperScissorsGame,
+    augmentations=(shuffle_actions,),
+    scores=OutcomeScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=RockPaperScissorsGame,
+)
 
-@games_library.register("sum")
-class Sum(GameDesc):
-    def __init__(self):
-        from boardrl.games.sum.game import Sum
-        from boardrl.games.sum.metrics import Metrics
-        from boardrl.games.sum.strategies import (
-            strategy_from_string as sum_strategy_from_string,
-        )
+register_game(
+    "nim",
+    NimGame,
+    strategies=nim_strategy_from_string,
+    augmentations=(shuffle_actions,),
+    scores=OutcomeScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=NimGame,
+)
 
-        strats = sum_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(
-            Sum,
-            strats,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=PointScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
+register_game(
+    "take5",
+    Take5Game,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=Take5Game,
+)
 
+register_game(
+    "skullking",
+    SkullKingGame,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=SkullKingGame,
+)
 
-@games_library.register("thegame", args_from=TheGameGame)
-class TheGame(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.thegame.metrics import Metrics
-        from boardrl.games.thegame.augmentations import shuffle_hand
-        from boardrl.games.thegame.strategies import (
-            strategy_from_string as thegame_strategy_from_string,
-        )
+register_game(
+    "regicide",
+    RegicideGame,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CooperativeOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=RegicideGame,
+)
 
-        strats = thegame_strategy_from_string.copy().update(strategy_from_string)
-        super().__init__(
-            partial(TheGameGame, *args, **kwargs),
-            strats,
-            Metrics,
-            augmentations=(shuffle_actions, shuffle_hand),
-            scores=PointScores(),
-            outcome=CooperativeOutcome(),
-            rewards=PointDeltaRewards(scale=0.1),
-        )
+register_game(
+    "hanabi",
+    HanabiGame,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CooperativeOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=HanabiGame,
+)
 
-
-@games_library.register("guessnumber", args_from=GuessNumberGame)
-class GuessNumber(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.guessnumber.metrics import Metrics
-
-        super().__init__(
-            partial(GuessNumberGame, *args, **kwargs),
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=PointScores(),
-            outcome=CooperativeOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
-
-
-@games_library.register("rps", args_from=RockPaperScissorsGame)
-class RPS(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.rps.metrics import Metrics
-
-        super().__init__(
-            partial(RockPaperScissorsGame, *args, **kwargs),
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=OutcomeScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
-
-
-@games_library.register("nim", args_from=NimGame)
-class Nim(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.nim.metrics import Metrics
-        from boardrl.games.nim.strategies import (
-            strategy_from_string as nim_strategy_from_string,
-        )
-
-        strats = nim_strategy_from_string.copy().update(strategy_from_string)
-
-        super().__init__(
-            partial(NimGame, *args, **kwargs),
-            strats,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=OutcomeScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
-
-
-@games_library.register("take5", args_from=Take5Game)
-class Take5(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.take5.metrics import Metrics
-
-        super().__init__(
-            partial(Take5Game, *args, **kwargs),
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=PointScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
-
-
-@games_library.register("skullking", args_from=SkullKingGame)
-class SkullKing(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.skullking.metrics import Metrics
-
-        super().__init__(
-            partial(SkullKingGame, *args, **kwargs),
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=PointScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
-
-
-@games_library.register("regicide", args_from=RegicideGame)
-class Regicide(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.regicide.metrics import Metrics
-
-        super().__init__(
-            partial(RegicideGame, *args, **kwargs),
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=PointScores(),
-            outcome=CooperativeOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
-
-
-@games_library.register("hanabi", args_from=HanabiGame)
-class Hanabi(GameDesc):
-    def __init__(self, *args, **kwargs):
-        from boardrl.games.hanabi.metrics import Metrics
-
-        super().__init__(
-            partial(HanabiGame, *args, **kwargs),
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=PointScores(),
-            outcome=CooperativeOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
-
-
-@games_library.register("santorini")
-class Santorini(GameDesc):
-    def __init__(self):
-        from boardrl.games.santorini.augmentations import (
-            horizontal_symmetry,
-            rotation_symmetry,
-            vertical_symmetry,
-        )
-        from boardrl.games.santorini.game import Santorini as SantoriniGame
-        from boardrl.games.santorini.metrics import Metrics
-
-        super().__init__(
-            SantoriniGame,
-            strategy_from_string,
-            Metrics,
-            augmentations=(
-                shuffle_actions,
-                horizontal_symmetry,
-                vertical_symmetry,
-                rotation_symmetry,
-            ),
-            scores=OutcomeScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
+register_game(
+    "santorini",
+    SantoriniGame,
+    augmentations=(
+        shuffle_actions,
+        santorini_horizontal_symmetry,
+        santorini_vertical_symmetry,
+        santorini_rotation_symmetry,
+    ),
+    scores=OutcomeScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+)
