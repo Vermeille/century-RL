@@ -93,19 +93,6 @@ class ToSamples:
         return samples
 
 
-class DropFields:
-    """Remove rollout-only annotations that a learner does not consume."""
-
-    def __init__(self, *fields: str):
-        self.fields = fields
-
-    def __call__(self, samples: list[TrainingSample]) -> list[TrainingSample]:
-        for sample in samples:
-            for field in self.fields:
-                sample.__dict__.pop(field, None)
-        return samples
-
-
 class ReferenceTargets:
     """Add values, GAE advantages, and TD(lambda) value targets from a model."""
 
@@ -195,7 +182,3 @@ class DoubleQTargets:
         for batch in chunk(states, self.batch_size):
             predictions.extend(model(batch).unbatched())
         return predictions
-
-
-def samples_from(games: SelfPlayResults) -> list[TrainingSample]:
-    return ToSamples()(games)
