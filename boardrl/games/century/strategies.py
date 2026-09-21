@@ -3,10 +3,9 @@ from collections import Counter
 import torch
 
 from boardrl.utils import RegisterByName, Game
-from boardrl.rl.model import load_model
 
 
-strategy_from_string = RegisterByName(arg_readers={"model": load_model})
+strategy_from_string = RegisterByName()
 
 
 _MIN_ACTION_POTENTIAL = 6.0
