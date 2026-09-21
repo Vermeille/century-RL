@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from boardrl.games.tictactoe.metrics import Metrics
-from boardrl.rl.eval.selfplay import GameTrace, PlayerTrace, SelfPlayResults
+from boardrl.rollouts import GameTrace, PlayerTrace, Rollouts
 
 
 def make_results(policies):
@@ -28,7 +28,7 @@ def make_results(policies):
                 )
             )
         games.append(GameTrace(players))
-    return SelfPlayResults(games)
+    return Rollouts(games)
 
 
 @pytest.mark.parametrize("probabilities", ([1.0, 0.0], [0.5, 0.5]))
