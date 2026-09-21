@@ -87,18 +87,18 @@ def test_skullking_metrics_ignore_unfinished_rounds():
     assert values["zero_bet_ratio"] == pytest.approx(0.5)
 
 
-def test_skullking_metrics_self_play_runs():
+def test_skullking_metrics_rollout_runs():
     from boardrl.games.skullking.game import SkullKing
     from boardrl.games.strategies import strategy_from_string
-    from boardrl.rl.eval.selfplay import self_play
+    from boardrl.rollouts import play_games
 
-    results = self_play(
+    players = [strategy_from_string("random"), strategy_from_string("random")]
+    results = play_games(
         lambda num_players: SkullKing(num_players=num_players, num_rounds=2),
-        [strategy_from_string("random"), strategy_from_string("random")],
-        n_games=1,
-        max_len=20,
+        [players],
+        max_steps=20,
         rotate=False,
-        desc="",
+        description=None,
     )
 
     values = Metrics(results).metrics()
