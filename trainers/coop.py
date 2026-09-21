@@ -537,7 +537,7 @@ def _run(args, trackio_sink):
             repo_root / "boardrl/rl/model/loss.py",
             repo_root / "boardrl/rl/model/model.py",
             repo_root / "boardrl/rl/model/transformer.py",
-            repo_root / "boardrl/rl/eval/selfplay.py",
+            repo_root / "boardrl/rollouts.py",
             repo_root / "boardrl/games/__init__.py",
             repo_root / "boardrl/games/semantics.py",
             repo_root / "boardrl/games/strategies.py",
