@@ -2,6 +2,7 @@ import math
 from functools import partial
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from boardrl.training import TrainingSample
@@ -169,7 +170,7 @@ def test_annotate_with_model_bootstraps_truncated_endpoint_without_mutating_it()
     )
 
     assert last.next_reference_value == 12.0
-    assert last.next_reference_max_q == 0.7
+    assert last.next_reference_max_q == pytest.approx(0.7)
     assert last.td_lambda == 14.0
     assert first.td_lambda == 15.0
     assert vars(end) == {"state": "cutoff", "terminal": False, "truncated": True}
