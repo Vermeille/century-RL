@@ -34,7 +34,9 @@ refactors. Preserve unrelated worktree changes and artifacts.
    only when the game needs them.
 2. Implement the game protocol below and write deterministic rule tests before
    wiring training or serving.
-3. Register the game lazily in `boardrl/games/__init__.py` with a `GameDesc`.
+3. Register a conventional Python game with `register_game` in
+   `boardrl/games/__init__.py`; use a custom `GameDesc` factory only for an
+   exceptional integration such as Century's Cython setup.
 4. Run registry, strategy, rollout, metrics, and server smoke tests. Add
    renderer tests only if `static/app.js` changes.
 
@@ -49,10 +51,10 @@ changes move strings, action ordering, visibility, player count, or scoring.
 
 ### Change a game boundary
 
-For registration changes, inspect `GameDesc`, `RegisterByName`, and all callers
-of `games_library`. For training changes, inspect `Record`, `EndState`,
-`Rollouts`, and `RolloutRunner` in `boardrl/rollouts.py`. For cooperative
-outcome changes, trace the `coop` flag through game descriptors,
+For registration changes, inspect `register_game`, `GameDesc`, `RegisterByName`,
+and all callers of `games_library`. For training changes, inspect `Record`,
+`EndState`, `Rollouts`, and `RolloutRunner` in `boardrl/rollouts.py`. For
+cooperative outcome changes, trace the `coop` flag through game descriptors,
 rollout/evaluation metrics, and trainer callers; the flag alone does not
 automatically redefine win rate. For web changes, follow
 `boardrl/serve/README.md` and preserve the generic raw-text renderer and
@@ -102,40 +104,41 @@ in that list, not a move value, board coordinate, or hand position.
 
 ## Register and expose the game
 
-Add a `GameDesc` registration in `boardrl/games/__init__.py`:
+Register conventional games declaratively in `boardrl/games/__init__.py`:
 
 ```python
-@games_library.register("mygame")
-class MyGame(GameDesc):
-    def __init__(self):
-        from boardrl.games.mygame.game import MyGame as MyGameGame
-        from boardrl.games.mygame.metrics import Metrics
+from boardrl.games.mygame.game import MyGame
+from boardrl.games.mygame.strategies import strategy_from_string as my_strategies
 
-        super().__init__(
-            MyGameGame,
-            strategy_from_string,
-            Metrics,
-            augmentations=(shuffle_actions,),
-            scores=PointScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
+register_game(
+    "mygame",
+    MyGame,
+    strategies=my_strategies,  # omit when the game has no custom strategies
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=MyGame,  # only when constructor args belong in the textual spec
+)
 ```
 
-Match the existing style exactly: lazy-import game modules inside the
-descriptor, use `partial` when registry arguments configure construction, and
-compose explicit score, outcome, and reward semantics. If custom strategies exist, copy and
-merge them with the defaults so `random`, `argmax`, and
-`policy_sampling` remain available:
+`register_game` lazily resolves the sibling `metrics.Metrics` class so package
+initialization does not eagerly import the metrics stack. When a custom
+strategy registry is supplied, the helper copies it and merges the default
+`random`, `argmax`, and `policy_sampling` strategies for each descriptor.
 
-```python
-strats = my_strategy_from_string.copy().update(strategy_from_string)
-```
+Omit `args_from` when constructor arguments are implementation details. The
+rollout engine may still pass values such as `num_players` directly to
+`GameDesc.make_game`; that does not require exposing them in strings like
+`tictactoe,num_players=2`.
 
-Use `args_from=GameClass` when the registry should inspect constructor
-arguments. Remember that registry specifications are comma-separated strings
-such as `nim,num_stones=5,max_pick=2`; commas and equals signs in model paths
-need the existing URL-encoding conventions.
+Use a custom `GameDesc` factory only when the declarative helper cannot describe
+the integration. Century remains the main example because the Cython class
+cannot be introspected normally and needs custom import/setup logic.
+
+Registry specifications are comma-separated strings such as
+`nim,num_stones=5,max_pick=2`; commas and equals signs in model paths need the
+existing URL-encoding conventions.
 
 ## Integrate metrics, strategies, and augmentations
 
