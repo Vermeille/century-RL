@@ -1,10 +1,10 @@
 import torch
 from boardrl.metrics import GameMetrics
-from boardrl.rl.eval.selfplay import SelfPlayResults
+from boardrl.rollouts import Rollouts
 
 
 class Metrics(GameMetrics):
-    def __init__(self, data: SelfPlayResults) -> None:
+    def __init__(self, data: Rollouts) -> None:
         self.data = data
 
     def print_short_history(self):
