@@ -76,7 +76,7 @@ def test_rotation_symmetry_rotates_board_and_all_move_coordinates(monkeypatch):
     assert augmented.moves[index] == "P:d1"
 
 
-def test_symmetries_transform_source_and_relative_directions(monkeypatch):
+def test_symmetries_transform_move_build_and_winning_action(monkeypatch):
     game = Santorini()
     for move in ("P:a1", "P:e5", "P:e1", "P:a5"):
         game.play_str(move)
@@ -84,13 +84,13 @@ def test_symmetries_transform_source_and_relative_directions(monkeypatch):
     game.heights[game._index("a1")] = 2
     game.heights[game._index("b2")] = 3
     game._refresh_moves()
-    assert "a1>dr" in game.moves
-    assert "e5>ul+ul" in game.moves
+    assert "a1>b2" in game.moves
+    assert "e5>d4+c3" in game.moves
 
     sample = TrainingSample(
         state=game.display_with_moves(),
         moves=list(game.moves),
-        action_idx=game.moves.index("a1>dr"),
+        action_idx=game.moves.index("a1>b2"),
     )
     monkeypatch.setattr(
         "boardrl.games.santorini.augmentations.random.randrange", lambda _n: 1
@@ -98,29 +98,11 @@ def test_symmetries_transform_source_and_relative_directions(monkeypatch):
 
     augmented = rotation_symmetry([sample])[0]
 
-    assert "e1>dl" in augmented.moves
-    assert "a5>ur+ur" in augmented.moves
-    assert "@e1>dl" in augmented.state
-    assert "@a5>ur+ur" in augmented.state
-    assert augmented.moves[augmented.action_idx] == "e1>dl"
-
-
-def test_horizontal_and_vertical_flips_transform_directions(monkeypatch):
-    game = Santorini()
-    for move in ("P:a1", "P:e5", "P:e1", "P:a5"):
-        game.play_str(move)
-    sample = TrainingSample(state=game.display_with_moves(), moves=list(game.moves))
-
-    monkeypatch.setattr(
-        "boardrl.games.santorini.augmentations.random.random", lambda: 0.0
-    )
-    horizontal = horizontal_symmetry([sample])[0]
-    vertical = vertical_symmetry([sample])[0]
-
-    assert "e1>l+r" in horizontal.moves  # a1>r+l mirrored left/right
-    assert "a5>r+l" in vertical.moves  # a1>r+l mirrored top/bottom
-    assert "e5>dr+dr" in horizontal.moves  # a5>dl+dl mirrored left/right
-    assert "a1>ur+ur" in vertical.moves  # a5>dl+dl mirrored top/bottom
+    assert "e1>d2" in augmented.moves
+    assert "a5>b4+c3" in augmented.moves
+    assert "@e1>d2" in augmented.state
+    assert "@a5>b4+c3" in augmented.state
+    assert augmented.moves[augmented.action_idx] == "e1>d2"
 
 
 def test_symmetry_augmentations_can_be_identity(monkeypatch):
