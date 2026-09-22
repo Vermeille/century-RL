@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Iterable
 
-from .ratings import OPPONENT_ID, RANDOM_ID, RatingFit, residuals
+from .ratings import OPPONENT_ID, RANDOM_ID, RatingFit, pair_aggregates
 from .store import ArenaStore
 
 
@@ -52,16 +52,37 @@ def plot_rating_curve(
     return figure
 
 
-def plot_residuals(
+def _wilson_excludes_half(score: float, games: int, *, z: float = 1.96) -> bool:
+    """Whether a 95% Wilson interval for the score rate excludes 50%."""
+
+    if games <= 0:
+        return False
+    probability = score / games
+    denominator = 1.0 + z**2 / games
+    center = probability + z**2 / (2.0 * games)
+    margin = z * math.sqrt(
+        probability * (1.0 - probability) / games
+        + z**2 / (4.0 * games**2)
+    )
+    lower = (center - margin) / denominator
+    upper = (center + margin) / denominator
+    return lower > 0.5 or upper < 0.5
+
+
+def plot_win_rate_matrix(
     store: ArenaStore,
     fit: RatingFit,
     *,
     reference_id: str,
 ):
+    """Observed head-to-head win rates with BT completion for unplayed pairs."""
+
     import matplotlib.pyplot as plt
     import numpy as np
+    from matplotlib.colors import LinearSegmentedColormap, Normalize
+    from matplotlib.patches import Circle, Rectangle
 
-    policies = [
+    policy_ids = [
         RANDOM_ID,
         *([OPPONENT_ID] if reference_id == OPPONENT_ID else []),
         *(
@@ -71,29 +92,110 @@ def plot_residuals(
             )
         ),
     ]
-    values = residuals(store.matches(), fit)
-    matrix = np.full((len(policies), len(policies)), np.nan)
-    for row, first in enumerate(policies):
-        matrix[row, row] = 0.0
-        for column, second in enumerate(policies):
+    aggregates = pair_aggregates(store.matches())
+    size = len(policy_ids)
+
+    cell_inches = 0.34
+    margin_inches = 2.3
+    side = max(4.0, min(13.0, size * cell_inches + margin_inches))
+    figure, axis = plt.subplots(figsize=(side, side), constrained_layout=True)
+
+    cmap = LinearSegmentedColormap.from_list(
+        "arena_win_rate",
+        ["#3b82f6", "#d1d5db", "#ef4444"],
+    )
+    norm = Normalize(vmin=0.0, vmax=1.0)
+
+    axis.set_xlim(0, size)
+    axis.set_ylim(size, 0)
+    axis.set_aspect("equal")
+
+    for row, first in enumerate(policy_ids):
+        for column, second in enumerate(policy_ids):
+            if row == column:
+                axis.add_patch(
+                    Rectangle(
+                        (column, row),
+                        1,
+                        1,
+                        facecolor="#f3f4f6",
+                        edgecolor="#e5e7eb",
+                        linewidth=0.35,
+                    )
+                )
+                continue
+
             pair = tuple(sorted((first, second)))
-            if pair in values:
-                value = values[pair]
-                matrix[row, column] = value if first == pair[0] else -value
-    figure, axis = plt.subplots(figsize=(8, 7), constrained_layout=True)
-    image = axis.imshow(matrix, cmap="coolwarm", vmin=-3, vmax=3)
+            match = aggregates.get(pair)
+            if match is not None and match.games > 0:
+                first_score = (
+                    match.score
+                    if match.first == first
+                    else match.games - match.score
+                )
+                win_rate = first_score / match.games
+                confident = _wilson_excludes_half(first_score, match.games)
+                axis.add_patch(
+                    Rectangle(
+                        (column, row),
+                        1,
+                        1,
+                        facecolor=cmap(norm(win_rate)),
+                        edgecolor="black" if confident else "#ffffff",
+                        linewidth=1.15 if confident else 0.35,
+                    )
+                )
+                continue
+
+            predicted = fit.expected_score(first, second)
+            axis.add_patch(
+                Circle(
+                    (column + 0.5, row + 0.5),
+                    radius=0.19,
+                    facecolor=cmap(norm(predicted)),
+                    edgecolor="#4b5563",
+                    linewidth=0.45,
+                )
+            )
+
     labels = [
         "random"
-        if policy == RANDOM_ID
+        if policy_id == RANDOM_ID
         else "opponent"
-        if policy == OPPONENT_ID
-        else policy.replace("checkpoint-", "s")
-        for policy in policies
+        if policy_id == OPPONENT_ID
+        else policy_id.replace("checkpoint-", "s")
+        for policy_id in policy_ids
     ]
-    axis.set_xticks(range(len(labels)), labels=labels, rotation=90)
-    axis.set_yticks(range(len(labels)), labels=labels)
-    axis.set_title("Observed − transitive-model matchup residual (z)")
-    figure.colorbar(image, ax=axis, label="standardized residual")
+    ticks = np.arange(size) + 0.5
+    axis.set_xticks(ticks, labels=labels, rotation=90)
+    axis.set_yticks(ticks, labels=labels)
+    axis.tick_params(
+        top=True,
+        labeltop=True,
+        bottom=False,
+        labelbottom=False,
+        length=0,
+        labelsize=7,
+    )
+    for spine in axis.spines.values():
+        spine.set_visible(False)
+
+    axis.set_title(
+        "Head-to-head win rates\n"
+        "square = observed · dot = inferred · black border = >95% confidence",
+        fontsize=10,
+    )
+    scalar = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+    scalar.set_array([])
+    colorbar = figure.colorbar(
+        scalar,
+        ax=axis,
+        fraction=0.035,
+        pad=0.025,
+    )
+    colorbar.set_label("Row policy win rate", fontsize=8)
+    colorbar.ax.tick_params(labelsize=7)
+    colorbar.set_ticks([0.0, 0.5, 1.0], labels=["0%", "50%", "100%"])
     return figure
 
 
