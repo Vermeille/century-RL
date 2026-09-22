@@ -59,23 +59,11 @@ def test_setup_places_two_workers_for_each_player_in_order():
     assert all(not move.startswith("P:") for move in game.moves)
 
 
-def test_normal_actions_use_relative_move_and_build_directions():
-    game = setup_game()
-
-    assert "a1>r+l" in game.moves
-    assert "a1>d+u" in game.moves
-    assert "e5>ul+ul" in game.moves
-    assert all(
-        move.split(">", 1)[1].split("+", 1)[0] in Santorini.DIRECTIONS
-        for move in game.moves
-    )
-
-
 def test_move_and_build_can_use_vacated_space():
     game = setup_game()
 
-    assert "a1>r+l" in game.moves
-    game.play_str("a1>r+l")
+    assert "a1>b1+a1" in game.moves
+    game.play_str("a1>b1+a1")
 
     assert game._index("b1") in game.workers[0]
     assert game.heights[game._index("a1")] == 1
@@ -91,8 +79,8 @@ def test_cannot_climb_more_than_one_level_or_move_onto_dome():
     game.heights[game._index("a2")] = game.DOME
     game._refresh_moves()
 
-    assert not any(move.startswith("b2>dr") for move in game.moves)
-    assert not any(move.startswith("b2>l") for move in game.moves)
+    assert not any(move.startswith("b2>c3") for move in game.moves)
+    assert not any(move.startswith("b2>a2") for move in game.moves)
 
 
 def test_moving_up_to_level_three_wins_without_build():
@@ -104,10 +92,10 @@ def test_moving_up_to_level_three_wins_without_build():
     game.heights[game._index("c3")] = 3
     game._refresh_moves()
 
-    assert "b2>dr" in game.moves
-    assert not any(move.startswith("b2>dr+") for move in game.moves)
+    assert "b2>c3" in game.moves
+    assert not any(move.startswith("b2>c3+") for move in game.moves)
 
-    game.play_str("b2>dr")
+    game.play_str("b2>c3")
 
     assert game.ended()
     assert game.winner() == 0
@@ -135,7 +123,7 @@ def test_copy_is_independent():
     game = setup_game()
     copied = game.copy()
 
-    copied.play_str("a1>r+l")
+    copied.play_str("a1>b1+a1")
 
     assert game.workers != copied.workers
     assert game.heights != copied.heights
@@ -147,7 +135,7 @@ def test_illegal_move_is_rejected():
     game = setup_game()
 
     with pytest.raises(AssertionError):
-        game.play_str("a1>ul+r")
+        game.play_str("a1>e5+a2")
 
 
 def test_random_playouts_terminate():
