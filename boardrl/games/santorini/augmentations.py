@@ -5,17 +5,7 @@ import re
 
 SIZE = 5
 _BOARD_ROW = re.compile(r"^([1-5]) ((?:[0-4][.#OX](?: [0-4][.#OX]){4}))$")
-_DIRECTION_TO_DELTA = {
-    "u": (0, -1),
-    "d": (0, 1),
-    "l": (-1, 0),
-    "r": (1, 0),
-    "ul": (-1, -1),
-    "ur": (1, -1),
-    "dl": (-1, 1),
-    "dr": (1, 1),
-}
-_DELTA_TO_DIRECTION = {delta: direction for direction, delta in _DIRECTION_TO_DELTA.items()}
+_COORD = re.compile(r"\b([a-e])([1-5])\b")
 
 
 def _split_line_ending(line):
@@ -32,27 +22,11 @@ def _transform_coord(coord, transform):
     return f"{chr(ord('a') + x)}{y + 1}"
 
 
-def _transform_direction(direction, transform):
-    dx, dy = _DIRECTION_TO_DELTA[direction]
-    origin = transform(2, 2)
-    target = transform(2 + dx, 2 + dy)
-    delta = (target[0] - origin[0], target[1] - origin[1])
-    return _DELTA_TO_DIRECTION[delta]
-
-
 def _transform_move(move, transform):
-    if move.startswith("P:"):
-        return f"P:{_transform_coord(move[2:], transform)}"
-
-    movement, *build_parts = move.split("+")
-    source, move_direction = movement.split(">")
-    transformed = (
-        f"{_transform_coord(source, transform)}"
-        f">{_transform_direction(move_direction, transform)}"
+    return _COORD.sub(
+        lambda match: _transform_coord(match.group(0), transform),
+        move,
     )
-    if build_parts:
-        transformed += f"+{_transform_direction(build_parts[0], transform)}"
-    return transformed
 
 
 def _transform_state(state, transform):
