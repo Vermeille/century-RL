@@ -6,17 +6,6 @@ class Santorini:
     DOME = 4
     WORKERS_PER_PLAYER = 2
     SETUP_ACTIONS = 4
-    DIRECTIONS = {
-        "u": (0, -1),
-        "d": (0, 1),
-        "l": (-1, 0),
-        "r": (1, 0),
-        "ul": (-1, -1),
-        "ur": (1, -1),
-        "dl": (-1, 1),
-        "dr": (1, 1),
-    }
-    DELTA_TO_DIRECTION = {delta: direction for direction, delta in DIRECTIONS.items()}
 
     def __init__(self, num_players: int = 2):
         assert num_players == 2
@@ -43,20 +32,6 @@ class Santorini:
         y = int(coord[1]) - 1
         assert 0 <= x < cls.SIZE
         assert 0 <= y < cls.SIZE
-        return y * cls.SIZE + x
-
-    @classmethod
-    def _direction(cls, source: int, destination: int) -> str:
-        sx, sy = source % cls.SIZE, source // cls.SIZE
-        dx, dy = destination % cls.SIZE, destination // cls.SIZE
-        return cls.DELTA_TO_DIRECTION[(dx - sx, dy - sy)]
-
-    @classmethod
-    def _step(cls, source: int, direction: str) -> int:
-        dx, dy = cls.DIRECTIONS[direction]
-        x = source % cls.SIZE + dx
-        y = source // cls.SIZE + dy
-        assert 0 <= x < cls.SIZE and 0 <= y < cls.SIZE
         return y * cls.SIZE + x
 
     @classmethod
@@ -127,8 +102,7 @@ class Santorini:
                 if destination_height > source_height + 1:
                     continue
 
-                move_direction = self._direction(source, destination)
-                move_prefix = f"{self._coord(source)}>{move_direction}"
+                move_prefix = f"{self._coord(source)}>{self._coord(destination)}"
 
                 # Reaching level 3 from level 2 wins immediately; there is no build.
                 if source_height == 2 and destination_height == 3:
@@ -141,8 +115,7 @@ class Santorini:
                         continue
                     if self.heights[build] == self.DOME:
                         continue
-                    build_direction = self._direction(destination, build)
-                    moves.append(f"{move_prefix}+{build_direction}")
+                    moves.append(f"{move_prefix}+{self._coord(build)}")
 
         return moves
 
@@ -204,9 +177,9 @@ class Santorini:
             return
 
         movement, *build_parts = move.split("+")
-        source_coord, move_direction = movement.split(">")
+        source_coord, destination_coord = movement.split(">")
         source = self._index(source_coord)
-        destination = self._step(source, move_direction)
+        destination = self._index(destination_coord)
         source_height = self.heights[source]
         destination_height = self.heights[destination]
 
@@ -220,7 +193,7 @@ class Santorini:
             return
 
         assert len(build_parts) == 1
-        build = self._step(destination, build_parts[0])
+        build = self._index(build_parts[0])
         self.heights[build] += 1
         self._refresh_moves()
 
