@@ -1,15 +1,27 @@
 :root {
-  color-scheme: light;
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-strong: #f0f3f7;
-  --border: #d8dee8;
-  --text: #172033;
-  --muted: #62708a;
-  --accent: #1b6ef3;
-  --accent-strong: #1558c6;
-  --danger: #b42318;
-  --shadow: 0 14px 34px rgba(31, 42, 68, 0.08);
+  color-scheme: dark;
+  --bg: #171b22;
+  --surface: #20262e;
+  --surface-strong: #2c333d;
+  --border: #454f5b;
+  --text: #edf2f7;
+  --muted: #a2acb8;
+  --accent: #6cb6ff;
+  --accent-strong: #388bfd;
+  --danger: #ff8f87;
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+  --game-bg: #f6f7f9;
+  --game-surface: #ffffff;
+  --game-surface-strong: #f0f3f7;
+  --game-border: #d8dee8;
+  --game-text: #172033;
+  --game-muted: #62708a;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 * {
@@ -64,11 +76,14 @@ button.secondary {
 select,
 input[type="text"] {
   width: min(58vw, 560px);
+  max-width: 100%;
   padding: 0 34px 0 10px;
 }
 
 .shell {
   width: min(1440px, calc(100vw - 32px));
+  max-width: 100%;
+  min-width: 0;
   margin: 0 auto;
   padding: 20px 0;
 }
@@ -78,6 +93,7 @@ input[type="text"] {
   align-items: end;
   justify-content: space-between;
   gap: 24px;
+  min-width: 0;
   margin-bottom: 14px;
 }
 
@@ -135,6 +151,7 @@ h2 {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   gap: 10px;
   margin-bottom: 14px;
@@ -142,6 +159,10 @@ h2 {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.toolbar > * {
+  min-width: 0;
 }
 
 .field.compact select {
@@ -174,14 +195,15 @@ h2 {
 .message {
   margin-bottom: 14px;
   padding: 10px 12px;
-  border: 1px solid #f2c8c4;
+  border: 1px solid #6e3630;
   border-radius: 8px;
-  background: #fff4f2;
+  background: #2d1b1b;
   color: var(--danger);
 }
 
 .layout {
   display: grid;
+  min-width: 0;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
   gap: 14px;
   align-items: start;
@@ -189,6 +211,7 @@ h2 {
 
 .play-panel,
 .moves-panel {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -202,14 +225,22 @@ h2 {
 
 .visual-board {
   min-height: 50vh;
+  min-width: 0;
+  max-width: 100%;
   padding: 18px;
   overflow: auto;
-  background: #fbfcfe;
+  background: var(--game-bg);
+  color: var(--game-text);
+  --border: var(--game-border);
+  --muted: var(--game-muted);
+  --surface: var(--game-surface);
+  --surface-strong: var(--game-surface-strong);
+  --text: var(--game-text);
 }
 
 .raw-panel {
   border-top: 1px solid var(--border);
-  background: #f8fafc;
+  background: #1b2027;
 }
 
 .raw-panel summary {
@@ -242,7 +273,7 @@ h2 {
   padding: 0 14px 14px;
   border: 0;
   background: transparent;
-  color: #101827;
+  color: var(--text);
   font-family:
     "SFMono-Regular", Consolas, "Liberation Mono", Menlo, ui-monospace,
     monospace;
@@ -275,7 +306,7 @@ h2 {
   gap: 8px;
   padding: 12px;
   border-bottom: 1px solid var(--border);
-  background: #fbfcfe;
+  background: #1b2027;
 }
 
 .history-panel {
@@ -309,7 +340,7 @@ h2 {
   padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfcfe;
+  background: #252c34;
   font-size: 0.84rem;
 }
 
@@ -391,7 +422,7 @@ h2 {
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e7ebf1;
+  background: #454f5b;
 }
 
 .meter-fill {
@@ -468,7 +499,7 @@ h2 {
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--game-surface);
   text-align: left;
 }
 
@@ -503,9 +534,9 @@ h2 {
   min-width: 42px;
   min-height: 42px;
   padding: 5px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--game-border);
   border-radius: 7px;
-  background: var(--surface-strong);
+  background: var(--game-surface-strong);
   font-weight: 850;
 }
 
@@ -536,7 +567,7 @@ h2 {
   gap: 7px;
   padding: 14px;
   border-radius: 8px;
-  background: #18202f;
+  background: #e2e8f0;
 }
 
 .grid-row {
@@ -553,10 +584,10 @@ h2 {
   place-items: center;
   width: 54px;
   height: 54px;
-  border: 1px solid #2d3748;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
-  background: #ffffff;
-  color: #18202f;
+  background: var(--game-surface);
+  color: var(--game-text);
   font-weight: 800;
 }
 
@@ -612,7 +643,7 @@ h2 {
 .century-board {
   display: grid;
   gap: 16px;
-  color: #1f2937;
+  color: var(--game-text);
 }
 
 .century-row,
@@ -649,9 +680,9 @@ h2 {
   min-width: 92px;
   min-height: 134px;
   padding: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--game-border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--game-surface);
   box-shadow: 0 8px 18px rgba(31, 42, 68, 0.08);
 }
 
@@ -700,9 +731,9 @@ h2 {
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--game-border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--game-surface);
 }
 
 .score-pill {
@@ -869,7 +900,8 @@ h2 {
   min-height: 42px;
   padding: 0 14px;
   border-radius: 8px;
-  background: var(--surface-strong);
+  background: var(--game-surface-strong);
+  color: var(--game-text);
   font-weight: 800;
 }
 
@@ -885,9 +917,9 @@ h2 {
   display: grid;
   place-items: center;
   min-height: 132px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--game-border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--game-surface);
 }
 
 .rps-choice span {
@@ -909,9 +941,9 @@ h2 {
 .history-card {
   min-width: 72px;
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--game-border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--game-surface);
   font-weight: 800;
 }
 

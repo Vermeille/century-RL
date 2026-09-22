@@ -31,14 +31,14 @@ trainer_args=(
   --learning-rate 6e-4
   --kl-strength 0.01
   --kl-target 0.05
-  --gae-lambda 0.5
-  --value-lambda 0.9
+  --gae-lambda 0.2
+  --value-lambda 0.5
   --adam-beta1 0.9
   --adam-beta2 0.95
   --inference-batch-size 256
   --learner-batch-size 128
-  --rollout-games 64
-  --evaluation-games 128
+  --rollout-games 128
+  --evaluation-games 256
   --gradient-clip 10000
   --opponent-eval-strategy random
   --entropy-strength 0.1
