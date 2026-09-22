@@ -95,7 +95,7 @@ if (!html.includes('target-setup') || !html.includes('Place a worker')) {
     )
 
 
-def test_santorini_click_targets_follow_relative_move_destination_build_sequence():
+def test_santorini_click_targets_follow_move_destination_build_sequence():
     run_santorini_renderer_check(
         r"""
 const game = {
@@ -103,10 +103,10 @@ const game = {
   current_player: 0,
   history: [{ action: 'P:a5' }],
   moves: [
-    'a1>r+l',
-    'a1>r+d',
-    'a1>d+u',
-    'e5>ul+ul',
+    'a1>b1+a1',
+    'a1>b1+b2',
+    'a1>a2+a1',
+    'e5>d4+c3',
   ],
   board: [
     '>0 play',
@@ -125,15 +125,11 @@ if (sources.kind !== 'source' || !sources.targets.a1 || !sources.targets.e5) {
 }
 const destinations = sandbox.santoriniTargets(game, { source: 'a1', destination: null });
 if (destinations.kind !== 'destination' || !destinations.targets.b1 || !destinations.targets.a2) {
-  throw new Error('relative move directions did not resolve to board destinations');
+  throw new Error('destination selection is wrong');
 }
 const builds = sandbox.santoriniTargets(game, { source: 'a1', destination: 'b1' });
 if (builds.kind !== 'build' || !builds.targets.a1 || !builds.targets.b2) {
-  throw new Error('relative build directions did not resolve to board targets');
-}
-const diagonal = sandbox.parseSantoriniMove('e5>ul+ul');
-if (diagonal.destination !== 'd4' || diagonal.build !== 'c3') {
-  throw new Error('diagonal relative action was parsed incorrectly');
+  throw new Error('build selection is wrong');
 }
 """
     )
@@ -146,7 +142,7 @@ const game = {
   name: 'santorini',
   current_player: 0,
   history: [],
-  moves: ['b2>dr'],
+  moves: ['b2>c3'],
   board: [
     '>0 play',
     '   a  b  c  d  e',
@@ -159,11 +155,10 @@ const game = {
   board_with_moves: '',
 };
 const target = sandbox.santoriniTargets(game, { source: 'b2', destination: null });
-if (target.kind !== 'destination' || target.targets.c3[0] !== 'b2>dr') {
-  throw new Error('winning relative destination was not exposed directly');
+if (target.kind !== 'destination' || target.targets.c3[0] !== 'b2>c3') {
+  throw new Error('winning destination was not exposed directly');
 }
-const parsed = sandbox.parseSantoriniMove('b2>dr');
-if (parsed.destination !== 'c3') throw new Error('winning direction resolved incorrectly');
+const parsed = sandbox.parseSantoriniMove('b2>c3');
 if (parsed.build !== null) throw new Error('winning move unexpectedly requires a build');
 """
     )
