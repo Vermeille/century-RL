@@ -24,7 +24,7 @@ from .store import ArenaStore
 from .visualization import (
     plot_dominance_graph,
     plot_rating_curve,
-    plot_residuals,
+    plot_win_rate_matrix,
 )
 
 
@@ -299,7 +299,7 @@ class ArenaReporter:
             fit,
             opponent_name=self.opponent_name,
         )
-        residual_figure = plot_residuals(
+        win_rate_figure = plot_win_rate_matrix(
             self.store,
             fit,
             reference_id=self.reference_id,
@@ -314,7 +314,7 @@ class ArenaReporter:
                 self.telemetry.log(
                     {
                         "arena/rating_curve": rating_figure,
-                        "arena/nontransitivity": residual_figure,
+                        "arena/win_rate_matrix": win_rate_figure,
                         "arena/dominance_graph": dominance_figure,
                         "arena/event_log": self.telemetry.html(
                             render_event_log(self.store.events())
@@ -331,5 +331,5 @@ class ArenaReporter:
             import matplotlib.pyplot as plt
 
             plt.close(rating_figure)
-            plt.close(residual_figure)
+            plt.close(win_rate_figure)
             plt.close(dominance_figure)
