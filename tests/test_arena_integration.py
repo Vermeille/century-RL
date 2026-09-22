@@ -118,7 +118,7 @@ def test_cpu_smoke_rates_checkpoint_and_publishes_full_figures(tmp_path):
         assert step == 7
         assert set(metrics) == {
             "arena/rating_curve",
-            "arena/nontransitivity",
+            "arena/win_rate_matrix",
             "arena/dominance_graph",
             "arena/event_log",
         }
