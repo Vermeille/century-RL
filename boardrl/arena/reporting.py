@@ -306,8 +306,10 @@ class ArenaReporter:
         )
         dominance_figure = plot_dominance_graph(
             self.store,
+            fit,
             active_graph,
             active_cycles,
+            reference_id=self.reference_id,
         )
         try:
             try:
