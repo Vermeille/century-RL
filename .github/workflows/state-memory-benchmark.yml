@@ -18,5 +18,5 @@ jobs:
         uses: astral-sh/setup-uv@v6
       - name: Install dependencies
         run: uv sync --locked --all-extras --dev
-      - name: Benchmark state memory and copy speed
-        run: uv run python bench_state_memory.py
+      - name: Benchmark state copy speed
+        run: uv run python bench_state_timing.py
