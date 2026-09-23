@@ -1,12 +1,8 @@
 import random
 
-from boardrl.games.compact import IndexedByteArray
 
-
-class Board(IndexedByteArray):
-    __slots__ = ()
-    VALUES = (None, 0, 1)
-    ID_BY_VALUE = {value: index for index, value in enumerate(VALUES)}
+EMPTY = 0
+PLAYER_OFFSET = 1
 
 
 class TicTacToe:
@@ -15,7 +11,7 @@ class TicTacToe:
     def __init__(self, num_players: int = 2) -> None:
         assert num_players == 2
         self.num_players = num_players
-        self.board = Board([None] * 9)
+        self.board = bytearray(9)
         self.turn = 0
         self.moves = [str(i) for i in range(9)]
 
@@ -40,10 +36,10 @@ class TicTacToe:
             assert force in [0, 1]
             p = force
 
-        rep = {None: " ", 0: "O", 1: "X"}
-        lines = [">" + rep[p]]
+        rep = {EMPTY: " ", 1: "O", 2: "X"}
+        lines = [">" + rep[p + PLAYER_OFFSET]]
         for row in [self.board[i * 3 : (i + 1) * 3] for i in range(3)]:
-            lines.append("".join(rep[r] for r in row))
+            lines.append("".join(rep[cell] for cell in row))
         return "\n".join(lines)
 
     def display_with_moves(self):
@@ -53,9 +49,9 @@ class TicTacToe:
     def play_str(self, mov):
         assert not self.ended()
         idx = int(mov)
-        assert self.board[idx] is None
-        self.board[idx] = self.current_player()
-        self.moves = [str(i) for i in range(9) if self.board[i] is None]
+        assert self.board[idx] == EMPTY
+        self.board[idx] = self.current_player() + PLAYER_OFFSET
+        self.moves = [str(i) for i in range(9) if self.board[i] == EMPTY]
         self.turn += 1
 
     def ended(self):
@@ -63,18 +59,15 @@ class TicTacToe:
 
     def winner(self):
         for i in range(3):
-            if self.board[i] == self.board[i + 3] == self.board[i + 6]:
-                if self.board[i] is not None:
-                    return self.board[i]
-            if self.board[i * 3] == self.board[i * 3 + 1] == self.board[i * 3 + 2]:
-                if self.board[i * 3] is not None:
-                    return self.board[i * 3]
-        if self.board[0] == self.board[4] == self.board[8]:
-            if self.board[0] is not None:
-                return self.board[0]
-        if self.board[2] == self.board[4] == self.board[6]:
-            if self.board[2] is not None:
-                return self.board[2]
+            if self.board[i] == self.board[i + 3] == self.board[i + 6] != EMPTY:
+                return self.board[i] - PLAYER_OFFSET
+            row = i * 3
+            if self.board[row] == self.board[row + 1] == self.board[row + 2] != EMPTY:
+                return self.board[row] - PLAYER_OFFSET
+        if self.board[0] == self.board[4] == self.board[8] != EMPTY:
+            return self.board[0] - PLAYER_OFFSET
+        if self.board[2] == self.board[4] == self.board[6] != EMPTY:
+            return self.board[2] - PLAYER_OFFSET
         return None
 
     def points_for(self, me):
