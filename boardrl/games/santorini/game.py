@@ -7,10 +7,19 @@ class Santorini:
     WORKERS_PER_PLAYER = 2
     SETUP_ACTIONS = 4
 
+    __slots__ = (
+        "num_players",
+        "heights",
+        "workers",
+        "turn",
+        "moves",
+        "_winner",
+    )
+
     def __init__(self, num_players: int = 2):
         assert num_players == 2
         self.num_players = num_players
-        self.heights = [0 for _ in range(self.SIZE * self.SIZE)]
+        self.heights = bytearray(self.SIZE * self.SIZE)
         self.workers = [
             [None for _ in range(self.WORKERS_PER_PLAYER)] for _ in range(2)
         ]
@@ -48,11 +57,12 @@ class Santorini:
                     yield yy * cls.SIZE + xx
 
     def copy(self):
-        g = Santorini()
-        g.heights = self.heights[:]
+        g = Santorini.__new__(Santorini)
+        g.num_players = self.num_players
+        g.heights = self.heights.copy()
         g.workers = [workers[:] for workers in self.workers]
         g.turn = self.turn
-        g.moves = self.moves[:]
+        g.moves = self.moves
         g._winner = self._winner
         return g
 
@@ -104,7 +114,6 @@ class Santorini:
 
                 move_prefix = f"{self._coord(source)}>{self._coord(destination)}"
 
-                # Reaching level 3 from level 2 wins immediately; there is no build.
                 if source_height == 2 and destination_height == 3:
                     moves.append(move_prefix)
                     continue
