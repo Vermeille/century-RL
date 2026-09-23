@@ -75,9 +75,9 @@ def test_hint_tracks_explicit_and_inferred_knowledge_and_last_action():
     game.play_str("h p1 cR")
 
     assert game.information_tokens == 2
-    assert game.knowledge[1][0].colors == {"R"}
+    assert game.knowledge[1][0].colors == ("R",)
     assert game.knowledge[1][0].hinted_color == "R"
-    assert game.knowledge[1][1].colors == {"Y"}
+    assert game.knowledge[1][1].colors == ("Y",)
     assert game.knowledge[1][1].hinted_color is None
 
     display = game.display()
@@ -213,7 +213,7 @@ def test_copy_is_independent():
 
     copied.fireworks["R"] = 3
     copied.hands[0].pop()
-    copied.knowledge[0][0].colors.clear()
+    copied.knowledge[0][0].colors = ()
 
     assert game.fireworks["R"] == 0
     assert len(game.hands[0]) == game.hand_size
