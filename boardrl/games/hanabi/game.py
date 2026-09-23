@@ -1,13 +1,15 @@
 import random
 from dataclasses import dataclass
 
+from boardrl.games.compact import IndexedByteArray, NamedByteCounts
+
 
 RANK_MULTIPLICITIES = {1: 3, 2: 2, 3: 2, 4: 2, 5: 1}
 FULL_COLORS = ("R", "Y", "G", "B", "W")
 MINI_COLORS = ("R", "Y")
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, slots=True)
 class Card:
     color: str
     rank: int
@@ -16,21 +18,36 @@ class Card:
         return f"{self.color}{self.rank}"
 
 
-@dataclass
+CARDS = tuple(Card(color, rank) for color in FULL_COLORS for rank in range(1, 6))
+
+
+class CardArray(IndexedByteArray):
+    __slots__ = ()
+    VALUES = CARDS
+    ID_BY_VALUE = {card: index for index, card in enumerate(CARDS)}
+
+
+class Fireworks(NamedByteCounts):
+    __slots__ = ()
+    KEYS = FULL_COLORS
+    INDEX = {color: index for index, color in enumerate(KEYS)}
+
+
+@dataclass(slots=True)
 class CardKnowledge:
-    colors: set[str]
-    ranks: set[int]
+    colors: tuple[str, ...]
+    ranks: tuple[int, ...]
     hinted_color: str | None = None
     hinted_rank: int | None = None
 
     @classmethod
     def unknown(cls, colors, ranks):
-        return cls(set(colors), set(ranks))
+        return cls(tuple(colors), tuple(ranks))
 
     def copy(self):
         return CardKnowledge(
-            set(self.colors),
-            set(self.ranks),
+            self.colors,
+            self.ranks,
             self.hinted_color,
             self.hinted_rank,
         )
@@ -40,20 +57,20 @@ class CardKnowledge:
 
     def reveal_color(self, true_color: str, hinted_color: str):
         if true_color == hinted_color:
-            self.colors.intersection_update({hinted_color})
+            self.colors = (hinted_color,)
             self.hinted_color = hinted_color
         else:
-            self.colors.discard(hinted_color)
+            self.colors = tuple(color for color in self.colors if color != hinted_color)
 
     def reveal_rank(self, true_rank: int, hinted_rank: int):
         if true_rank == hinted_rank:
-            self.ranks.intersection_update({hinted_rank})
+            self.ranks = (hinted_rank,)
             self.hinted_rank = hinted_rank
         else:
-            self.ranks.discard(hinted_rank)
+            self.ranks = tuple(rank for rank in self.ranks if rank != hinted_rank)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ActionRecord:
     actor: int
     kind: str
@@ -102,6 +119,29 @@ MODE_BY_NAME = {mode.name: mode for mode in (FullHanabi(), MiniHanabi())}
 
 
 class Hanabi:
+    __slots__ = (
+        "num_players",
+        "mode",
+        "game_mode",
+        "colors",
+        "ranks",
+        "max_information_tokens",
+        "max_life_tokens",
+        "hand_size",
+        "deck",
+        "hands",
+        "knowledge",
+        "fireworks",
+        "discard",
+        "information_tokens",
+        "life_tokens",
+        "curplay",
+        "_round",
+        "final_turns_left",
+        "last_action",
+        "moves",
+    )
+
     def __init__(self, num_players: int = 2, mode: str = "full"):
         if not 2 <= num_players <= 5:
             raise ValueError("Hanabi supports 2 to 5 players.")
@@ -119,15 +159,15 @@ class Hanabi:
 
         self.deck = self._make_deck()
         random.shuffle(self.deck)
-        self.hands = [[] for _ in range(num_players)]
+        self.hands = [CardArray() for _ in range(num_players)]
         self.knowledge = [[] for _ in range(num_players)]
         for _ in range(self.hand_size):
             for player in range(num_players):
                 self.hands[player].append(self.deck.pop())
                 self.knowledge[player].append(self._unknown_knowledge())
 
-        self.fireworks = {color: 0 for color in self.colors}
-        self.discard = []
+        self.fireworks = Fireworks()
+        self.discard = CardArray()
         self.information_tokens = self.max_information_tokens
         self.life_tokens = self.max_life_tokens
         self.curplay = 0
@@ -136,13 +176,13 @@ class Hanabi:
         self.last_action: ActionRecord | None = None
         self.moves = self.gen_moves()
 
-    def _make_deck(self) -> list[Card]:
-        return [
+    def _make_deck(self) -> CardArray:
+        return CardArray(
             Card(color, rank)
             for color in self.colors
             for rank in self.ranks
             for _ in range(RANK_MULTIPLICITIES[rank])
-        ]
+        )
 
     def _unknown_knowledge(self) -> CardKnowledge:
         return CardKnowledge.unknown(self.colors, self.ranks)
@@ -158,9 +198,7 @@ class Hanabi:
         return self._round
 
     def score(self) -> int:
-        # Keep the raw fireworks total after fuse exhaustion. Terminal outcome
-        # and reward semantics determine whether the game was a loss.
-        return sum(self.fireworks.values())
+        return sum(self.fireworks[color] for color in self.colors)
 
     def points(self) -> int:
         return self.score()
@@ -384,7 +422,6 @@ class Hanabi:
         self.hands[player].append(self.deck.pop())
         self.knowledge[player].append(self._unknown_knowledge())
         if not self.deck and self.final_turns_left is None:
-            # Count the current turn as the +1, then leave one final turn per player.
             self.final_turns_left = self.num_players + 1
 
     def _finish_turn(self):
@@ -396,7 +433,7 @@ class Hanabi:
         self.curplay = (self.curplay + 1) % self.num_players
 
     def copy(self, randomize: bool = False):
-        copied = object.__new__(Hanabi)
+        copied = Hanabi.__new__(Hanabi)
         copied.num_players = self.num_players
         copied.mode = self.mode
         copied.game_mode = self.game_mode
@@ -405,14 +442,14 @@ class Hanabi:
         copied.max_information_tokens = self.max_information_tokens
         copied.max_life_tokens = self.max_life_tokens
         copied.hand_size = self.hand_size
-        copied.deck = self.deck[:]
-        copied.hands = [hand[:] for hand in self.hands]
+        copied.deck = self.deck.copy()
+        copied.hands = [hand.copy() for hand in self.hands]
         copied.knowledge = [
             [knowledge.copy() for knowledge in hand_knowledge]
             for hand_knowledge in self.knowledge
         ]
         copied.fireworks = self.fireworks.copy()
-        copied.discard = self.discard[:]
+        copied.discard = self.discard.copy()
         copied.information_tokens = self.information_tokens
         copied.life_tokens = self.life_tokens
         copied.curplay = self.curplay
@@ -421,13 +458,10 @@ class Hanabi:
         copied.last_action = self.last_action
         if randomize and not copied.ended():
             copied._randomize_hidden_state()
-        copied.moves = copied.gen_moves()
+        copied.moves = self.moves
         return copied
 
     def _randomize_hidden_state(self):
-        # Every hand is visible to at least one player in Hanabi. A randomized
-        # copy must therefore preserve every hand exactly; only the draw pile is
-        # unseen by all players and may be resampled.
         random.shuffle(self.deck)
 
     def simulate_to_end(self):
