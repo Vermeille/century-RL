@@ -4,8 +4,6 @@ import random
 from dataclasses import dataclass
 from itertools import combinations
 
-from boardrl.games.compact import IndexedByteArray
-
 
 SUITS = ("H", "D", "C", "S")
 RANKS = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
@@ -56,13 +54,16 @@ class Card:
 
 JOKER = Card("X")
 CARDS = tuple(Card(rank, suit) for rank in RANKS for suit in SUITS) + (JOKER,)
+CARD_ID = {card: index for index, card in enumerate(CARDS)}
 CARD_BY_CODE = {card.code: card for card in CARDS}
 
 
-class CardArray(IndexedByteArray):
-    __slots__ = ()
-    VALUES = CARDS
-    ID_BY_VALUE = {card: index for index, card in enumerate(CARDS)}
+def encode_cards(cards) -> bytearray:
+    return bytearray(CARD_ID[card] for card in cards)
+
+
+def decode_cards(ids):
+    return (CARDS[card_id] for card_id in ids)
 
 
 def card_sort_key(card: Card):
@@ -89,7 +90,7 @@ def discard_move(cards: tuple[Card, ...] | list[Card]) -> str:
 
 
 class Regicide:
-    """Regicide, implemented as a cooperative imperfect-information game."""
+    """Regicide with all mutable card collections stored as byte IDs."""
 
     __slots__ = (
         "num_players",
@@ -124,30 +125,30 @@ class Regicide:
         self.num_players = num_players
         self.hand_limit = HAND_LIMIT[num_players]
 
-        self.tavern = CardArray(
+        self.tavern = encode_cards(
             Card(rank, suit)
             for rank in RANKS[:10]
             for suit in SUITS
         )
-        self.tavern.extend(JOKER for _ in range(JOKERS_IN_TAVERN[num_players]))
+        self.tavern.extend([CARD_ID[JOKER]] * JOKERS_IN_TAVERN[num_players])
         random.shuffle(self.tavern)
 
-        self.hands = [CardArray() for _ in range(num_players)]
+        self.hands = [bytearray() for _ in range(num_players)]
         for player in range(num_players):
             for _ in range(self.hand_limit):
                 self.hands[player].append(self.tavern.pop())
 
-        kings = CardArray(Card("K", suit) for suit in SUITS)
-        queens = CardArray(Card("Q", suit) for suit in SUITS)
-        jacks = CardArray(Card("J", suit) for suit in SUITS)
+        kings = encode_cards(Card("K", suit) for suit in SUITS)
+        queens = encode_cards(Card("Q", suit) for suit in SUITS)
+        jacks = encode_cards(Card("J", suit) for suit in SUITS)
         random.shuffle(kings)
         random.shuffle(queens)
         random.shuffle(jacks)
-        self.castle = CardArray((*kings, *queens, *jacks))
-        self.enemy: Card | None = self.castle.pop()
+        self.castle = bytearray((*kings, *queens, *jacks))
+        self.enemy: Card | None = CARDS[self.castle.pop()]
 
-        self.discard = CardArray()
-        self.battle_cards = CardArray()
+        self.discard = bytearray()
+        self.battle_cards = bytearray()
 
         self.curplay = 0
         self._round = 0
@@ -161,7 +162,7 @@ class Regicide:
         self.defeated_hp = 0
         self._won = False
         self._lost = False
-        self.known_tavern_prefix = CardArray()
+        self.known_tavern_prefix = bytearray()
 
         self.solo_jokers = 2 if num_players == 1 else 0
         self._solo_joker_available_this_phase = num_players == 1
@@ -265,16 +266,16 @@ class Regicide:
             )
 
         castle_counts = {
-            rank: sum(card.rank == rank for card in self.castle)
+            rank: sum(CARDS[card_id].rank == rank for card_id in self.castle)
             for rank in ("J", "Q", "K")
         }
         hand_sizes = " ".join(str(len(hand)) for hand in self.hands)
         hand = " ".join(
-            card.code for card in sorted(self.hands[viewer], key=card_sort_key)
+            card.code
+            for card in sorted(decode_cards(self.hands[viewer]), key=card_sort_key)
         )
-        discard = str(len(self.discard))
-        battle = " ".join(card.code for card in self.battle_cards)
-        known_top = " ".join(card.code for card in self.known_tavern_prefix)
+        battle = " ".join(card.code for card in decode_cards(self.battle_cards))
+        known_top = " ".join(card.code for card in decode_cards(self.known_tavern_prefix))
 
         lines = [
             f"Round: {self._round}, Phase: {self.phase}, Active: P{self.curplay}",
@@ -282,7 +283,7 @@ class Regicide:
             f"J={castle_counts['J']} Q={castle_counts['Q']} K={castle_counts['K']}",
             f"Tavern: {len(self.tavern)}",
             f"KnownTavernTop: {known_top or '-'}",
-            f"Discard: {discard or '-'}",
+            f"Discard: {len(self.discard) or '-'}",
             f"Battle: {battle or '-'}",
             f"HandSizes: {hand_sizes}",
             f"Hand(P{viewer}): {hand or '-'}",
@@ -311,7 +312,7 @@ class Regicide:
             self.moves = []
 
     def _attack_moves(self) -> list[str]:
-        hand = self.hands[self.curplay]
+        hand = list(decode_cards(self.hands[self.curplay]))
         moves: set[str] = set()
 
         non_jokers = [card for card in hand if not card.is_joker]
@@ -365,7 +366,7 @@ class Regicide:
         if self.enemy is None or self.defense_remaining <= 0:
             return []
 
-        hand = self.hands[self.curplay]
+        hand = list(decode_cards(self.hands[self.curplay]))
         moves: set[str] = set()
         for count in range(1, len(hand) + 1):
             for cards in combinations(hand, count):
@@ -411,7 +412,7 @@ class Regicide:
 
         cards = [parse_card(code) for code in move.removeprefix("play:").split("+")]
         self._remove_cards_from_hand(self.curplay, cards)
-        self.battle_cards.extend(cards)
+        self.battle_cards.extend(CARD_ID[card] for card in cards)
         self.consecutive_passes = 0
         self._solo_joker_available_this_phase = False
 
@@ -439,7 +440,7 @@ class Regicide:
 
     def _play_multiplayer_joker(self, target: int):
         self._remove_cards_from_hand(self.curplay, [JOKER])
-        self.battle_cards.append(JOKER)
+        self.battle_cards.append(CARD_ID[JOKER])
         self.consecutive_passes = 0
         self.immunity_lifted = True
         self.curplay = target
@@ -460,7 +461,7 @@ class Regicide:
         self._solo_joker_available_this_phase = False
 
         if self.phase == DEFEND and self.defense_remaining > 0:
-            if sum(card.value for card in self.hands[0]) < self.defense_remaining:
+            if sum(CARDS[card_id].value for card_id in self.hands[0]) < self.defense_remaining:
                 self._lost = True
 
     def _enter_defense(self):
@@ -472,7 +473,7 @@ class Regicide:
             self._finish_turn()
             return
 
-        if sum(card.value for card in self.hands[self.curplay]) < self.defense_remaining:
+        if sum(CARDS[card_id].value for card_id in self.hands[self.curplay]) < self.defense_remaining:
             if not (
                 self.num_players == 1
                 and self.solo_jokers > 0
@@ -489,7 +490,7 @@ class Regicide:
             )
 
         self._remove_cards_from_hand(self.curplay, cards)
-        self.discard.extend(cards)
+        self.discard.extend(CARD_ID[card] for card in cards)
         self._solo_joker_available_this_phase = False
         self.defense_remaining = 0
         self._finish_turn()
@@ -510,10 +511,11 @@ class Regicide:
         self.defeated_hp += hp
 
         if perfect:
-            self.tavern.append(enemy)
-            self.known_tavern_prefix.insert(0, enemy)
+            enemy_id = CARD_ID[enemy]
+            self.tavern.append(enemy_id)
+            self.known_tavern_prefix.insert(0, enemy_id)
         else:
-            self.discard.append(enemy)
+            self.discard.append(CARD_ID[enemy])
 
         self.discard.extend(self.battle_cards)
         self.battle_cards.clear()
@@ -525,7 +527,7 @@ class Regicide:
             self.moves = []
             return
 
-        self.enemy = self.castle.pop()
+        self.enemy = CARDS[self.castle.pop()]
         self.enemy_damage = 0
         self.spade_shield = 0
         self.immunity_lifted = False
@@ -552,7 +554,8 @@ class Regicide:
 
         random.shuffle(self.discard)
         count = min(amount, len(self.discard))
-        recovered = [self.discard.pop() for _ in range(count)]
+        recovered = self.discard[-count:]
+        del self.discard[-count:]
         self.tavern[0:0] = recovered
 
     def _diamond_power(self, amount: int):
@@ -575,20 +578,20 @@ class Regicide:
         for _ in range(count):
             if not self.tavern or len(self.hands[player]) >= self.hand_limit:
                 return
-            card = self.tavern.pop()
+            card_id = self.tavern.pop()
             if self.known_tavern_prefix:
                 expected = self.known_tavern_prefix[0]
-                if card == expected:
-                    self.known_tavern_prefix.pop(0)
+                if card_id == expected:
+                    del self.known_tavern_prefix[0]
                 else:
                     raise AssertionError("Known Tavern prefix is inconsistent with Tavern.")
-            self.hands[player].append(card)
+            self.hands[player].append(card_id)
 
     def _remove_cards_from_hand(self, player: int, cards: list[Card]):
         hand = self.hands[player]
         for card in cards:
             try:
-                hand.remove(card)
+                hand.remove(CARD_ID[card])
             except ValueError as exc:
                 raise ValueError(f"Player P{player} does not hold {card}.") from exc
 
@@ -596,20 +599,20 @@ class Regicide:
         known_count = len(self.known_tavern_prefix)
         if known_count:
             known_suffix = self.tavern[-known_count:]
-            expected = list(reversed(self.known_tavern_prefix))
+            expected = bytearray(reversed(self.known_tavern_prefix))
             if known_suffix != expected:
                 raise AssertionError("Known Tavern prefix is inconsistent with Tavern.")
             unknown_tavern = self.tavern[:-known_count]
         else:
-            known_suffix = CardArray()
+            known_suffix = bytearray()
             unknown_tavern = self.tavern.copy()
 
         random.shuffle(unknown_tavern)
-        self.tavern = CardArray((*unknown_tavern, *known_suffix))
+        self.tavern = bytearray((*unknown_tavern, *known_suffix))
 
         for rank in ("J", "Q", "K"):
-            indices = [i for i, card in enumerate(self.castle) if card.rank == rank]
+            indices = [i for i, card_id in enumerate(self.castle) if CARDS[card_id].rank == rank]
             cards = [self.castle[i] for i in indices]
             random.shuffle(cards)
-            for i, card in zip(indices, cards):
-                self.castle[i] = card
+            for i, card_id in zip(indices, cards):
+                self.castle[i] = card_id
