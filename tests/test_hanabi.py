@@ -1,7 +1,7 @@
 import random
 
 from boardrl.games import games_library
-from boardrl.games.hanabi.game import Card, CardKnowledge, Hanabi
+from boardrl.games.hanabi.game import CARD_ID, Card, CardKnowledge, Hanabi, encode_cards
 
 
 def _unknown(game):
@@ -46,7 +46,10 @@ def test_mini_matches_deepmind_hanabi_small():
 
 def test_display_is_compact_and_hides_only_own_card_identity():
     game = Hanabi(num_players=2, mode="mini")
-    game.hands = [[Card("R", 1), Card("Y", 2)], [Card("R", 3), Card("Y", 4)]]
+    game.hands = [
+        encode_cards([Card("R", 1), Card("Y", 2)]),
+        encode_cards([Card("R", 3), Card("Y", 4)]),
+    ]
     game.knowledge = [[_unknown(game), _unknown(game)], [_unknown(game), _unknown(game)]]
     game.curplay = 0
     game.moves = game.gen_moves()
@@ -67,7 +70,10 @@ def test_display_is_compact_and_hides_only_own_card_identity():
 
 def test_hint_tracks_explicit_and_inferred_knowledge_and_last_action():
     game = Hanabi(num_players=2, mode="mini")
-    game.hands = [[Card("R", 3), Card("Y", 3)], [Card("R", 1), Card("Y", 2)]]
+    game.hands = [
+        encode_cards([Card("R", 3), Card("Y", 3)]),
+        encode_cards([Card("R", 1), Card("Y", 2)]),
+    ]
     game.knowledge = [[_unknown(game), _unknown(game)], [_unknown(game), _unknown(game)]]
     game.curplay = 0
     game.moves = game.gen_moves()
@@ -89,9 +95,9 @@ def test_hint_targets_are_relative_to_acting_player():
     game = Hanabi(num_players=3, mode="mini")
     game.curplay = 2
     game.hands = [
-        [Card("R", 1), Card("R", 2)],
-        [Card("Y", 1), Card("Y", 2)],
-        [Card("R", 3), Card("Y", 3)],
+        encode_cards([Card("R", 1), Card("R", 2)]),
+        encode_cards([Card("Y", 1), Card("Y", 2)]),
+        encode_cards([Card("R", 3), Card("Y", 3)]),
     ]
     game.knowledge = [[_unknown(game), _unknown(game)] for _ in range(3)]
     game.moves = game.gen_moves()
@@ -102,7 +108,7 @@ def test_hint_targets_are_relative_to_acting_player():
 
 def test_successful_play_advances_firework_and_draws():
     game = Hanabi(num_players=2, mode="full")
-    game.hands[0][0] = Card("R", 1)
+    game.hands[0][0] = CARD_ID[Card("R", 1)]
     game.fireworks["R"] = 0
     deck_before = len(game.deck)
     game.moves = game.gen_moves()
@@ -119,7 +125,7 @@ def test_fatal_misplay_ends_game_and_preserves_raw_score():
     game = Hanabi(num_players=2, mode="mini")
     game.fireworks["R"] = 3
     game.fireworks["Y"] = 2
-    game.hands[0][0] = Card("R", 5)
+    game.hands[0][0] = CARD_ID[Card("R", 5)]
     game.moves = game.gen_moves()
 
     assert game.score() == 5
@@ -132,7 +138,7 @@ def test_fatal_misplay_ends_game_and_preserves_raw_score():
     assert game.points() == 5
     assert game.points_for(0) == 5
     assert sum(game.fireworks.values()) == 5
-    assert Card("R", 5) in game.discard
+    assert CARD_ID[Card("R", 5)] in game.discard
 
 
 def test_discard_is_illegal_at_max_information_and_restores_a_token_otherwise():
@@ -152,7 +158,7 @@ def test_playing_five_restores_information_token():
     game = Hanabi(num_players=2, mode="full")
     game.fireworks["R"] = 4
     game.information_tokens = 7
-    game.hands[0][0] = Card("R", 5)
+    game.hands[0][0] = CARD_ID[Card("R", 5)]
     game.moves = game.gen_moves()
 
     game.play_str("p 0")
@@ -163,7 +169,7 @@ def test_playing_five_restores_information_token():
 
 def test_last_draw_gives_every_player_one_final_turn_including_drawer():
     game = Hanabi(num_players=2, mode="mini")
-    game.deck = [Card("R", 1)]
+    game.deck = encode_cards([Card("R", 1)])
     game.information_tokens = 2
     game.moves = game.gen_moves()
 
