@@ -3,7 +3,7 @@ import pytest
 from boardrl.games.tictactoe.game import TicTacToe
 from boardrl.games.connectfour.game import ConnectFour
 from boardrl.games.sum.game import Sum, RockPaperScissors
-from boardrl.games.thegame.game import PLAYED_CARD_SYMBOLS, TheGame
+from boardrl.games.thegame.game import MESSAGE_ID, PLAYED_CARD_SYMBOLS, TheGame
 
 
 def test_tictactoe_basic_win():
@@ -246,7 +246,7 @@ def test_thegame_strict_before_draw_message_gets_message_action_only():
     before_message = g.played_cards_memory()
     g.play_str("A")
     assert g.current_player() == 1
-    assert g._last_messages[0] == "A"
+    assert g._last_messages[0] == MESSAGE_ID["A"]
     assert g.played_cards_memory() == before_message
 
 
@@ -311,7 +311,7 @@ def test_thegame_strict_after_draw_message_draws_then_gets_message_only():
 
     g.play_str("B")
     assert g.current_player() == 1
-    assert g._last_messages[0] == "B"
+    assert g._last_messages[0] == MESSAGE_ID["B"]
 
 
 def test_thegame_free_after_draw_message_exits_then_draws_then_messages():
@@ -332,7 +332,7 @@ def test_thegame_free_after_draw_message_exits_then_draws_then_messages():
 
     g.play_str("C")
     assert g.current_player() == 1
-    assert g._last_messages[0] == "C"
+    assert g._last_messages[0] == MESSAGE_ID["C"]
 
 
 def test_thegame_deck_empty_skips_empty_player_instead_of_ending():
@@ -378,13 +378,13 @@ def test_thegame_deck_empty_skip_clears_stale_message():
     g.hands = [[], [20]]
     g.curplay = 1
     g.action = 0
-    g._last_messages = ["A", ""]
+    g._last_messages = bytearray([MESSAGE_ID["A"], 0])
     g.moves = g.gen_moves()
 
     g.play_str("20->0")
     g.play_str("B")
 
-    assert g._last_messages[0] == ""
+    assert g._last_messages[0] == 0
     assert g.ended()
 
 
