@@ -1,9 +1,10 @@
 import random
 
+from boardrl.games.compact import IndexedByteArray
+
 
 MESSAGE_MOVES = tuple("ABCDEFGHIJ")
 MESSAGE_BY_ID = ("", *MESSAGE_MOVES)
-MESSAGE_ID = {message: index for index, message in enumerate(MESSAGE_BY_ID)}
 MESSAGE_SET = frozenset(MESSAGE_MOVES)
 PLAYED_CARD_SYMBOLS = "abcdefghijklmnopqrstuvwxyzABCDEF"
 GAME_MODES = {
@@ -17,6 +18,12 @@ GAME_MODES = {
 }
 PLAYING_PHASE = "playing"
 AFTER_DRAW_MESSAGE_PHASE = "after_draw_message"
+
+
+class MessageArray(IndexedByteArray):
+    __slots__ = ()
+    VALUES = MESSAGE_BY_ID
+    ID_BY_VALUE = {message: index for index, message in enumerate(MESSAGE_BY_ID)}
 
 
 def _card_buffer(values=(), *, max_value: int):
@@ -192,14 +199,14 @@ class TheGame:
                 self.hands[p].append(self.deck.pop())
 
         self._round = 0
-        self.turn = 0  # compatibility alias retained for old probes/tests
+        self.turn = 0
         self.action = 0
         self.curplay = 0
         self.num_players = num_players
         self._turn_phase = PLAYING_PHASE
         self._played_cards = 0
         self.moves = self.gen_moves()
-        self._last_messages = bytearray(num_players)
+        self._last_messages = MessageArray("" for _ in range(num_players))
 
     def copy(self, randomize=False):
         g = TheGame.__new__(TheGame)
@@ -251,7 +258,7 @@ class TheGame:
         msg_line = ""
         if self.has_messages():
             order = [((p + i) % self.num_players) for i in range(1, self.num_players)]
-            rel_msgs = [MESSAGE_BY_ID[self._last_messages[i]] for i in order]
+            rel_msgs = [self._last_messages[i] for i in order]
             msg_line = f"Msgs: {''.join(rel_msgs)}\n"
         return (
             f"Round: {self._round}, Action: {self.action}\n"
@@ -356,11 +363,11 @@ class TheGame:
         for _ in range(self.num_players):
             if self.hands[self.curplay]:
                 return
-            self._last_messages[self.curplay] = 0
+            self._last_messages[self.curplay] = ""
             self.curplay = (self.curplay + 1) % self.num_players
 
     def record_message(self, player: int, message: str):
-        self._last_messages[player] = MESSAGE_ID[message]
+        self._last_messages[player] = message
 
     def play_str(self, move: str):
         if move not in self.moves:
