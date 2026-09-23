@@ -35,10 +35,11 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     assert g2.moves == g2.gen_moves()
 
     # Mutating original does not affect copy and vice versa. Keep mutations
-    # inside the valid one-byte game-state domain.
+    # inside the valid one-byte game-state domain and don't manually invalidate
+    # the current player's cached legal moves.
     g.deck.append(29)
     g.piles[0] += 1
-    g.hands[0].append(23)
+    g.hands[1].append(23)
     g._last_messages[0] = "A"
     g._played_cards |= 1 << 24
 
