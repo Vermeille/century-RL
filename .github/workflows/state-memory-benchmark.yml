@@ -19,7 +19,16 @@ jobs:
       - name: Install baseline
         run: uv sync --locked --all-extras --dev
       - name: Test compact state engines
-        run: uv run pytest -q tests/test_games.py tests/test_hanabi.py tests/test_splendor.py tests/test_take5.py
+        run: >-
+          uv run pytest -q
+          tests/test_games.py
+          tests/test_hanabi.py
+          tests/test_splendor.py
+          tests/test_take5.py
+          tests/test_regicide.py
+          tests/test_skullking.py
+          tests/test_santorini.py
+          tests/test_thegame_copy.py
       - name: Benchmark retained trajectory states
         run: uv run python bench_state_storage.py
       - name: Benchmark state copy speed
