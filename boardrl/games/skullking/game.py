@@ -1,24 +1,25 @@
 import random
 from collections.abc import Sequence
 
-from boardrl.games.compact import IndexedByteArray
-
 
 SUITS = "rybB"
 CARD_VALUES = tuple(
     [f"{color}:{number}" for color in SUITS for number in range(1, 15)]
     + ["_:E", "_:P", "_:M", "_:K", "_:T", "_:T=P", "_:T=E"]
 )
+CARD_ID = {card: index for index, card in enumerate(CARD_VALUES)}
 
 
-class CardArray(IndexedByteArray):
-    __slots__ = ()
-    VALUES = CARD_VALUES
-    ID_BY_VALUE = {card: index for index, card in enumerate(CARD_VALUES)}
+def encode_cards(cards) -> bytearray:
+    return bytearray(CARD_ID[card] for card in cards)
+
+
+def decode_cards(ids):
+    return (CARD_VALUES[card_id] for card_id in ids)
 
 
 def fresh_deck():
-    return CardArray(
+    return encode_cards(
         [f"{color}:{number}" for color in SUITS for number in range(1, 15)]
         + ["_:E"] * 5
         + ["_:P"] * 5
@@ -63,7 +64,7 @@ def beats(top: str, candidate: str) -> bool:
     if candidate_value in {"P", "M", "K"}:
         return True
 
-    if candidate_color == top_color:
+    if top_color == candidate_color:
         return int(candidate_value) > int(top_value)
     if candidate_color == "B":
         return True
@@ -155,11 +156,11 @@ class SkullKing:
         self._lead_suit_pending = True
         self._trick = []
         self._played_tricks: list[list[tuple[int, str]]] = []
-        self.captured = [CardArray() for _ in range(num_players)]
+        self.captured = [bytearray() for _ in range(num_players)]
         self._captured_tricks = [[] for _ in range(num_players)]
         self.round_points = [0] * num_players
-        self.hands = [CardArray() for _ in range(num_players)]
-        self.deck = CardArray()
+        self.hands = [bytearray() for _ in range(num_players)]
+        self.deck = bytearray()
         self._deal()
         self.moves = self.gen_moves()
 
@@ -173,7 +174,7 @@ class SkullKing:
         random.shuffle(self.deck)
         cards_per_player = self._cards_per_player()
         assert cards_per_player * self.num_players <= len(self.deck)
-        self.hands = [CardArray() for _ in range(self.num_players)]
+        self.hands = [bytearray() for _ in range(self.num_players)]
         for _ in range(cards_per_player):
             for hand in self.hands:
                 hand.append(self.deck.pop())
@@ -181,7 +182,7 @@ class SkullKing:
     def start_round_(self):
         self.phase = "play"
         self.tricks = bytearray(self.num_players)
-        self.captured = [CardArray() for _ in range(self.num_players)]
+        self.captured = [bytearray() for _ in range(self.num_players)]
         self._captured_tricks = [[] for _ in range(self.num_players)]
         self._played_tricks = []
         self._trick = []
@@ -221,11 +222,12 @@ class SkullKing:
         self.moves = self.gen_moves()
 
     def _bonus_points(self, player: int) -> int:
-        cards = self.captured[player]
+        cards = decode_cards(self.captured[player])
         bonus = sum(
             20 if card == "B:14" else 10 for card in cards if card.endswith(":14")
         )
-        for trick, winner_card in self._captured_tricks[player]:
+        for trick_ids, winner_card in self._captured_tricks[player]:
+            trick = decode_cards(trick_ids)
             winner_rank = _rank(winner_card)
             if winner_rank == "P":
                 bonus += 20 * sum(_rank(card) == "M" for card in trick)
@@ -244,7 +246,7 @@ class SkullKing:
         if self.phase == "bid":
             return [str(i) for i in range(self._cards_per_player() + 1)]
         if self.phase == "play":
-            hand = self.hands[self.current_player_]
+            hand = list(decode_cards(self.hands[self.current_player_]))
             color = self.current_color if not self._lead_suit_pending else "_"
             moves = []
             for card, can in zip(hand, can_play(color, hand)):
@@ -259,7 +261,7 @@ class SkullKing:
 
     def _complete_trick(self) -> None:
         winner = self.current_winner
-        cards = CardArray(card for _, card in self._trick)
+        cards = encode_cards(card for _, card in self._trick)
         self.tricks[winner] += 1
         self.captured[winner].extend(cards)
         self._captured_tricks[winner].append((cards, self.current_top))
@@ -303,7 +305,7 @@ class SkullKing:
         assert self.phase == "play"
         assert move in self.moves, f"Invalid move {move} for player {p}"
         hand_card = "_:T" if move.startswith("_:T=") else move
-        self.hands[p].remove(hand_card)
+        self.hands[p].remove(CARD_ID[hand_card])
         self._trick.append((p, move))
         self._update_lead(move)
 
@@ -346,7 +348,7 @@ class SkullKing:
             f"Top: {self.current_top}\n"
             f"Trick: {current_trick}\n"
             f"History: {history}\n"
-            f"Hand: {' '.join(self.hands[player])}"
+            f"Hand: {' '.join(decode_cards(self.hands[player]))}"
         )
 
     def display_with_moves(self) -> str:
