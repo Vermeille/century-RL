@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Apply Century compact-state experiment
+        run: git apply --check century_compact.patch && git apply century_compact.patch
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -18,5 +20,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
       - name: Install dependencies
         run: uv sync --locked --all-extras --dev
+      - name: Benchmark retained state memory
+        run: uv run python bench_state_memory.py
       - name: Benchmark state copy speed
         run: uv run python bench_state_timing.py
