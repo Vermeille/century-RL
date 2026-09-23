@@ -10,17 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply Century compact-state experiment
-        run: python apply_century_compact.py
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version-file: "pyproject.toml"
       - name: Install uv
         uses: astral-sh/setup-uv@v6
-      - name: Install dependencies
+      - name: Install baseline
         run: uv sync --locked --all-extras --dev
-      - name: Benchmark retained state memory
-        run: uv run python bench_state_memory.py
-      - name: Benchmark state copy speed
-        run: uv run python bench_state_timing.py
+      - name: Benchmark retained trajectory states
+        run: uv run python bench_state_storage.py
+      - name: Apply Century compact-state experiment
+        run: python apply_century_compact.py
+      - name: Rebuild Century extension
+        run: uv sync --locked --all-extras --dev --reinstall-package century-rl
+      - name: Benchmark compact Century retained states
+        run: GAME_FILTER=century uv run python bench_state_storage.py
+      - name: Benchmark compact Century copy speed
+        run: GAME_FILTER=century uv run python bench_state_timing.py
