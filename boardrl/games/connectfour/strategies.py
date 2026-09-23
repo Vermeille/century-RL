@@ -37,7 +37,7 @@ class TacticalRandomStrategy:
             row = g.heights[col]
 
             sim = g.copy()
-            sim.board[col][row] = opponent
+            sim._set_cell(col, row, opponent)
 
             if sim._check_winner() == opponent:
                 probs = one_hot(idx, len(g.moves))
