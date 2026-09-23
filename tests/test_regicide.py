@@ -1,7 +1,15 @@
 import random
 
 from boardrl.games import games_library
-from boardrl.games.regicide.game import ATTACK, DEFEND, Card, JOKER, Regicide
+from boardrl.games.regicide.game import (
+    ATTACK,
+    DEFEND,
+    CARD_ID,
+    Card,
+    JOKER,
+    Regicide,
+    encode_cards,
+)
 
 
 def _refresh(game):
@@ -24,13 +32,15 @@ def test_regicide_registered_and_setup():
 
 def test_ace_association_and_combo_moves():
     game = Regicide(2)
-    game.hands[0] = [
-        Card("A", "C"),
-        Card("8", "D"),
-        Card("2", "H"),
-        Card("2", "D"),
-        Card("2", "C"),
-    ]
+    game.hands[0] = encode_cards(
+        [
+            Card("A", "C"),
+            Card("8", "D"),
+            Card("2", "H"),
+            Card("2", "D"),
+            Card("2", "C"),
+        ]
+    )
     game.curplay = 0
     game.phase = ATTACK
     _refresh(game)
@@ -42,9 +52,9 @@ def test_ace_association_and_combo_moves():
 
 def test_club_doubles_damage_but_enemy_suit_is_immune():
     game = Regicide(2)
-    game.castle = [Card("J", "D")]
-    game.hands[0] = [Card("10", "C"), Card("10", "H")]
-    game.hands[1] = [Card("10", "H")]
+    game.castle = encode_cards([Card("J", "D")])
+    game.hands[0] = encode_cards([Card("10", "C"), Card("10", "H")])
+    game.hands[1] = encode_cards([Card("10", "H")])
     game.curplay = 0
     game.phase = ATTACK
 
@@ -55,15 +65,15 @@ def test_club_doubles_damage_but_enemy_suit_is_immune():
 
     game = Regicide(2)
     game.enemy = Card("J", "C")
-    game.hands[0] = [Card("10", "C"), Card("10", "H")]
-    game.hands[1] = [Card("10", "H")]
+    game.hands[0] = encode_cards([Card("10", "C"), Card("10", "H")])
+    game.hands[1] = encode_cards([Card("10", "H")])
     game.curplay = 0
     game.phase = ATTACK
     game.enemy_damage = 0
     game.spade_shield = 0
     game.immunity_lifted = False
-    game.battle_cards = []
-    game.discard = []
+    game.battle_cards = bytearray()
+    game.discard = bytearray()
     _refresh(game)
 
     game.play_str("10C")
@@ -76,35 +86,35 @@ def test_perfect_execution_puts_enemy_on_top_of_tavern():
     enemy = Card("J", "H")
     next_enemy = Card("J", "D")
     game.enemy = enemy
-    game.castle = [next_enemy]
-    game.hands[0] = [Card("10", "C"), Card("2", "H")]
-    game.hands[1] = [Card("3", "H")]
+    game.castle = encode_cards([next_enemy])
+    game.hands[0] = encode_cards([Card("10", "C"), Card("2", "H")])
+    game.hands[1] = encode_cards([Card("3", "H")])
     game.enemy_damage = 0
     game.spade_shield = 0
     game.immunity_lifted = False
-    game.battle_cards = []
-    game.discard = []
+    game.battle_cards = bytearray()
+    game.discard = bytearray()
     game.phase = ATTACK
     _refresh(game)
 
     game.play_str("10C")
 
     assert game.enemy == next_enemy
-    assert game.tavern[-1] == enemy
-    assert game.known_tavern_prefix[0] == enemy
+    assert game.tavern[-1] == CARD_ID[enemy]
+    assert game.known_tavern_prefix[0] == CARD_ID[enemy]
 
 
 def test_spade_shields_become_retroactive_after_joker():
     game = Regicide(2)
     game.enemy = Card("J", "S")
-    game.castle = [Card("J", "H")]
-    game.hands[0] = [Card("5", "S"), Card("10", "H")]
-    game.hands[1] = [JOKER, Card("2", "H")]
+    game.castle = encode_cards([Card("J", "H")])
+    game.hands[0] = encode_cards([Card("5", "S"), Card("10", "H")])
+    game.hands[1] = encode_cards([JOKER, Card("2", "H")])
     game.enemy_damage = 0
     game.spade_shield = 0
     game.immunity_lifted = False
-    game.battle_cards = []
-    game.discard = []
+    game.battle_cards = bytearray()
+    game.discard = bytearray()
     game.curplay = 0
     game.phase = ATTACK
     _refresh(game)
@@ -123,8 +133,8 @@ def test_spade_shields_become_retroactive_after_joker():
 def test_defense_is_one_atomic_subset_action():
     game = Regicide(2)
     game.enemy = Card("J", "H")
-    game.hands[0] = [Card("3", "D"), Card("7", "S"), Card("9", "H")]
-    game.hands[1] = [Card("2", "D")]
+    game.hands[0] = encode_cards([Card("3", "D"), Card("7", "S"), Card("9", "H")])
+    game.hands[1] = encode_cards([Card("2", "D")])
     game.curplay = 0
     game.phase = DEFEND
     game.defense_remaining = 10
@@ -138,16 +148,16 @@ def test_defense_is_one_atomic_subset_action():
     game.play_str("3D+7S")
     assert game.phase == ATTACK
     assert game.current_player() == 1
-    assert Card("3", "D") in game.discard
-    assert Card("7", "S") in game.discard
+    assert CARD_ID[Card("3", "D")] in game.discard
+    assert CARD_ID[Card("7", "S")] in game.discard
 
 
 def test_pass_is_forbidden_after_every_other_player_just_passed():
     game = Regicide(2)
     game.enemy = Card("J", "H")
     game.spade_shield = 10
-    game.hands[0] = [Card("2", "D")]
-    game.hands[1] = [Card("3", "D")]
+    game.hands[0] = encode_cards([Card("2", "D")])
+    game.hands[1] = encode_cards([Card("3", "D")])
     game.curplay = 0
     game.phase = ATTACK
     game.consecutive_passes = 0
@@ -164,7 +174,7 @@ def test_randomized_copy_preserves_all_hands_and_public_state():
     random.seed(1234)
     game = Regicide(4)
     original_hands = [hand[:] for hand in game.hands]
-    original_tavern_cards = sorted(card.code for card in game.tavern)
+    original_tavern_cards = sorted(game.tavern)
 
     copied = game.copy(randomize=True)
 
@@ -174,7 +184,7 @@ def test_randomized_copy_preserves_all_hands_and_public_state():
     assert copied.enemy == game.enemy
     assert copied.discard == game.discard
     assert copied.battle_cards == game.battle_cards
-    assert sorted(card.code for card in copied.tavern) == original_tavern_cards
+    assert sorted(copied.tavern) == original_tavern_cards
     assert len(copied.tavern) == len(game.tavern)
 
 
@@ -182,13 +192,14 @@ def test_randomized_copy_preserves_known_tavern_top():
     random.seed(4321)
     game = Regicide(2)
     known = Card("J", "H")
-    game.tavern.append(known)
-    game.known_tavern_prefix = [known]
+    known_id = CARD_ID[known]
+    game.tavern.append(known_id)
+    game.known_tavern_prefix = bytearray([known_id])
 
     copied = game.copy(randomize=True)
 
-    assert copied.tavern[-1] == known
-    assert copied.known_tavern_prefix == [known]
+    assert copied.tavern[-1] == known_id
+    assert copied.known_tavern_prefix == bytearray([known_id])
 
 
 def test_random_playouts_terminate():
