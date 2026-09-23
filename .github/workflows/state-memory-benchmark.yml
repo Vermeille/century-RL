@@ -22,6 +22,8 @@ jobs:
         run: uv run pytest -q tests/test_games.py tests/test_hanabi.py tests/test_splendor.py tests/test_take5.py
       - name: Benchmark retained trajectory states
         run: uv run python bench_state_storage.py
+      - name: Benchmark state copy speed
+        run: uv run python bench_state_timing.py
       - name: Apply Century compact-state experiment
         run: python apply_century_compact.py
       - name: Rebuild Century extension
