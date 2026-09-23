@@ -6,7 +6,7 @@ counters) while the mutable state stores only byte-sized IDs/counts.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any, ClassVar
 
 
@@ -94,6 +94,11 @@ class IndexedByteArray(bytearray):
     def __copy__(self):
         return self.copy()
 
+    def __eq__(self, other):
+        if isinstance(other, (list, tuple)):
+            return list(self) == list(other)
+        return bytearray.__eq__(self, other)
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({list(self)!r})"
 
@@ -133,8 +138,27 @@ class NamedByteCounts(bytearray):
     def items(self):
         return zip(self.KEYS, bytearray.__iter__(self))
 
+    def keys(self):
+        return iter(self.KEYS)
+
+    def update(self, values: Mapping[str, int] | Iterable[tuple[str, int]], **kwargs) -> None:
+        items = values.items() if hasattr(values, "items") else values
+        for key, value in items:
+            self[key] = value
+        for key, value in kwargs.items():
+            self[key] = value
+
     def copy(self):
         return type(self)(bytes(self))
 
     def __copy__(self):
         return self.copy()
+
+    def __eq__(self, other):
+        if isinstance(other, Mapping):
+            return {key: self[key] for key in self.KEYS} == dict(other)
+        return bytearray.__eq__(self, other)
+
+    def __repr__(self) -> str:
+        body = ", ".join(f"{key}={self[key]}" for key in self.KEYS)
+        return f"{type(self).__name__}({body})"
