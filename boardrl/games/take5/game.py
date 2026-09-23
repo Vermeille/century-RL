@@ -11,12 +11,27 @@ def card_points(c: int) -> int:
 
 
 class Take5:
+    __slots__ = (
+        "num_players",
+        "num_stacks",
+        "players",
+        "stacks",
+        "table",
+        "points_",
+        "current_player_",
+        "round_",
+        "phase",
+        "moves",
+    )
+
     def __init__(self, num_players: int = 4, num_stacks: int = 4, num_cards: int = 104):
+        if not 1 <= num_cards <= 255:
+            raise ValueError("Take5 byte-backed cards require 1 <= num_cards <= 255")
         self.num_players = num_players
         self.num_stacks = num_stacks
-        self.players: list[list[int]] = [[] for _ in range(num_players)]
-        cards: list[int] = list(range(1, num_cards + 1))
-        self.stacks: list[list[int]] = [[] for _ in range(num_stacks)]
+        self.players: list[bytearray] = [bytearray() for _ in range(num_players)]
+        cards = bytearray(range(1, num_cards + 1))
+        self.stacks: list[bytearray] = [bytearray() for _ in range(num_stacks)]
         self.table: list[Tuple[int, int]] = []
         self.points_: list[int] = [0 for _ in range(num_players)]
         random.shuffle(cards)
@@ -43,14 +58,14 @@ class Take5:
         game = Take5.__new__(Take5)
         game.num_players = self.num_players
         game.num_stacks = self.num_stacks
-        game.players = [player[:] for player in self.players]
-        game.stacks = [stack[:] for stack in self.stacks]
-        game.table = self.table[:]
-        game.points_ = self.points_[:]
+        game.players = [player.copy() for player in self.players]
+        game.stacks = [stack.copy() for stack in self.stacks]
+        game.table = self.table.copy()
+        game.points_ = self.points_.copy()
         game.current_player_ = self.current_player_
         game.round_ = self.round_
         game.phase = self.phase
-        game.moves = self.moves[:]
+        game.moves = self.moves
         return game
 
     def round(self) -> int:
@@ -88,13 +103,12 @@ class Take5:
                 self.current_player_ = player
                 self.moves = self._moves()
                 return
-            else:
-                self.table.pop(0)
-                fitting_stack = max(valid_stacks, key=lambda s: s[-1])
-                if len(fitting_stack) == 5:
-                    self.points_[player] -= sum(card_points(c) for c in fitting_stack)
-                    fitting_stack.clear()
-                fitting_stack.append(card)
+            self.table.pop(0)
+            fitting_stack = max(valid_stacks, key=lambda s: s[-1])
+            if len(fitting_stack) == 5:
+                self.points_[player] -= sum(card_points(c) for c in fitting_stack)
+                fitting_stack.clear()
+            fitting_stack.append(card)
 
         self.phase = 0
         self.current_player_ = 0
