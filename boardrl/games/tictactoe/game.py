@@ -1,19 +1,28 @@
-from typing import List
 import random
+
+from boardrl.games.compact import IndexedByteArray
+
+
+class Board(IndexedByteArray):
+    __slots__ = ()
+    VALUES = (None, 0, 1)
+    ID_BY_VALUE = {value: index for index, value in enumerate(VALUES)}
 
 
 class TicTacToe:
-    # Specific
+    __slots__ = ("num_players", "board", "turn", "moves")
+
     def __init__(self, num_players: int = 2) -> None:
         assert num_players == 2
         self.num_players = num_players
-        self.board: List[int | None] = [None for _ in range(9)]
+        self.board = Board([None] * 9)
         self.turn = 0
         self.moves = [str(i) for i in range(9)]
 
     def copy(self):
-        g = TicTacToe()
-        g.board = self.board[:]
+        g = TicTacToe.__new__(TicTacToe)
+        g.num_players = self.num_players
+        g.board = self.board.copy()
         g.turn = self.turn
         g.moves = self.moves
         return g
@@ -34,7 +43,7 @@ class TicTacToe:
         rep = {None: " ", 0: "O", 1: "X"}
         lines = [">" + rep[p]]
         for row in [self.board[i * 3 : (i + 1) * 3] for i in range(3)]:
-            lines.append("".join([rep[r] for r in row]))
+            lines.append("".join(rep[r] for r in row))
         return "\n".join(lines)
 
     def display_with_moves(self):
@@ -71,10 +80,8 @@ class TicTacToe:
     def points_for(self, me):
         if (winner := self.winner()) is None:
             return 0
-        else:
-            return 1 if winner == me else -1
+        return 1 if winner == me else -1
 
-    # Predefined
     def points(self):
         return self.points_for(self.current_player())
 
@@ -87,21 +94,3 @@ class TicTacToe:
 
     def play_idx(self, idx):
         return self.play_str(self.moves[idx])
-
-
-if __name__ == "__main__":
-    g = TicTacToe()
-    # print(g.display_with_moves())
-    print(g.ended())
-    g.play_str("0")
-    print(g.display_with_moves())
-    g.play_str("1")
-    print(g.display_with_moves())
-    g.play_str("3")
-    print(g.display_with_moves())
-    g.play_str("5")
-    print(g.display_with_moves())
-    g.play_str("6")
-    print(g.display_with_moves())
-    print(g.ended())
-    print(g.points())
