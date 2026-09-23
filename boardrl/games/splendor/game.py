@@ -2,26 +2,46 @@ import itertools
 import random
 from dataclasses import dataclass, field
 
-from boardrl.games.splendor.data import CARDS_BY_TIER, COLORS, GOLD, NOBLES
+from boardrl.games.compact import IndexedByteArray, NamedByteCounts
+from boardrl.games.splendor.data import CARDS, CARDS_BY_TIER, COLORS, GOLD, NOBLES
 
 
 MAX_TOKENS = 10
 MAX_RESERVED = 3
 PRESTIGE_TARGET = 15
+TOKEN_KEYS = (*COLORS, GOLD)
 
 
-@dataclass
+class CardArray(IndexedByteArray):
+    __slots__ = ()
+    VALUES = CARDS + (None,)
+    ID_BY_VALUE = {card: index for index, card in enumerate(VALUES)}
+
+
+class NobleArray(IndexedByteArray):
+    __slots__ = ()
+    VALUES = NOBLES
+    ID_BY_VALUE = {noble: index for index, noble in enumerate(NOBLES)}
+
+
+class TokenCounts(NamedByteCounts):
+    __slots__ = ()
+    KEYS = TOKEN_KEYS
+    INDEX = {color: index for index, color in enumerate(KEYS)}
+
+
+@dataclass(slots=True)
 class ReservedCard:
     card: object
     public: bool
 
 
-@dataclass
+@dataclass(slots=True)
 class Player:
-    tokens: dict = field(default_factory=lambda: {color: 0 for color in (*COLORS, GOLD)})
-    purchased: list = field(default_factory=list)
-    reserved: list = field(default_factory=list)
-    nobles: list = field(default_factory=list)
+    tokens: TokenCounts = field(default_factory=TokenCounts)
+    purchased: CardArray = field(default_factory=CardArray)
+    reserved: list[ReservedCard] = field(default_factory=list)
+    nobles: NobleArray = field(default_factory=NobleArray)
 
     def bonuses(self):
         result = {color: 0 for color in COLORS}
@@ -41,29 +61,45 @@ class Player:
 class Splendor:
     """Base-game Splendor.
 
-    A normal turn is one main RL action. Token returns above the ten-token
-    limit and ambiguous noble visits are represented as one compact follow-up
-    action each, only when required.
+    Mutable card collections store one-byte IDs into the immutable card/noble
+    tables from ``data.py``. Rule code still sees the rich Card/Noble objects.
     """
+
+    __slots__ = (
+        "num_players",
+        "bank",
+        "players",
+        "decks",
+        "market",
+        "nobles",
+        "turn",
+        "phase",
+        "final_round",
+        "_ended",
+        "_stalemate",
+        "moves",
+    )
 
     def __init__(self, num_players: int = 2):
         if not 2 <= num_players <= 4:
             raise ValueError("Splendor supports 2 to 4 players")
         self.num_players = num_players
         colored_supply = {2: 4, 3: 5, 4: 7}[num_players]
-        self.bank = {color: colored_supply for color in COLORS}
+        self.bank = TokenCounts(colored_supply)
         self.bank[GOLD] = 5
         self.players = [Player() for _ in range(num_players)]
 
-        self.decks = {}
-        self.market = {}
+        # Index 0 is intentionally unused so existing tier-indexed rule code is
+        # unchanged while avoiding two tiny dictionaries per state.
+        self.decks: list[CardArray | None] = [None]
+        self.market: list[CardArray | None] = [None]
         for tier in (1, 2, 3):
-            deck = list(CARDS_BY_TIER[tier])
+            deck = CardArray(CARDS_BY_TIER[tier])
             random.shuffle(deck)
-            self.decks[tier] = deck
-            self.market[tier] = [deck.pop() for _ in range(4)]
+            self.decks.append(deck)
+            self.market.append(CardArray(deck.pop() for _ in range(4)))
 
-        nobles = list(NOBLES)
+        nobles = NobleArray(NOBLES)
         random.shuffle(nobles)
         self.nobles = nobles[: num_players + 1]
 
@@ -76,30 +112,30 @@ class Splendor:
         self._refresh_moves()
 
     def copy(self):
-        game = object.__new__(Splendor)
+        game = Splendor.__new__(Splendor)
         game.num_players = self.num_players
         game.bank = self.bank.copy()
         game.players = []
         for player in self.players:
             clone = Player(
                 tokens=player.tokens.copy(),
-                purchased=list(player.purchased),
+                purchased=player.purchased.copy(),
                 reserved=[
                     ReservedCard(reserved.card, reserved.public)
                     for reserved in player.reserved
                 ],
-                nobles=list(player.nobles),
+                nobles=player.nobles.copy(),
             )
             game.players.append(clone)
-        game.decks = {tier: list(deck) for tier, deck in self.decks.items()}
-        game.market = {tier: list(row) for tier, row in self.market.items()}
-        game.nobles = list(self.nobles)
+        game.decks = [None] + [self.decks[tier].copy() for tier in (1, 2, 3)]  # type: ignore[union-attr]
+        game.market = [None] + [self.market[tier].copy() for tier in (1, 2, 3)]  # type: ignore[union-attr]
+        game.nobles = self.nobles.copy()
         game.turn = self.turn
         game.phase = self.phase
         game.final_round = self.final_round
         game._ended = self._ended
         game._stalemate = self._stalemate
-        game.moves = list(self.moves)
+        game.moves = self.moves
         return game
 
     def current_player(self):
@@ -194,16 +230,19 @@ class Splendor:
 
         lines = [
             f">{self.current_player()} {self.phase} v{viewer}",
-            f"Bank {self._counts_text(self.bank, (*COLORS, GOLD))}",
+            f"Bank {self._counts_text(self.bank, TOKEN_KEYS)}",
             "Nobles " + " ".join(self._noble_text(noble) for noble in self.nobles),
         ]
         for tier in (3, 2, 1):
             cards = []
-            for slot, card in enumerate(self.market[tier]):
+            market = self.market[tier]
+            deck = self.decks[tier]
+            assert market is not None and deck is not None
+            for slot, card in enumerate(market):
                 cards.append(
                     f"{slot}={self._card_text(card)}" if card is not None else f"{slot}=-"
                 )
-            lines.append(f"T{tier}({len(self.decks[tier])}) " + " ".join(cards))
+            lines.append(f"T{tier}({len(deck)}) " + " ".join(cards))
 
         order = [viewer] + [
             player for player in range(self.num_players) if player != viewer
@@ -220,7 +259,7 @@ class Splendor:
             lines.append(
                 f"P{player_index}{'*' if player_index == self.current_player() else ''} "
                 f"S{player.prestige()} D{len(player.purchased)} "
-                f"T{self._counts_text(player.tokens, (*COLORS, GOLD))} "
+                f"T{self._counts_text(player.tokens, TOKEN_KEYS)} "
                 f"C{self._counts_text(player.bonuses(), COLORS)} "
                 f"H{' '.join(reserved) if reserved else '-'}"
             )
@@ -230,7 +269,10 @@ class Splendor:
         return self.display() + "\n".join(f"@{move}" for move in self.moves)
 
     def _draw_market_replacement(self, tier, slot):
-        self.market[tier][slot] = self.decks[tier].pop() if self.decks[tier] else None
+        deck = self.decks[tier]
+        market = self.market[tier]
+        assert deck is not None and market is not None
+        market[slot] = deck.pop() if deck else None
 
     def _take_moves(self):
         available = [color for color in COLORS if self.bank[color] > 0]
@@ -249,10 +291,13 @@ class Splendor:
             return []
         moves = []
         for tier in (1, 2, 3):
-            for slot, card in enumerate(self.market[tier]):
+            market = self.market[tier]
+            deck = self.decks[tier]
+            assert market is not None and deck is not None
+            for slot, card in enumerate(market):
                 if card is not None:
                     moves.append(f"R:{tier}.{slot}")
-            if self.decks[tier]:
+            if deck:
                 moves.append(f"R:{tier}.D")
         return moves
 
@@ -281,7 +326,9 @@ class Splendor:
     def _buy_moves(self, player):
         moves = []
         for tier in (1, 2, 3):
-            for slot, card in enumerate(self.market[tier]):
+            market = self.market[tier]
+            assert market is not None
+            for slot, card in enumerate(market):
                 if card is None:
                     continue
                 for gold_pattern in self._gold_patterns(player, card):
@@ -298,7 +345,7 @@ class Splendor:
         if excess <= 0:
             return []
 
-        colors = (*COLORS, GOLD)
+        colors = TOKEN_KEYS
         out = []
 
         def visit(index, left, chosen):
@@ -335,10 +382,6 @@ class Splendor:
         elif self.phase == "main":
             self.moves = self._main_moves()
             if not self.moves:
-                # Extremely defensive play can exhaust every colored token while
-                # all players have three unbuyable reserves. The physical rules
-                # then have no state-changing action; terminate the fixed point
-                # as a draw rather than let RL exploit an infinite pass loop.
                 self._stalemate = True
                 self._ended = True
         elif self.phase == "discard":
@@ -401,14 +444,17 @@ class Splendor:
         tier = int(tier_text)
         player = self.players[self.current_player()]
         assert len(player.reserved) < MAX_RESERVED
+        deck = self.decks[tier]
+        market = self.market[tier]
+        assert deck is not None and market is not None
 
         if slot_text == "D":
-            assert self.decks[tier]
-            card = self.decks[tier].pop()
+            assert deck
+            card = deck.pop()
             public = False
         else:
             slot = int(slot_text)
-            card = self.market[tier][slot]
+            card = market[slot]
             assert card is not None
             public = True
             self._draw_market_replacement(tier, slot)
@@ -436,7 +482,9 @@ class Splendor:
             tier_text, slot_text = ref.split(".")
             tier = int(tier_text)
             slot = int(slot_text)
-            card = self.market[tier][slot]
+            market = self.market[tier]
+            assert market is not None
+            card = market[slot]
             assert card is not None
             market_ref = (tier, slot)
 
