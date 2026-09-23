@@ -1,6 +1,6 @@
 import pytest
 
-from boardrl.games.thegame.game import TheGame
+from boardrl.games.thegame.game import MESSAGE_ID, TheGame
 
 
 def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
@@ -40,7 +40,7 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     g.deck.append(29)
     g.piles[0] += 1
     g.hands[1].append(23)
-    g._last_messages[0] = "A"
+    g._last_messages[0] = MESSAGE_ID["A"]
     g._played_cards |= 1 << 24
 
     assert g2.deck == orig_deck
