@@ -37,7 +37,7 @@ class IndexedByteArray(bytearray):
 
     @classmethod
     def from_ids(cls, ids: bytes | bytearray | memoryview) -> "IndexedByteArray":
-        obj = cls()
+        obj = cls.__new__(cls)
         bytearray.__init__(obj, ids)
         return obj
 
@@ -89,7 +89,11 @@ class IndexedByteArray(bytearray):
         return bytearray.index(self, self._encode(value), *args)
 
     def copy(self):
-        return type(self).from_ids(bytes(self))
+        # Do not route the raw IDs back through the rich-value constructor.
+        # ``bytearray.__init__`` consumes the source buffer directly in C.
+        obj = type(self).__new__(type(self))
+        bytearray.__init__(obj, self)
+        return obj
 
     def __copy__(self):
         return self.copy()
@@ -155,7 +159,9 @@ class NamedByteCounts(bytearray):
             self[key] = value
 
     def copy(self):
-        return type(self)(bytes(self))
+        obj = type(self).__new__(type(self))
+        bytearray.__init__(obj, self)
+        return obj
 
     def __copy__(self):
         return self.copy()
