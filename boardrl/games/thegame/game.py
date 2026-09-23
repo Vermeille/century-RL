@@ -1,7 +1,10 @@
 import random
 
 
-MESSAGE_MOVES = list("ABCDEFGHIJ")
+MESSAGE_MOVES = tuple("ABCDEFGHIJ")
+MESSAGE_BY_ID = ("", *MESSAGE_MOVES)
+MESSAGE_ID = {message: index for index, message in enumerate(MESSAGE_BY_ID)}
+MESSAGE_SET = frozenset(MESSAGE_MOVES)
 PLAYED_CARD_SYMBOLS = "abcdefghijklmnopqrstuvwxyzABCDEF"
 GAME_MODES = {
     "strict",
@@ -16,8 +19,13 @@ PLAYING_PHASE = "playing"
 AFTER_DRAW_MESSAGE_PHASE = "after_draw_message"
 
 
-# A turn first enforces the required card count, then the selected game mode
-# decides whether extra cards, exits, or message actions are available.
+def _card_buffer(values=(), *, max_value: int):
+    """Use one byte/card for the normal game, retain large custom variants."""
+    if max_value <= 256:
+        return bytearray(values)
+    return list(values)
+
+
 class GameMode:
     name = ""
     has_messages = False
@@ -132,14 +140,26 @@ GAME_MODE_BY_NAME = {
 
 
 class TheGame:
-    """
-    A simplified version of 'The Game':
-      - 4 piles: 2 ascending (indices 0 and 1) and 2 descending (indices 2 and 3).
-      - Each pile starts at 1 (for ascending) or 100 (for descending).
-      - There's a deck of cards from 2 to 99 (inclusive).
-      - Each player has a hand of cards.
-    Can configure the max_value (100 by default)
-    """
+    """A simplified version of The Game with byte-backed card state."""
+
+    __slots__ = (
+        "max_value",
+        "mode",
+        "game_mode",
+        "deck",
+        "piles",
+        "hands",
+        "initial_hand_size",
+        "_round",
+        "turn",
+        "action",
+        "curplay",
+        "num_players",
+        "_turn_phase",
+        "_played_cards",
+        "moves",
+        "_last_messages",
+    )
 
     def __init__(
         self,
@@ -150,62 +170,57 @@ class TheGame:
         assert 0 < num_players <= 5, "The Game supports 1 to 5 players."
         if mode not in GAME_MODES:
             raise ValueError(f"mode must be one of {sorted(GAME_MODES)}, got {mode!r}")
-        # Build the deck of 2..max_value-1
+
         self.max_value = max_value
         self.mode = mode
         self.game_mode = GAME_MODE_BY_NAME[mode]
-        self.deck = list(range(2, max_value))
+        self.deck = _card_buffer(range(2, max_value), max_value=max_value)
         random.shuffle(self.deck)
 
-        # Initialize the 4 piles
-        # For simplicity:
-        #   piles[0], piles[1] = ascending, start at 1
-        #   piles[2], piles[3] = descending, start at max_value
-        self.piles = [1, 1, max_value, max_value]
+        self.piles = (
+            bytearray((1, 1, max_value, max_value))
+            if max_value <= 255
+            else [1, 1, max_value, max_value]
+        )
 
-        # Deal initial hands
-        # (In the real game, it can be 6 or 7 cards depending on the player count.)
-        self.hands: list[list[int]] = [[] for _ in range(num_players)]
+        self.hands = [
+            _card_buffer(max_value=max_value) for _ in range(num_players)
+        ]
         self.initial_hand_size = 6 if num_players > 3 else 7
         for p in range(num_players):
             for _ in range(self.initial_hand_size):
                 self.hands[p].append(self.deck.pop())
 
-        # Current player index
         self._round = 0
+        self.turn = 0  # compatibility alias retained for old probes/tests
         self.action = 0
         self.curplay = 0
         self.num_players = num_players
         self._turn_phase = PLAYING_PHASE
         self._played_cards = 0
         self.moves = self.gen_moves()
-        # Track last message each player sent when ending their turn
-        self._last_messages = ["" for _ in range(num_players)]
+        self._last_messages = bytearray(num_players)
 
     def copy(self, randomize=False):
-        """
-        Returns a deep copy of the game state.
-        """
-        g = TheGame(
-            num_players=self.num_players,
-            max_value=self.max_value,
-            mode=self.mode,
-        )
+        g = TheGame.__new__(TheGame)
         g.max_value = self.max_value
-        g.deck = self.deck[:]
+        g.mode = self.mode
+        g.game_mode = self.game_mode
+        g.deck = self.deck.copy()
         if randomize:
             g.game_mode.randomize_hidden_state(g)
-        g.piles = self.piles[:]
-        g.hands = [h[:] for h in self.hands]
+        g.piles = self.piles.copy()
+        g.hands = [hand.copy() for hand in self.hands]
+        g.initial_hand_size = self.initial_hand_size
         g._round = self._round
+        g.turn = self.turn
         g.action = self.action
         g.curplay = self.curplay
         g.num_players = self.num_players
         g._turn_phase = self._turn_phase
         g._played_cards = self._played_cards
-        # Recompute legal moves from the copied state to avoid stale moves
-        g.moves = g.gen_moves()
-        g._last_messages = self._last_messages[:]
+        g.moves = self.moves
+        g._last_messages = self._last_messages.copy()
         return g
 
     def round(self):
@@ -215,13 +230,6 @@ class TheGame:
         return self.curplay
 
     def display(self, force=-1) -> str:
-        """
-        Returns a string showing:
-          - Pile states
-          - The current player's hand, or all hands in omni mode
-          - The next ten cards in the deck in omni mode
-          - Which player's turn it is
-        """
         if force == -1:
             p = self.curplay
         else:
@@ -232,8 +240,6 @@ class TheGame:
         hand_lines = [f"Hand: {' '.join(str(c) for c in self.hands[p])}"]
         deck_line = ""
         if self.game_mode.displays_all_information:
-            # Cards are drawn from the end of the list, so reverse this slice
-            # to show the cards in the order in which they will be drawn.
             for offset in range(1, self.num_players):
                 player = (p + offset) % self.num_players
                 hand_lines.append(
@@ -244,10 +250,8 @@ class TheGame:
         hands_line = "\n".join(hand_lines)
         msg_line = ""
         if self.has_messages():
-            # Show last messages from other players in order relative to current viewer.
-            # Order: next player, then clockwise, excluding the viewer.
             order = [((p + i) % self.num_players) for i in range(1, self.num_players)]
-            rel_msgs = [self._last_messages[i] for i in order]
+            rel_msgs = [MESSAGE_BY_ID[self._last_messages[i]] for i in order]
             msg_line = f"Msgs: {''.join(rel_msgs)}\n"
         return (
             f"Round: {self._round}, Action: {self.action}\n"
@@ -287,11 +291,6 @@ class TheGame:
         return board + "\n".join([f"@{m}" for m in self.moves])
 
     def gen_moves(self) -> list[str]:
-        """
-        Generates all legal moves for the current player as a list of strings.
-        We'll use the format 'card->pileIndex'.
-          e.g. '42->0' means 'play card 42 onto pile 0'.
-        """
         if self._turn_phase == AFTER_DRAW_MESSAGE_PHASE:
             return self.message_moves()
         if self.needs_more_cards_this_turn():
@@ -309,30 +308,25 @@ class TheGame:
 
     def card_moves(self) -> list[str]:
         moves = []
-        ascending_indices = [0, 1]
-        descending_indices = [2, 3]
-
+        ascending_indices = (0, 1)
+        descending_indices = (2, 3)
         hand = self.hands[self.curplay]
 
         for card in hand:
             for pile_idx in ascending_indices:
                 top_val = self.piles[pile_idx]
-                # Ascending rule:
-                #   card >= top_val OR (top_val - card == 10) for the "jump back by 10"
                 if card >= top_val or (top_val - card == 10):
                     moves.append(f"{card}->{pile_idx}")
 
             for pile_idx in descending_indices:
                 top_val = self.piles[pile_idx]
-                # Descending rule:
-                #   card <= top_val OR (card - top_val == 10) for the "jump up by 10"
                 if card <= top_val or (card - top_val == 10):
                     moves.append(f"{card}->{pile_idx}")
 
         return moves
 
     def message_moves(self) -> list[str]:
-        return MESSAGE_MOVES[:]
+        return list(MESSAGE_MOVES)
 
     def draw_to_hand(self, player: int):
         while self.deck and len(self.hands[player]) < self.initial_hand_size:
@@ -354,6 +348,7 @@ class TheGame:
         self._turn_phase = PLAYING_PHASE
         self.moves = self.gen_moves()
         self._round += 1
+        self.turn = self._round
 
     def skip_empty_hands_after_deck_empty(self):
         if self.deck:
@@ -361,45 +356,32 @@ class TheGame:
         for _ in range(self.num_players):
             if self.hands[self.curplay]:
                 return
-            self._last_messages[self.curplay] = ""
+            self._last_messages[self.curplay] = 0
             self.curplay = (self.curplay + 1) % self.num_players
 
     def record_message(self, player: int, message: str):
-        self._last_messages[player] = message
+        self._last_messages[player] = MESSAGE_ID[message]
 
     def play_str(self, move: str):
-        """
-        Parses a move string like '42->0'. If it's not in gen_moves(), raise an exception.
-        Otherwise, perform the move and (optionally) draw a card (simplified).
-        """
         if move not in self.moves:
             raise ValueError(f"Illegal move: {move}. Legal moves: {self.moves}")
 
         player = self.curplay
 
-        # Handle explicit end-of-turn move
         if move == "x":
             self.game_mode.play_x(self, player)
             return
-        if move in set(MESSAGE_MOVES):
+        if move in MESSAGE_SET:
             self.play_message(player, move)
             return
-        # Parse the move
-        #   expecting 'card->pileIndex'
+
         card_str, pile_str = move.split("->")
         card = int(card_str)
         pile_idx = int(pile_str)
 
-        # Execute the move:
-        #  1) Remove the card from the current player's hand
         self.hands[player].remove(card)
         self._played_cards |= 1 << card
-
-        #  2) Update the pile
         self.piles[pile_idx] = card
-
-        #  3) Turn progression
-        # Increase the count of actions taken this turn.
         self.action += 1
 
         if self.needs_more_cards_this_turn():
@@ -415,23 +397,14 @@ class TheGame:
             self.game_mode.play_message(self, player, message)
 
     def ended(self) -> bool:
-        """
-        The game ends when all cards are played or the active player is stuck.
-        """
         return (not self.deck and not any(self.hands)) or (
             bool(self.hands[self.curplay]) and not self.moves
         )
 
     def won(self) -> bool:
-        """Return whether the cooperative objective was completed."""
         return not self.deck and not any(self.hands)
 
     def points(self) -> int:
-        """
-        Returns the score for the current player.
-        """
-        # Yes, there should be a -2, but I absolutely can't stand the max score
-        # being 98. It's very frustrating.
         return self.max_value - (len(self.deck) + sum(len(h) for h in self.hands))
 
     def points_for(self, player: int) -> int:
@@ -441,27 +414,16 @@ class TheGame:
     diff_points_for = points_for
 
     def play_idx(self, idx: int):
-        """
-        Plays the move at the given index.
-        """
         return self.play_str(self.moves[idx])
 
 
-# ------------------------
-# Example usage:
 if __name__ == "__main__":
     game = TheGame(num_players=2)
     print(game.display_with_moves())
-
-    # Generate possible moves for the current player
     possible = game.gen_moves()
     print("Possible moves:", possible)
-
-    # Try a move (take the first possible move)
     if possible:
         move = possible[0]
         print(f"Playing move: {move}")
         game.play_str(move)
-
-    # Display after the move
     print(game.display_with_moves())
