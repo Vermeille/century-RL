@@ -99,6 +99,12 @@ class IndexedByteArray(bytearray):
             return list(self) == list(other)
         return bytearray.__eq__(self, other)
 
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return NotImplemented
+        return not result
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({list(self)!r})"
 
@@ -158,6 +164,12 @@ class NamedByteCounts(bytearray):
         if isinstance(other, Mapping):
             return {key: self[key] for key in self.KEYS} == dict(other)
         return bytearray.__eq__(self, other)
+
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return NotImplemented
+        return not result
 
     def __repr__(self) -> str:
         body = ", ".join(f"{key}={self[key]}" for key in self.KEYS)
