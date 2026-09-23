@@ -6,12 +6,43 @@ _PLAYER0 = 1
 _PLAYER1 = 2
 
 
+class _ColumnView:
+    __slots__ = ("game", "x")
+
+    def __init__(self, game: "ConnectFour", x: int):
+        self.game = game
+        self.x = x
+
+    def __getitem__(self, y: int):
+        raw = self.game._cell(self.x, y)
+        return None if raw == _EMPTY else raw - 1
+
+    def __setitem__(self, y: int, value):
+        self.game._board[self.game._index(self.x, y)] = _EMPTY if value is None else value + 1
+
+    def __len__(self):
+        return self.game.height
+
+
+class _BoardView:
+    __slots__ = ("game",)
+
+    def __init__(self, game: "ConnectFour"):
+        self.game = game
+
+    def __getitem__(self, x: int):
+        return _ColumnView(self.game, x)
+
+    def __len__(self):
+        return self.game.width
+
+
 class ConnectFour:
     __slots__ = (
         "num_players",
         "width",
         "height",
-        "board",
+        "_board",
         "heights",
         "turn",
         "moves",
@@ -23,27 +54,32 @@ class ConnectFour:
         self.num_players = num_players
         self.width = 7
         self.height = 6
-        self.board = bytearray(self.width * self.height)
+        self._board = bytearray(self.width * self.height)
         self.heights = bytearray(self.width)
         self.turn = 0
         self.moves = [str(i) for i in range(self.width)]
         self._winner = None
 
+    @property
+    def board(self):
+        """Compatibility 2D view; the retained state itself is ``_board`` bytes."""
+        return _BoardView(self)
+
     def _index(self, x: int, y: int) -> int:
         return x * self.height + y
 
     def _cell(self, x: int, y: int) -> int:
-        return self.board[self._index(x, y)]
+        return self._board[self._index(x, y)]
 
     def _set_cell(self, x: int, y: int, player: int) -> None:
-        self.board[self._index(x, y)] = player + 1
+        self._board[self._index(x, y)] = player + 1
 
     def copy(self):
         g = ConnectFour.__new__(ConnectFour)
         g.num_players = self.num_players
         g.width = self.width
         g.height = self.height
-        g.board = self.board.copy()
+        g._board = self._board.copy()
         g.heights = self.heights.copy()
         g.turn = self.turn
         g.moves = self.moves
