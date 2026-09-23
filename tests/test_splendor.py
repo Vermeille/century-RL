@@ -3,13 +3,15 @@ import random
 from boardrl.games import games_library
 from boardrl.games.augmentations import shuffle_actions
 from boardrl.games.semantics import PointScores, TerminalOutcomeRewards
-from boardrl.games.splendor.data import CARDS, CARDS_BY_TIER, COLORS, GOLD, NOBLES, Card
-from boardrl.games.splendor.game import MAX_RESERVED, MAX_TOKENS, ReservedCard, Splendor
+from boardrl.games.splendor.data import CARDS, CARDS_BY_TIER, COLORS, GOLD, NOBLES
+from boardrl.games.splendor.game import (
+    EMPTY_CARD_ID,
+    MAX_RESERVED,
+    MAX_TOKENS,
+    ReservedCard,
+    Splendor,
+)
 from boardrl.games.splendor.semantics import SplendorOutcome
-
-
-def bonus_card(card_id, bonus, points=0):
-    return Card(card_id, 1, bonus, points, (0, 0, 0, 0, 0))
 
 
 def test_splendor_base_data_and_two_player_setup():
@@ -78,19 +80,19 @@ def test_overflow_uses_one_compact_discard_action():
 
 def test_visible_reserve_stays_public_but_blind_reserve_is_hidden():
     visible = Splendor()
-    visible_card = visible.market[1][0]
+    visible_card_id = visible.market[1][0]
     visible.play_str("R:1.0")
-    assert visible_card is not None
-    assert visible._card_text(visible_card) in visible.display(force=1)
+    assert visible_card_id != EMPTY_CARD_ID
+    assert visible._card_text(CARDS[visible_card_id]) in visible.display(force=1)
 
     blind = Splendor()
-    blind_card = blind.decks[1][-1]
+    blind_card_id = blind.decks[1][-1]
     blind.play_str("R:1.D")
-    assert blind.players[0].reserved[0].card == blind_card
-    assert blind._card_text(blind_card) in blind.display(force=0)
+    assert blind.players[0].reserved[0].card_id == blind_card_id
+    assert blind._card_text(CARDS[blind_card_id]) in blind.display(force=0)
     opponent_view = blind.display(force=1)
     assert "H0=?" in opponent_view
-    assert blind._card_text(blind_card) not in opponent_view
+    assert blind._card_text(CARDS[blind_card_id]) not in opponent_view
 
 
 def test_reserve_is_legal_without_gold_and_stops_at_three_cards():
@@ -101,9 +103,9 @@ def test_reserve_is_legal_without_gold_and_stops_at_three_cards():
 
     player = game.players[0]
     player.reserved = [
-        ReservedCard(CARDS[0], True),
-        ReservedCard(CARDS[1], True),
-        ReservedCard(CARDS[2], False),
+        ReservedCard(0, True),
+        ReservedCard(1, True),
+        ReservedCard(2, False),
     ]
     game._refresh_moves()
     assert len(player.reserved) == MAX_RESERVED
@@ -114,7 +116,7 @@ def test_buy_can_choose_gold_substitution_and_returns_spent_tokens():
     game = Splendor()
     card = CARDS[7]  # K1, costs B4
     assert card.cost == (0, 4, 0, 0, 0)
-    game.market[1][0] = card
+    game.market[1][0] = card.id
     player = game.players[0]
     player.tokens["B"] = 4
     player.tokens[GOLD] = 1
@@ -127,7 +129,7 @@ def test_buy_can_choose_gold_substitution_and_returns_spent_tokens():
 
     game.play_str("B:1.0~B")
 
-    assert card in player.purchased
+    assert card.id in player.purchased
     assert player.tokens["B"] == 1
     assert player.tokens[GOLD] == 0
     assert game.bank["B"] == 3
@@ -137,24 +139,19 @@ def test_buy_can_choose_gold_substitution_and_returns_spent_tokens():
 def test_single_noble_is_automatic_and_multiple_nobles_require_one_choice():
     game = Splendor()
     player = game.players[0]
-    game.nobles = [NOBLES[2]]  # W4 B4
-    player.purchased = [
-        *(bonus_card(100 + i, "W") for i in range(4)),
-        *(bonus_card(200 + i, "B") for i in range(4)),
-    ]
+    game.nobles = bytearray([2])  # W4 B4
+    player.purchased = bytearray([16, 17, 18, 19, 8, 9, 10, 11])
     game.play_str("T:WBG")
 
-    assert NOBLES[2] in player.nobles
+    assert 2 in player.nobles
     assert game.current_player() == 1
 
     game = Splendor()
     player = game.players[0]
-    game.nobles = [NOBLES[2], NOBLES[9]]  # W4B4 and W3B3G3
-    player.purchased = [
-        *(bonus_card(300 + i, "W") for i in range(4)),
-        *(bonus_card(400 + i, "B") for i in range(4)),
-        *(bonus_card(500 + i, "G") for i in range(3)),
-    ]
+    game.nobles = bytearray([2, 9])  # W4B4 and W3B3G3
+    player.purchased = bytearray(
+        [16, 17, 18, 19, 8, 9, 10, 11, 24, 25, 26]
+    )
     game.play_str("T:WBG")
 
     assert game.phase == "noble"
@@ -162,13 +159,13 @@ def test_single_noble_is_automatic_and_multiple_nobles_require_one_choice():
     assert set(game.moves) == {f"N:{NOBLES[2].id}", f"N:{NOBLES[9].id}"}
 
     game.play_str(f"N:{NOBLES[9].id}")
-    assert player.nobles == [NOBLES[9]]
+    assert player.nobles == bytearray([9])
     assert game.current_player() == 1
 
 
 def test_endgame_finishes_round_and_tiebreak_uses_fewest_developments():
     game = Splendor()
-    game.players[0].purchased = [bonus_card(700, "W", points=15)]
+    game.players[0].purchased = bytearray([73, 77, 81])  # 5 + 5 + 5 prestige
 
     game.play_str("T:WBG")
     assert game.final_round
@@ -183,17 +180,8 @@ def test_endgame_finishes_round_and_tiebreak_uses_fewest_developments():
     assert game.ended()
 
     tied = Splendor()
-    tied.players[0].purchased = [
-        bonus_card(800, "W", 5),
-        bonus_card(801, "B", 5),
-        bonus_card(802, "G", 5),
-    ]
-    tied.players[1].purchased = [
-        bonus_card(810, "W", 4),
-        bonus_card(811, "B", 4),
-        bonus_card(812, "G", 4),
-        bonus_card(813, "R", 3),
-    ]
+    tied.players[0].purchased = bytearray([73, 77, 81])  # 15 points, 3 cards
+    tied.players[1].purchased = bytearray([85, 87, 71, 42])  # 15 points, 4 cards
     tied._ended = True
     tied.moves = []
 
@@ -210,13 +198,13 @@ def test_stalemate_is_terminal_draw_instead_of_infinite_pass_loop():
     for player in game.players:
         player.tokens.update({"W": 2, "B": 2, "G": 2, "R": 2, "K": 2, "Y": 0})
         player.reserved = [
-            ReservedCard(CARDS[71], False),
-            ReservedCard(CARDS[75], False),
-            ReservedCard(CARDS[79], False),
+            ReservedCard(71, False),
+            ReservedCard(75, False),
+            ReservedCard(79, False),
         ]
-        player.purchased = []
+        player.purchased = bytearray()
     for tier in (1, 2, 3):
-        game.market[tier] = [CARDS[71], CARDS[75], CARDS[79], CARDS[83]]
+        game.market[tier] = bytearray([71, 75, 79, 83])
     game._refresh_moves()
 
     assert game.ended()
@@ -232,11 +220,11 @@ def test_copy_is_independent_and_random_playouts_terminate():
     clone = game.copy()
     clone.bank["W"] -= 1
     clone.players[0].tokens["W"] += 1
-    clone.market[1][0] = None
+    clone.market[1][0] = EMPTY_CARD_ID
 
     assert game.bank["W"] == 4
     assert game.players[0].tokens["W"] == 0
-    assert game.market[1][0] is not None
+    assert game.market[1][0] != EMPTY_CARD_ID
 
     for seed in range(20):
         random.seed(seed)
