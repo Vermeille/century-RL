@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass
 
-from boardrl.games.compact import IndexedByteArray, NamedByteCounts
+from boardrl.games.compact import NamedByteCounts
 
 
 RANK_MULTIPLICITIES = {1: 3, 2: 2, 3: 2, 4: 2, 5: 1}
@@ -19,12 +19,15 @@ class Card:
 
 
 CARDS = tuple(Card(color, rank) for color in FULL_COLORS for rank in range(1, 6))
+CARD_ID = {card: index for index, card in enumerate(CARDS)}
 
 
-class CardArray(IndexedByteArray):
-    __slots__ = ()
-    VALUES = CARDS
-    ID_BY_VALUE = {card: index for index, card in enumerate(CARDS)}
+def encode_cards(cards) -> bytearray:
+    return bytearray(CARD_ID[card] for card in cards)
+
+
+def decode_cards(ids):
+    return (CARDS[card_id] for card_id in ids)
 
 
 class Fireworks(NamedByteCounts):
@@ -159,7 +162,7 @@ class Hanabi:
 
         self.deck = self._make_deck()
         random.shuffle(self.deck)
-        self.hands = [CardArray() for _ in range(num_players)]
+        self.hands = [bytearray() for _ in range(num_players)]
         self.knowledge = [[] for _ in range(num_players)]
         for _ in range(self.hand_size):
             for player in range(num_players):
@@ -167,7 +170,7 @@ class Hanabi:
                 self.knowledge[player].append(self._unknown_knowledge())
 
         self.fireworks = Fireworks()
-        self.discard = CardArray()
+        self.discard = bytearray()
         self.information_tokens = self.max_information_tokens
         self.life_tokens = self.max_life_tokens
         self.curplay = 0
@@ -176,8 +179,8 @@ class Hanabi:
         self.last_action: ActionRecord | None = None
         self.moves = self.gen_moves()
 
-    def _make_deck(self) -> CardArray:
-        return CardArray(
+    def _make_deck(self) -> bytearray:
+        return encode_cards(
             Card(color, rank)
             for color in self.colors
             for rank in self.ranks
@@ -232,9 +235,9 @@ class Hanabi:
         moves = []
         for offset in range(1, self.num_players):
             target = (self.curplay + offset) % self.num_players
-            hand = self.hands[target]
-            present_colors = {card.color for card in hand}
-            present_ranks = {card.rank for card in hand}
+            cards = list(decode_cards(self.hands[target]))
+            present_colors = {card.color for card in cards}
+            present_ranks = {card.rank for card in cards}
             moves.extend(
                 f"h p{offset} c{color}"
                 for color in self.colors
@@ -254,7 +257,7 @@ class Hanabi:
 
         final = "-" if self.final_turns_left is None else str(self.final_turns_left)
         fireworks = " ".join(f"{color}{self.fireworks[color]}" for color in self.colors)
-        discard = " ".join(str(card) for card in self.discard) or "-"
+        discard = " ".join(str(card) for card in decode_cards(self.discard)) or "-"
         acting = self._player_label(self.curplay, viewer)
         lines = [
             f"{self.mode} r{self._round} t {acting}",
@@ -300,7 +303,8 @@ class Hanabi:
 
     def _display_hand(self, player: int, viewer: int, offset: int) -> str:
         cards = []
-        for card, knowledge in zip(self.hands[player], self.knowledge[player]):
+        for card_id, knowledge in zip(self.hands[player], self.knowledge[player]):
+            card = CARDS[card_id]
             visible_card = "?" if player == viewer else str(card)
             cards.append(
                 f"{visible_card}/{self._possible_text(knowledge)}/{self._hinted_text(knowledge)}"
@@ -352,7 +356,7 @@ class Hanabi:
                     self.max_information_tokens, self.information_tokens + 1
                 )
         else:
-            self.discard.append(card)
+            self.discard.append(CARD_ID[card])
             self.life_tokens -= 1
         self.last_action = ActionRecord(
             actor=player,
@@ -370,7 +374,7 @@ class Hanabi:
     def _discard_card(self, index: int):
         player = self.curplay
         card = self._remove_from_hand(player, index)
-        self.discard.append(card)
+        self.discard.append(CARD_ID[card])
         self.information_tokens = min(
             self.max_information_tokens, self.information_tokens + 1
         )
@@ -388,16 +392,18 @@ class Hanabi:
 
         affected = []
         if kind == "color":
-            for index, (card, knowledge) in enumerate(
+            for index, (card_id, knowledge) in enumerate(
                 zip(self.hands[target], self.knowledge[target])
             ):
+                card = CARDS[card_id]
                 knowledge.reveal_color(card.color, value)  # type: ignore[arg-type]
                 if card.color == value:
                     affected.append(index)
         else:
-            for index, (card, knowledge) in enumerate(
+            for index, (card_id, knowledge) in enumerate(
                 zip(self.hands[target], self.knowledge[target])
             ):
+                card = CARDS[card_id]
                 knowledge.reveal_rank(card.rank, value)  # type: ignore[arg-type]
                 if card.rank == value:
                     affected.append(index)
@@ -414,7 +420,7 @@ class Hanabi:
 
     def _remove_from_hand(self, player: int, index: int) -> Card:
         self.knowledge[player].pop(index)
-        return self.hands[player].pop(index)
+        return CARDS[self.hands[player].pop(index)]
 
     def _draw_card(self, player: int):
         if not self.deck:
