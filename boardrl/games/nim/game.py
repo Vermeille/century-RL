@@ -2,6 +2,15 @@ import random
 
 
 class Nim:
+    __slots__ = (
+        "num_players",
+        "num_stones",
+        "max_pick",
+        "turn",
+        "_winner",
+        "moves",
+    )
+
     def __init__(self, num_players: int = 2, num_stones: int = 21, max_pick: int = 3):
         assert num_players == 2, "Nim supports exactly two players"
         self.num_players = num_players
@@ -12,19 +21,16 @@ class Nim:
         self.moves = self._legal_moves()
 
     def _legal_moves(self):
-        return [
-            str(i)
-            for i in range(1, min(self.max_pick, self.num_stones) + 1)
-        ]
+        return [str(i) for i in range(1, min(self.max_pick, self.num_stones) + 1)]
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
     def copy(self):
-        g = Nim(self.num_players, self.num_stones, self.max_pick)
+        g = Nim.__new__(Nim)
+        g.num_players = self.num_players
+        g.num_stones = self.num_stones
+        g.max_pick = self.max_pick
         g.turn = self.turn
         g._winner = self._winner
-        g.moves = self.moves[:]
+        g.moves = self.moves
         return g
 
     def current_player(self):
@@ -33,9 +39,6 @@ class Nim:
     def round(self):
         return self.turn // self.num_players
 
-    # ------------------------------------------------------------------
-    # Display utilities
-    # ------------------------------------------------------------------
     def display(self, force: int = -1):
         if force == -1:
             player = self.current_player()
@@ -53,9 +56,6 @@ class Nim:
         moves = "\n".join(f"@{m}" for m in self.moves)
         return f"{board}\nMoves\n{moves}"
 
-    # ------------------------------------------------------------------
-    # Gameplay
-    # ------------------------------------------------------------------
     def play_str(self, mov: str):
         assert not self.ended(), "Game already ended"
         pick = int(mov)
