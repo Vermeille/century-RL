@@ -1,6 +1,6 @@
 import pytest
 
-from boardrl.games.thegame.game import TheGame
+from boardrl.games.thegame.game import MESSAGE_ID, TheGame
 
 
 def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
@@ -34,11 +34,13 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     # Moves are consistent with regenerated legal moves
     assert g2.moves == g2.gen_moves()
 
-    # Mutating original does not affect copy and vice versa
-    g.deck.append(999)
+    # Mutating original does not affect copy and vice versa. Keep mutations
+    # inside the valid one-byte game-state domain and don't manually invalidate
+    # the current player's cached legal moves.
+    g.deck.append(29)
     g.piles[0] += 1
-    g.hands[0].append(123)
-    g._last_messages[0] = "Z"
+    g.hands[1].append(23)
+    g._last_messages[0] = MESSAGE_ID["A"]
     g._played_cards |= 1 << 24
 
     assert g2.deck == orig_deck
@@ -55,7 +57,7 @@ def test_thegame_copy_deepcopy_and_randomize(monkeypatch):
     g3 = g.copy(randomize=True)
 
     # Deck order changed deterministically
-    assert g3.deck == list(reversed(g.deck))
+    assert list(g3.deck) == list(reversed(g.deck))
 
     # Other state deep-copied and equal
     assert g3.piles == g.piles
