@@ -31,7 +31,7 @@ ATTACK = "attack"
 DEFEND = "defend"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Card:
     rank: str
     suit: str = ""
@@ -53,6 +53,17 @@ class Card:
 
 
 JOKER = Card("X")
+CARDS = tuple(Card(rank, suit) for rank in RANKS for suit in SUITS) + (JOKER,)
+CARD_ID = {card: index for index, card in enumerate(CARDS)}
+CARD_BY_CODE = {card.code: card for card in CARDS}
+
+
+def encode_cards(cards) -> bytearray:
+    return bytearray(CARD_ID[card] for card in cards)
+
+
+def decode_cards(ids):
+    return (CARDS[card_id] for card_id in ids)
 
 
 def card_sort_key(card: Card):
@@ -62,13 +73,10 @@ def card_sort_key(card: Card):
 
 
 def parse_card(code: str) -> Card:
-    if code == "JKR":
-        return JOKER
-    suit = code[-1]
-    rank = code[:-1]
-    if suit not in SUITS or rank not in RANKS:
-        raise ValueError(f"Invalid card: {code}")
-    return Card(rank, suit)
+    try:
+        return CARD_BY_CODE[code]
+    except KeyError as exc:
+        raise ValueError(f"Invalid card: {code}") from exc
 
 
 def attack_move(cards: tuple[Card, ...] | list[Card]) -> str:
@@ -82,14 +90,33 @@ def discard_move(cards: tuple[Card, ...] | list[Card]) -> str:
 
 
 class Regicide:
-    """Regicide, implemented as a cooperative imperfect-information game.
+    """Regicide with all mutable card collections stored as byte IDs."""
 
-    A normal player turn is represented by one ATTACK action and, if the enemy
-    survives and can still deal damage, one DEFEND action by the same player.
-    A DEFEND action atomically selects the whole set of cards discarded to
-    absorb the retaliation, matching the tabletop decision and avoiding
-    artificial multi-action defense sequences.
-    """
+    __slots__ = (
+        "num_players",
+        "hand_limit",
+        "tavern",
+        "hands",
+        "castle",
+        "enemy",
+        "discard",
+        "battle_cards",
+        "curplay",
+        "_round",
+        "phase",
+        "enemy_damage",
+        "spade_shield",
+        "immunity_lifted",
+        "consecutive_passes",
+        "defense_remaining",
+        "defeated_hp",
+        "_won",
+        "_lost",
+        "known_tavern_prefix",
+        "solo_jokers",
+        "_solo_joker_available_this_phase",
+        "moves",
+    )
 
     def __init__(self, num_players: int = 2):
         if num_players not in HAND_LIMIT:
@@ -98,33 +125,30 @@ class Regicide:
         self.num_players = num_players
         self.hand_limit = HAND_LIMIT[num_players]
 
-        # Tavern: draw from the end of the list. Hearts put cards under the
-        # deck, i.e. at index 0.
-        self.tavern = [
+        self.tavern = encode_cards(
             Card(rank, suit)
-            for rank in RANKS[:10]  # A..10
+            for rank in RANKS[:10]
             for suit in SUITS
-        ]
-        self.tavern += [JOKER] * JOKERS_IN_TAVERN[num_players]
+        )
+        self.tavern.extend([CARD_ID[JOKER]] * JOKERS_IN_TAVERN[num_players])
         random.shuffle(self.tavern)
 
-        self.hands: list[list[Card]] = [[] for _ in range(num_players)]
+        self.hands = [bytearray() for _ in range(num_players)]
         for player in range(num_players):
             for _ in range(self.hand_limit):
                 self.hands[player].append(self.tavern.pop())
 
-        # Draw from the end: Jacks first, then Queens, then Kings.
-        kings = [Card("K", suit) for suit in SUITS]
-        queens = [Card("Q", suit) for suit in SUITS]
-        jacks = [Card("J", suit) for suit in SUITS]
+        kings = encode_cards(Card("K", suit) for suit in SUITS)
+        queens = encode_cards(Card("Q", suit) for suit in SUITS)
+        jacks = encode_cards(Card("J", suit) for suit in SUITS)
         random.shuffle(kings)
         random.shuffle(queens)
         random.shuffle(jacks)
-        self.castle = kings + queens + jacks
-        self.enemy: Card | None = self.castle.pop()
+        self.castle = bytearray((*kings, *queens, *jacks))
+        self.enemy: Card | None = CARDS[self.castle.pop()]
 
-        self.discard: list[Card] = []
-        self.battle_cards: list[Card] = []
+        self.discard = bytearray()
+        self.battle_cards = bytearray()
 
         self.curplay = 0
         self._round = 0
@@ -138,22 +162,13 @@ class Regicide:
         self.defeated_hp = 0
         self._won = False
         self._lost = False
+        self.known_tavern_prefix = bytearray()
 
-        # Top-down list of publicly known cards on top of Tavern, created by
-        # perfect executions. tavern[-1] == known_tavern_prefix[0].
-        self.known_tavern_prefix: list[Card] = []
-
-        # Solo uses two external Jokers; they are not Tavern cards and do not
-        # remove enemy immunity.
         self.solo_jokers = 2 if num_players == 1 else 0
         self._solo_joker_available_this_phase = num_players == 1
 
         self.moves: list[str] = []
         self._refresh_moves()
-
-    # ------------------------------------------------------------------
-    # Framework interface
-    # ------------------------------------------------------------------
 
     def current_player(self) -> int:
         return self.curplay
@@ -202,15 +217,15 @@ class Regicide:
         raise RuntimeError("Regicide random playout did not terminate after 10,000 actions.")
 
     def copy(self, *, randomize: bool = False) -> "Regicide":
-        g = object.__new__(Regicide)
+        g = Regicide.__new__(Regicide)
         g.num_players = self.num_players
         g.hand_limit = self.hand_limit
-        g.tavern = self.tavern[:]
-        g.hands = [hand[:] for hand in self.hands]
-        g.castle = self.castle[:]
+        g.tavern = self.tavern.copy()
+        g.hands = [hand.copy() for hand in self.hands]
+        g.castle = self.castle.copy()
         g.enemy = self.enemy
-        g.discard = self.discard[:]
-        g.battle_cards = self.battle_cards[:]
+        g.discard = self.discard.copy()
+        g.battle_cards = self.battle_cards.copy()
         g.curplay = self.curplay
         g._round = self._round
         g.phase = self.phase
@@ -222,14 +237,14 @@ class Regicide:
         g.defeated_hp = self.defeated_hp
         g._won = self._won
         g._lost = self._lost
-        g.known_tavern_prefix = self.known_tavern_prefix[:]
+        g.known_tavern_prefix = self.known_tavern_prefix.copy()
         g.solo_jokers = self.solo_jokers
         g._solo_joker_available_this_phase = self._solo_joker_available_this_phase
 
         if randomize and not g.ended():
             g._randomize_hidden_state()
 
-        g.moves = g.gen_moves()
+        g.moves = self.moves if not randomize else g.gen_moves()
         return g
 
     def display(self, force: int = -1) -> str:
@@ -251,17 +266,16 @@ class Regicide:
             )
 
         castle_counts = {
-            rank: sum(card.rank == rank for card in self.castle)
+            rank: sum(CARDS[card_id].rank == rank for card_id in self.castle)
             for rank in ("J", "Q", "K")
         }
         hand_sizes = " ".join(str(len(hand)) for hand in self.hands)
         hand = " ".join(
-            card.code for card in sorted(self.hands[viewer], key=card_sort_key)
+            card.code
+            for card in sorted(decode_cards(self.hands[viewer]), key=card_sort_key)
         )
-        # discard = " ".join(card.code for card in sorted(self.discard, key=card_sort_key))
-        discard = str(len(self.discard))
-        battle = " ".join(card.code for card in self.battle_cards)
-        known_top = " ".join(card.code for card in self.known_tavern_prefix)
+        battle = " ".join(card.code for card in decode_cards(self.battle_cards))
+        known_top = " ".join(card.code for card in decode_cards(self.known_tavern_prefix))
 
         lines = [
             f"Round: {self._round}, Phase: {self.phase}, Active: P{self.curplay}",
@@ -269,7 +283,7 @@ class Regicide:
             f"J={castle_counts['J']} Q={castle_counts['Q']} K={castle_counts['K']}",
             f"Tavern: {len(self.tavern)}",
             f"KnownTavernTop: {known_top or '-'}",
-            f"Discard: {discard or '-'}",
+            f"Discard: {len(self.discard) or '-'}",
             f"Battle: {battle or '-'}",
             f"HandSizes: {hand_sizes}",
             f"Hand(P{viewer}): {hand or '-'}",
@@ -283,10 +297,6 @@ class Regicide:
 
     def display_with_moves(self) -> str:
         return self.display() + "\n".join(f"@{move}" for move in self.moves)
-
-    # ------------------------------------------------------------------
-    # Legal actions
-    # ------------------------------------------------------------------
 
     def gen_moves(self) -> list[str]:
         if self.ended():
@@ -302,16 +312,13 @@ class Regicide:
             self.moves = []
 
     def _attack_moves(self) -> list[str]:
-        hand = self.hands[self.curplay]
+        hand = list(decode_cards(self.hands[self.curplay]))
         moves: set[str] = set()
 
         non_jokers = [card for card in hand if not card.is_joker]
-
-        # Any non-Joker may be played alone.
         for card in non_jokers:
             moves.add(attack_move((card,)))
 
-        # One Ace may accompany any non-Joker card, including another Ace.
         aces = [card for card in non_jokers if card.rank == "A"]
         for ace in aces:
             for card in non_jokers:
@@ -319,8 +326,6 @@ class Regicide:
                     continue
                 moves.add(attack_move((ace, card)))
 
-        # Combos: same rank/value, total <= 10, excluding Aces. A+A is already
-        # represented by the Ace association rule.
         by_rank: dict[str, list[Card]] = {}
         for card in non_jokers:
             if card.rank == "A":
@@ -361,10 +366,7 @@ class Regicide:
         if self.enemy is None or self.defense_remaining <= 0:
             return []
 
-        # Defense is one tabletop decision: choose one or more cards whose
-        # combined value is at least the incoming damage. Hand limits are only
-        # 5..8 cards, so enumerating legal subsets is small (<= 255 subsets).
-        hand = self.hands[self.curplay]
+        hand = list(decode_cards(self.hands[self.curplay]))
         moves: set[str] = set()
         for count in range(1, len(hand) + 1):
             for cards in combinations(hand, count):
@@ -379,10 +381,6 @@ class Regicide:
             moves.add("solo-joker")
 
         return sorted(moves)
-
-    # ------------------------------------------------------------------
-    # State transitions
-    # ------------------------------------------------------------------
 
     def play_str(self, move: str):
         if self.ended():
@@ -414,21 +412,18 @@ class Regicide:
 
         cards = [parse_card(code) for code in move.removeprefix("play:").split("+")]
         self._remove_cards_from_hand(self.curplay, cards)
-        self.battle_cards.extend(cards)
+        self.battle_cards.extend(CARD_ID[card] for card in cards)
         self.consecutive_passes = 0
         self._solo_joker_available_this_phase = False
 
         attack = sum(card.value for card in cards)
         suits = {card.suit for card in cards}
 
-        # Red powers happen immediately, Hearts before Diamonds.
         if "H" in suits and self._power_active("H"):
             self._heart_power(attack)
         if "D" in suits and self._power_active("D"):
             self._diamond_power(attack)
 
-        # Spades persist for the current enemy. Against a Spade enemy they are
-        # stored too; lifting immunity later makes all prior Spades effective.
         if "S" in suits:
             self.spade_shield += attack
 
@@ -445,11 +440,9 @@ class Regicide:
 
     def _play_multiplayer_joker(self, target: int):
         self._remove_cards_from_hand(self.curplay, [JOKER])
-        self.battle_cards.append(JOKER)
+        self.battle_cards.append(CARD_ID[JOKER])
         self.consecutive_passes = 0
         self.immunity_lifted = True
-
-        # Joker deals 0 damage and the enemy does not retaliate.
         self.curplay = target
         self._round += 1
         self.phase = ATTACK
@@ -467,10 +460,8 @@ class Regicide:
         self.solo_jokers -= 1
         self._solo_joker_available_this_phase = False
 
-        # In solo, using a Joker does not remove enemy immunity and does not
-        # advance the phase/turn.
         if self.phase == DEFEND and self.defense_remaining > 0:
-            if sum(card.value for card in self.hands[0]) < self.defense_remaining:
+            if sum(CARDS[card_id].value for card_id in self.hands[0]) < self.defense_remaining:
                 self._lost = True
 
     def _enter_defense(self):
@@ -482,9 +473,7 @@ class Regicide:
             self._finish_turn()
             return
 
-        if sum(card.value for card in self.hands[self.curplay]) < self.defense_remaining:
-            # Solo may still replace its hand with an external Joker before
-            # taking any damage. In every other case the group loses now.
+        if sum(CARDS[card_id].value for card_id in self.hands[self.curplay]) < self.defense_remaining:
             if not (
                 self.num_players == 1
                 and self.solo_jokers > 0
@@ -501,7 +490,7 @@ class Regicide:
             )
 
         self._remove_cards_from_hand(self.curplay, cards)
-        self.discard.extend(cards)
+        self.discard.extend(CARD_ID[card] for card in cards)
         self._solo_joker_available_this_phase = False
         self.defense_remaining = 0
         self._finish_turn()
@@ -522,10 +511,11 @@ class Regicide:
         self.defeated_hp += hp
 
         if perfect:
-            self.tavern.append(enemy)
-            self.known_tavern_prefix.insert(0, enemy)
+            enemy_id = CARD_ID[enemy]
+            self.tavern.append(enemy_id)
+            self.known_tavern_prefix.insert(0, enemy_id)
         else:
-            self.discard.append(enemy)
+            self.discard.append(CARD_ID[enemy])
 
         self.discard.extend(self.battle_cards)
         self.battle_cards.clear()
@@ -537,20 +527,14 @@ class Regicide:
             self.moves = []
             return
 
-        self.enemy = self.castle.pop()
+        self.enemy = CARDS[self.castle.pop()]
         self.enemy_damage = 0
         self.spade_shield = 0
         self.immunity_lifted = False
         self.consecutive_passes = 0
-
-        # The player who killed the enemy immediately starts against the next.
         self._round += 1
         self.phase = ATTACK
         self._solo_joker_available_this_phase = self.num_players == 1 and self.solo_jokers > 0
-
-    # ------------------------------------------------------------------
-    # Powers and helpers
-    # ------------------------------------------------------------------
 
     def _power_active(self, suit: str) -> bool:
         assert self.enemy is not None
@@ -570,8 +554,8 @@ class Regicide:
 
         random.shuffle(self.discard)
         count = min(amount, len(self.discard))
-        recovered = [self.discard.pop() for _ in range(count)]
-        # Put them underneath Tavern. The recovered order is hidden/random.
+        recovered = self.discard[-count:]
+        del self.discard[-count:]
         self.tavern[0:0] = recovered
 
     def _diamond_power(self, amount: int):
@@ -594,52 +578,41 @@ class Regicide:
         for _ in range(count):
             if not self.tavern or len(self.hands[player]) >= self.hand_limit:
                 return
-            card = self.tavern.pop()
+            card_id = self.tavern.pop()
             if self.known_tavern_prefix:
                 expected = self.known_tavern_prefix[0]
-                if card == expected:
-                    self.known_tavern_prefix.pop(0)
+                if card_id == expected:
+                    del self.known_tavern_prefix[0]
                 else:
                     raise AssertionError("Known Tavern prefix is inconsistent with Tavern.")
-            self.hands[player].append(card)
+            self.hands[player].append(card_id)
 
     def _remove_cards_from_hand(self, player: int, cards: list[Card]):
         hand = self.hands[player]
         for card in cards:
             try:
-                hand.remove(card)
+                hand.remove(CARD_ID[card])
             except ValueError as exc:
                 raise ValueError(f"Player P{player} does not hold {card}.") from exc
 
     def _randomize_hidden_state(self):
-        # Every player's hand is private to that player but has still been seen
-        # by someone. Rollout randomization must therefore preserve *all* hands:
-        # later turns may be evaluated from those players' viewpoints, and
-        # changing their cards would contradict their observation history.
-        # Only randomness that no player has observed may be resampled.
         known_count = len(self.known_tavern_prefix)
         if known_count:
             known_suffix = self.tavern[-known_count:]
-            expected = list(reversed(self.known_tavern_prefix))
+            expected = bytearray(reversed(self.known_tavern_prefix))
             if known_suffix != expected:
                 raise AssertionError("Known Tavern prefix is inconsistent with Tavern.")
             unknown_tavern = self.tavern[:-known_count]
         else:
-            known_suffix = []
-            unknown_tavern = self.tavern[:]
+            known_suffix = bytearray()
+            unknown_tavern = self.tavern.copy()
 
-        # Tavern order is hidden, except for perfect-execution cards whose exact
-        # position on top is public knowledge. Preserve the cards themselves and
-        # randomize only the unseen order.
         random.shuffle(unknown_tavern)
-        self.tavern = unknown_tavern + known_suffix
+        self.tavern = bytearray((*unknown_tavern, *known_suffix))
 
-        # Likewise, future Castle suits are unseen. Randomize only within each
-        # public J -> Q -> K tier; the current enemy and all revealed enemies are
-        # elsewhere in the state and remain untouched.
         for rank in ("J", "Q", "K"):
-            indices = [i for i, card in enumerate(self.castle) if card.rank == rank]
+            indices = [i for i, card_id in enumerate(self.castle) if CARDS[card_id].rank == rank]
             cards = [self.castle[i] for i in indices]
             random.shuffle(cards)
-            for i, card in zip(indices, cards):
-                self.castle[i] = card
+            for i, card_id in zip(indices, cards):
+                self.castle[i] = card_id
