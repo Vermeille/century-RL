@@ -81,68 +81,6 @@ class Sum:
         return self.play_str(self.moves[idx])
 
 
-class RockPaperScissors:
-    def __init__(self, num_players=2):
-        assert num_players == 2
-        self.num_players = num_players
-        self.turn = 0
-        self.scores = [0, 0]
-        self.moves = ["rock", "paper", "scissors"]
-
-    def copy(self):
-        g = RockPaperScissors()
-        g.scores = self.scores[:]
-        return g
-
-    def round(self):
-        return self.turn // 2
-
-    def current_player(self):
-        return self.turn % 2
-
-    def display(self, force=-1):
-        if force == -1:
-            p = self.current_player()
-        else:
-            assert force in [0, 1]
-            p = force
-        lines = [f"{self.scores[p]} | {self.scores[1 - p]}"]
-        return "\n".join(lines) + "\n"
-
-    def display_with_moves(self):
-        board = self.display()
-        moves = [m for m in self.moves]
-        return board + "\n".join([f"@{m}" for m in moves])
-
-    def play_str(self, mov):
-        assert not self.ended()
-        if self.current_player() == 0:
-            self.p1_move = mov
-        else:
-            if (self.p1_move, mov) in [
-                ("rock", "scissors"),
-                ("scissors", "paper"),
-                ("paper", "rock"),
-            ]:
-                self.scores[0] += 1
-            elif (self.p1_move, mov) in [
-                ("rock", "paper"),
-                ("scissors", "rock"),
-                ("paper", "scissors"),
-            ]:
-                self.scores[1] += 1
-        self.turn += 1
-
-    def ended(self):
-        return 3 in self.scores
-
-    def diff_points(self):
-        return self.diff_points_for(self.current_player())
-
-    def diff_points_for(self, me):
-        return self.scores[me] - self.scores[1 - me]
-
-
 if __name__ == "__main__":
     g = Sum()
     print(g.display_with_moves())
