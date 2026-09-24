@@ -1,11 +1,25 @@
 import random
+from collections.abc import Sequence
 
 
 SUITS = "rybB"
+CARD_VALUES = tuple(
+    [f"{color}:{number}" for color in SUITS for number in range(1, 15)]
+    + ["_:E", "_:P", "_:M", "_:K", "_:T", "_:T=P", "_:T=E"]
+)
+CARD_ID = {card: index for index, card in enumerate(CARD_VALUES)}
+
+
+def encode_cards(cards) -> bytearray:
+    return bytearray(CARD_ID[card] for card in cards)
+
+
+def decode_cards(ids):
+    return (CARD_VALUES[card_id] for card_id in ids)
 
 
 def fresh_deck():
-    return (
+    return encode_cards(
         [f"{color}:{number}" for color in SUITS for number in range(1, 15)]
         + ["_:E"] * 5
         + ["_:P"] * 5
@@ -21,7 +35,6 @@ def _card(card: str):
 
 
 def _rank(card: str) -> str:
-    """Return the effective rank for special cards, including Tigress choices."""
     _, value = _card(card)
     if value == "T=P":
         return "P"
@@ -31,12 +44,6 @@ def _rank(card: str) -> str:
 
 
 def beats(top: str, candidate: str) -> bool:
-    """Return whether candidate directly beats top.
-
-    Character cards are non-transitive, so complete tricks are resolved from
-    all played cards by :func:`_winning_play` rather than by repeated pairwise
-    comparison.
-    """
     top_color, _ = _card(top)
     candidate_color, _ = _card(candidate)
     top_value = _rank(top)
@@ -57,15 +64,14 @@ def beats(top: str, candidate: str) -> bool:
     if candidate_value in {"P", "M", "K"}:
         return True
 
-    if candidate_color == top_color:
+    if top_color == candidate_color:
         return int(candidate_value) > int(top_value)
     if candidate_color == "B":
         return True
     return False
 
 
-def can_play(color: str, hand: list[str]) -> list[bool]:
-    """Return which physical cards may be played when ``color`` is led."""
+def can_play(color: str, hand: Sequence[str]) -> list[bool]:
     if color not in SUITS:
         return [True] * len(hand)
 
@@ -78,7 +84,6 @@ def can_play(color: str, hand: list[str]) -> list[bool]:
 
 
 def _winning_play(trick: list[tuple[int, str]], lead_suit: str) -> tuple[int, str]:
-    """Resolve a complete or partial trick from all cards played so far."""
     assert trick
 
     def first_with_rank(rank: str):
@@ -88,9 +93,6 @@ def _winning_play(trick: list[tuple[int, str]], lead_suit: str) -> tuple[int, st
     mermaid = first_with_rank("M")
     skull_king = first_with_rank("K")
 
-    # Mermaid beats Skull King even if a Pirate is also present. Otherwise
-    # Skull King beats Pirates, Pirates beat Mermaids, and characters beat
-    # numbered cards. First played wins ties between equal characters.
     if mermaid is not None and skull_king is not None:
         return mermaid
     if skull_king is not None:
@@ -107,12 +109,35 @@ def _winning_play(trick: list[tuple[int, str]], lead_suit: str) -> tuple[int, st
     black = [play for play in numbered if _card(play[1])[0] == "B"]
     candidates = black or [play for play in numbered if _card(play[1])[0] == lead_suit]
     if not candidates:
-        # Only reachable in a partial trick before a suit is established.
         return numbered[0]
     return max(candidates, key=lambda play: int(_card(play[1])[1]))
 
 
 class SkullKing:
+    __slots__ = (
+        "num_players",
+        "num_rounds",
+        "the_points",
+        "bids",
+        "tricks",
+        "round_",
+        "round_starter",
+        "current_player_",
+        "phase",
+        "current_color",
+        "current_top",
+        "current_winner",
+        "_lead_suit_pending",
+        "_trick",
+        "_played_tricks",
+        "captured",
+        "_captured_tricks",
+        "round_points",
+        "hands",
+        "deck",
+        "moves",
+    )
+
     def __init__(self, num_players: int = 4, num_rounds: int = 10):
         assert 2 <= num_players <= 8
         assert 1 <= num_rounds <= 10
@@ -120,7 +145,7 @@ class SkullKing:
         self.num_rounds = num_rounds
         self.the_points = [0] * num_players
         self.bids = []
-        self.tricks = [0] * num_players
+        self.tricks = bytearray(num_players)
         self.round_ = 1
         self.round_starter = 0
         self.current_player_ = 0
@@ -131,11 +156,11 @@ class SkullKing:
         self._lead_suit_pending = True
         self._trick = []
         self._played_tricks: list[list[tuple[int, str]]] = []
-        self.captured = [[] for _ in range(num_players)]
+        self.captured = [bytearray() for _ in range(num_players)]
         self._captured_tricks = [[] for _ in range(num_players)]
         self.round_points = [0] * num_players
-        self.hands = [[] for _ in range(num_players)]
-        self.deck = []
+        self.hands = [bytearray() for _ in range(num_players)]
+        self.deck = bytearray()
         self._deal()
         self.moves = self.gen_moves()
 
@@ -149,15 +174,15 @@ class SkullKing:
         random.shuffle(self.deck)
         cards_per_player = self._cards_per_player()
         assert cards_per_player * self.num_players <= len(self.deck)
-        self.hands = [[] for _ in range(self.num_players)]
+        self.hands = [bytearray() for _ in range(self.num_players)]
         for _ in range(cards_per_player):
             for hand in self.hands:
                 hand.append(self.deck.pop())
 
     def start_round_(self):
         self.phase = "play"
-        self.tricks = [0] * self.num_players
-        self.captured = [[] for _ in range(self.num_players)]
+        self.tricks = bytearray(self.num_players)
+        self.captured = [bytearray() for _ in range(self.num_players)]
         self._captured_tricks = [[] for _ in range(self.num_players)]
         self._played_tricks = []
         self._trick = []
@@ -192,18 +217,17 @@ class SkullKing:
         self.round_starter = (self.round_starter + 1) % self.num_players
         self.phase = "bid"
         self.bids = []
-        # Bids are collected in seat order only as an implementation detail;
-        # they remain hidden until all players have committed.
         self.current_player_ = 0
         self._deal()
         self.moves = self.gen_moves()
 
     def _bonus_points(self, player: int) -> int:
-        cards = self.captured[player]
+        cards = decode_cards(self.captured[player])
         bonus = sum(
             20 if card == "B:14" else 10 for card in cards if card.endswith(":14")
         )
-        for trick, winner_card in self._captured_tricks[player]:
+        for trick_ids, winner_card in self._captured_tricks[player]:
+            trick = decode_cards(trick_ids)
             winner_rank = _rank(winner_card)
             if winner_rank == "P":
                 bonus += 20 * sum(_rank(card) == "M" for card in trick)
@@ -222,7 +246,7 @@ class SkullKing:
         if self.phase == "bid":
             return [str(i) for i in range(self._cards_per_player() + 1)]
         if self.phase == "play":
-            hand = self.hands[self.current_player_]
+            hand = list(decode_cards(self.hands[self.current_player_]))
             color = self.current_color if not self._lead_suit_pending else "_"
             moves = []
             for card, can in zip(hand, can_play(color, hand)):
@@ -232,14 +256,12 @@ class SkullKing:
                     moves.extend(["_:T=P", "_:T=E"])
                 else:
                     moves.append(card)
-            # Identical physical cards have identical consequences and should
-            # not become duplicate policy actions.
             return list(dict.fromkeys(moves))
         return []
 
     def _complete_trick(self) -> None:
         winner = self.current_winner
-        cards = [card for _, card in self._trick]
+        cards = encode_cards(card for _, card in self._trick)
         self.tricks[winner] += 1
         self.captured[winner].extend(cards)
         self._captured_tricks[winner].append((cards, self.current_top))
@@ -283,7 +305,7 @@ class SkullKing:
         assert self.phase == "play"
         assert move in self.moves, f"Invalid move {move} for player {p}"
         hand_card = "_:T" if move.startswith("_:T=") else move
-        self.hands[p].remove(hand_card)
+        self.hands[p].remove(CARD_ID[hand_card])
         self._trick.append((p, move))
         self._update_lead(move)
 
@@ -326,13 +348,11 @@ class SkullKing:
             f"Top: {self.current_top}\n"
             f"Trick: {current_trick}\n"
             f"History: {history}\n"
-            f"Hand: {' '.join(self.hands[player])}"
+            f"Hand: {' '.join(decode_cards(self.hands[player]))}"
         )
 
     def display_with_moves(self) -> str:
-        return (
-            self.display() + "\nMoves\n" + "\n".join(f"@{move}" for move in self.moves)
-        )
+        return self.display() + "\nMoves\n" + "\n".join(f"@{move}" for move in self.moves)
 
     def copy(self):
         game = SkullKing.__new__(SkullKing)
@@ -340,7 +360,7 @@ class SkullKing:
         game.num_rounds = self.num_rounds
         game.the_points = self.the_points[:]
         game.bids = self.bids[:]
-        game.tricks = self.tricks[:]
+        game.tricks = self.tricks.copy()
         game.round_ = self.round_
         game.round_starter = self.round_starter
         game.current_player_ = self.current_player_
@@ -351,15 +371,15 @@ class SkullKing:
         game._lead_suit_pending = self._lead_suit_pending
         game._trick = self._trick[:]
         game._played_tricks = [trick[:] for trick in self._played_tricks]
-        game.captured = [cards[:] for cards in self.captured]
+        game.captured = [cards.copy() for cards in self.captured]
         game._captured_tricks = [
-            [(cards[:], winner_card) for cards, winner_card in tricks]
+            [(cards.copy(), winner_card) for cards, winner_card in tricks]
             for tricks in self._captured_tricks
         ]
         game.round_points = self.round_points[:]
-        game.hands = [hand[:] for hand in self.hands]
-        game.deck = self.deck[:]
-        game.moves = self.moves[:]
+        game.hands = [hand.copy() for hand in self.hands]
+        game.deck = self.deck.copy()
+        game.moves = self.moves
         return game
 
     def round(self) -> int:
