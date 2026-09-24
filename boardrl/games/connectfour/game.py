@@ -1,24 +1,88 @@
 import random
 
 
+_EMPTY = 0
+_PLAYER0 = 1
+_PLAYER1 = 2
+
+
+class _ColumnView:
+    __slots__ = ("game", "x")
+
+    def __init__(self, game: "ConnectFour", x: int):
+        self.game = game
+        self.x = x
+
+    def __getitem__(self, y: int):
+        raw = self.game._cell(self.x, y)
+        return None if raw == _EMPTY else raw - 1
+
+    def __setitem__(self, y: int, value):
+        self.game._board[self.game._index(self.x, y)] = _EMPTY if value is None else value + 1
+
+    def __len__(self):
+        return self.game.height
+
+
+class _BoardView:
+    __slots__ = ("game",)
+
+    def __init__(self, game: "ConnectFour"):
+        self.game = game
+
+    def __getitem__(self, x: int):
+        return _ColumnView(self.game, x)
+
+    def __len__(self):
+        return self.game.width
+
+
 class ConnectFour:
+    __slots__ = (
+        "num_players",
+        "width",
+        "height",
+        "_board",
+        "heights",
+        "turn",
+        "moves",
+        "_winner",
+    )
+
     def __init__(self, num_players=2):
         assert num_players == 2
         self.num_players = num_players
         self.width = 7
         self.height = 6
-        self.board = [[None for _ in range(self.height)] for _ in range(self.width)]
-        self.heights = [0 for _ in range(self.width)]
+        self._board = bytearray(self.width * self.height)
+        self.heights = bytearray(self.width)
         self.turn = 0
         self.moves = [str(i) for i in range(self.width)]
         self._winner = None
 
+    @property
+    def board(self):
+        """Compatibility 2D view; the retained state itself is ``_board`` bytes."""
+        return _BoardView(self)
+
+    def _index(self, x: int, y: int) -> int:
+        return x * self.height + y
+
+    def _cell(self, x: int, y: int) -> int:
+        return self._board[self._index(x, y)]
+
+    def _set_cell(self, x: int, y: int, player: int) -> None:
+        self._board[self._index(x, y)] = player + 1
+
     def copy(self):
-        g = ConnectFour()
-        g.board = [col[:] for col in self.board]
-        g.heights = self.heights[:]
+        g = ConnectFour.__new__(ConnectFour)
+        g.num_players = self.num_players
+        g.width = self.width
+        g.height = self.height
+        g._board = self._board.copy()
+        g.heights = self.heights.copy()
         g.turn = self.turn
-        g.moves = self.moves[:]
+        g.moves = self.moves
         g._winner = self._winner
         return g
 
@@ -35,22 +99,17 @@ class ConnectFour:
             assert force in [0, 1]
             p = force
 
-        # Absolute encoding; the marker below indicates the side to move.
-        rep = {None: " ", 0: "O", 1: "X"}
+        rep = (" ", "O", "X")
         lines = []
         for y in range(self.height - 1, -1, -1):
-            line = ""
-            for x in range(self.width):
-                line += rep[self.board[x][y]]
-            lines.append(line)
+            lines.append("".join(rep[self._cell(x, y)] for x in range(self.width)))
         lines.append("-" * self.width)
-        lines.append(">" + rep[p])
+        lines.append(">" + rep[p + 1])
         return "\n".join(lines) + "\n"
 
     def display_with_moves(self):
         board = self.display()
-        moves = [m for m in self.moves]
-        return board + "\n".join([f"@{m}" for m in moves])
+        return board + "\n".join(f"@{m}" for m in self.moves)
 
     def play_str(self, mov):
         assert not self.ended()
@@ -58,7 +117,7 @@ class ConnectFour:
         assert 0 <= col < self.width
         assert self.heights[col] < self.height
 
-        self.board[col][self.heights[col]] = self.current_player()
+        self._set_cell(col, self.heights[col], self.current_player())
         self.heights[col] += 1
         self.moves = [
             str(i) for i in range(self.width) if self.heights[i] < self.height
@@ -67,36 +126,33 @@ class ConnectFour:
         self._winner = self._check_winner()
 
     def _check_winner_at(self, x, y):
-        if self.board[x][y] is None:
+        cell = self._cell(x, y)
+        if cell == _EMPTY:
             return None
 
-        # Check horizontal
         if x <= self.width - 4:
-            if all(self.board[x + i][y] == self.board[x][y] for i in range(4)):
-                return self.board[x][y]
+            if all(self._cell(x + i, y) == cell for i in range(4)):
+                return cell - 1
 
-        # Check vertical
         if y <= self.height - 4:
-            if all(self.board[x][y + i] == self.board[x][y] for i in range(4)):
-                return self.board[x][y]
+            if all(self._cell(x, y + i) == cell for i in range(4)):
+                return cell - 1
 
-        # Check diagonal up-right
         if x <= self.width - 4 and y <= self.height - 4:
-            if all(self.board[x + i][y + i] == self.board[x][y] for i in range(4)):
-                return self.board[x][y]
+            if all(self._cell(x + i, y + i) == cell for i in range(4)):
+                return cell - 1
 
-        # Check diagonal up-left
         if x >= 3 and y <= self.height - 4:
-            if all(self.board[x - i][y + i] == self.board[x][y] for i in range(4)):
-                return self.board[x][y]
+            if all(self._cell(x - i, y + i) == cell for i in range(4)):
+                return cell - 1
 
         return None
 
     def _check_winner(self):
         for x in range(self.width):
             for y in range(self.height):
-                if (w := self._check_winner_at(x, y)) is not None:
-                    return w
+                if (winner := self._check_winner_at(x, y)) is not None:
+                    return winner
         return None
 
     def winner(self):
@@ -108,8 +164,7 @@ class ConnectFour:
     def points_for(self, me):
         if (winner := self.winner()) is None:
             return 0
-        else:
-            return 1 if winner == me else -1
+        return 1 if winner == me else -1
 
     def points(self):
         return self.points_for(self.current_player())
@@ -128,13 +183,7 @@ class ConnectFour:
 if __name__ == "__main__":
     g = ConnectFour()
     print(g.display_with_moves())
-    g.play_str("3")  # Middle column
+    g.play_str("3")
     print(g.ended())
     print(g.current_player())
     print(g.display_with_moves())
-    g.play_str("3")  # Middle column
-    print(g.current_player())
-    print(g.ended())
-    print(g.display_with_moves())
-    print(g.display(0))
-    print(g.display(1))
