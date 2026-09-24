@@ -2,10 +2,21 @@ import random
 
 
 class Sum:
+    __slots__ = (
+        "num_players",
+        "current_player_",
+        "scores",
+        "moves",
+        "turn",
+        "round_",
+        "a",
+        "b",
+    )
+
     def __init__(self, num_players=2):
         self.num_players = num_players
         self.current_player_ = 0
-        self.scores = [0, 0]
+        self.scores = bytearray(2)
         self.moves = [str(i) for i in range(10)]
         self.turn = 0
         self.round_ = 0
@@ -19,11 +30,15 @@ class Sum:
         return self.round_
 
     def copy(self):
-        g = Sum()
+        g = Sum.__new__(Sum)
+        g.num_players = self.num_players
+        g.current_player_ = self.current_player_
+        g.scores = self.scores.copy()
+        g.moves = self.moves
+        g.turn = self.turn
+        g.round_ = self.round_
         g.a = self.a
         g.b = self.b
-        g.scores = self.scores[:]
-        g.moves = self.moves[:]
         return g
 
     def current_player(self):
@@ -42,8 +57,7 @@ class Sum:
 
     def display_with_moves(self):
         board = self.display()
-        moves = [m for m in self.moves]
-        return board + "\n".join([f"@{m}" for m in moves])
+        return board + "\n".join([f"@{m}" for m in self.moves])
 
     def play_str(self, mov):
         assert not self.ended()
