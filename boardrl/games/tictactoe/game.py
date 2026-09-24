@@ -1,19 +1,24 @@
-from typing import List
 import random
 
 
+EMPTY = 0
+PLAYER_OFFSET = 1
+
+
 class TicTacToe:
-    # Specific
+    __slots__ = ("num_players", "board", "turn", "moves")
+
     def __init__(self, num_players: int = 2) -> None:
         assert num_players == 2
         self.num_players = num_players
-        self.board: List[int | None] = [None for _ in range(9)]
+        self.board = bytearray(9)
         self.turn = 0
         self.moves = [str(i) for i in range(9)]
 
     def copy(self):
-        g = TicTacToe()
-        g.board = self.board[:]
+        g = TicTacToe.__new__(TicTacToe)
+        g.num_players = self.num_players
+        g.board = self.board.copy()
         g.turn = self.turn
         g.moves = self.moves
         return g
@@ -31,10 +36,10 @@ class TicTacToe:
             assert force in [0, 1]
             p = force
 
-        rep = {None: " ", 0: "O", 1: "X"}
-        lines = [">" + rep[p]]
+        rep = {EMPTY: " ", 1: "O", 2: "X"}
+        lines = [">" + rep[p + PLAYER_OFFSET]]
         for row in [self.board[i * 3 : (i + 1) * 3] for i in range(3)]:
-            lines.append("".join([rep[r] for r in row]))
+            lines.append("".join(rep[cell] for cell in row))
         return "\n".join(lines)
 
     def display_with_moves(self):
@@ -44,9 +49,9 @@ class TicTacToe:
     def play_str(self, mov):
         assert not self.ended()
         idx = int(mov)
-        assert self.board[idx] is None
-        self.board[idx] = self.current_player()
-        self.moves = [str(i) for i in range(9) if self.board[i] is None]
+        assert self.board[idx] == EMPTY
+        self.board[idx] = self.current_player() + PLAYER_OFFSET
+        self.moves = [str(i) for i in range(9) if self.board[i] == EMPTY]
         self.turn += 1
 
     def ended(self):
@@ -54,27 +59,22 @@ class TicTacToe:
 
     def winner(self):
         for i in range(3):
-            if self.board[i] == self.board[i + 3] == self.board[i + 6]:
-                if self.board[i] is not None:
-                    return self.board[i]
-            if self.board[i * 3] == self.board[i * 3 + 1] == self.board[i * 3 + 2]:
-                if self.board[i * 3] is not None:
-                    return self.board[i * 3]
-        if self.board[0] == self.board[4] == self.board[8]:
-            if self.board[0] is not None:
-                return self.board[0]
-        if self.board[2] == self.board[4] == self.board[6]:
-            if self.board[2] is not None:
-                return self.board[2]
+            if self.board[i] == self.board[i + 3] == self.board[i + 6] != EMPTY:
+                return self.board[i] - PLAYER_OFFSET
+            row = i * 3
+            if self.board[row] == self.board[row + 1] == self.board[row + 2] != EMPTY:
+                return self.board[row] - PLAYER_OFFSET
+        if self.board[0] == self.board[4] == self.board[8] != EMPTY:
+            return self.board[0] - PLAYER_OFFSET
+        if self.board[2] == self.board[4] == self.board[6] != EMPTY:
+            return self.board[2] - PLAYER_OFFSET
         return None
 
     def points_for(self, me):
         if (winner := self.winner()) is None:
             return 0
-        else:
-            return 1 if winner == me else -1
+        return 1 if winner == me else -1
 
-    # Predefined
     def points(self):
         return self.points_for(self.current_player())
 
@@ -87,21 +87,3 @@ class TicTacToe:
 
     def play_idx(self, idx):
         return self.play_str(self.moves[idx])
-
-
-if __name__ == "__main__":
-    g = TicTacToe()
-    # print(g.display_with_moves())
-    print(g.ended())
-    g.play_str("0")
-    print(g.display_with_moves())
-    g.play_str("1")
-    print(g.display_with_moves())
-    g.play_str("3")
-    print(g.display_with_moves())
-    g.play_str("5")
-    print(g.display_with_moves())
-    g.play_str("6")
-    print(g.display_with_moves())
-    print(g.ended())
-    print(g.points())
