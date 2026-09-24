@@ -3,16 +3,22 @@ from itertools import permutations
 import pytest
 
 from boardrl.games import games_library
-from boardrl.games.skullking.game import SkullKing, _winning_play, fresh_deck
+from boardrl.games.skullking.game import (
+    CARD_ID,
+    SkullKing,
+    _winning_play,
+    encode_cards,
+    fresh_deck,
+)
 
 
 def _set_play_state(game, hands, *, starter=0):
     game.phase = "play"
     game.round_starter = starter
     game.current_player_ = starter
-    game.hands = [hand[:] for hand in hands]
-    game.tricks = [0] * game.num_players
-    game.captured = [[] for _ in range(game.num_players)]
+    game.hands = [encode_cards(hand) for hand in hands]
+    game.tricks = bytearray(game.num_players)
+    game.captured = [bytearray() for _ in range(game.num_players)]
     game._captured_tricks = [[] for _ in range(game.num_players)]
     game._played_tricks = []
     game._trick = []
@@ -91,14 +97,12 @@ def test_round_starter_rotates_instead_of_using_previous_trick_winner():
     game.play_str("0")
     game.play_str("0")
 
-    # Round one consists of a single trick. Its winner is irrelevant to who
-    # opens round two: the starting seat rotates with the dealer.
     while game.phase == "play":
         game.play_str(game.moves[0])
 
     assert game.round_ == 2
     assert game.round_starter == 1
-    assert game.current_player_ == 0  # hidden bids are stored in seat order
+    assert game.current_player_ == 0
 
     game.play_str("0")
     game.play_str("0")
@@ -165,14 +169,14 @@ def test_identical_cards_do_not_create_duplicate_policy_actions():
 def test_core_deck_contains_tigress_and_seven_players_can_receive_ten_cards():
     deck = fresh_deck()
     assert len(deck) == 70
-    assert deck.count("_:T") == 1
+    assert deck.count(CARD_ID["_:T"]) == 1
 
     game = SkullKing(num_players=7, num_rounds=10)
     game.round_ = 10
     game._deal()
 
     assert all(len(hand) == 10 for hand in game.hands)
-    assert game.deck == []
+    assert game.deck == bytearray()
 
 
 def test_tigress_is_a_single_card_with_pirate_and_escape_actions():
@@ -182,7 +186,7 @@ def test_tigress_is_a_single_card_with_pirate_and_escape_actions():
     assert game.moves == ["_:T=P", "_:T=E"]
 
     game.play_str("_:T=P")
-    assert "_:T" not in game.hands[0]
+    assert CARD_ID["_:T"] not in game.hands[0]
     assert game.current_top == "_:T=P"
 
 

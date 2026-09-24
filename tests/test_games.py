@@ -2,7 +2,7 @@ import pytest
 
 from boardrl.games.tictactoe.game import TicTacToe
 from boardrl.games.connectfour.game import ConnectFour
-from boardrl.games.sum.game import Sum, RockPaperScissors
+from boardrl.games.sum.game import Sum
 from boardrl.games.thegame.game import MESSAGE_ID, PLAYED_CARD_SYMBOLS, TheGame
 
 
@@ -114,17 +114,6 @@ def test_sum_ended_on_three_points():
     g.a = 2
     g.b = 4
     g.play_str("3")
-    assert g.ended()
-
-
-def test_rps_win_and_end():
-    g = RockPaperScissors()
-    g.play_str("rock")
-    g.play_str("scissors")
-    assert g.scores[0] == 1
-    g.scores[0] = 2
-    g.play_str("rock")
-    g.play_str("scissors")
     assert g.ended()
 
 

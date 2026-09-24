@@ -2,6 +2,19 @@ import random
 
 
 class GuessNumber:
+    __slots__ = (
+        "num_players",
+        "num_symbols",
+        "secret",
+        "max_number",
+        "turn",
+        "round_",
+        "finished",
+        "current_symbol",
+        "history",
+        "moves",
+    )
+
     def __init__(
         self,
         max_number: int = 10,
@@ -9,16 +22,6 @@ class GuessNumber:
         secret: int | None = None,
         num_players: int = 2,
     ):
-        """Two player communication game.
-
-        Player 1 chooses symbols to hint the secret number. Player 2 guesses
-        numbers. The game ends once the secret is guessed.
-
-        Args:
-            num_symbols: Number of symbols available to player 1.
-            secret: Optional secret number for deterministic tests. If ``None``
-                a random number in ``[0, max_number]`` is sampled.
-        """
         assert num_symbols > 0
         assert num_players == 2
         self.num_players = num_players
@@ -32,25 +35,25 @@ class GuessNumber:
         self.history: list[tuple[str, int]] = []
         self.moves = self._moves_for_current_player()
 
-    # Helpers -----------------------------------------------------------------
     def _moves_for_current_player(self) -> list[str]:
         if self.finished:
             return []
         if self.current_player() == 0:
             return [chr(ord("A") + i) for i in range(self.num_symbols)]
-        else:
-            return [str(i) for i in range(1, self.max_number + 1)]
+        return [str(i) for i in range(1, self.max_number + 1)]
 
-    # Interface required by framework ----------------------------------------
     def copy(self) -> "GuessNumber":
-        g = GuessNumber(self.num_symbols, secret=self.secret)
+        g = GuessNumber.__new__(GuessNumber)
+        g.num_players = self.num_players
+        g.num_symbols = self.num_symbols
+        g.secret = self.secret
         g.max_number = self.max_number
         g.turn = self.turn
         g.round_ = self.round_
         g.finished = self.finished
         g.current_symbol = self.current_symbol
         g.history = self.history[:]
-        g.moves = self.moves[:]
+        g.moves = self.moves
         return g
 
     def round(self) -> int:
@@ -110,7 +113,6 @@ class GuessNumber:
         return self.finished
 
     def points_for(self, me: int) -> int:
-        # return 1 if self.ended() else 0
         return -self.round_
 
     def points(self) -> int:
@@ -122,15 +124,3 @@ class GuessNumber:
     def simulate_to_end(self) -> None:
         while not self.ended():
             self.play_str(random.choice(self.moves))
-
-
-if __name__ == "__main__":
-    g = GuessNumber(secret=4)
-    print(g.display_with_moves())
-    g.play_idx(0)
-    print("--", g.points())
-    print(g.display_with_moves())
-    g.play_idx(0)
-    print("--", g.points())
-    print(g.display_with_moves())
-    print("--", g.points())
