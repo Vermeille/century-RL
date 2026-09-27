@@ -23,11 +23,27 @@ from boardrl.training import (
     TrainingSample,
 )
 from boardrl.training.learner import (
+    Averages,
     BatchUpdates,
     PolicyMetrics,
     RolloutUpdate,
     normalized_nucleus_size,
 )
+
+
+def test_averages_keeps_tensor_metrics_until_result(monkeypatch):
+    averages = Averages()
+    values = [torch.tensor(1.0), torch.tensor(3.0)]
+
+    def unexpected_item(self):
+        raise AssertionError("metric accumulation must not call Tensor.item()")
+
+    monkeypatch.setattr(torch.Tensor, "item", unexpected_item)
+    for value in values:
+        averages.add({"loss": value})
+
+    assert torch.equal(averages.totals["loss"], torch.tensor(4.0))
+    assert averages.result() == {"loss": 2.0}
 
 
 def test_rollout_pipeline_is_composable():

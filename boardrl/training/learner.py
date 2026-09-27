@@ -24,10 +24,6 @@ def gradient_norm(parameters) -> torch.Tensor:
     return torch.linalg.vector_norm(torch.stack(norms))
 
 
-def _float(value) -> float:
-    return value.detach().item() if torch.is_tensor(value) else float(value)
-
-
 def normalized_nucleus_size(
     probs: torch.Tensor,
     threshold: float = 0.95,
@@ -113,11 +109,31 @@ class Averages:
 
     def add(self, values):
         for name, value in values.items():
-            self.totals[name] = self.totals.get(name, 0.0) + _float(value)
+            if torch.is_tensor(value):
+                value = value.detach().reshape(())
+            else:
+                value = float(value)
+            self.totals[name] = self.totals.get(name, 0.0) + value
             self.counts[name] = self.counts.get(name, 0) + 1
 
     def result(self):
-        return {name: total / self.counts[name] for name, total in self.totals.items()}
+        result = {}
+        tensors_by_device = {}
+        for name, total in self.totals.items():
+            average = total / self.counts[name]
+            if torch.is_tensor(average):
+                tensors_by_device.setdefault(average.device, []).append((name, average))
+            else:
+                result[name] = average
+
+        # Training metrics only cross the device boundary here, after every
+        # epoch and optimizer update has finished. Stack them first so there is
+        # one device synchronization rather than one per metric and batch.
+        for values in tensors_by_device.values():
+            names, tensors = zip(*values)
+            host_values = torch.stack(tensors).cpu().tolist()
+            result.update(zip(names, host_values))
+        return result
 
 
 class Updates:

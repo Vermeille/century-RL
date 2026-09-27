@@ -453,7 +453,9 @@ class KLPenalty(Loss):
         return divergence
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
-        if self.strength is None or self.strength == 0:
+        if self.strength is None or (
+            not torch.is_tensor(self.strength) and self.strength == 0
+        ):
             return LossResult(torch.zeros((1,), device=pred_value.mean.device))
 
         return LossResult(
@@ -514,7 +516,27 @@ class AdaptiveKLPenalty(Loss):
         self.last_kl = state["last_kl"]
         self.last_strength = state["last_strength"]
 
-    def update_strength(self, measured_kl: float):
+    def update_strength(self, measured_kl: float | torch.Tensor):
+        if torch.is_tensor(measured_kl) or torch.is_tensor(self.kl.strength):
+            if torch.is_tensor(measured_kl):
+                measured_kl = measured_kl.detach()
+            else:
+                measured_kl = self.kl.strength.new_full((), measured_kl)
+            if torch.is_tensor(self.kl.strength):
+                strength = self.kl.strength.to(measured_kl)
+            else:
+                strength = measured_kl.new_full((), self.kl.strength)
+            error = measured_kl - self.target
+            increased = strength + self.adaptation_rate * error
+            relax_rate = 0.1 * self.adaptation_rate
+            relaxed = strength + relax_rate * (self.init_strength - strength)
+            strength = torch.where(error > self.deadband, increased, relaxed).clamp(
+                self.init_strength, self.max_strength
+            )
+            self.kl.strength = strength
+            self.last_strength = strength
+            return
+
         error = measured_kl - self.target
         strength = self.kl.strength
 
@@ -535,8 +557,8 @@ class AdaptiveKLPenalty(Loss):
         divergence, total_variation = self.kl.distances(
             pred_policy, sample, training_state
         )
-        measured_kl = divergence.detach().item()
-        measured_total_variation = total_variation.detach().item()
+        measured_kl = divergence.detach()
+        measured_total_variation = total_variation.detach()
 
         if training_state.get("update_kl_controller", True):
             self.update_strength(measured_kl)
@@ -737,16 +759,8 @@ class ScheduledPerplexity(Loss):
         safe_logp = torch.where(mask, logp, torch.zeros_like(logp))
         probabilities = torch.where(mask, safe_logp.exp(), torch.zeros_like(logp))
         entropy = -(probabilities * safe_logp).sum(dim=1)
-        normalized = entropy.exp()
-        values = normalized[action_counts > 1]
-
-        if values.numel() == 0:
-            # Degenerate batch: no state with >1 legal action.
-            # Return a tensor on a reasonable device.
-            first = next(iter(policy))
-            return first.new_tensor(0.0)
-
-        return values.mean()
+        valid = action_counts > 1
+        return (entropy.exp() * valid).sum() / valid.sum().clamp_min(1)
 
     @staticmethod
     def normalized_perplexity(policy, training_state=None):
@@ -769,15 +783,8 @@ class ScheduledPerplexity(Loss):
         probabilities = torch.where(mask, safe_logp.exp(), torch.zeros_like(logp))
         entropy = -(probabilities * safe_logp).sum(dim=1)
         normalized = (entropy.exp() - 1.0) / (action_counts - 1).clamp_min(1)
-        values = normalized[action_counts > 1]
-
-        if values.numel() == 0:
-            # Degenerate batch: no state with >1 legal action.
-            # Return a tensor on a reasonable device.
-            first = next(iter(policy))
-            return first.new_tensor(0.0)
-
-        return values.mean()
+        valid = action_counts > 1
+        return (normalized * valid).sum() / valid.sum().clamp_min(1)
 
     def target_ppl(self, progress: float) -> float:
         if self.schedule is not None:
@@ -786,7 +793,11 @@ class ScheduledPerplexity(Loss):
             assert 0.0 <= progress <= 1.0
         return self.start * (1.0 - progress) + self.end * progress
 
-    def update_strength(self, measured_ppl: float, target_ppl: float):
+    def update_strength(
+        self,
+        measured_ppl: float | torch.Tensor,
+        target_ppl: float | torch.Tensor,
+    ):
         """
         Thermostat logic.
 
@@ -796,6 +807,55 @@ class ScheduledPerplexity(Loss):
         If PPL is above target:
             slowly relax toward baseline_strength, not toward zero.
         """
+
+        if (
+            torch.is_tensor(measured_ppl)
+            or torch.is_tensor(self.ppl_ema)
+            or torch.is_tensor(self.regularizer.strength)
+        ):
+            controller_state = (
+                measured_ppl
+                if torch.is_tensor(measured_ppl)
+                else self.ppl_ema
+                if torch.is_tensor(self.ppl_ema)
+                else self.regularizer.strength
+            )
+            if torch.is_tensor(measured_ppl):
+                measured_ppl = measured_ppl.detach()
+            else:
+                measured_ppl = controller_state.new_full((), measured_ppl)
+            if self.ppl_ema is None:
+                ppl_ema = measured_ppl
+            elif torch.is_tensor(self.ppl_ema):
+                ppl_ema = self.ppl_ema.to(measured_ppl)
+            else:
+                ppl_ema = measured_ppl.new_full((), self.ppl_ema)
+            if self.ppl_ema is not None:
+                ppl_ema = self.ppl_beta * ppl_ema + (
+                    1.0 - self.ppl_beta
+                ) * measured_ppl
+
+            if torch.is_tensor(self.regularizer.strength):
+                strength = self.regularizer.strength.to(measured_ppl)
+            else:
+                strength = measured_ppl.new_full((), self.regularizer.strength)
+            error = target_ppl - ppl_ema
+            increased = (
+                strength + self.adaptation_rate * self.init_strength * error
+            )
+            relax_rate = 0.5 * self.adaptation_rate
+            relaxed = strength + relax_rate * (
+                self.baseline_strength - strength
+            )
+            strength = torch.where(error > self.deadband, increased, relaxed).clamp(
+                self.min_strength, self.max_strength
+            )
+
+            self.ppl_ema = ppl_ema
+            self.regularizer.strength = strength
+            self.last_strength = strength
+            self.last_ppl_ema = ppl_ema
+            return
 
         if self.ppl_ema is None:
             self.ppl_ema = measured_ppl
@@ -835,7 +895,7 @@ class ScheduledPerplexity(Loss):
         target = self.target_ppl(progress)
 
         ppl_tensor = self.perplexity(pred_policy, training_state)
-        ppl = ppl_tensor.detach().item()
+        ppl = ppl_tensor.detach()
 
         # Optional escape hatch: useful if this loss is called during eval/logging.
         update_controller = training_state.get("update_entropy_controller", True)

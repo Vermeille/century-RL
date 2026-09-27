@@ -362,6 +362,33 @@ def test_adaptive_kl_increases_strength_above_fixed_target():
     assert loss.kl.strength > loss.init_strength
 
 
+def test_adaptive_controllers_do_not_extract_device_scalars(monkeypatch):
+    def unexpected_item(self):
+        raise AssertionError("adaptive loss must not call Tensor.item()")
+
+    monkeypatch.setattr(torch.Tensor, "item", unexpected_item)
+    pred_value = SimpleNamespace(mean=torch.tensor([0.0]))
+
+    kl = AdaptiveKLPenalty(target=0.01, init_strength=0.1)
+    kl_result = kl(
+        [torch.tensor([1.0, -1.0])],
+        pred_value,
+        SimpleNamespace(reference_policy=[torch.tensor([-1.0, 1.0])]),
+        training_state={},
+    )
+
+    perplexity = ScheduledPerplexity(start=0.5, init_strength=0.1)
+    perplexity_result = perplexity(
+        [torch.tensor([1.0, -1.0])],
+        pred_value,
+        SimpleNamespace(action_idx=torch.tensor([0])),
+        training_state={"progress": 0.5},
+    )
+
+    assert torch.isfinite(kl_result.objective)
+    assert torch.isfinite(perplexity_result.objective)
+
+
 def test_adaptive_kl_relaxes_but_not_below_base_strength():
     loss = AdaptiveKLPenalty(
         target=0.01,
