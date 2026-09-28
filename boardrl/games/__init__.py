@@ -1,5 +1,6 @@
 from functools import partial
 from importlib import import_module
+from importlib.util import find_spec
 
 from boardrl.utils import RegisterByName
 from boardrl.games.augmentations import shuffle_actions
@@ -141,34 +142,36 @@ class Century(GameDesc):
         )
 
 
-@games_library.register("openspiel")
-class OpenSpiel(GameDesc):
-    """Lazy descriptor for sequential OpenSpiel games."""
+if find_spec("pyspiel") is not None:
 
-    def __init__(self, game: str = "leduc_poker"):
-        from boardrl.games.openspiel.game import OpenSpielGame
-        from boardrl.games.openspiel.metrics import Metrics
+    @games_library.register("openspiel")
+    class OpenSpiel(GameDesc):
+        """Descriptor for sequential OpenSpiel games."""
 
-        super().__init__(
-            partial(OpenSpielGame, game),
-            strategy_from_string,
-            Metrics,
-            scores=OutcomeScores(),
-            outcome=CompetitiveOutcome(),
-            rewards=TerminalOutcomeRewards(),
-        )
+        def __init__(self, game: str = "leduc_poker"):
+            from boardrl.games.openspiel.game import OpenSpielGame
+            from boardrl.games.openspiel.metrics import Metrics
 
-
-@games_library.register("leduc")
-class Leduc(OpenSpiel):
-    def __init__(self):
-        super().__init__("leduc_poker")
+            super().__init__(
+                partial(OpenSpielGame, game),
+                strategy_from_string,
+                Metrics,
+                scores=OutcomeScores(),
+                outcome=CompetitiveOutcome(),
+                rewards=TerminalOutcomeRewards(),
+            )
 
 
-@games_library.register("othello")
-class Othello(OpenSpiel):
-    def __init__(self):
-        super().__init__("othello")
+    @games_library.register("leduc")
+    class Leduc(OpenSpiel):
+        def __init__(self):
+            super().__init__("leduc_poker")
+
+
+    @games_library.register("othello")
+    class Othello(OpenSpiel):
+        def __init__(self):
+            super().__init__("othello")
 
 
 register_game(
