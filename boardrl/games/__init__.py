@@ -228,7 +228,7 @@ register_game(
     scores=OutcomeScores(),
     outcome=CompetitiveOutcome(),
     rewards=TerminalOutcomeRewards(),
-    args_from=RockPaperSccissorsGame,
+    args_from=RockPaperScissorsGame,
 )
 
 register_game(
