@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the asynchronous CPU rating arena for adversarial-advshape."""
+"""Run the asynchronous CPU rating arena for adversarial trainers."""
 
 from __future__ import annotations
 
@@ -17,6 +17,13 @@ from pathlib import Path
 from boardrl.arena import RatingArena, TrackioTelemetry, read_run_arguments
 
 
+TRAINER_NAMES = (
+    "adversarial-advshape",
+    "adversarial-ppo",
+    "adversarial-mmd",
+)
+
+
 def positive_int(value: str) -> int:
     parsed = int(value)
     if parsed < 1:
@@ -24,12 +31,15 @@ def positive_int(value: str) -> int:
     return parsed
 
 
-def load_trainer_module():
-    path = Path(__file__).with_name("adversarial-advshape.py")
+def load_trainer_module(trainer_name="adversarial-advshape"):
+    if trainer_name not in TRAINER_NAMES:
+        raise ValueError(f"unsupported trainer {trainer_name!r}")
+    path = Path(__file__).with_name(f"{trainer_name}.py")
     repository = str(path.parents[1])
     if repository not in sys.path:
         sys.path.insert(0, repository)
-    spec = importlib.util.spec_from_file_location("trainers.adversarial_advshape", path)
+    module_name = trainer_name.replace("-", "_")
+    spec = importlib.util.spec_from_file_location(f"trainers.{module_name}", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load trainer from {path}")
     module = importlib.util.module_from_spec(spec)
@@ -37,8 +47,12 @@ def load_trainer_module():
     return module
 
 
-def effective_checkpoint_directory(arguments: list[str]) -> Path:
-    trainer = load_trainer_module()
+def effective_checkpoint_directory(
+    arguments: list[str],
+    *,
+    trainer_name="adversarial-advshape",
+) -> Path:
+    trainer = load_trainer_module(trainer_name)
     args = trainer.build_parser().parse_args(arguments)
     return trainer.checkpoint_directory(args)
 
@@ -112,7 +126,7 @@ def wait_for_trackio_run(
     ``run.txt`` is intentionally written early in trainer startup, while a
     remote Trackio server may commit the corresponding run a little later.
     ``resume='must'`` raises during that visibility window, so only that
-    specific error is retried.  Other Trackio/configuration failures remain
+    specific error is retried. Other Trackio/configuration failures remain
     actionable instead of being hidden by the startup poll.
     """
 
@@ -129,7 +143,7 @@ def wait_for_trackio_run(
             try:
                 Path(f"/proc/{training_pid}").stat()
             except FileNotFoundError:
-                # The trainer has already ended.  Arena scoring can continue
+                # The trainer has already ended. Arena scoring can continue
                 # locally, but there is no point waiting forever for a run
                 # that may never have been created.
                 return None
@@ -217,6 +231,11 @@ def build_parser() -> argparse.ArgumentParser:
         "checkpoint-dir",
         help="print the trainer's effective checkpoint directory",
     )
+    directory.add_argument(
+        "--trainer",
+        choices=TRAINER_NAMES,
+        default="adversarial-advshape",
+    )
     directory.add_argument("trainer_arguments", nargs=argparse.REMAINDER)
 
     watcher = commands.add_parser("follow", help="watch and rate checkpoints")
@@ -236,7 +255,12 @@ def main(argv=None) -> int:
         arguments = args.trainer_arguments
         if arguments[:1] == ["--"]:
             arguments = arguments[1:]
-        print(effective_checkpoint_directory(arguments))
+        print(
+            effective_checkpoint_directory(
+                arguments,
+                trainer_name=args.trainer,
+            )
+        )
         return 0
     return follow(args)
 
