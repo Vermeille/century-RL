@@ -145,7 +145,7 @@ class Century(GameDesc):
 class OpenSpiel(GameDesc):
     """Lazy descriptor for sequential OpenSpiel games."""
 
-    def __init__(self, game: str):
+    def __init__(self, game: str = "leduc_poker"):
         from boardrl.games.openspiel.game import OpenSpielGame
         from boardrl.games.openspiel.metrics import Metrics
 
