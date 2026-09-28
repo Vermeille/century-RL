@@ -14,6 +14,7 @@ from boardrl.rl.model.loss import (
     PolicyGradientLoss,
 )
 from boardrl.training import ReferenceTargets, ToSamples
+from trainers import arena
 
 
 def load_trainer(filename, module_name):
@@ -37,7 +38,6 @@ adversarial_mmd = load_trainer(
     "adversarial-mmd.py",
     "adversarial_mmd",
 )
-arena = load_trainer("arena.py", "arena")
 
 
 def toy_model():
