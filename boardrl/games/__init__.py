@@ -141,6 +141,36 @@ class Century(GameDesc):
         )
 
 
+@games_library.register("openspiel")
+class OpenSpiel(GameDesc):
+    """Lazy descriptor for sequential OpenSpiel games."""
+
+    def __init__(self, game: str):
+        from boardrl.games.openspiel.game import OpenSpielGame
+        from boardrl.games.openspiel.metrics import Metrics
+
+        super().__init__(
+            partial(OpenSpielGame, game),
+            strategy_from_string,
+            Metrics,
+            scores=OutcomeScores(),
+            outcome=CompetitiveOutcome(),
+            rewards=TerminalOutcomeRewards(),
+        )
+
+
+@games_library.register("leduc")
+class Leduc(OpenSpiel):
+    def __init__(self):
+        super().__init__("leduc_poker")
+
+
+@games_library.register("othello")
+class Othello(OpenSpiel):
+    def __init__(self):
+        super().__init__("othello")
+
+
 register_game(
     "tictactoe",
     TicTacToeGame,
@@ -198,7 +228,7 @@ register_game(
     scores=OutcomeScores(),
     outcome=CompetitiveOutcome(),
     rewards=TerminalOutcomeRewards(),
-    args_from=RockPaperScissorsGame,
+    args_from=RockPaperSccissorsGame,
 )
 
 register_game(
