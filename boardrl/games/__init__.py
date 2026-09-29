@@ -238,7 +238,7 @@ register_game(
     augmentations=(shuffle_actions,),
     scores=PointScores(),
     outcome=CooperativeOutcome(),
-    rewards=TerminalOutcomeRewards(),
+    rewards=PointDeltaRewards(scale=0.01),
     args_from=RegicideGame,
 )
 
@@ -248,7 +248,7 @@ register_game(
     augmentations=(shuffle_actions,),
     scores=PointScores(),
     outcome=CooperativeOutcome(),
-    rewards=TerminalOutcomeRewards(),
+    rewards=PointDeltaRewards(scale=0.1),
     args_from=HanabiGame,
 )
 
