@@ -15,6 +15,13 @@ from .ratings import RatingFit
 from .store import Policy
 
 
+ADVERSARIAL_TRAINERS = {
+    "adversarial-advshape",
+    "adversarial-ppo",
+    "adversarial-mmd",
+}
+
+
 def read_run_arguments(path: Path) -> dict[str, object]:
     text = path.read_text()
     marker = "Arguments\n=========\n"
@@ -32,8 +39,11 @@ def capture_agent_checkpoint(
 ) -> tuple[str, int]:
     payload = torch.load(source, weights_only=False, map_location="cpu")
     metadata = payload.get("metadata", {})
-    if metadata.get("trainer") != "adversarial-advshape":
-        raise ValueError(f"{source} is not an adversarial-advshape checkpoint")
+    source_trainer = metadata.get("trainer")
+    if source_trainer not in ADVERSARIAL_TRAINERS:
+        raise ValueError(
+            f"{source} is not a supported adversarial checkpoint: {source_trainer!r}"
+        )
     if metadata.get("game") != expected_game:
         raise ValueError(
             f"{source} game {metadata.get('game')!r} does not match {expected_game!r}"
@@ -49,7 +59,7 @@ def capture_agent_checkpoint(
         "states": {},
         "metadata": {
             "trainer": "arena",
-            "source_trainer": "adversarial-advshape",
+            "source_trainer": source_trainer,
             "game": expected_game,
             "source": str(source),
         },
