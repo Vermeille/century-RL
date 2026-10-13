@@ -1,13 +1,16 @@
-"""Evaluate a Century Othello checkpoint against a GTP engine."""
+"""Evaluate a BoardRL Othello checkpoint against a GTP engine."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import random
 import shlex
 
-from boardrl.games.openspiel.othello.benchmark import OthelloEngineBenchmark
+from boardrl import Evaluator, Inference
+from boardrl.games.openspiel.othello.game import Othello
 from boardrl.games.openspiel.othello.gtp import GTPEngine
+from boardrl.games.openspiel.othello.strategies import GTPStrategy
 from boardrl.rl.model import load_model
 
 
@@ -28,17 +31,37 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = build_parser().parse_args()
+def main(argv=None) -> None:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.pairs <= 0 or args.opening_plies < 0:
+        parser.error("pairs must be positive and opening-plies non-negative")
     model = load_model(args.checkpoint, name=args.model, device=args.device)
-    with GTPEngine(shlex.split(args.engine)) as engine:
-        result = OthelloEngineBenchmark(
-            model,
-            engine,
-            temperature=args.temperature,
-            opening_plies=args.opening_plies,
-            seed=args.seed,
-        ).run(pairs=args.pairs)
+    inference = Inference(model, batch_size=2)
+    rng = random.Random(args.seed)
+    payoffs = []
+    with GTPEngine(shlex.split(args.engine)) as engine, inference.evaluating():
+        player = inference.policy(temperature=args.temperature)
+        opponent = GTPStrategy(engine)
+        for _ in range(args.pairs):
+            opening = Othello()
+            for _ in range(args.opening_plies):
+                if opening.ended():
+                    break
+                opening.play_idx(rng.randrange(len(opening.moves)))
+            evaluator = Evaluator(
+                lambda num_players, opening=opening: opening.copy(), progress=False
+            )
+            result = evaluator.compare(
+                [player, opponent],
+                names=["model", "engine"],
+                games=2,
+                max_steps=opening._game.max_game_length(),
+                rotate=True,
+            )
+            payoffs.extend(result.rollouts.my_points(0))
+    wins = sum(payoff > 0 for payoff in payoffs)
+    draws = payoffs.count(0)
     print(
         json.dumps(
             {
@@ -49,11 +72,11 @@ def main() -> None:
                 "opening_plies": args.opening_plies,
                 "seed": args.seed,
                 "temperature": args.temperature,
-                "games": result.games,
-                "wins": result.wins,
-                "draws": result.draws,
-                "losses": result.losses,
-                "score": result.score,
+                "games": len(payoffs),
+                "wins": wins,
+                "draws": draws,
+                "losses": len(payoffs) - wins - draws,
+                "score": (wins + 0.5 * draws) / len(payoffs),
             },
             indent=2,
         )
