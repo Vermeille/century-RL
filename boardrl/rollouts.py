@@ -388,6 +388,36 @@ class Inference:
             include_moves=record_moves,
         )
 
+    @torch.no_grad()
+    def probabilities(self, texts, action_counts, *, temperature=1.0):
+        """Evaluate an explicit batch of legal-action distributions in float64.
+
+        Exact solvers need every action probability, rather than a sampled move.
+        Use the rollout strategy's temperature convention and reject invalid
+        model outputs before they enter a best-response calculation.
+        """
+        if not math.isfinite(temperature) or temperature < 0:
+            raise ValueError("temperature must be finite and non-negative")
+        predictions = self.model(texts).policy
+        if len(predictions) != len(texts):
+            raise ValueError("policy output does not match evaluation batch")
+        probabilities = []
+        for logits, count in zip(predictions, action_counts, strict=True):
+            logits = logits.detach().double().cpu()
+            if logits.ndim != 1 or len(logits) != count or count == 0:
+                raise ValueError("policy output does not match legal actions")
+            if (
+                torch.isnan(logits).any()
+                or torch.isposinf(logits).any()
+                or not torch.isfinite(logits).any()
+            ):
+                raise ValueError(
+                    "policy logits must define a finite probability distribution"
+                )
+            scaled = PolicySamplingStrategy.policy_logits(logits, temperature)
+            probabilities.append(torch.softmax(scaled, dim=0).numpy())
+        return probabilities
+
     @contextmanager
     def evaluating(self):
         was_training = self.model.training
