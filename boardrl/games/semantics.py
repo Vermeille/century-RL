@@ -93,6 +93,7 @@ class Rewards:
 
 class TerminalOutcomeRewards(Rewards):
     points_value_head = False
+    evaluation_metric = "win_rate"
 
     def make_returns(self, discount, *, entropy_bonus=None):
         from boardrl.training.postprocess import ComputeReturns
@@ -110,6 +111,7 @@ class TerminalOutcomeRewards(Rewards):
 
 class PointDeltaRewards(Rewards):
     points_value_head = True
+    evaluation_metric = "points"
 
     def __init__(self, scale: float):
         self.scale = scale

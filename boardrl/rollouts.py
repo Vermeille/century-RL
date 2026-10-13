@@ -368,6 +368,10 @@ class Inference:
             batch_size, model, timeout=timeout, model_name=name
         )
 
+    @property
+    def batch_size(self) -> int:
+        return self.processor.batch_size
+
     def policy(
         self,
         *,

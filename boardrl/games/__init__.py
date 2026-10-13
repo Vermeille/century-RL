@@ -57,6 +57,7 @@ class GameDesc:
         scores,
         outcome,
         rewards,
+        model_evaluation=None,
     ):
         self.make_game = game_class
         self.strategy_from_string = strategy_from_string
@@ -66,6 +67,13 @@ class GameDesc:
         self.outcome = outcome
         self.rewards = rewards
         self.coop = outcome.cooperative
+        self.model_evaluation = model_evaluation
+
+    def make_model_evaluator(self, *, progress=True):
+        from boardrl.evaluation import SampledModelEvaluator
+
+        factory = self.model_evaluation or SampledModelEvaluator
+        return factory(self, progress=progress)
 
 
 games_library = RegisterByName()
@@ -90,8 +98,10 @@ def register_game(
     outcome,
     rewards,
     args_from=None,
+    metrics_from=None,
+    model_evaluation=None,
 ):
-    """Register a conventional Python game without a descriptor subclass."""
+    """Register a game; metrics_from can select a shared metrics module."""
 
     def descriptor(**game_kwargs):
         game_strategies = strategy_from_string
@@ -101,11 +111,12 @@ def register_game(
         return GameDesc(
             make_game,
             game_strategies,
-            _metrics_for(game_class),
+            _metrics_for(metrics_from or game_class),
             augmentations=augmentations,
             scores=scores,
             outcome=outcome,
             rewards=rewards,
+            model_evaluation=model_evaluation,
         )
 
     descriptor.__name__ = f"{name}_game_desc"

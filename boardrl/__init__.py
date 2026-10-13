@@ -1,7 +1,7 @@
 """Composable reinforcement-learning mechanics for board games."""
 
 from .checkpoints import Checkpoints
-from .evaluation import Evaluation, Evaluator, Scoreboard
+from .evaluation import Evaluation, Evaluator, ModelEvaluation, ModelEvaluator, Scoreboard
 from .metrics import (
     Console,
     GameMetrics,
@@ -20,6 +20,8 @@ __all__ = [
     "Console",
     "Evaluation",
     "Evaluator",
+    "ModelEvaluation",
+    "ModelEvaluator",
     "GameMetrics",
     "GroupedTraceMetrics",
     "Inference",
