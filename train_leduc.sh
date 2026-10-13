@@ -31,7 +31,6 @@ trainer_args=(
   --inference-batch-size 1024
   --learner-batch-size 256
   --rollout-games 1024
-  --sampled-evaluation
   --evaluation-games 512
   --gradient-clip 10000
   --opponent-eval-strategy random

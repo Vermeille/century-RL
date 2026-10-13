@@ -1,76 +1,48 @@
-"""Backend selection and reusable exact evaluation for OpenSpiel games."""
+"""Reusable exact evaluation of a policy in both seats."""
 
 from __future__ import annotations
 
+import math
+from functools import partial
 from threading import RLock
 
-from boardrl.evaluation import ModelEvaluation, ModelEvaluator
-from boardrl.games.openspiel.abrupt_dark_hex.evaluation import AbruptDarkHexEvaluator
-from boardrl.games.openspiel.abrupt_phantom_ttt.evaluation import (
-    AbruptPhantomTicTacToeEvaluator,
-)
-from boardrl.games.openspiel.dark_hex.evaluation import DarkHexEvaluator
 from boardrl.games.openspiel.game import _require_pyspiel
-from boardrl.games.openspiel.liars_dice.evaluation import LiarsDiceEvaluator
-from boardrl.games.openspiel.phantom_ttt.evaluation import PhantomTicTacToeEvaluator
 from boardrl.games.openspiel.policy import (
-    ModelPolicy,
     OpenSpielPolicy,
     _require_policy_modules,
 )
 from boardrl.games.openspiel.result import NashConvResult
-
-
-def exact_backend(game, *, backend="auto", use_cpp_br=True):
-    if backend not in ("auto", "openspiel"):
-        raise ValueError("backend must be 'auto' or 'openspiel'")
-    name = game.get_type().short_name
-    parameters = game.get_parameters()
-    if backend == "openspiel":
-        if name == "dark_hex" and parameters["obstype"] == "reveal-nothing":
-            raise ValueError(
-                "OpenSpiel's Dark Hex string gives best responses an extra global clock; "
-                "use the exp-a-spiel backend for reveal-nothing evaluation"
-            )
-        return OpenSpielTreeEvaluator(game, use_cpp_br=use_cpp_br)
-    factories = {
-        "dark_hex": {"cdh": DarkHexEvaluator, "adh": AbruptDarkHexEvaluator},
-        "phantom_ttt": {
-            "classical": PhantomTicTacToeEvaluator,
-            "abrupt": AbruptPhantomTicTacToeEvaluator,
-        },
-        "liars_dice": {None: LiarsDiceEvaluator},
-    }.get(name)
-    if factories is None:
-        return OpenSpielTreeEvaluator(game, use_cpp_br=use_cpp_br)
-    try:
-        factory = factories[parameters.get("gameversion")]
-    except KeyError as exc:
-        raise ValueError("unsupported game version for exact evaluation") from exc
-    return factory(game)
+from boardrl.rollouts import Inference
 
 
 def nash_conv(
     model,
-    game_name: str = "leduc_poker",
+    game_name: str = "leduc",
     *,
     temperature: float = 1.0,
-    use_cpp_br: bool = True,
     batch_size: int = 64,
     spiel_game=None,
-    backend: str = "auto",
+    backend=None,
 ) -> NashConvResult:
     """Evaluate once; retain ExactOpenSpielEvaluator to reuse board traversers."""
-    pyspiel = _require_pyspiel()
-    game = spiel_game if spiel_game is not None else pyspiel.load_game(game_name)
-    evaluator = ExactOpenSpielEvaluator(game, backend=backend, use_cpp_br=use_cpp_br)
+    if spiel_game is None:
+        from boardrl.games import games_library
+
+        descriptor = games_library(game_name)
+        if descriptor.exact_evaluation is None:
+            raise ValueError(f"{game_name} has no registered exact evaluator")
+        spiel_game = descriptor.make_game(resolve_chance=False)._game
+        backend = descriptor.exact_evaluation(spiel_game)
+    elif backend is None:
+        raise ValueError("a native game requires an explicit exact backend")
+    evaluator = ExactOpenSpielEvaluator(spiel_game, backend=backend)
     return evaluator.evaluate(model, temperature=temperature, batch_size=batch_size)
 
 
 class ExactOpenSpielEvaluator:
     """Own one game's reusable backend, never a model or its probabilities."""
 
-    def __init__(self, game, *, backend="auto", use_cpp_br=True):
+    def __init__(self, game, *, backend):
         pyspiel = _require_pyspiel()
         kind = game.get_type()
         if (
@@ -81,50 +53,19 @@ class ExactOpenSpielEvaluator:
             raise ValueError(
                 "exact exploitability requires a two-player sequential zero-sum game"
             )
-        self.backend = exact_backend(game, backend=backend, use_cpp_br=use_cpp_br)
+        self.backend = backend
         # exp-a-spiel reuses mutable working buffers as well as the infosets.
         self._lock = RLock()
 
     def evaluate(self, model, *, temperature=1.0, batch_size=64) -> NashConvResult:
+        if not math.isfinite(temperature) or temperature < 0:
+            raise ValueError("temperature must be finite and non-negative")
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
-        policy = ModelPolicy(model, temperature)
-        with self._lock:
-            training = model.training
-            try:
-                model.eval()
-                return self.backend.evaluate(policy, batch_size=batch_size)
-            finally:
-                model.train(training)
-
-
-class OpenSpielModelEvaluator(ModelEvaluator):
-    """Exact exploitability of one model played in both seats."""
-
-    metric_name = "exploitability"
-
-    def __init__(self, game, *, spiel_game=None, progress=True):
-        if spiel_game is None:
-            # Inspect the registered factory without drawing chance outcomes.
-            spiel_game = game.make_game(resolve_chance=False)._game
-        self.spiel_game = spiel_game
-        self.exact_evaluator = ExactOpenSpielEvaluator(spiel_game)
-
-    def _evaluate(
-        self, inference, *, temperature=1.0, **sampled_options
-    ) -> ModelEvaluation:
-        result = self.exact_evaluator.evaluate(
-            inference.model,
-            temperature=temperature,
-            batch_size=inference.batch_size,
-        )
-        return ModelEvaluation(
-            {"exploitability": result.exploitability, "nash_conv": result.nash_conv},
-            self.metric_name,
-            result.exploitability,
-            -result.exploitability,
-            temperature,
-        )
+        inference = Inference(model, batch_size=batch_size)
+        policy = partial(inference.probabilities, temperature=temperature)
+        with self._lock, inference.evaluating():
+            return self.backend.evaluate(policy, batch_size=batch_size)
 
 
 class OpenSpielTreeEvaluator:
@@ -132,17 +73,16 @@ class OpenSpielTreeEvaluator:
         self.game = game
         self.use_cpp_br = use_cpp_br
 
-    def evaluate(self, model_policy, *, batch_size):
+    def evaluate(self, predict, *, batch_size):
         return _tree_nash_conv(
-            model_policy.model,
+            predict,
             self.game,
-            temperature=model_policy.temperature,
             use_cpp_br=self.use_cpp_br,
             batch_size=batch_size,
         )
 
 
-def _tree_nash_conv(model, game, *, temperature, use_cpp_br, batch_size):
+def _tree_nash_conv(predict, game, *, use_cpp_br, batch_size):
     pyspiel = _require_pyspiel()
     policy_lib, exploitability_module = _require_policy_modules()
     information_state = (
@@ -151,9 +91,8 @@ def _tree_nash_conv(model, game, *, temperature, use_cpp_br, batch_size):
     )
     policy = OpenSpielPolicy(
         game,
-        model,
+        predict,
         information_state=information_state,
-        temperature=temperature,
     )
     policy.precompute(policy_lib.TabularPolicy(game).states, batch_size=batch_size)
     result = exploitability_module.nash_conv(

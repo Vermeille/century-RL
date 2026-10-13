@@ -14,6 +14,7 @@ else:
 from boardrl import (
     Checkpoints,
     Console,
+    Evaluator,
     Inference,
     MetricLogger,
     RolloutRunner,
@@ -105,6 +106,9 @@ def _run(args, trackio_sink):
         coop.apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
         copy_weights(reference, model)
+        if args.save_best and best_checkpoints.latest:
+            best_state = best_checkpoints.load(map_location="cpu")
+            best_score = best_state["metadata"].get("evaluation_points", float("-inf"))
 
     inference = Inference(model, batch_size=args.inference_batch_size)
     rollouts = RolloutRunner(
@@ -112,22 +116,13 @@ def _run(args, trackio_sink):
         progress=not args.no_progress,
         outcome=game.outcome,
     )
-    evaluator = game.make_model_evaluator(
-        progress=not args.no_progress, sampled=args.sampled_evaluation,
+    evaluator = Evaluator(
+        game.make_game,
+        progress=not args.no_progress,
+        outcome=game.outcome,
     )
-    evaluation_options = dict(
-        games=args.evaluation_games,
-        max_steps=args.rollout_max_steps,
-        opponent=args.opponent_eval_strategy,
-        names=["current", args.opponent_eval_strategy],
-        temperature=args.eval_temperature,
-    )
-    if args.resume and args.save_best:
-        best_score = evaluator.restore_best_score(
-            best_checkpoints, inference, model_name="current",
-            **evaluation_options,
-        )
     training_opponent = game.strategy_from_string(args.opponent_bot)
+    evaluation_opponent = game.strategy_from_string(args.opponent_eval_strategy)
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
@@ -153,12 +148,22 @@ def _run(args, trackio_sink):
     def evaluate(step):
         nonlocal best_score
 
-        evaluation = evaluator.evaluate(inference, **evaluation_options)
+        with inference.evaluating():
+            player = inference.policy(temperature=args.eval_temperature)
+            evaluation = evaluator.compare(
+                [player, evaluation_opponent],
+                names=["current", args.opponent_eval_strategy],
+                games=args.evaluation_games,
+                max_steps=args.rollout_max_steps,
+            )
         metrics.log(
             step,
-            evaluation=evaluation.metrics,
+            evaluation={
+                "win_rate": evaluation.win_rate(),
+                **game.scores.evaluation_metrics(evaluation),
+            },
         )
-        score = evaluation.selection_score
+        score = game.rewards.evaluation_score(evaluation)
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -168,7 +173,7 @@ def _run(args, trackio_sink):
                 optimizer,
                 learner,
                 args,
-                **evaluation.checkpoint_metadata(),
+                evaluation_points=score,
             )
 
     with learner:

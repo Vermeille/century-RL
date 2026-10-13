@@ -12,6 +12,7 @@ import torch
 from boardrl import (
     Checkpoints,
     Console,
+    Evaluator,
     Inference,
     MetricLogger,
     RolloutRunner,
@@ -228,15 +229,6 @@ def build_parser():
         help="maximum number of environment steps per rollout game",
     )
     parser.add_argument("--evaluation-games", type=positive_int, default=512)
-    parser.add_argument(
-        "--sampled-evaluation",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help=(
-            "evaluate sampled games instead of the game's default evaluator "
-            "(e.g. exact exploitability)"
-        ),
-    )
     parser.add_argument("--evaluation-every", type=positive_int, default=50)
     parser.add_argument("--save-every", type=positive_int, default=25)
     parser.add_argument(
@@ -281,7 +273,7 @@ def build_parser():
     )
     parser.add_argument(
         "--opponent-eval-strategy",
-        help="opponent for sampled evaluation in non-cooperative games",
+        help="For non coop game, what evaluation strategy is used as opponent",
         default="random",
     )
     parser.add_argument(
@@ -539,6 +531,9 @@ def _run(args, trackio_sink):
         )
         apply_optimizer_hyperparameters(optimizer, args)
         start = state["step"]
+        if args.save_best and best_checkpoints.latest:
+            best_state = best_checkpoints.load(map_location="cpu")
+            best_score = best_state["metadata"].get("evaluation_points", float("-inf"))
 
     inference = Inference(model, batch_size=args.inference_batch_size)
     training_games = RandomOpeningGameFactory(
@@ -548,21 +543,9 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         training_games, progress=not args.no_progress, outcome=game.outcome
     )
-    evaluator = game.make_model_evaluator(
-        progress=not args.no_progress, sampled=args.sampled_evaluation,
+    evaluator = Evaluator(
+        game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
-    evaluation_options = dict(
-        games=args.evaluation_games,
-        max_steps=800,
-        opponent=None if game.coop else args.opponent_eval_strategy,
-        names=["current", "current"],
-        temperature=args.eval_temperature,
-    )
-    if args.resume and args.save_best:
-        best_score = evaluator.restore_best_score(
-            best_checkpoints, inference, model_name="current",
-            **evaluation_options,
-        )
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
@@ -583,12 +566,24 @@ def _run(args, trackio_sink):
     def evaluate(step):
         nonlocal best_score
 
-        evaluation = evaluator.evaluate(inference, **evaluation_options)
+        with inference.evaluating():
+            player = inference.policy(temperature=args.eval_temperature)
+            evaluation = evaluator.compare(
+                [player, player]
+                if game.coop
+                else [player, game.strategy_from_string(args.opponent_eval_strategy)],
+                names=["current", "current"],
+                games=args.evaluation_games,
+                max_steps=800,
+            )
         metrics.log(
             step,
-            evaluation=evaluation.metrics,
+            evaluation={
+                "win_rate": evaluation.win_rate(),
+                **game.scores.evaluation_metrics(evaluation),
+            },
         )
-        score = evaluation.selection_score
+        score = game.rewards.evaluation_score(evaluation)
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -598,7 +593,7 @@ def _run(args, trackio_sink):
                 optimizer,
                 learner,
                 args,
-                **evaluation.checkpoint_metadata(),
+                evaluation_points=score,
             )
 
     with learner:

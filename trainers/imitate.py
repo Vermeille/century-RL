@@ -11,6 +11,7 @@ import torch
 from boardrl import (
     Checkpoints,
     Console,
+    Evaluator,
     Inference,
     MetricLogger,
     RolloutRunner,
@@ -57,20 +58,8 @@ def build_parser():
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
     parser.add_argument(
-        "--sampled-evaluation",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help=(
-            "evaluate sampled games instead of the game's default evaluator "
-            "(e.g. exact exploitability)"
-        ),
-    )
-    parser.add_argument(
         "--opponent-eval-strategy",
-        help=(
-            "opponent for sampled evaluation in non-cooperative games "
-            "(default: self-play)"
-        ),
+        help="evaluation opponent for competitive games (default: self-play)",
     )
     parser.add_argument("--save-every", type=int, default=25)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
@@ -210,8 +199,8 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
-    evaluator = game.make_model_evaluator(
-        progress=not args.no_progress, sampled=args.sampled_evaluation,
+    evaluator = Evaluator(
+        game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
     sinks = [Console()]
     if trackio_sink is not None:
@@ -284,14 +273,23 @@ def _run(args, trackio_sink):
 
 
 def log_gameplay_evaluation(step, inference, evaluator, metrics, args, game):
-    opponent = None if game.coop else args.opponent_eval_strategy
-    evaluation = evaluator.evaluate(
-        inference, names=["current", opponent or "current"],
-        games=args.evaluation_games, max_steps=800,
-        opponent=opponent,
-        temperature=args.eval_temperature,
+    with inference.evaluating():
+        player = inference.policy(temperature=args.eval_temperature)
+        evaluation = evaluator.compare(
+            [player, player]
+            if game.coop or args.opponent_eval_strategy is None
+            else [player, game.strategy_from_string(args.opponent_eval_strategy)],
+            names=["current", args.opponent_eval_strategy or "current"],
+            games=args.evaluation_games,
+            max_steps=800,
+        )
+    metrics.log(
+        step,
+        evaluation={
+            "win_rate": evaluation.win_rate(),
+            **game.scores.evaluation_metrics(evaluation),
+        },
     )
-    metrics.log(step, evaluation=evaluation.metrics)
 
 
 def save(checkpoints, step, model, optimizer, args, *, pretrain=False):

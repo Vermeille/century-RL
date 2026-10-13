@@ -5,7 +5,6 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from boardrl.games.openspiel.evaluation import OpenSpielModelEvaluator
 from boardrl.games import games_library
 from boardrl.games.augmentations import shuffle_actions
 from boardrl.games.openspiel.game import OpenSpielGame
@@ -72,7 +71,7 @@ def test_presets_select_native_rules_and_training_semantics(name):
     assert desc.rewards.points_value_head is False
     assert desc.coop is False
     assert desc.augmentations == (shuffle_actions,)
-    assert type(desc.make_model_evaluator(progress=False)) is OpenSpielModelEvaluator
+    assert desc.exact_evaluation is not None
     with pytest.raises(ValueError, match="players"):
         desc.make_game(num_players=3)
 

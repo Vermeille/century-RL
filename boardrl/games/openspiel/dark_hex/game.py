@@ -9,3 +9,9 @@ class DarkHex(OpenSpiel):
             information_state=True,
             **kwargs,
         )
+
+    @staticmethod
+    def evaluation_backend(game):
+        from boardrl.games.openspiel.dark_hex.evaluation import DarkHexEvaluator
+
+        return DarkHexEvaluator(game)

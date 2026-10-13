@@ -11,3 +11,9 @@ class LiarsDice(OpenSpiel):
             information_state=True,
             **kwargs,
         )
+
+    @staticmethod
+    def evaluation_backend(game):
+        from boardrl.games.openspiel.liars_dice.evaluation import LiarsDiceEvaluator
+
+        return LiarsDiceEvaluator(game)

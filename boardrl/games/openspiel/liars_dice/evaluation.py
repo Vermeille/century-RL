@@ -99,7 +99,7 @@ class LiarsDiceEvaluator:
         predictions = []
         for start in range(0, len(texts), batch_size):
             predictions.extend(
-                policy.predict(
+                policy(
                     texts[start : start + batch_size],
                     action_counts[start : start + batch_size],
                 )

@@ -104,7 +104,7 @@ class ExpASpielEvaluator:
                     actions.append(legal)
                     indices.append(row)
             if texts:
-                predictions = policy.predict(texts, [len(legal) for legal in actions])
+                predictions = policy(texts, [len(legal) for legal in actions])
                 for row, legal, probabilities in zip(
                     indices, actions, predictions, strict=True
                 ):

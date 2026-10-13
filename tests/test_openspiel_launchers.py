@@ -1,9 +1,9 @@
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -74,6 +74,7 @@ else:
         result = subprocess.run(
             ["bash", str(tmp_path / script), *arguments],
             cwd=repository,
+            check=False,
             env=env,
             text=True,
             capture_output=True,
@@ -114,7 +115,7 @@ def test_launchers_rate_during_training_then_evaluate_exactly(
     args = load_trainer_module(trainer).build_parser().parse_args(training[2:])
     assert args.game == game
     assert args.tag == "tag with spaces"
-    assert args.sampled_evaluation
+    assert "--sampled-evaluation" not in training
     assert events[-1]["args"][:3] == [
         "python",
         "evaluate_nashconv.py",
@@ -126,13 +127,14 @@ def test_launchers_rate_during_training_then_evaluate_exactly(
 
 def test_launcher_preserves_game_and_evaluation_overrides(launch):
     result, events = launch(
-        "train_openspiel.sh", ["--game", "abrupt_dark_hex", "--no-sampled-evaluation"]
+        "train_openspiel.sh",
+        ["--game", "abrupt_dark_hex", "--opponent-eval-strategy", "longest_move"],
     )
     assert result.returncode == 0, result.stderr
     training = next(event["args"] for event in events if event["event"] == "training")
     args = load_trainer_module().build_parser().parse_args(training[2:])
     assert args.game == "abrupt_dark_hex"
-    assert not args.sampled_evaluation
+    assert args.opponent_eval_strategy == "longest_move"
 
 
 @pytest.mark.parametrize(

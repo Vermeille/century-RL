@@ -5,12 +5,12 @@ import pytest
 
 pytest.importorskip("pyspiel")
 
+import evaluate_nashconv as cli
 from boardrl.checkpoints import Checkpoints
 from boardrl.games import games_library
 from boardrl.games.openspiel.result import NashConvResult
 from boardrl.models import make_for_game
 from boardrl.run import RunInfo
-import evaluate_nashconv as cli
 
 
 def save_run(directory, game="phantom_ttt"):
@@ -57,7 +57,7 @@ def test_training_run_uses_final_step_and_recorded_settings(
     model, temperature, batch_size, device = "agent", 0.7, 13, "cpu"
     if override:
         output = tmp_path / "explicit.json"
-        game_spec = "phantom_ttt(gameversion=abrupt,obstype=reveal-nothing)"
+        game_spec = "abrupt_phantom_ttt"
         model, temperature, batch_size, device = "environment", 0.0, 5, "cuda:1"
         argv += [
             "--game",
@@ -83,7 +83,9 @@ def test_training_run_uses_final_step_and_recorded_settings(
     assert str(options["spiel_game"]) == str(cli.resolve_game(game))
     assert options["temperature"] == temperature
     assert options["batch_size"] == batch_size
-    assert options["backend"] == "auto"
+    assert options["backend"].traverser_name == (
+        "AbruptPtttTraverser" if override else "PtttTraverser"
+    )
     report = json.loads(capsys.readouterr().out)
     assert json.loads(output.read_text()) == report
     assert report["checkpoint"] == str(tmp_path / "step-10.pth")
