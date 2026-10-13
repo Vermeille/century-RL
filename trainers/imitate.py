@@ -11,7 +11,6 @@ import torch
 from boardrl import (
     Checkpoints,
     Console,
-    Evaluator,
     Inference,
     MetricLogger,
     RolloutRunner,
@@ -195,9 +194,7 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
-    evaluator = Evaluator(
-        game.make_game, progress=not args.no_progress, outcome=game.outcome
-    )
+    evaluator = game.make_model_evaluator(progress=not args.no_progress)
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
@@ -269,21 +266,12 @@ def _run(args, trackio_sink):
 
 
 def log_gameplay_evaluation(step, inference, evaluator, metrics, args, game):
-    with inference.evaluating():
-        player = inference.policy(temperature=args.eval_temperature)
-        evaluation = evaluator.compare(
-            [player, player],
-            names=["current", "current"],
-            games=args.evaluation_games,
-            max_steps=800,
-        )
-    metrics.log(
-        step,
-        evaluation={
-            "win_rate": evaluation.win_rate(),
-            **game.scores.evaluation_metrics(evaluation),
-        },
+    evaluation = evaluator.evaluate(
+        inference, names=["current", "current"],
+        games=args.evaluation_games, max_steps=800,
+        temperature=args.eval_temperature,
     )
+    metrics.log(step, evaluation=evaluation.metrics)
 
 
 def save(checkpoints, step, model, optimizer, args, *, pretrain=False):

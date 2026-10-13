@@ -17,7 +17,6 @@ else:
 from boardrl import (
     Checkpoints,
     Console,
-    Evaluator,
     Inference,
     MetricLogger,
     RolloutRunner,
@@ -257,9 +256,6 @@ def _run(args, trackio_sink):
         coop.apply_optimizer_hyperparameters(agent_optimizer, args)
         coop.apply_optimizer_hyperparameters(environment_optimizer, args)
         start = state["step"]
-        if args.save_best and best_checkpoints.latest:
-            best_state = best_checkpoints.load(map_location="cpu")
-            best_score = best_state["metadata"]["evaluation_points"]
 
     agent_inference = Inference(
         agent,
@@ -280,12 +276,19 @@ def _run(args, trackio_sink):
         progress=not args.no_progress,
         outcome=game.outcome,
     )
-    evaluator = Evaluator(
-        game.make_game,
-        progress=not args.no_progress,
-        outcome=game.outcome,
+    evaluator = game.make_model_evaluator(progress=not args.no_progress)
+    evaluation_options = dict(
+        games=args.evaluation_games,
+        max_steps=args.rollout_max_steps,
+        opponent=args.opponent_eval_strategy,
+        names=["agent", args.opponent_eval_strategy],
+        temperature=args.eval_temperature,
     )
-    evaluation_opponent = game.strategy_from_string(args.opponent_eval_strategy)
+    if args.resume and args.save_best:
+        best_score = evaluator.restore_best_score(
+            best_checkpoints, agent_inference, model_name="agent",
+            **evaluation_options,
+        )
 
     sinks = [Console()]
     if trackio_sink is not None:
@@ -306,40 +309,19 @@ def _run(args, trackio_sink):
     def evaluate(step):
         nonlocal best_score
 
-        with agent_inference.evaluating(), environment_inference.evaluating():
-            agent_player = agent_inference.policy(temperature=args.eval_temperature)
-            environment_player = environment_inference.policy(
-                temperature=args.eval_temperature
-            )
-            agent_evaluation = evaluator.compare(
-                [agent_player, evaluation_opponent],
-                names=["agent", args.opponent_eval_strategy],
-                games=args.evaluation_games,
-                max_steps=args.rollout_max_steps,
-                rotate=True,
-            )
-            environment_evaluation = evaluator.compare(
-                [environment_player, evaluation_opponent],
-                names=["environment", args.opponent_eval_strategy],
-                games=args.evaluation_games,
-                max_steps=args.rollout_max_steps,
-                rotate=True,
-            )
+        agent_evaluation = evaluator.evaluate(agent_inference, **evaluation_options)
+        environment_evaluation = evaluator.evaluate(
+            environment_inference, **evaluation_options
+        )
 
         metrics.log(
             step,
             evaluation={
-                "agent": {
-                    "win_rate": agent_evaluation.win_rate(),
-                    **game.scores.evaluation_metrics(agent_evaluation),
-                },
-                "environment": {
-                    "win_rate": environment_evaluation.win_rate(),
-                    **game.scores.evaluation_metrics(environment_evaluation),
-                },
+                "agent": agent_evaluation.metrics,
+                "environment": environment_evaluation.metrics,
             },
         )
-        score = game.rewards.evaluation_score(agent_evaluation)
+        score = agent_evaluation.selection_score
         if args.save_best and score > best_score:
             best_score = score
             save(
@@ -352,7 +334,7 @@ def _run(args, trackio_sink):
                 agent_learner,
                 environment_learner,
                 args,
-                evaluation_points=score,
+                **agent_evaluation.checkpoint_metadata(),
             )
 
     with pause:
