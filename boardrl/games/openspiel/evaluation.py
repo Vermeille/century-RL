@@ -6,6 +6,7 @@ from threading import RLock
 
 from boardrl.evaluation import ModelEvaluation, ModelEvaluator
 from boardrl.games.openspiel.game import _require_pyspiel
+from boardrl.games.openspiel.liars_dice.evaluation import LiarsDiceEvaluator
 from boardrl.games.openspiel.policy import (
     ModelPolicy,
     OpenSpielPolicy,
@@ -24,6 +25,8 @@ def exact_backend(game, *, backend="auto", use_cpp_br=True):
             "OpenSpiel's Dark Hex string gives best responses an extra global clock; "
             "use the exp-a-spiel backend for reveal-nothing evaluation"
         )
+    if backend == "auto" and name == "liars_dice":
+        return LiarsDiceEvaluator(game)
     return OpenSpielTreeEvaluator(game, use_cpp_br=use_cpp_br)
 
 
