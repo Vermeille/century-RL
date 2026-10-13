@@ -73,10 +73,14 @@ class GameDesc:
         self.coop = outcome.cooperative
         self.model_evaluation = model_evaluation
 
-    def make_model_evaluator(self, *, progress=True):
+    def make_model_evaluator(self, *, progress=True, sampled=False):
         from boardrl.evaluation import SampledModelEvaluator
 
-        factory = self.model_evaluation or SampledModelEvaluator
+        factory = (
+            SampledModelEvaluator
+            if sampled
+            else self.model_evaluation or SampledModelEvaluator
+        )
         return factory(self, progress=progress)
 
 

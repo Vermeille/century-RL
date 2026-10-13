@@ -228,6 +228,14 @@ def build_parser():
         help="maximum number of environment steps per rollout game",
     )
     parser.add_argument("--evaluation-games", type=positive_int, default=512)
+    parser.add_argument(
+        "--sampled-evaluation",
+        action="store_true",
+        help=(
+            "evaluate sampled games instead of the game's default evaluator "
+            "(e.g. exact exploitability)"
+        ),
+    )
     parser.add_argument("--evaluation-every", type=positive_int, default=50)
     parser.add_argument("--save-every", type=positive_int, default=25)
     parser.add_argument(
@@ -272,7 +280,7 @@ def build_parser():
     )
     parser.add_argument(
         "--opponent-eval-strategy",
-        help="For non coop game, what evaluation strategy is used as opponent",
+        help="opponent for sampled evaluation in non-cooperative games",
         default="random",
     )
     parser.add_argument(
@@ -539,7 +547,9 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         training_games, progress=not args.no_progress, outcome=game.outcome
     )
-    evaluator = game.make_model_evaluator(progress=not args.no_progress)
+    evaluator = game.make_model_evaluator(
+        progress=not args.no_progress, sampled=args.sampled_evaluation,
+    )
     evaluation_options = dict(
         games=args.evaluation_games,
         max_steps=800,

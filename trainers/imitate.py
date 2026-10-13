@@ -56,6 +56,21 @@ def build_parser():
     parser.add_argument("--strategy")
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
+    parser.add_argument(
+        "--sampled-evaluation",
+        action="store_true",
+        help=(
+            "evaluate sampled games instead of the game's default evaluator "
+            "(e.g. exact exploitability)"
+        ),
+    )
+    parser.add_argument(
+        "--opponent-eval-strategy",
+        help=(
+            "opponent for sampled evaluation in non-cooperative games "
+            "(default: self-play)"
+        ),
+    )
     parser.add_argument("--save-every", type=int, default=25)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
@@ -194,7 +209,9 @@ def _run(args, trackio_sink):
     rollouts = RolloutRunner(
         game.make_game, progress=not args.no_progress, outcome=game.outcome
     )
-    evaluator = game.make_model_evaluator(progress=not args.no_progress)
+    evaluator = game.make_model_evaluator(
+        progress=not args.no_progress, sampled=args.sampled_evaluation,
+    )
     sinks = [Console()]
     if trackio_sink is not None:
         sinks.append(trackio_sink)
@@ -266,9 +283,11 @@ def _run(args, trackio_sink):
 
 
 def log_gameplay_evaluation(step, inference, evaluator, metrics, args, game):
+    opponent = None if game.coop else args.opponent_eval_strategy
     evaluation = evaluator.evaluate(
-        inference, names=["current", "current"],
+        inference, names=["current", opponent or "current"],
         games=args.evaluation_games, max_steps=800,
+        opponent=opponent,
         temperature=args.eval_temperature,
     )
     metrics.log(step, evaluation=evaluation.metrics)

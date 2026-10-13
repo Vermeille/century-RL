@@ -115,12 +115,41 @@ attempt. The private board and ordered own attempts remain intact. The evaluatio
 backend constructs exactly the same text and legal-action order as training. Earlier Dark Hex
 checkpoints trained with the counter need a new run to match this setting.
 
-All five presets select exact evaluation and best checkpoints by
+By default, all five presets select exact evaluation and best checkpoints by
 `-exploitability`. Both seats use the model being evaluated, with stochastic
 play at temperature 1 by default. Changing evaluation temperature changes the
 policy being measured. Rewards are not rescaled in the evaluator.
 
-The reported quantities are:
+For faster evaluation against a fixed opponent, pass `--sampled-evaluation`
+to any trainer. For example, the Phantom Tic-Tac-Toe launcher accepts:
+
+```bash
+./train_openspiel.sh --sampled-evaluation --opponent-eval-strategy random --evaluation-games 256
+```
+
+This uses ordinary rollouts with seat rotation and never constructs the exact
+evaluator or enumerates information states. `--opponent-eval-strategy` accepts
+the game's registered strategies. The resulting win rate (or points for Leduc)
+also selects best checkpoints; it measures performance against that opponent,
+not exploitability. Cooperative games retain sampled self-play; `imitate.py`
+also defaults to self-play unless an opponent is supplied.
+
+Exact exploitability remains available independently of the training evaluator:
+
+```bash
+uv run python evaluate_nashconv.py /path/to/checkpoint.pth \
+  --game phantom_ttt --model agent --temperature 1
+```
+
+Run this on the final checkpoint after training, or on any saved checkpoint
+manually. The same script accepts `leduc`, `liars_dice`, `dark_hex`,
+`abrupt_dark_hex`, `phantom_ttt`, and `abrupt_phantom_ttt`, and selects their
+exact backends automatically. For an adversarial checkpoint, choose
+`--model agent` or `--model environment` to evaluate that policy in both seats. A separate
+process builds its own information-set cache, so this still incurs the full
+exact evaluation cost once per invocation.
+
+Exact evaluation reports:
 
 - `nash_conv`: the sum of the two players' unilateral best-response gains.
 - `exploitability`: `nash_conv / 2`, matching Section 2.1 of the paper.
@@ -220,17 +249,18 @@ start a new run with the points value head.
 
 ## Leduc: exact NashConv / exploitability
 
-All trainers use the evaluation method selected by the game descriptor. For
-two-player Leduc, evaluation logs `exploitability` and `nash_conv` instead of
-sampled win rate or points against random. Adversarial trainers retain their
-`evaluation/agent/` and `evaluation/environment/` metric groups where applicable;
+By default, all trainers use the evaluation method selected by the game
+descriptor. For two-player Leduc, evaluation logs `exploitability` and
+`nash_conv` instead of sampled win rate or points against random. Adversarial
+trainers retain their `evaluation/agent/` and `evaluation/environment/` metric groups where applicable;
 each model is independently evaluated in both seats. Exploitability is measured
 in chips per hand and lower is better. Best checkpoints minimize the agent's
 exploitability using the selection score `-exploitability`.
 
 The existing evaluation cadence and `--eval-temperature` still apply. Exact
 evaluation covers every information state using `--inference-batch-size`;
-`--evaluation-games` and `--opponent-eval-strategy` do not affect Leduc evaluation.
+`--evaluation-games` and `--opponent-eval-strategy` only apply when
+`--sampled-evaluation` is supplied.
 The five paper presets also use exact evaluation through the backends above.
 Other games retain their sampled opponent or self-play evaluation.
 

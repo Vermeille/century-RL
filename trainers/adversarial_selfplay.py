@@ -179,7 +179,9 @@ def _run(
         progress=not args.no_progress,
         outcome=game.outcome,
     )
-    evaluator = game.make_model_evaluator(progress=not args.no_progress)
+    evaluator = game.make_model_evaluator(
+        progress=not args.no_progress, sampled=args.sampled_evaluation,
+    )
     evaluation_options = dict(
         games=args.evaluation_games,
         max_steps=args.rollout_max_steps,
