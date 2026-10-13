@@ -198,6 +198,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
+        model_evaluation=openspiel_evaluator,
     )
 
     register_game(
@@ -208,6 +209,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
+        model_evaluation=openspiel_evaluator,
     )
 
     register_game(
@@ -218,6 +220,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
+        model_evaluation=openspiel_evaluator,
     )
 
     register_game(
@@ -228,6 +231,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
+        model_evaluation=openspiel_evaluator,
     )
 
     register_game(

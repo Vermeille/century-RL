@@ -5,8 +5,14 @@ from __future__ import annotations
 from threading import RLock
 
 from boardrl.evaluation import ModelEvaluation, ModelEvaluator
+from boardrl.games.openspiel.abrupt_dark_hex.evaluation import AbruptDarkHexEvaluator
+from boardrl.games.openspiel.abrupt_phantom_ttt.evaluation import (
+    AbruptPhantomTicTacToeEvaluator,
+)
+from boardrl.games.openspiel.dark_hex.evaluation import DarkHexEvaluator
 from boardrl.games.openspiel.game import _require_pyspiel
 from boardrl.games.openspiel.liars_dice.evaluation import LiarsDiceEvaluator
+from boardrl.games.openspiel.phantom_ttt.evaluation import PhantomTicTacToeEvaluator
 from boardrl.games.openspiel.policy import (
     ModelPolicy,
     OpenSpielPolicy,
@@ -20,14 +26,28 @@ def exact_backend(game, *, backend="auto", use_cpp_br=True):
         raise ValueError("backend must be 'auto' or 'openspiel'")
     name = game.get_type().short_name
     parameters = game.get_parameters()
-    if name == "dark_hex" and parameters["obstype"] == "reveal-nothing":
-        raise ValueError(
-            "OpenSpiel's Dark Hex string gives best responses an extra global clock; "
-            "use the exp-a-spiel backend for reveal-nothing evaluation"
-        )
-    if backend == "auto" and name == "liars_dice":
-        return LiarsDiceEvaluator(game)
-    return OpenSpielTreeEvaluator(game, use_cpp_br=use_cpp_br)
+    if backend == "openspiel":
+        if name == "dark_hex" and parameters["obstype"] == "reveal-nothing":
+            raise ValueError(
+                "OpenSpiel's Dark Hex string gives best responses an extra global clock; "
+                "use the exp-a-spiel backend for reveal-nothing evaluation"
+            )
+        return OpenSpielTreeEvaluator(game, use_cpp_br=use_cpp_br)
+    factories = {
+        "dark_hex": {"cdh": DarkHexEvaluator, "adh": AbruptDarkHexEvaluator},
+        "phantom_ttt": {
+            "classical": PhantomTicTacToeEvaluator,
+            "abrupt": AbruptPhantomTicTacToeEvaluator,
+        },
+        "liars_dice": {None: LiarsDiceEvaluator},
+    }.get(name)
+    if factories is None:
+        return OpenSpielTreeEvaluator(game, use_cpp_br=use_cpp_br)
+    try:
+        factory = factories[parameters.get("gameversion")]
+    except KeyError as exc:
+        raise ValueError("unsupported game version for exact evaluation") from exc
+    return factory(game)
 
 
 def nash_conv(
