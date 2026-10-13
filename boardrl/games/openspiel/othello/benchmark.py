@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 import torch
 
+from boardrl.games.openspiel.othello.game import Othello
 from boardrl.games.openspiel.othello.gtp import GTPEngine
-from boardrl.games.openspiel.game import OpenSpielGame
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,7 @@ class ModelMoveSelector:
         self.model = model
         self.temperature = temperature
 
-    def select(self, game: OpenSpielGame) -> str:
+    def select(self, game: Othello) -> str:
         with torch.no_grad():
             logits = self.model([game.display_with_moves()]).policy[0].detach()
         if len(logits) != len(game.moves):
@@ -66,7 +66,7 @@ class OthelloEngineBenchmark:
         self.rng = random.Random(seed)
 
     def _opening(self) -> tuple[str, ...]:
-        game = OpenSpielGame("othello")
+        game = Othello()
         moves = []
         for _ in range(self.opening_plies):
             if game.ended():
@@ -81,7 +81,7 @@ class OthelloEngineBenchmark:
         return "b" if player == 0 else "w"
 
     def _play(self, agent_player: int, opening: tuple[str, ...]) -> float:
-        game = OpenSpielGame("othello")
+        game = Othello()
         self.engine.clear_board()
 
         for move in opening:

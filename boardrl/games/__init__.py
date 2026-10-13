@@ -15,7 +15,9 @@ from boardrl.games.connectfour.strategies import (
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
 from boardrl.games.hanabi.game import Hanabi as HanabiGame
 from boardrl.games.nim.game import Nim as NimGame
-from boardrl.games.nim.strategies import strategy_from_string as nim_strategy_from_string
+from boardrl.games.nim.strategies import (
+    strategy_from_string as nim_strategy_from_string,
+)
 from boardrl.games.regicide.game import Regicide as RegicideGame
 from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
 from boardrl.games.santorini.augmentations import (
@@ -28,7 +30,9 @@ from boardrl.games.skullking.game import SkullKing as SkullKingGame
 from boardrl.games.splendor.game import Splendor as SplendorGame
 from boardrl.games.splendor.semantics import SplendorOutcome
 from boardrl.games.sum.game import Sum as SumGame
-from boardrl.games.sum.strategies import strategy_from_string as sum_strategy_from_string
+from boardrl.games.sum.strategies import (
+    strategy_from_string as sum_strategy_from_string,
+)
 from boardrl.games.take5.game import Take5 as Take5Game
 from boardrl.games.thegame.augmentations import shuffle_hand
 from boardrl.games.thegame.game import TheGame as TheGameGame
@@ -154,35 +158,84 @@ class Century(GameDesc):
 
 
 if find_spec("pyspiel") is not None:
+    from boardrl.games.openspiel.abrupt_dark_hex.game import AbruptDarkHex
+    from boardrl.games.openspiel.abrupt_phantom_ttt.game import AbruptPhantomTicTacToe
+    from boardrl.games.openspiel.dark_hex.game import DarkHex
+    from boardrl.games.openspiel.game import OpenSpiel
+    from boardrl.games.openspiel.leduc.game import Leduc
+    from boardrl.games.openspiel.liars_dice.game import LiarsDice
+    from boardrl.games.openspiel.othello.game import Othello
+    from boardrl.games.openspiel.phantom_ttt.game import PhantomTicTacToe
 
-    @games_library.register("openspiel")
-    class OpenSpiel(GameDesc):
-        """Descriptor for sequential OpenSpiel games."""
+    register_game(
+        "leduc",
+        Leduc,
+        augmentations=(shuffle_actions,),
+        scores=PointScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=PointDeltaRewards(scale=0.1),
+        metrics_from=OpenSpiel,
+    )
 
-        def __init__(self, game: str = "leduc_poker"):
-            from boardrl.games.openspiel.game import OpenSpielGame
-            from boardrl.games.openspiel.metrics import Metrics
+    register_game(
+        "liars_dice",
+        LiarsDice,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+    )
 
-            super().__init__(
-                partial(OpenSpielGame, game),
-                strategy_from_string,
-                Metrics,
-                scores=OutcomeScores(),
-                outcome=CompetitiveOutcome(),
-                rewards=TerminalOutcomeRewards(),
-            )
+    register_game(
+        "dark_hex",
+        DarkHex,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+    )
 
+    register_game(
+        "abrupt_dark_hex",
+        AbruptDarkHex,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+    )
 
-    @games_library.register("leduc")
-    class Leduc(OpenSpiel):
-        def __init__(self):
-            super().__init__("leduc_poker")
+    register_game(
+        "phantom_ttt",
+        PhantomTicTacToe,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+    )
 
+    register_game(
+        "abrupt_phantom_ttt",
+        AbruptPhantomTicTacToe,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+    )
 
-    @games_library.register("othello")
-    class Othello(OpenSpiel):
-        def __init__(self):
-            super().__init__("othello")
+    register_game(
+        "othello",
+        Othello,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+    )
 
 
 register_game(

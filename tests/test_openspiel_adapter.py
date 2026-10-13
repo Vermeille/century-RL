@@ -8,6 +8,9 @@ class FakeType:
 
 
 class FakeGame:
+    def get_parameters(self):
+        return {}
+
     def num_players(self):
         return 2
 
@@ -120,4 +123,4 @@ def test_perfect_information_can_use_observation_strings():
         spiel_game=FakeGame(),
         information_state=False,
     )
-    assert game.display() == "public p0 turn=0"
+    assert game.display() == "[Player: 0]\npublic p0 turn=0"

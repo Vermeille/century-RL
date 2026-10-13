@@ -1,5 +1,18 @@
 from boardrl.games.semantics import OutcomeScores
-from boardrl.metrics import GameMetrics, GroupedTraceMetrics
+from boardrl.metrics import GameMetrics, GroupedTraceMetrics, TraceMetrics
+
+
+class PayoffTraceMetrics(TraceMetrics):
+    """Report native OpenSpiel utility for completed games by strategy."""
+
+    def metrics(self):
+        payoffs = [trace[-1].my_points for trace in self.traces if trace[-1].terminal]
+        total = sum(payoffs)
+        return super().metrics() | {
+            "payoff_games": len(payoffs),
+            "total_payoff": total,
+            "avg_payoff": total / len(payoffs) if payoffs else 0.0,
+        }
 
 
 class Metrics(GameMetrics):
@@ -25,6 +38,6 @@ class Metrics(GameMetrics):
             )
             / len(self.data),
             "strategy": GroupedTraceMetrics(
-                self.data.by_strategy, scores=OutcomeScores()
+                self.data.by_strategy, PayoffTraceMetrics, scores=OutcomeScores()
             ).metrics(),
         }

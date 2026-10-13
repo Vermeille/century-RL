@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import random
+from abc import ABC, abstractmethod
+
+from boardrl.games.openspiel.representation import state_text
 
 
 def _require_pyspiel():
@@ -14,7 +17,7 @@ def _require_pyspiel():
     return pyspiel
 
 
-class OpenSpielGame:
+class OpenSpiel(ABC):
     """Expose a sequential OpenSpiel game through Century's game protocol.
 
     Chance nodes are resolved internally, so rollout code only ever observes
@@ -24,16 +27,18 @@ class OpenSpielGame:
     """
 
     __slots__ = (
-        "game_name",
-        "num_players",
-        "_game",
-        "_state",
-        "_information_state",
-        "_turn",
         "_actions",
+        "_game",
+        "_information_state",
+        "_state",
+        "_text",
+        "_turn",
+        "game_name",
         "moves",
+        "num_players",
     )
 
+    @abstractmethod
     def __init__(
         self,
         game_name: str,
@@ -60,23 +65,12 @@ class OpenSpielGame:
                 == pyspiel.GameType.Information.IMPERFECT_INFORMATION
             )
         self._information_state = information_state
+        self._text = state_text(self._game, information_state)
         self._state = self._game.new_initial_state() if state is None else state.clone()
         self._turn = 0
         if resolve_chance:
             self._resolve_chance()
         self._refresh_moves()
-
-    @classmethod
-    def from_state(cls, state, *, information_state: bool):
-        game = state.get_game()
-        return cls(
-            game.get_type().short_name,
-            num_players=game.num_players(),
-            spiel_game=game,
-            state=state,
-            information_state=information_state,
-            resolve_chance=False,
-        )
 
     @property
     def information_state(self) -> bool:
@@ -123,12 +117,12 @@ class OpenSpielGame:
     def display(self, force: int = -1) -> str:
         player = force
         if player == -1:
-            player = 0 if self.ended() else self.current_player()
+            player = (
+                0 if self.ended() or self._state.is_chance_node() else self.current_player()
+            )
         if not 0 <= player < self.num_players:
             raise ValueError(f"invalid viewer {player}")
-        if self._information_state:
-            return self._state.information_state_string(player)
-        return self._state.observation_string(player)
+        return self._text.display(self._state, player)
 
     def display_with_moves(self) -> str:
         state = self.display()
@@ -180,12 +174,13 @@ class OpenSpielGame:
         return self.diff_points_for(self.current_player()) if not self.ended() else 0.0
 
     def copy(self):
-        copied = OpenSpielGame.__new__(OpenSpielGame)
+        copied = type(self).__new__(type(self))
         copied.game_name = self.game_name
         copied.num_players = self.num_players
         copied._game = self._game
         copied._state = self._state.clone()
         copied._information_state = self._information_state
+        copied._text = self._text
         copied._turn = self._turn
         copied._actions = self._actions.copy()
         copied.moves = self.moves.copy()
@@ -195,3 +190,22 @@ class OpenSpielGame:
         while not self.ended():
             self.play_idx(random.randrange(len(self.moves)))
         return self._state.returns()
+
+
+class OpenSpielGame(OpenSpiel):
+    """Adapt a native specification or state for evaluation tools."""
+
+    def __init__(self, game_name: str, num_players: int = 2, **kwargs):
+        super().__init__(game_name, num_players=num_players, **kwargs)
+
+    @classmethod
+    def from_state(cls, state, *, information_state: bool):
+        game = state.get_game()
+        return cls(
+            game.get_type().short_name,
+            num_players=game.num_players(),
+            spiel_game=game,
+            state=state,
+            information_state=information_state,
+            resolve_chance=False,
+        )
