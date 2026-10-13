@@ -121,10 +121,11 @@ play at temperature 1 by default. Changing evaluation temperature changes the
 policy being measured. Rewards are not rescaled in the evaluator.
 
 For faster evaluation against a fixed opponent, pass `--sampled-evaluation`
-to any trainer. For example, the Phantom Tic-Tac-Toe launcher accepts:
+to any trainer. `train_leduc.sh` and the delegating `train_openspiel.sh` launcher
+enable this by default:
 
 ```bash
-./train_openspiel.sh --sampled-evaluation --opponent-eval-strategy random --evaluation-games 256
+./train_openspiel.sh --opponent-eval-strategy random --evaluation-games 256
 ```
 
 This uses ordinary rollouts with seat rotation and never constructs the exact
@@ -133,6 +134,24 @@ the game's registered strategies. The resulting win rate (or points for Leduc)
 also selects best checkpoints; it measures performance against that opponent,
 not exploitability. Cooperative games retain sampled self-play; `imitate.py`
 also defaults to self-play unless an opponent is supplied.
+
+Both launchers run the checkpoint arena for Elo ratings alongside training.
+After training succeeds and the arena finishes its final ratings, they compute
+exact exploitability once for the final `agent` checkpoint in both seats and
+save `exploitability.json` in the checkpoint directory. This uses the game,
+evaluation temperature, device, and inference batch size recorded in `run.txt`.
+Games without a registered exact evaluator are skipped. Failed or interrupted
+runs do not start final exploitability.
+
+`ARENA=0` disables only the arena; `FINAL_EXPLOITABILITY=0` disables only the
+final exact calculation. Pass `--no-sampled-evaluation` to restore exact
+evaluation throughout training as well.
+
+To repeat the automatic final evaluation manually with the saved run settings:
+
+```bash
+uv run python evaluate_nashconv.py --training-run /path/to/checkpoint-directory
+```
 
 Exact exploitability remains available independently of the training evaluator:
 

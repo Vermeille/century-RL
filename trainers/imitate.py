@@ -58,7 +58,8 @@ def build_parser():
     parser.add_argument("--evaluation-games", type=int, default=256)
     parser.add_argument(
         "--sampled-evaluation",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=False,
         help=(
             "evaluate sampled games instead of the game's default evaluator "
             "(e.g. exact exploitability)"

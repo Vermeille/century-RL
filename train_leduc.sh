@@ -31,6 +31,7 @@ trainer_args=(
   --inference-batch-size 1024
   --learner-batch-size 256
   --rollout-games 1024
+  --sampled-evaluation
   --evaluation-games 512
   --gradient-clip 10000
   --opponent-eval-strategy random
@@ -87,12 +88,17 @@ trainer_command=(
   uv run --extra trackio python "trainers/${TRAINER}.py" "${trainer_args[@]}"
 )
 
-if [[ ${ARENA:-1} == 0 ]]; then
-  exec "${trainer_command[@]}"
-fi
-
 checkpoint_dir=$(
   uv run python trainers/arena.py checkpoint-dir \
     --trainer "$TRAINER" -- "${trainer_args[@]}"
 )
-${trainer_command[@]}
+if [[ ${ARENA:-1} == 0 ]]; then
+  "${trainer_command[@]}"
+else
+  uv run --extra trackio trainers/run_with_arena.sh \
+    "$checkpoint_dir" "${trainer_command[@]}"
+fi
+
+if [[ ${FINAL_EXPLOITABILITY:-1} != 0 ]]; then
+  uv run python evaluate_nashconv.py --training-run "$checkpoint_dir"
+fi
