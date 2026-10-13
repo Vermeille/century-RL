@@ -18,7 +18,7 @@ def _require_pyspiel():
 
 
 class OpenSpiel(ABC):
-    """Expose a sequential OpenSpiel game through Century's game protocol.
+    """Expose a sequential OpenSpiel game through BoardRL's game protocol.
 
     Chance nodes are resolved internally, so rollout code only ever observes
     player decision states. Imperfect-information games expose information-state
@@ -55,7 +55,7 @@ class OpenSpiel(ABC):
         if self.num_players != num_players:
             raise ValueError(
                 f"OpenSpiel game {game_name!r} has {self.num_players} players, "
-                f"but Century requested {num_players}"
+                f"but BoardRL requested {num_players}"
             )
 
         if information_state is None:
@@ -92,7 +92,7 @@ class OpenSpiel(ABC):
         label = self._state.action_to_string(self._state.current_player(), action)
         if "@" in label or "\n" in label:
             raise ValueError(
-                f"OpenSpiel action label {label!r} cannot be represented by Century"
+                f"OpenSpiel action label {label!r} cannot be represented by BoardRL"
             )
         return label
 

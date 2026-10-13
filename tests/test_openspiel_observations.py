@@ -1,5 +1,3 @@
-import re
-
 import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
@@ -12,8 +10,12 @@ from boardrl.rollouts import EndState
 @pytest.mark.parametrize(
     "spec",
     [
-        "liars_dice", "dark_hex", "abrupt_dark_hex",
-        "phantom_ttt", "abrupt_phantom_ttt", "othello",
+        "liars_dice",
+        "dark_hex",
+        "abrupt_dark_hex",
+        "phantom_ttt",
+        "abrupt_phantom_ttt",
+        "othello",
     ],
 )
 def test_games_without_native_tags_identify_the_requested_player(spec):
@@ -43,7 +45,8 @@ def test_leduc_live_views_preserve_native_identity_fields(information_state):
         for player in (0, 1):
             native = (
                 game._state.information_state_string(player)
-                if information_state else game._state.observation_string(player)
+                if information_state
+                else game._state.observation_string(player)
             )
             assert game.display(force=player) == native
             assert f"[Observer: {player}]" in native
@@ -60,7 +63,7 @@ def test_leduc_live_views_preserve_native_identity_fields(information_state):
         ([0, 1, 1, 1, 2, 1, 1], (0, 0), ("draw", "draw"), "100 100"),
     ],
 )
-def test_leduc_final_views_report_settled_result_without_a_stale_turn(
+def test_leduc_final_views_preserve_native_actor_observer_and_private_cards(
     information_state, actions, payoffs, results, money
 ):
     game = view_after("leduc_poker", actions, information_state=information_state)
@@ -69,11 +72,11 @@ def test_leduc_final_views_report_settled_result_without_a_stale_turn(
         end = EndState(game, player)
         native = (
             game._state.information_state_string(player)
-            if information_state else game._state.observation_string(player)
+            if information_state
+            else game._state.observation_string(player)
         )
-        expected = re.sub(r"\[Player: -?\d+\]", f"[Player: {player}]", native)
         assert end.state == (
-            f"{expected}\nGame: ended\nResult: {results[player]}\n"
+            f"{native}\nGame: ended\nResult: {results[player]}\n"
             f"Payoff: {payoffs[player]}"
         )
         assert end.state.count("[Player:") == 1
@@ -117,5 +120,7 @@ def test_unresolved_chance_node_preserves_native_observation():
     game = view_after("leduc_poker", [])
     assert game.display() == game._state.information_state_string(0)
     for player in (0, 1):
-        assert game.display(force=player) == game._state.information_state_string(player)
+        assert game.display(force=player) == game._state.information_state_string(
+            player
+        )
     assert "Game: ended" not in game.display()
