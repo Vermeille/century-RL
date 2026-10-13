@@ -158,6 +158,7 @@ class Century(GameDesc):
 
 
 if find_spec("pyspiel") is not None:
+    from boardrl.games.openspiel import make_model_evaluator as openspiel_evaluator
     from boardrl.games.openspiel.abrupt_dark_hex.game import AbruptDarkHex
     from boardrl.games.openspiel.abrupt_phantom_ttt.game import AbruptPhantomTicTacToe
     from boardrl.games.openspiel.dark_hex.game import DarkHex
@@ -175,6 +176,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=PointDeltaRewards(scale=0.1),
         metrics_from=OpenSpiel,
+        model_evaluation=openspiel_evaluator,
     )
 
     register_game(

@@ -1,0 +1,193 @@
+import math
+import random
+from types import SimpleNamespace
+
+import pytest
+import torch
+
+pyspiel = pytest.importorskip("pyspiel")
+
+from open_spiel.python import policy
+from open_spiel.python.algorithms import exploitability
+
+from boardrl.games import games_library, register_game
+from boardrl.games.openspiel import make_model_evaluator
+from boardrl.games.openspiel.evaluation import OpenSpielModelEvaluator, nash_conv
+from boardrl.games.openspiel.game import OpenSpiel
+from boardrl.games.openspiel.policy import OpenSpielPolicy
+from boardrl.games.semantics import CompetitiveOutcome, PointDeltaRewards, PointScores
+from boardrl.rollouts import Inference
+
+
+class TestPolicyModel(torch.nn.Module):
+    __test__ = False
+
+    def __init__(self, logits=(0.0, 0.0, 0.0)):
+        super().__init__()
+        self.logits = torch.nn.Parameter(torch.tensor(logits))
+        self.batches = []
+        self.modes = []
+
+    def forward(self, texts):
+        self.batches.append(list(texts))
+        self.modes.append(self.training)
+        actions = {"Fold": 0, "Call": 1, "Raise": 2}
+        return SimpleNamespace(
+            policy=[
+                self.logits[
+                    [
+                        actions[line[1:]]
+                        for line in text.splitlines()
+                        if line.startswith("@")
+                    ]
+                ]
+                for text in texts
+            ]
+        )
+
+
+def test_batched_uniform_evaluation_matches_openspiel():
+    game = pyspiel.load_game("leduc_poker")
+    model = TestPolicyModel()
+    result = nash_conv(model)
+    reference = exploitability.nash_conv(game, policy.UniformRandomPolicy(game))
+    assert result.nash_conv == pytest.approx(reference, abs=1e-6)
+    assert result.exploitability == pytest.approx(reference / 2, abs=1e-6)
+    assert result.evaluated_states == 936
+    assert len(model.batches) == math.ceil(936 / 64)
+    assert max(map(len, model.batches)) == 64
+    assert all("[Round1:" in text for batch in model.batches for text in batch)
+
+
+@pytest.mark.parametrize("temperature", [0.0, 0.5, 2.0])
+def test_batching_preserves_action_order_and_temperature(temperature):
+    game = pyspiel.load_game("leduc_poker")
+    model = TestPolicyModel((0.1, -0.4, 1.2))
+    lazy = OpenSpielPolicy(game, model, information_state=True, temperature=temperature)
+    batched = OpenSpielPolicy(
+        game, model, information_state=True, temperature=temperature
+    )
+    states = policy.TabularPolicy(game).states
+    batched.precompute(states)
+    for state in states:
+        expected = lazy.action_probabilities(state)
+        actual = batched.action_probabilities(state)
+        assert list(actual) == state.legal_actions()
+        assert actual == pytest.approx(expected)
+    reference = exploitability.nash_conv(game, lazy)
+    assert nash_conv(model, temperature=temperature).nash_conv == pytest.approx(
+        reference, abs=1e-6
+    )
+
+
+def test_game_selected_exact_evaluation_and_fresh_cache():
+    game = games_library("leduc")
+    model = TestPolicyModel()
+    inference = Inference(model, batch_size=8)
+    evaluator = game.make_model_evaluator(progress=False)
+    first = evaluator.evaluate(
+        inference, opponent="does-not-exist", games=0, max_steps=0
+    )
+    assert set(first.metrics) == {"exploitability", "nash_conv"}
+    assert first.selection_score == -first.primary_value
+    assert first.primary_metric == "exploitability"
+    assert model.training and not any(model.modes)
+    with torch.no_grad():
+        model.logits[2] = 4.0
+    second = evaluator.evaluate(inference)
+    assert second.primary_value != pytest.approx(first.primary_value)
+    assert len(model.batches) == 2 * math.ceil(936 / inference.batch_size)
+    assert max(map(len, model.batches)) == 8
+
+
+@pytest.mark.parametrize("training", [True, False])
+def test_exact_evaluation_restores_model_mode_after_failure(monkeypatch, training):
+    model = TestPolicyModel()
+    model.train(training)
+    evaluator = games_library("leduc").make_model_evaluator()
+
+    def fail(*args, **kwargs):
+        assert not model.training
+        raise RuntimeError("evaluation failed")
+
+    monkeypatch.setattr(evaluator.exact_evaluator, "evaluate", fail)
+    with pytest.raises(RuntimeError, match="evaluation failed"):
+        evaluator.evaluate(Inference(model, batch_size=1))
+    assert model.training is training
+
+
+def test_hidden_opponent_cards_have_identical_policy_inputs():
+    game = pyspiel.load_game("leduc_poker")
+    model = TestPolicyModel((0.0, 0.2, 0.5))
+    adapter = OpenSpielPolicy(game, model, information_state=True)
+    states = []
+    for opponent_card in (1, 4):
+        state = game.new_initial_state()
+        state.apply_action(0)
+        state.apply_action(opponent_card)
+        states.append(state)
+    adapter.precompute(states)
+    assert model.batches == [
+        [
+            states[0].information_state_string(0)
+            + "\n@Call\n@Raise"
+        ]
+    ]
+    assert adapter.action_probabilities(states[0]) == adapter.action_probabilities(
+        states[1]
+    )
+
+
+def test_invalid_batch_size_and_action_dimensions_are_rejected():
+    model = TestPolicyModel()
+    with pytest.raises(ValueError, match="batch_size"):
+        nash_conv(model, batch_size=0)
+    adapter = OpenSpielPolicy(
+        pyspiel.load_game("leduc_poker"), model, information_state=True
+    )
+    with pytest.raises(ValueError, match="legal actions"):
+        adapter._probabilities(torch.zeros(3), 2)
+
+
+def test_exact_evaluation_uses_the_registered_game_parameters(monkeypatch):
+    from boardrl import games
+
+    class VariantLeduc(OpenSpiel):
+        def __init__(self, starting_player: int = 0, **kwargs):
+            super().__init__(
+                f"leduc_poker(suit_isomorphism=true,starting_player={starting_player})",
+                information_state=True,
+                **kwargs,
+            )
+
+    monkeypatch.setattr(games, "games_library", games_library.copy())
+    register_game(
+        "variant_leduc",
+        VariantLeduc,
+        scores=PointScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=PointDeltaRewards(scale=0.1),
+        args_from=VariantLeduc,
+        metrics_from=OpenSpiel,
+        model_evaluation=make_model_evaluator,
+    )
+    game = games.games_library("variant_leduc,starting_player=1")
+    random_state = random.getstate()
+    evaluator = game.make_model_evaluator()
+    assert random.getstate() == random_state
+    native = evaluator.spiel_game
+    assert native.get_parameters() == game.make_game()._game.get_parameters()
+    assert native.get_parameters()["suit_isomorphism"] is True
+    assert native.get_parameters()["starting_player"] == 1
+    model = TestPolicyModel()
+    result = evaluator.evaluate(Inference(model, batch_size=2))
+    expected = exploitability.nash_conv(native, policy.UniformRandomPolicy(native))
+    assert result.metrics["nash_conv"] == pytest.approx(expected, abs=1e-6)
+    assert sum(map(len, model.batches)) == len(policy.TabularPolicy(native).states)
+    assert sum(map(len, model.batches)) != 936
+
+
+@pytest.mark.parametrize("name", ["matrix_rps", "leduc_poker(players=3)"])
+def test_exact_backend_rejects_unsupported_game_dynamics(name):
+    with pytest.raises(ValueError, match="two-player sequential zero-sum"):
+        OpenSpielModelEvaluator(None, spiel_game=pyspiel.load_game(name))
