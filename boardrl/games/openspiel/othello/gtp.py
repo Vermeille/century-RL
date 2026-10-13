@@ -1,3 +1,5 @@
+"""GTP subprocess client for Othello engine opponents."""
+
 from __future__ import annotations
 
 import subprocess

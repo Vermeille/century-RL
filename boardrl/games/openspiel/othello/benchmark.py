@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import torch
 
-from boardrl.benchmarks.gtp import GTPEngine
+from boardrl.games.openspiel.othello.gtp import GTPEngine
 from boardrl.games.openspiel.game import OpenSpielGame
 
 

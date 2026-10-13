@@ -6,8 +6,8 @@ import argparse
 import json
 import shlex
 
-from boardrl.benchmarks.gtp import GTPEngine
-from boardrl.benchmarks.othello import OthelloEngineBenchmark
+from boardrl.games.openspiel.othello.benchmark import OthelloEngineBenchmark
+from boardrl.games.openspiel.othello.gtp import GTPEngine
 from boardrl.rl.model import load_model
 
 

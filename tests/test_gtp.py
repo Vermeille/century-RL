@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from boardrl.benchmarks.gtp import GTPEngine, GTPError
+from boardrl.games.openspiel.othello.gtp import GTPEngine, GTPError
 
 
 ENGINE = r'''
