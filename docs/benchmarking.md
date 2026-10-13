@@ -1,6 +1,6 @@
 # External board-game benchmarks
 
-Century keeps benchmark dependencies outside the core training stack. The
+BoardRL keeps benchmark dependencies outside the core training stack. The
 training algorithms stay in `trainers/`; OpenSpiel is used as a game backend
 and as an evaluator, while Othello engines are subprocess opponents.
 
@@ -13,23 +13,27 @@ calls in `boardrl/games/__init__.py` select scores, rewards, augmentations, and
 evaluation explicitly, with `metrics_from=OpenSpiel` sharing the payoff metrics.
 Game-specific solvers and backend settings live in each game's `evaluation.py`,
 and Dark Hex's private-state text lives in its
-`representation.py`. Othello's match runner and engine client live together.
+`representation.py`. Othello's GTP opponent strategy and engine client live together.
 
 Shared adapter, policy, result, and evaluator code stays directly under
 `boardrl/games/openspiel/`. `exp_a_spiel.py` provides the shared cached traversal
-for the four hidden board games. `evaluation.py` selects a backend and exposes
-`nash_conv`, `ExactOpenSpielEvaluator`, and the trainer's `OpenSpielModelEvaluator`.
+for the four hidden board games. Each concrete game supplies its exact backend
+through `register_game(exact_evaluation=...)`. `evaluation.py` exposes the external
+`nash_conv` and reusable `ExactOpenSpielEvaluator` APIs.
 
 ## Install OpenSpiel
 
 OpenSpiel is deliberately optional so benchmark tooling does not enlarge the
-runtime dependency set for every Century experiment:
+runtime dependency set for every BoardRL experiment:
 
 ```bash
 uv pip install open-spiel
 ```
 
-## Train benchmark games with the normal Century trainers
+`open-spiel` is the distribution name; it installs the native `pyspiel` module
+and the `open_spiel` Python package. CI installs that same optional distribution.
+
+## Train benchmark games with the normal BoardRL trainers
 
 The following regular game descriptors are backed by OpenSpiel. Chance
 nodes are sampled inside the game adapter, so rollout code still sees only
@@ -37,9 +41,9 @@ player decisions. In imperfect-information games the model receives the acting
 player's information state; in perfect-information games it receives the
 observation/board state.
 
-Leduc keeps its native observation format, including `[Observer: <seat>]` and
-`[Player: <seat>]`. At termination its native `Player` field still names the last
-actor, so the adapter corrects it to the player whose final view is requested.
+Leduc preserves native observation fields: `Observer` identifies the requested
+viewer and `Player` identifies the actor. Neither field is rewritten at game end.
+Private cards come from the native observation requested for that viewer.
 Games without native player tags receive a `[Player: <seat>]` prefix on both
 live and final views. Terminal observations append `Game: ended`,
 `Result: win`, `loss`, or `draw` for that player, and the native `Payoff`.
@@ -63,8 +67,8 @@ No training algorithm needs to be ported to OpenSpiel.
 
 Training uses named registrations such as `leduc` or `phantom_ttt`; the generic
 `openspiel,game=...` registration has been removed. Add another concrete game
-and register its training semantics explicitly. The evaluation CLI still accepts
-native OpenSpiel specifications, such as `--game kuhn_poker`.
+and register its training semantics and optional exact backend explicitly. The
+evaluation CLI uses these same registrations to preserve the training settings.
 
 | Game spec | Configuration |
 | --- | --- |
@@ -88,8 +92,8 @@ classical variants let the player retry, while the abrupt variants consume
 the turn. Hex connects opposite board edges; Tic-Tac-Toe wins with three in
 a row and can draw.
 
-These five presets use terminal win/loss/draw rewards and exact exploitability
-evaluation. They share the standard strategies, action-shuffling augmentation,
+These five presets use terminal win/loss/draw rewards and support external exact
+exploitability evaluation. They share the standard strategies, action-shuffling augmentation,
 payoff metrics, and raw text web workbench. For example:
 
 ```bash
@@ -115,14 +119,8 @@ attempt. The private board and ordered own attempts remain intact. The evaluatio
 backend constructs exactly the same text and legal-action order as training. Earlier Dark Hex
 checkpoints trained with the counter need a new run to match this setting.
 
-By default, all five presets select exact evaluation and best checkpoints by
-`-exploitability`. Both seats use the model being evaluated, with stochastic
-play at temperature 1 by default. Changing evaluation temperature changes the
-policy being measured. Rewards are not rescaled in the evaluator.
-
-For faster evaluation against a fixed opponent, pass `--sampled-evaluation`
-to any trainer. `train_leduc.sh` and the delegating `train_openspiel.sh` launcher
-enable this by default:
+All trainers use the existing `Evaluator` and ordinary opponent rollouts during
+training. Exact exploitability is evaluated externally. For example:
 
 ```bash
 ./train_openspiel.sh --opponent-eval-strategy random --evaluation-games 256
@@ -144,8 +142,7 @@ Games without a registered exact evaluator are skipped. Failed or interrupted
 runs do not start final exploitability.
 
 `ARENA=0` disables only the arena; `FINAL_EXPLOITABILITY=0` disables only the
-final exact calculation. Pass `--no-sampled-evaluation` to restore exact
-evaluation throughout training as well.
+final exact calculation.
 
 To repeat the automatic final evaluation manually with the saved run settings:
 
@@ -198,17 +195,22 @@ histories and weights unordered dice combinations by their true multiplicity.
 Tests compare it against exhaustive OpenSpiel best responses on smaller dice
 games and an analytic policy on the full 2D5F game.
 
+The full 2D5F analytic test was measured on 2026-10-13 with
+`OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/time -v uv run pytest --capture=no
+tests/test_paper_exploitability.py::test_full_2d5f_exact_result_against_analytic_policy -q`.
+It passed in 18.8 seconds wall time, with 1,150,712 KiB peak RSS (1.10 GiB) and no
+swapping on a 16 GiB host. The two solver arrays total 480 MiB. This check uses an
+analytic policy; a neural model adds its own memory and inference time.
+
 ```bash
 uv run python evaluate_nashconv.py checkpoints/step-100.pth \
   --model agent --game liars_dice --temperature 1 --batch-size 1024
 ```
 
-The CLI accepts these BoardRL presets or native OpenSpiel specifications.
-`--game liars_dice` means the 2D5F preset; an explicit native specification such
-as `liars_dice(numdice=1,dice_sides=3)` selects a smaller game.
-`--backend openspiel` is available for exhaustive cross-checks on small games. It rejects
-reveal-nothing Dark Hex because native OpenSpiel best responses use the extra
-clock in its information-state string.
+The CLI accepts registered BoardRL games. For smaller native games and exhaustive
+cross-checks, the Python API accepts a native `spiel_game` and an explicit backend
+instance. Native games require that explicit backend; registered Dark Hex always
+uses its paper-compatible exp-a-spiel backend.
 
 Exact evaluation is more expensive than sampled matches: these games contain
 millions of information states, all of which must be covered. The pinned board
@@ -216,28 +218,23 @@ backend also uses substantial RAM (approximately 7 GiB for classical games and
 27–32 GiB for abrupt variants, including working arrays). Insufficient memory
 or a missing backend produces an explicit error, never a sampled substitute.
 
-Trainers retain one exact evaluator for the run. For the four board games,
-the first evaluation discovers the information sets and builds the exp-a-spiel
-traverser; later evaluations reuse it, including agent, environment, and best
-checkpoint checks. The backend and its working buffers remain in RAM until the
-evaluator is released. Each evaluation recomputes policy probabilities and best
-responses from the current model and temperature; no policy results are cached.
-Neural inference and the library's payoff traversal still run each time.
-Exact evaluation uses the trainer's `--inference-batch-size`, including best
-checkpoint reevaluation. Cache and evaluation-phase messages include the PID
-so concurrent trainers can be distinguished. `building infosets (cache miss)`
-occurs on first use; `reusing infosets (cache hit)` occurs on subsequent calls.
-The library's `thread NN found` lines are progress within one discovery, while
-`begin gradient computation` is policy-dependent work repeated every evaluation.
+Python callers can retain one `ExactOpenSpielEvaluator` across checkpoints:
 
-This cache is local to the evaluator and process. Restarting training or running
-the CLI again enumerates once more: the pinned exp-a-spiel library has no API to
-save or restore its traverser. Python callers evaluating multiple checkpoints
-can import `ExactOpenSpielEvaluator` from `boardrl.games.openspiel.evaluation`,
-retain `ExactOpenSpielEvaluator(spiel_game)`, and call its `evaluate(model,
-temperature=1, batch_size=1024)` method for each model. `nash_conv(...)` remains a
-one-shot convenience function. Existing training processes need a restart or
-checkpoint resume to use the cache.
+```python
+from boardrl.games import games_library
+from boardrl.games.openspiel.evaluation import ExactOpenSpielEvaluator
+
+descriptor = games_library("phantom_ttt")
+native = descriptor.make_game(resolve_chance=False)._game
+evaluator = ExactOpenSpielEvaluator(native, backend=descriptor.exact_evaluation(native))
+result = evaluator.evaluate(model, temperature=1, batch_size=1024)
+```
+
+The first evaluation enumerates information sets; later calls reuse the traverser
+and its working buffers. Each call recomputes probabilities and best responses
+for the current model and temperature. Cache messages include the PID.
+The cache belongs to that evaluator in that process. Running the CLI again builds
+a new cache; the pinned exp-a-spiel library cannot save or restore its traverser.
 
 The full reference checks are marked `slow`:
 
@@ -268,50 +265,38 @@ start a new run with the points value head.
 
 ## Leduc: exact NashConv / exploitability
 
-By default, all trainers use the evaluation method selected by the game
-descriptor. For two-player Leduc, evaluation logs `exploitability` and
-`nash_conv` instead of sampled win rate or points against random. Adversarial
-trainers retain their `evaluation/agent/` and `evaluation/environment/` metric groups where applicable;
-each model is independently evaluated in both seats. Exploitability is measured
-in chips per hand and lower is better. Best checkpoints minimize the agent's
-exploitability using the selection score `-exploitability`.
+Training evaluates against the configured opponent using `--evaluation-games`,
+`--evaluation-every`, and `--eval-temperature`. Leduc best checkpoints use points.
+Resuming an older checkpoint ranked by exploitability resets the best sampled
+score, so incompatible metrics are never compared.
 
-The existing evaluation cadence and `--eval-temperature` still apply. Exact
-evaluation covers every information state using `--inference-batch-size`;
-`--evaluation-games` and `--opponent-eval-strategy` only apply when
-`--sampled-evaluation` is supplied.
-The five paper presets also use exact evaluation through the backends above.
-Other games retain their sampled opponent or self-play evaluation.
-
-Best-checkpoint metadata records `evaluation_metric`, `evaluation_value`,
-`evaluation_score`, and `evaluation_temperature`. On resume, a retained best
-Leduc checkpoint with legacy point-based metadata or a different
-metric/temperature is reevaluated before comparison. This leaves the live model
-and training RNG unchanged. Other games retain their legacy sampled scores.
-Running processes must be restarted or resumed to use the new code.
+External exploitability evaluates the chosen model in both seats, in native chips
+per hand. Lower values are better. Evaluation temperature changes the policy being
+measured; temperature 1 is the default for the manual command.
 
 Evaluate a checkpoint with OpenSpiel's best-response implementation:
 
 ```bash
 uv run python evaluate_nashconv.py checkpoints/step-100.pth \
   --model agent \
-  --game leduc_poker
+  --game leduc
 ```
 
 The JSON output reports NashConv, two-player exploitability (`NashConv / 2`),
 per-player unilateral improvement, and the number of distinct information
-states evaluated by the Century model. `--temperature 1` evaluates the policy
+states evaluated by the BoardRL model. `--temperature 1` evaluates the policy
 as trained; `--temperature 0` evaluates deterministic argmax play.
 
 ## Othello: fixed external engine strength
 
-The match runner lives in `boardrl/games/openspiel/othello/benchmark.py`, alongside its
-GTP client in `boardrl/games/openspiel/othello/gtp.py`. `evaluate_othello_engine.py` is the
-command-line entry point.
+`boardrl/games/openspiel/othello/strategies.py` adapts a GTP engine to the ordinary
+strategy protocol. `evaluate_othello_engine.py` composes the existing `Inference`
+and `Evaluator` with that strategy, pairing each random opening with both seats.
+There is no separate match runner or model move selector.
 
-The evaluator speaks the standard subset of GTP used by Egaroucid and Edax. It
-runs paired games from the same randomized opening, with the Century agent once
-as black and once as white, to reduce first-player and opening bias.
+OpenSpiel supplies Othello's rules and legal moves. GTP is only the external
+engine's command protocol. Before each engine query, the strategy replays the
+native history, so interleaved rollout games cannot contaminate its position.
 
 Egaroucid example (flags may differ between releases):
 
