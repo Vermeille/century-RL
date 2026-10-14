@@ -18,7 +18,7 @@ from boardrl.games.openspiel.evaluation import (
     nash_conv,
 )
 from boardrl.games.openspiel.game import OpenSpiel
-from boardrl.games.openspiel.leduc.representation import LeducStateText
+from boardrl.games.openspiel.leduc.game import Leduc
 from boardrl.games.openspiel.policy import OpenSpielPolicy
 from boardrl.games.semantics import CompetitiveOutcome, PointDeltaRewards, PointScores
 from boardrl.rollouts import Inference
@@ -84,13 +84,13 @@ def test_batching_preserves_action_order_and_temperature(temperature):
         game,
         predict(model, temperature),
         information_state=True,
-        text_type=LeducStateText,
+        make_game=Leduc,
     )
     batched = OpenSpielPolicy(
         game,
         predict(model, temperature),
         information_state=True,
-        text_type=LeducStateText,
+        make_game=Leduc,
     )
     states = policy.TabularPolicy(game).states
     batched.precompute(states)
@@ -141,7 +141,7 @@ def test_hidden_opponent_cards_have_identical_policy_inputs():
     game = pyspiel.load_game("leduc_poker")
     model = TestPolicyModel((0.0, 0.2, 0.5))
     adapter = OpenSpielPolicy(
-        game, predict(model), information_state=True, text_type=LeducStateText
+        game, predict(model), information_state=True, make_game=Leduc
     )
     states = []
     for opponent_card in (1, 4):

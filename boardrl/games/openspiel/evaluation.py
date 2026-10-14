@@ -12,7 +12,6 @@ from boardrl.games.openspiel.policy import (
     _require_policy_modules,
 )
 from boardrl.games.openspiel.result import NashConvResult
-from boardrl.games.openspiel.representation import PlayerStateText
 from boardrl.rollouts import Inference
 
 
@@ -70,11 +69,10 @@ class ExactOpenSpielEvaluator:
 
 
 class OpenSpielTreeEvaluator:
-    text_type = PlayerStateText
-
-    def __init__(self, game, *, use_cpp_br=True):
+    def __init__(self, game, *, use_cpp_br=True, make_game=None):
         self.game = game
         self.use_cpp_br = use_cpp_br
+        self.make_game = make_game
 
     def evaluate(self, predict, *, batch_size):
         pyspiel = _require_pyspiel()
@@ -87,7 +85,7 @@ class OpenSpielTreeEvaluator:
             self.game,
             predict,
             information_state=information_state,
-            text_type=self.text_type,
+            make_game=self.make_game,
         )
         policy.precompute(
             policy_lib.TabularPolicy(self.game).states, batch_size=batch_size

@@ -1,7 +1,8 @@
-"""Validate and convert model logits for exact, legal-action evaluation."""
+"""Map game displays and legal-action probabilities to OpenSpiel policies."""
+
+from functools import partial
 
 from boardrl.games.openspiel.game import OpenSpielGame, _require_pyspiel
-from boardrl.games.openspiel.representation import PlayerStateText
 
 
 def _require_policy_modules():
@@ -26,13 +27,17 @@ class OpenSpielPolicy:
         predict,
         *,
         information_state: bool,
-        text_type=PlayerStateText,
+        make_game=None,
     ):
         self.game = spiel_game
         self.player_ids = list(range(spiel_game.num_players()))
         self.predict = predict
-        self.information_state = information_state
-        self.text_type = text_type
+        self.make_game = make_game or partial(
+            OpenSpielGame,
+            spiel_game.get_type().short_name,
+            num_players=spiel_game.num_players(),
+            information_state=information_state,
+        )
         self._cache: dict[str, tuple[float, ...]] = {}
 
     def precompute(self, states, *, batch_size=64):
@@ -41,10 +46,8 @@ class OpenSpielPolicy:
             raise ValueError("batch_size must be positive")
         pending = {}
         for state in states:
-            view = OpenSpielGame.from_state(
-                state,
-                information_state=self.information_state,
-                text_type=self.text_type,
+            view = self.make_game(
+                spiel_game=self.game, state=state, resolve_chance=False
             )
             pending.setdefault(view.display_with_moves(), len(view.action_ids))
         items = list(pending.items())
@@ -57,11 +60,7 @@ class OpenSpielPolicy:
                 self._cache[text] = tuple(probabilities)
 
     def action_probabilities(self, state, player_id=None):
-        view = OpenSpielGame.from_state(
-            state,
-            information_state=self.information_state,
-            text_type=self.text_type,
-        )
+        view = self.make_game(spiel_game=self.game, state=state, resolve_chance=False)
         text = view.display_with_moves()
         probabilities = self._cache.get(text)
         if probabilities is None:

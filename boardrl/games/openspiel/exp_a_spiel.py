@@ -12,16 +12,16 @@ from typing import ClassVar
 
 import numpy as np
 
-from boardrl.games.openspiel.representation import PlayerStateText
+from boardrl.games.openspiel.game import OpenSpielGame
 from boardrl.games.openspiel.result import NashConvResult
 
 
 class BoardInformationState:
     """Render an exp-a-spiel private history as the adapter's model input."""
 
-    def __init__(self, game, *, text_type=PlayerStateText):
-        initial = game.new_initial_state()
-        self.text = text_type(game, information_state=True)
+    def __init__(self, game):
+        initial = game._game.new_initial_state()
+        self.game = game
         self.labels = tuple(
             tuple(initial.action_to_string(player, action) for action in range(9))
             for player in range(2)
@@ -36,11 +36,12 @@ class BoardInformationState:
             owner = player if placed else 1 - player
             board[action] = "xo"[owner]
             history.append(f"{player},{action} ")
-        text = self.text.private_board(
-            ["".join(board[start : start + 3]) for start in (0, 3, 6)],
-            "".join(history),
-            player,
+        state = (
+            "\n".join("".join(board[start : start + 3]) for start in (0, 3, 6))
+            + "\n"
+            + "".join(history)
         )
+        text = self.game._display_player_view(state, player)
         actions = tuple(index for index, cell in enumerate(board) if cell == ".")
         text += "\n" + "\n".join(
             f"@{self.labels[player][action]}" for action in actions
@@ -51,14 +52,12 @@ class BoardInformationState:
 class ExpASpielEvaluator(ABC):
     """Shared policy conversion and cached sequence-form traversal."""
 
-    text_type = PlayerStateText
-
     game_key: ClassVar[tuple[str, str]]
     traverser_name: ClassVar[str]
     # Paper Table 1 counts, rounded up for the allocation guard.
     infosets: ClassVar[int]
 
-    def __init__(self, game, *, traverser=None):
+    def __init__(self, game, *, make_game=None, traverser=None):
         parameters = game.get_parameters()
         key = (game.get_type().short_name, parameters["gameversion"])
         if (
@@ -70,7 +69,12 @@ class ExpASpielEvaluator(ABC):
             raise ValueError(
                 "exp-a-spiel evaluation requires the matching 3x3 reveal-nothing game"
             )
-        self.text = BoardInformationState(game, text_type=self.text_type)
+        view = (
+            OpenSpielGame.from_state(game.new_initial_state(), information_state=True)
+            if make_game is None
+            else make_game(spiel_game=game, resolve_chance=False)
+        )
+        self.text = BoardInformationState(view)
         self._traverser = traverser
 
     def _make_traverser(self):

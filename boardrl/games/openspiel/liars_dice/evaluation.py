@@ -6,7 +6,7 @@ from math import factorial
 
 import numpy as np
 
-from boardrl.games.openspiel.representation import PlayerViewText
+from boardrl.games.openspiel.game import OpenSpielGame
 from boardrl.games.openspiel.result import NashConvResult
 
 
@@ -20,7 +20,7 @@ class LiarsDiceEvaluator:
     nodes sum counterfactual values. This enforces information-set consistency.
     """
 
-    def __init__(self, game):
+    def __init__(self, game, *, make_game=None):
         parameters = game.get_parameters()
         self.dice = parameters["numdice"]
         self.faces = parameters["dice_sides"]
@@ -53,6 +53,11 @@ class LiarsDiceEvaluator:
         state = game.new_initial_state()
         self.labels = tuple(
             state.action_to_string(0, action) for action in range(self.bids + 1)
+        )
+        self._view = (
+            OpenSpielGame.from_state(state, information_state=True)
+            if make_game is None
+            else make_game(spiel_game=game, state=state, resolve_chance=False)
         )
         # Payoff to the bidder, including the highest face as wild.
         counts = np.array(
@@ -91,7 +96,7 @@ class LiarsDiceEvaluator:
             moves = "\n" + "\n".join(f"@{self.labels[action]}" for action in legal)
             player = mask.bit_count() % 2
             texts.extend(
-                PlayerViewText.for_player(hand + history, player) + moves
+                self._view._display_player_view(hand + history, player) + moves
                 for hand in self.hand_text
             )
             action_counts.extend([len(legal)] * len(self.hands))

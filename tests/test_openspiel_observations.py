@@ -4,8 +4,7 @@ pyspiel = pytest.importorskip("pyspiel")
 
 from boardrl.games import games_library
 from boardrl.games.openspiel.game import OpenSpielGame
-from boardrl.games.openspiel.leduc.representation import LeducStateText
-from boardrl.games.openspiel.representation import PlayerStateText
+from boardrl.games.openspiel.leduc.game import Leduc
 from boardrl.rollouts import EndState
 
 
@@ -33,14 +32,17 @@ def test_games_without_native_tags_identify_the_requested_player(spec):
         game.play_idx(0)
 
 
-def view_after(
-    game_name, actions, *, information_state=True, text_type=PlayerStateText
-):
+def view_after(game_name, actions, *, information_state=True, make_game=None):
     state = pyspiel.load_game(game_name).new_initial_state()
     for action in actions:
         state.apply_action(action)
-    return OpenSpielGame.from_state(
-        state, information_state=information_state, text_type=text_type
+    if make_game is None:
+        return OpenSpielGame.from_state(state, information_state=information_state)
+    return make_game(
+        spiel_game=state.get_game(),
+        state=state,
+        resolve_chance=False,
+        information_state=information_state,
     )
 
 
@@ -50,7 +52,7 @@ def test_leduc_live_views_preserve_native_identity_fields(information_state):
         "leduc_poker",
         [0, 4],
         information_state=information_state,
-        text_type=LeducStateText,
+        make_game=Leduc,
     )
     for _ in range(2):
         for player in (0, 1):
@@ -81,7 +83,7 @@ def test_leduc_final_views_preserve_native_actor_observer_and_private_cards(
         "leduc_poker",
         actions,
         information_state=information_state,
-        text_type=LeducStateText,
+        make_game=Leduc,
     )
     assert game.ended() and game.moves == []
     for player in (0, 1):
@@ -133,7 +135,7 @@ def test_perfect_information_terminal_view_has_the_same_contract():
 
 
 def test_unresolved_chance_node_preserves_native_observation():
-    game = view_after("leduc_poker", [], text_type=LeducStateText)
+    game = view_after("leduc_poker", [], make_game=Leduc)
     assert game.display() == game._state.information_state_string(0)
     for player in (0, 1):
         assert game.display(force=player) == game._state.information_state_string(

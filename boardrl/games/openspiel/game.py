@@ -3,8 +3,6 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 
-from boardrl.games.openspiel.representation import PlayerStateText
-
 
 def _require_pyspiel():
     try:
@@ -26,14 +24,11 @@ class OpenSpiel(ABC):
     much more compact board representation than full action history).
     """
 
-    text_type = PlayerStateText
-
     __slots__ = (
         "_actions",
         "_game",
         "_information_state",
         "_state",
-        "_text",
         "_turn",
         "game_name",
         "moves",
@@ -50,7 +45,6 @@ class OpenSpiel(ABC):
         state=None,
         information_state: bool | None = None,
         resolve_chance: bool = True,
-        text_type=None,
     ):
         self.game_name = game_name
         self._game = spiel_game or _require_pyspiel().load_game(game_name)
@@ -68,7 +62,6 @@ class OpenSpiel(ABC):
                 == pyspiel.GameType.Information.IMPERFECT_INFORMATION
             )
         self._information_state = information_state
-        self._text = (text_type or self.text_type)(self._game, information_state)
         self._state = self._game.new_initial_state() if state is None else state.clone()
         self._turn = 0
         if resolve_chance:
@@ -117,6 +110,14 @@ class OpenSpiel(ABC):
     def round(self) -> int:
         return self._turn // self.num_players
 
+    def _display_state(self, player: int) -> str:
+        if self.information_state:
+            return self._state.information_state_string(player)
+        return self._state.observation_string(player)
+
+    def _display_player_view(self, text: str, player: int) -> str:
+        return f"[Player: {player}]\n{text}"
+
     def display(self, force: int = -1) -> str:
         player = force
         if player == -1:
@@ -125,7 +126,17 @@ class OpenSpiel(ABC):
             )
         if not 0 <= player < self.num_players:
             raise ValueError(f"invalid viewer {player}")
-        return self._text.display(self._state, player)
+        text = self._display_player_view(self._display_state(player), player)
+        if not self.ended():
+            return text
+        returns = self._state.returns()
+        payoff = returns[player]
+        other = max(
+            (value for seat, value in enumerate(returns) if seat != player),
+            default=payoff,
+        )
+        result = "win" if payoff > other else "loss" if payoff < other else "draw"
+        return f"{text}\nGame: ended\nResult: {result}\nPayoff: {payoff:g}"
 
     def display_with_moves(self) -> str:
         state = self.display()
@@ -183,7 +194,6 @@ class OpenSpiel(ABC):
         copied._game = self._game
         copied._state = self._state.clone()
         copied._information_state = self._information_state
-        copied._text = self._text
         copied._turn = self._turn
         copied._actions = self._actions.copy()
         copied.moves = self.moves.copy()
@@ -202,7 +212,7 @@ class OpenSpielGame(OpenSpiel):
         super().__init__(game_name, num_players=num_players, **kwargs)
 
     @classmethod
-    def from_state(cls, state, *, information_state: bool, text_type=None):
+    def from_state(cls, state, *, information_state: bool):
         game = state.get_game()
         return cls(
             game.get_type().short_name,
@@ -211,5 +221,4 @@ class OpenSpielGame(OpenSpiel):
             state=state,
             information_state=information_state,
             resolve_chance=False,
-            text_type=text_type,
         )

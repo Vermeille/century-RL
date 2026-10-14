@@ -12,9 +12,10 @@ specifications are inline in those constructors. The standard `register_game`
 calls in `boardrl/games/__init__.py` select scores, rewards, augmentations, and
 evaluation explicitly, with `metrics_from=OpenSpiel` sharing the payoff metrics.
 Game-specific solvers and backend settings live in each game's `evaluation.py`.
-Leduc and Dark Hex select their text classes from their `representation.py`;
-shared text composition has no game-name dispatch. Evaluators reuse the
-game's text class to preserve identical policy inputs.
+The adapter's display methods handle native text, player identity and terminal
+outcomes. Leduc and Dark Hex override the relevant methods in `game.py`.
+Evaluator registrations bind the game factory so evaluation uses those same
+display methods. There is no separate representation layer or game-name dispatch.
 
 Shared adapter, policy, result, and evaluator code stays directly under
 `boardrl/games/openspiel/`. `exp_a_spiel.py` provides the shared cached traversal
