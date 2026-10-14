@@ -259,7 +259,7 @@ def _run(args, trackio_sink):
         start = state["step"]
         if args.save_best and best_checkpoints.latest:
             best_state = best_checkpoints.load(map_location="cpu")
-            best_score = best_state["metadata"]["evaluation_points"]
+            best_score = best_state["metadata"].get("evaluation_points", float("-inf"))
 
     agent_inference = Inference(
         agent,

@@ -533,7 +533,7 @@ def _run(args, trackio_sink):
         start = state["step"]
         if args.save_best and best_checkpoints.latest:
             best_state = best_checkpoints.load(map_location="cpu")
-            best_score = best_state["metadata"]["evaluation_points"]
+            best_score = best_state["metadata"].get("evaluation_points", float("-inf"))
 
     inference = Inference(model, batch_size=args.inference_batch_size)
     training_games = RandomOpeningGameFactory(

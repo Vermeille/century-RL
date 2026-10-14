@@ -1,5 +1,7 @@
-import torch
+import math
 from inspect import signature
+
+import torch
 
 from boardrl.utils import Game, RegisterByName
 
@@ -82,6 +84,17 @@ class PolicySamplingStrategy:
         self.dirichlet_alpha = dirichlet_alpha
         self.include_moves = include_moves
 
+    @staticmethod
+    def policy_logits(raw_policy, temperature):
+        """Apply the same temperature and argmax convention in every evaluator."""
+        if not math.isfinite(temperature) or temperature < 0:
+            raise ValueError("temperature must be finite and non-negative")
+        if temperature == 0:
+            logits = torch.full_like(raw_policy, -torch.inf)
+            logits[raw_policy.argmax()] = 0
+            return logits
+        return (raw_policy - raw_policy.max()) / temperature
+
     @torch.no_grad()
     async def __call__(self, g: Game):
         info: dict[str, object]
@@ -94,7 +107,7 @@ class PolicySamplingStrategy:
         raw_policy = nn_out.policy[0].cpu()
         raw_value = nn_out.value.mean.cpu()[0]
         raw_value_stddev = nn_out.value.stddev.cpu()[0]
-        policy = raw_policy / self.temperature
+        policy = self.policy_logits(raw_policy, self.temperature)
         if self.epsilon != 0.0:
             policy = torch.softmax(policy, dim=0)
             noise = torch.distributions.Dirichlet(

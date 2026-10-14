@@ -1,5 +1,6 @@
 from functools import partial
 from importlib import import_module
+from importlib.util import find_spec
 
 from boardrl.utils import RegisterByName
 from boardrl.games.augmentations import shuffle_actions
@@ -14,7 +15,9 @@ from boardrl.games.connectfour.strategies import (
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
 from boardrl.games.hanabi.game import Hanabi as HanabiGame
 from boardrl.games.nim.game import Nim as NimGame
-from boardrl.games.nim.strategies import strategy_from_string as nim_strategy_from_string
+from boardrl.games.nim.strategies import (
+    strategy_from_string as nim_strategy_from_string,
+)
 from boardrl.games.regicide.game import Regicide as RegicideGame
 from boardrl.games.rps.game import RockPaperScissors as RockPaperScissorsGame
 from boardrl.games.santorini.augmentations import (
@@ -27,7 +30,9 @@ from boardrl.games.skullking.game import SkullKing as SkullKingGame
 from boardrl.games.splendor.game import Splendor as SplendorGame
 from boardrl.games.splendor.semantics import SplendorOutcome
 from boardrl.games.sum.game import Sum as SumGame
-from boardrl.games.sum.strategies import strategy_from_string as sum_strategy_from_string
+from boardrl.games.sum.strategies import (
+    strategy_from_string as sum_strategy_from_string,
+)
 from boardrl.games.take5.game import Take5 as Take5Game
 from boardrl.games.thegame.augmentations import shuffle_hand
 from boardrl.games.thegame.game import TheGame as TheGameGame
@@ -56,6 +61,7 @@ class GameDesc:
         scores,
         outcome,
         rewards,
+        exact_evaluation=None,
     ):
         self.make_game = game_class
         self.strategy_from_string = strategy_from_string
@@ -65,6 +71,7 @@ class GameDesc:
         self.outcome = outcome
         self.rewards = rewards
         self.coop = outcome.cooperative
+        self.exact_evaluation = exact_evaluation
 
 
 games_library = RegisterByName()
@@ -89,8 +96,10 @@ def register_game(
     outcome,
     rewards,
     args_from=None,
+    metrics_from=None,
+    exact_evaluation=None,
 ):
-    """Register a conventional Python game without a descriptor subclass."""
+    """Register a game; metrics_from can select a shared metrics module."""
 
     def descriptor(**game_kwargs):
         game_strategies = strategy_from_string
@@ -100,11 +109,12 @@ def register_game(
         return GameDesc(
             make_game,
             game_strategies,
-            _metrics_for(game_class),
+            _metrics_for(metrics_from or game_class),
             augmentations=augmentations,
             scores=scores,
             outcome=outcome,
             rewards=rewards,
+            exact_evaluation=exact_evaluation,
         )
 
     descriptor.__name__ = f"{name}_game_desc"
@@ -139,6 +149,103 @@ class Century(GameDesc):
             outcome=CompetitiveOutcome(),
             rewards=TerminalOutcomeRewards(),
         )
+
+
+if find_spec("pyspiel") is not None:
+    from boardrl.games.openspiel.abrupt_dark_hex.game import AbruptDarkHex
+    from boardrl.games.openspiel.abrupt_dark_hex.evaluation import (
+        AbruptDarkHexEvaluator,
+    )
+    from boardrl.games.openspiel.abrupt_phantom_ttt.game import AbruptPhantomTicTacToe
+    from boardrl.games.openspiel.abrupt_phantom_ttt.evaluation import (
+        AbruptPhantomTicTacToeEvaluator,
+    )
+    from boardrl.games.openspiel.dark_hex.game import DarkHex
+    from boardrl.games.openspiel.dark_hex.evaluation import DarkHexEvaluator
+    from boardrl.games.openspiel.game import OpenSpiel
+    from boardrl.games.openspiel.leduc.game import Leduc
+    from boardrl.games.openspiel.leduc.evaluation import LeducEvaluator
+    from boardrl.games.openspiel.liars_dice.game import LiarsDice
+    from boardrl.games.openspiel.liars_dice.evaluation import LiarsDiceEvaluator
+    from boardrl.games.openspiel.othello.game import Othello
+    from boardrl.games.openspiel.phantom_ttt.game import PhantomTicTacToe
+    from boardrl.games.openspiel.phantom_ttt.evaluation import PhantomTicTacToeEvaluator
+
+    register_game(
+        "leduc",
+        Leduc,
+        augmentations=(shuffle_actions,),
+        scores=PointScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=PointDeltaRewards(scale=0.1),
+        metrics_from=OpenSpiel,
+        exact_evaluation=LeducEvaluator,
+    )
+
+    register_game(
+        "liars_dice",
+        LiarsDice,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+        exact_evaluation=LiarsDiceEvaluator,
+    )
+
+    register_game(
+        "dark_hex",
+        DarkHex,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+        exact_evaluation=DarkHexEvaluator,
+    )
+
+    register_game(
+        "abrupt_dark_hex",
+        AbruptDarkHex,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+        exact_evaluation=AbruptDarkHexEvaluator,
+    )
+
+    register_game(
+        "phantom_ttt",
+        PhantomTicTacToe,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+        exact_evaluation=PhantomTicTacToeEvaluator,
+    )
+
+    register_game(
+        "abrupt_phantom_ttt",
+        AbruptPhantomTicTacToe,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+        exact_evaluation=AbruptPhantomTicTacToeEvaluator,
+    )
+
+    register_game(
+        "othello",
+        Othello,
+        augmentations=(shuffle_actions,),
+        scores=OutcomeScores(),
+        outcome=CompetitiveOutcome(),
+        rewards=TerminalOutcomeRewards(),
+        metrics_from=OpenSpiel,
+    )
 
 
 register_game(

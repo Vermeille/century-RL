@@ -1,0 +1,1 @@
+"""OpenSpiel Othello game adapter."""

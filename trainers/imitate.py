@@ -57,6 +57,10 @@ def build_parser():
     parser.add_argument("--strategy")
     parser.add_argument("--rollout-games", type=int, default=256)
     parser.add_argument("--evaluation-games", type=int, default=256)
+    parser.add_argument(
+        "--opponent-eval-strategy",
+        help="evaluation opponent for competitive games (default: self-play)",
+    )
     parser.add_argument("--save-every", type=int, default=25)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
@@ -272,8 +276,10 @@ def log_gameplay_evaluation(step, inference, evaluator, metrics, args, game):
     with inference.evaluating():
         player = inference.policy(temperature=args.eval_temperature)
         evaluation = evaluator.compare(
-            [player, player],
-            names=["current", "current"],
+            [player, player]
+            if game.coop or args.opponent_eval_strategy is None
+            else [player, game.strategy_from_string(args.opponent_eval_strategy)],
+            names=["current", args.opponent_eval_strategy or "current"],
             games=args.evaluation_games,
             max_steps=800,
         )
