@@ -9,9 +9,3 @@ class AbruptDarkHex(OpenSpiel):
             information_state=True,
             **kwargs,
         )
-
-    @staticmethod
-    def evaluation_backend(game):
-        from boardrl.games.openspiel.abrupt_dark_hex.evaluation import AbruptDarkHexEvaluator
-
-        return AbruptDarkHexEvaluator(game)

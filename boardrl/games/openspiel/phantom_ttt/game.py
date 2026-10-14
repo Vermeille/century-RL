@@ -9,9 +9,3 @@ class PhantomTicTacToe(OpenSpiel):
             information_state=True,
             **kwargs,
         )
-
-    @staticmethod
-    def evaluation_backend(game):
-        from boardrl.games.openspiel.phantom_ttt.evaluation import PhantomTicTacToeEvaluator
-
-        return PhantomTicTacToeEvaluator(game)

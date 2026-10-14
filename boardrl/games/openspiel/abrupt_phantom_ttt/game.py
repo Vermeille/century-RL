@@ -9,9 +9,3 @@ class AbruptPhantomTicTacToe(OpenSpiel):
             information_state=True,
             **kwargs,
         )
-
-    @staticmethod
-    def evaluation_backend(game):
-        from boardrl.games.openspiel.abrupt_phantom_ttt.evaluation import AbruptPhantomTicTacToeEvaluator
-
-        return AbruptPhantomTicTacToeEvaluator(game)

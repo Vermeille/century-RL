@@ -17,8 +17,8 @@ and Dark Hex's private-state text lives in its
 
 Shared adapter, policy, result, and evaluator code stays directly under
 `boardrl/games/openspiel/`. `exp_a_spiel.py` provides the shared cached traversal
-for the four hidden board games. Each concrete game supplies its exact backend
-through `register_game(exact_evaluation=...)`. `evaluation.py` exposes the external
+for the four hidden board games. The `register_game(exact_evaluation=...)` calls select evaluator factories
+separately from game classes. `evaluation.py` exposes the external
 `nash_conv` and reusable `ExactOpenSpielEvaluator` APIs.
 
 ## Install OpenSpiel

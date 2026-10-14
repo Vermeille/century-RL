@@ -6,9 +6,3 @@ class Leduc(OpenSpiel):
         super().__init__(
             "leduc_poker", num_players=num_players, information_state=True, **kwargs
         )
-
-    @staticmethod
-    def evaluation_backend(game):
-        from boardrl.games.openspiel.evaluation import OpenSpielTreeEvaluator
-
-        return OpenSpielTreeEvaluator(game)

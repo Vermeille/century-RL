@@ -153,13 +153,19 @@ class Century(GameDesc):
 
 if find_spec("pyspiel") is not None:
     from boardrl.games.openspiel.abrupt_dark_hex.game import AbruptDarkHex
+    from boardrl.games.openspiel.abrupt_dark_hex.evaluation import AbruptDarkHexEvaluator
     from boardrl.games.openspiel.abrupt_phantom_ttt.game import AbruptPhantomTicTacToe
+    from boardrl.games.openspiel.abrupt_phantom_ttt.evaluation import AbruptPhantomTicTacToeEvaluator
     from boardrl.games.openspiel.dark_hex.game import DarkHex
+    from boardrl.games.openspiel.dark_hex.evaluation import DarkHexEvaluator
     from boardrl.games.openspiel.game import OpenSpiel
     from boardrl.games.openspiel.leduc.game import Leduc
+    from boardrl.games.openspiel.evaluation import OpenSpielTreeEvaluator
     from boardrl.games.openspiel.liars_dice.game import LiarsDice
+    from boardrl.games.openspiel.liars_dice.evaluation import LiarsDiceEvaluator
     from boardrl.games.openspiel.othello.game import Othello
     from boardrl.games.openspiel.phantom_ttt.game import PhantomTicTacToe
+    from boardrl.games.openspiel.phantom_ttt.evaluation import PhantomTicTacToeEvaluator
 
     register_game(
         "leduc",
@@ -169,7 +175,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=PointDeltaRewards(scale=0.1),
         metrics_from=OpenSpiel,
-        exact_evaluation=Leduc.evaluation_backend,
+        exact_evaluation=OpenSpielTreeEvaluator,
     )
 
     register_game(
@@ -180,7 +186,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
-        exact_evaluation=LiarsDice.evaluation_backend,
+        exact_evaluation=LiarsDiceEvaluator,
     )
 
     register_game(
@@ -191,7 +197,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
-        exact_evaluation=DarkHex.evaluation_backend,
+        exact_evaluation=DarkHexEvaluator,
     )
 
     register_game(
@@ -202,7 +208,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
-        exact_evaluation=AbruptDarkHex.evaluation_backend,
+        exact_evaluation=AbruptDarkHexEvaluator,
     )
 
     register_game(
@@ -213,7 +219,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
-        exact_evaluation=PhantomTicTacToe.evaluation_backend,
+        exact_evaluation=PhantomTicTacToeEvaluator,
     )
 
     register_game(
@@ -224,7 +230,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=TerminalOutcomeRewards(),
         metrics_from=OpenSpiel,
-        exact_evaluation=AbruptPhantomTicTacToe.evaluation_backend,
+        exact_evaluation=AbruptPhantomTicTacToeEvaluator,
     )
 
     register_game(
