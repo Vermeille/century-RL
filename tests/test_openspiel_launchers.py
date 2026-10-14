@@ -13,7 +13,7 @@ from trainers.arena import load_trainer_module
 @pytest.fixture
 def launch(tmp_path):
     repository = Path(__file__).parents[1]
-    for script in ("train_leduc.sh", "train_openspiel.sh"):
+    for script in ("train_openspiel.sh", "train_openspiel_benchmarks.sh"):
         shutil.copy2(repository / script, tmp_path / script)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -54,7 +54,7 @@ else:
     )
     uv.chmod(0o755)
 
-    def run(script="train_leduc.sh", arguments=(), **environment):
+    def run(script="train_openspiel.sh", arguments=("--game", "leduc"), **environment):
         log = tmp_path / "launch.jsonl"
         env = (
             os.environ
@@ -86,18 +86,18 @@ else:
     return run
 
 
-@pytest.mark.parametrize(
-    "script,game", [("train_leduc.sh", "leduc"), ("train_openspiel.sh", "phantom_ttt")]
-)
+@pytest.mark.parametrize("game", ["leduc", "phantom_ttt"])
 @pytest.mark.parametrize(
     "trainer", ["adversarial-advshape", "adversarial-ppo", "adversarial-mmd"]
 )
 @pytest.mark.parametrize("arena", ["0", "1"])
 def test_launchers_rate_during_training_then_evaluate_exactly(
-    launch, script, game, trainer, arena
+    launch, game, trainer, arena
 ):
     result, events = launch(
-        script, ["--tag", "tag with spaces"], TRAINER=trainer, ARENA=arena
+        arguments=["--game", game, "--tag", "tag with spaces"],
+        TRAINER=trainer,
+        ARENA=arena,
     )
     assert result.returncode == 0, result.stderr
     expected = ["checkpoint-dir", "training", "exploitability"]
@@ -137,6 +137,46 @@ def test_launcher_preserves_game_and_evaluation_overrides(launch):
     assert args.opponent_eval_strategy == "longest_move"
 
 
+def test_benchmarks_run_leduc_then_phantom_with_per_game_settings(launch):
+    result, events = launch(
+        "train_openspiel_benchmarks.sh",
+        ["--tag", "benchmark tag", "--seed", "7", "--evaluation-games", "32"],
+    )
+    assert result.returncode == 0, result.stderr
+    assert [event["event"] for event in events] == [
+        "checkpoint-dir",
+        "arena-start",
+        "training",
+        "arena-finished",
+        "exploitability",
+    ] * 2
+    parser = load_trainer_module().build_parser()
+    runs = [
+        parser.parse_args(event["args"][2:])
+        for event in events
+        if event["event"] == "training"
+    ]
+    leduc, phantom = runs
+    assert [run.game for run in runs] == ["leduc", "phantom_ttt"]
+    assert (leduc.steps, leduc.evaluation_every, leduc.perplexity_start) == (
+        2000,
+        25,
+        2.0,
+    )
+    assert (phantom.steps, phantom.evaluation_every, phantom.perplexity_start) == (
+        800,
+        200,
+        4.0,
+    )
+    assert phantom.environment_perplexity_start == 5.0
+    assert phantom.environment_perplexity_end == 3.0
+    for run in runs:
+        assert run.tag == "benchmark tag"
+        assert run.seed == 7
+        assert run.evaluation_games == 32
+
+
+@pytest.mark.parametrize("script", ["train_openspiel.sh", "train_openspiel_benchmarks.sh"])
 @pytest.mark.parametrize(
     "status",
     [
@@ -145,12 +185,15 @@ def test_launcher_preserves_game_and_evaluation_overrides(launch):
         {"TRAINING_STATUS": "130", "ARENA": "0"},
     ],
 )
-def test_failed_or_interrupted_training_does_not_start_exploitability(launch, status):
-    result, events = launch(**status)
+def test_failed_or_interrupted_training_does_not_start_exploitability(
+    launch, script, status
+):
+    result, events = launch(script, **status)
     assert result.returncode == int(
         status.get("TRAINING_STATUS", status.get("ARENA_STATUS"))
     )
     assert "exploitability" not in [event["event"] for event in events]
+    assert sum(event["event"] == "training" for event in events) == 1
 
 
 def test_final_exploitability_can_be_disabled_independently(launch):

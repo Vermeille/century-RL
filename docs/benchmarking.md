@@ -125,7 +125,7 @@ All trainers use the existing `Evaluator` and ordinary opponent rollouts during
 training. Exact exploitability is evaluated externally. For example:
 
 ```bash
-./train_openspiel.sh --opponent-eval-strategy random --evaluation-games 256
+./train_openspiel.sh --game leduc --opponent-eval-strategy random --evaluation-games 256
 ```
 
 This uses ordinary rollouts with seat rotation and never constructs the exact
@@ -135,8 +135,9 @@ also selects best checkpoints; it measures performance against that opponent,
 not exploitability. Cooperative games retain sampled self-play; `imitate.py`
 also defaults to self-play unless an opponent is supplied.
 
-Both launchers run the checkpoint arena for Elo ratings alongside training.
-After training succeeds and the arena finishes its final ratings, they compute
+`train_openspiel.sh` accepts the game through `--game` and runs the checkpoint
+arena for Elo ratings alongside training.
+After training succeeds and the arena finishes its final ratings, it computes
 exact exploitability once for the final `agent` checkpoint in both seats and
 save `exploitability.json` in the checkpoint directory. This uses the game,
 evaluation temperature, device, and inference batch size recorded in `run.txt`.
@@ -145,6 +146,16 @@ runs do not start final exploitability.
 
 `ARENA=0` disables only the arena; `FINAL_EXPLOITABILITY=0` disables only the
 final exact calculation.
+
+Run the benchmark games sequentially with:
+
+```bash
+./train_openspiel_benchmarks.sh
+```
+
+This script calls the shared launcher once per game: Leduc first, then Phantom
+Tic-Tac-Toe with its existing perplexity and evaluation schedule overrides.
+Extra CLI arguments are forwarded to every run. A failed run stops the sequence.
 
 To repeat the automatic final evaluation manually with the saved run settings:
 
