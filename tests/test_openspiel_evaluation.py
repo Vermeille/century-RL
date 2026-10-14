@@ -19,15 +19,12 @@ from boardrl.games.openspiel.evaluation import (
 )
 from boardrl.games.openspiel.game import OpenSpiel
 from boardrl.games.openspiel.leduc.game import Leduc
-from boardrl.games.openspiel.policy import OpenSpielPolicy
+from boardrl.games.openspiel.policy import OpenSpielPolicy, _model_probabilities
 from boardrl.games.semantics import CompetitiveOutcome, PointDeltaRewards, PointScores
-from boardrl.rollouts import Inference
 
 
 def predict(model, temperature=1.0):
-    return partial(
-        Inference(model, batch_size=64).probabilities, temperature=temperature
-    )
+    return partial(_model_probabilities, model, temperature=temperature)
 
 
 class TestPolicyModel(torch.nn.Module):
@@ -157,7 +154,7 @@ def test_invalid_batch_size_and_action_dimensions_are_rejected():
     with pytest.raises(ValueError, match="batch_size"):
         nash_conv(model, batch_size=0)
     with pytest.raises(ValueError, match="legal actions"):
-        Inference(model, batch_size=1).probabilities(["@Call"], [2])
+        _model_probabilities(model, ["@Call"], [2])
 
 
 def test_exact_evaluation_uses_the_registered_game_parameters(monkeypatch):

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from boardrl.rollouts import Inference
+from boardrl.games.openspiel.policy import _model_probabilities
 
 
 class FixedPolicy(torch.nn.Module):
@@ -22,8 +22,7 @@ def test_exact_probabilities_match_rollout_strategy(temperature):
 
     logits = [0.0, -float("inf"), 2.0, 2.0]
     model = FixedPolicy(logits)
-    inference = Inference(model, batch_size=2)
-    actual = inference.probabilities(["state"], [4], temperature=temperature)[0]
+    actual = _model_probabilities(model, ["state"], [4], temperature=temperature)[0]
 
     async def predict(_):
         return SimpleNamespace(
@@ -46,12 +45,12 @@ def test_exact_probabilities_match_rollout_strategy(temperature):
 )
 def test_exact_probabilities_reject_invalid_logits(logits):
     with pytest.raises(ValueError, match="finite probability"):
-        Inference(FixedPolicy(logits), batch_size=1).probabilities(["state"], [2])
+        _model_probabilities(FixedPolicy(logits), ["state"], [2])
 
 
 @pytest.mark.parametrize("temperature", [-1.0, float("nan"), float("inf")])
 def test_exact_probabilities_reject_invalid_temperature(temperature):
     with pytest.raises(ValueError, match="temperature"):
-        Inference(FixedPolicy([0, 1]), batch_size=1).probabilities(
-            ["state"], [2], temperature=temperature
+        _model_probabilities(
+            FixedPolicy([0, 1]), ["state"], [2], temperature=temperature
         )

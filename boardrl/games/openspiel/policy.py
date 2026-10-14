@@ -1,6 +1,11 @@
 """Map game displays and legal-action probabilities to OpenSpiel policies."""
 
+import math
+
+import torch
+
 from boardrl.games.openspiel.game import _require_pyspiel
+from boardrl.games.strategies import PolicySamplingStrategy
 
 
 def _require_policy_modules():
@@ -14,6 +19,32 @@ def _require_policy_modules():
             "Install it with `uv pip install open-spiel`."
         ) from exc
     return policy_lib, exploitability
+
+
+@torch.no_grad()
+def _model_probabilities(model, texts, action_counts, *, temperature=1.0):
+    """Convert a solver's batch to validated float64 action probabilities."""
+    if not math.isfinite(temperature) or temperature < 0:
+        raise ValueError("temperature must be finite and non-negative")
+    predictions = model(texts).policy
+    if len(predictions) != len(texts):
+        raise ValueError("policy output does not match evaluation batch")
+    probabilities = []
+    for logits, count in zip(predictions, action_counts, strict=True):
+        logits = logits.detach().double().cpu()
+        if logits.ndim != 1 or len(logits) != count or count == 0:
+            raise ValueError("policy output does not match legal actions")
+        if (
+            torch.isnan(logits).any()
+            or torch.isposinf(logits).any()
+            or not torch.isfinite(logits).any()
+        ):
+            raise ValueError(
+                "policy logits must define a finite probability distribution"
+            )
+        scaled = PolicySamplingStrategy.policy_logits(logits, temperature)
+        probabilities.append(torch.softmax(scaled, dim=0).numpy())
+    return probabilities
 
 
 class OpenSpielPolicy:

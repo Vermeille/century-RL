@@ -9,10 +9,10 @@ from threading import RLock
 from boardrl.games.openspiel.game import OpenSpielGame, _require_pyspiel
 from boardrl.games.openspiel.policy import (
     OpenSpielPolicy,
+    _model_probabilities,
     _require_policy_modules,
 )
 from boardrl.games.openspiel.result import NashConvResult
-from boardrl.rollouts import Inference
 
 
 def nash_conv(
@@ -62,10 +62,14 @@ class ExactOpenSpielEvaluator:
             raise ValueError("temperature must be finite and non-negative")
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
-        inference = Inference(model, batch_size=batch_size)
-        policy = partial(inference.probabilities, temperature=temperature)
-        with self._lock, inference.evaluating():
-            return self.backend.evaluate(policy, batch_size=batch_size)
+        predict = partial(_model_probabilities, model, temperature=temperature)
+        with self._lock:
+            was_training = model.training
+            model.eval()
+            try:
+                return self.backend.evaluate(predict, batch_size=batch_size)
+            finally:
+                model.train(was_training)
 
 
 class OpenSpielTreeEvaluator:
