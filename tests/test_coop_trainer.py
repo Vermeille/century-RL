@@ -417,7 +417,7 @@ def test_coop_evaluates_and_logs_before_zero_steps(
 ) -> None:
     _FakeEvaluator.calls = []
     _RecordingMetricLogger.instances = []
-    monkeypatch.setattr("boardrl.evaluation.Evaluator", _FakeEvaluator)
+    monkeypatch.setattr(coop, "Evaluator", _FakeEvaluator)
     monkeypatch.setattr(coop, "RolloutRunner", _FakeRolloutRunner)
     monkeypatch.setattr(coop, "MetricLogger", _RecordingMetricLogger)
 
@@ -452,7 +452,7 @@ def test_coop_saves_final_checkpoint_when_steps_is_not_save_multiple(
 ) -> None:
     _FakeEvaluator.calls = []
     _RecordingMetricLogger.instances = []
-    monkeypatch.setattr("boardrl.evaluation.Evaluator", _FakeEvaluator)
+    monkeypatch.setattr(coop, "Evaluator", _FakeEvaluator)
     monkeypatch.setattr(coop, "RolloutRunner", _FakeRolloutRunner)
     monkeypatch.setattr(coop, "MetricLogger", _RecordingMetricLogger)
     monkeypatch.setattr(coop, "Learner", _CompletedLearner)
@@ -493,7 +493,7 @@ def test_coop_resume_restores_model_optimizer_and_learner_state(
 ) -> None:
     _FakeEvaluator.calls = []
     _RecordingMetricLogger.instances = []
-    monkeypatch.setattr("boardrl.evaluation.Evaluator", _FakeEvaluator)
+    monkeypatch.setattr(coop, "Evaluator", _FakeEvaluator)
     monkeypatch.setattr(coop, "RolloutRunner", _FakeRolloutRunner)
     monkeypatch.setattr(coop, "MetricLogger", _RecordingMetricLogger)
 
