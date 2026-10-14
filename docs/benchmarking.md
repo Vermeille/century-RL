@@ -2,7 +2,7 @@
 
 BoardRL keeps benchmark dependencies outside the core training stack. The
 training algorithms stay in `trainers/`; OpenSpiel is used as a game backend
-and as an evaluator, while Othello engines are subprocess opponents.
+and as an evaluator.
 
 OpenSpiel code lives in `boardrl/games/openspiel/`. Each preset has its own
 subdirectory: `leduc/`, `liars_dice/`, `dark_hex/`, `abrupt_dark_hex/`,
@@ -13,7 +13,7 @@ calls in `boardrl/games/__init__.py` select scores, rewards, augmentations, and
 evaluation explicitly, with `metrics_from=OpenSpiel` sharing the payoff metrics.
 Game-specific solvers and backend settings live in each game's `evaluation.py`,
 and Dark Hex's private-state text lives in its
-`representation.py`. Othello's GTP opponent strategy and engine client live together.
+`representation.py`.
 
 Shared adapter, policy, result, and evaluator code stays directly under
 `boardrl/games/openspiel/`. `exp_a_spiel.py` provides the shared cached traversal
@@ -287,28 +287,14 @@ per-player unilateral improvement, and the number of distinct information
 states evaluated by the BoardRL model. `--temperature 1` evaluates the policy
 as trained; `--temperature 0` evaluates deterministic argmax play.
 
-## Othello: fixed external engine strength
+## Othello evaluation
 
-`boardrl/games/openspiel/othello/strategies.py` adapts a GTP engine to the ordinary
-strategy protocol. `evaluate_othello_engine.py` composes the existing `Inference`
-and `Evaluator` with that strategy, pairing each random opening with both seats.
-There is no separate match runner or model move selector.
+Othello uses the standard `Evaluator` with registered random or model opponents,
+and the checkpoint arena supplies relative Elo ratings. It has no registered
+exact exploitability backend.
 
-OpenSpiel supplies Othello's rules and legal moves. GTP is only the external
-engine's command protocol. Before each engine query, the strategy replays the
-native history, so interleaved rollout games cannot contaminate its position.
-
-Egaroucid example (flags may differ between releases):
-
-```bash
-uv run python evaluate_othello_engine.py checkpoints/step-100.pth \
-  --model agent \
-  --engine "./Egaroucid_for_Console -gtp -quiet -nobook -l 10 -t 4" \
-  --pairs 64 \
-  --opening-plies 8 \
-  --seed 0
-```
-
-Edax can be used the same way by passing its GTP command. Sweep fixed engine
-levels with the same paired openings to obtain an externally anchored strength
-curve without moving the training code into an engine repository.
+[KLENT's Othello benchmark](https://arxiv.org/html/2602.10894v1#S5.SS1) uses a
+pretrained Pgx policy as its fixed opponent. The
+[author's code](https://github.com/KazukiOhta/klent/blob/main/main.py#L235-L241)
+loads it through `pgx.make_baseline_model`. That opponent is not integrated here,
+so current Othello evaluation does not reproduce KLENT's fixed-opponent results.

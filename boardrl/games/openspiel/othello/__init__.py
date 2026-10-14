@@ -1,1 +1,1 @@
-"""Othello evaluation against external engines."""
+"""OpenSpiel Othello game adapter."""
