@@ -6,7 +6,7 @@ import math
 from functools import partial
 from threading import RLock
 
-from boardrl.games.openspiel.game import _require_pyspiel
+from boardrl.games.openspiel.game import OpenSpielGame, _require_pyspiel
 from boardrl.games.openspiel.policy import (
     OpenSpielPolicy,
     _require_policy_modules,
@@ -69,24 +69,23 @@ class ExactOpenSpielEvaluator:
 
 
 class OpenSpielTreeEvaluator:
-    def __init__(self, game, *, use_cpp_br=True, make_game=None):
+    def __init__(self, game, *, use_cpp_br=True):
         self.game = game
         self.use_cpp_br = use_cpp_br
-        self.make_game = make_game
 
-    def evaluate(self, predict, *, batch_size):
+    def _create_game(self):
         pyspiel = _require_pyspiel()
-        policy_lib, exploitability_module = _require_policy_modules()
         information_state = (
             self.game.get_type().information
             == pyspiel.GameType.Information.IMPERFECT_INFORMATION
         )
-        policy = OpenSpielPolicy(
-            self.game,
-            predict,
-            information_state=information_state,
-            make_game=self.make_game,
+        return OpenSpielGame.from_state(
+            self.game.new_initial_state(), information_state=information_state
         )
+
+    def evaluate(self, predict, *, batch_size):
+        policy_lib, exploitability_module = _require_policy_modules()
+        policy = OpenSpielPolicy(self._create_game(), predict)
         policy.precompute(
             policy_lib.TabularPolicy(self.game).states, batch_size=batch_size
         )

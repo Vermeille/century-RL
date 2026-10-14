@@ -1,8 +1,6 @@
 """Map game displays and legal-action probabilities to OpenSpiel policies."""
 
-from functools import partial
-
-from boardrl.games.openspiel.game import OpenSpielGame, _require_pyspiel
+from boardrl.games.openspiel.game import _require_pyspiel
 
 
 def _require_policy_modules():
@@ -21,23 +19,11 @@ def _require_policy_modules():
 class OpenSpielPolicy:
     """Map batched legal-action probabilities to OpenSpiel action IDs."""
 
-    def __init__(
-        self,
-        spiel_game,
-        predict,
-        *,
-        information_state: bool,
-        make_game=None,
-    ):
-        self.game = spiel_game
-        self.player_ids = list(range(spiel_game.num_players()))
+    def __init__(self, game, predict):
+        self.game = game._game
+        self.player_ids = list(range(game.num_players))
         self.predict = predict
-        self.make_game = make_game or partial(
-            OpenSpielGame,
-            spiel_game.get_type().short_name,
-            num_players=spiel_game.num_players(),
-            information_state=information_state,
-        )
+        self._view = game
         self._cache: dict[str, tuple[float, ...]] = {}
 
     def precompute(self, states, *, batch_size=64):
@@ -46,9 +32,7 @@ class OpenSpielPolicy:
             raise ValueError("batch_size must be positive")
         pending = {}
         for state in states:
-            view = self.make_game(
-                spiel_game=self.game, state=state, resolve_chance=False
-            )
+            view = self._view._with_state(state)
             pending.setdefault(view.display_with_moves(), len(view.action_ids))
         items = list(pending.items())
         for start in range(0, len(items), batch_size):
@@ -60,7 +44,7 @@ class OpenSpielPolicy:
                 self._cache[text] = tuple(probabilities)
 
     def action_probabilities(self, state, player_id=None):
-        view = self.make_game(spiel_game=self.game, state=state, resolve_chance=False)
+        view = self._view._with_state(state)
         text = view.display_with_moves()
         probabilities = self._cache.get(text)
         if probabilities is None:

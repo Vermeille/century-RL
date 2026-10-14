@@ -81,16 +81,10 @@ def test_batching_preserves_action_order_and_temperature(temperature):
     game = pyspiel.load_game("leduc_poker")
     model = TestPolicyModel((0.1, -0.4, 1.2))
     lazy = OpenSpielPolicy(
-        game,
-        predict(model, temperature),
-        information_state=True,
-        make_game=Leduc,
+        Leduc(spiel_game=game, resolve_chance=False), predict(model, temperature)
     )
     batched = OpenSpielPolicy(
-        game,
-        predict(model, temperature),
-        information_state=True,
-        make_game=Leduc,
+        Leduc(spiel_game=game, resolve_chance=False), predict(model, temperature)
     )
     states = policy.TabularPolicy(game).states
     batched.precompute(states)
@@ -141,7 +135,7 @@ def test_hidden_opponent_cards_have_identical_policy_inputs():
     game = pyspiel.load_game("leduc_poker")
     model = TestPolicyModel((0.0, 0.2, 0.5))
     adapter = OpenSpielPolicy(
-        game, predict(model), information_state=True, make_game=Leduc
+        Leduc(spiel_game=game, resolve_chance=False), predict(model)
     )
     states = []
     for opponent_card in (1, 4):

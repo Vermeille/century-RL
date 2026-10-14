@@ -12,7 +12,6 @@ from typing import ClassVar
 
 import numpy as np
 
-from boardrl.games.openspiel.game import OpenSpielGame
 from boardrl.games.openspiel.result import NashConvResult
 
 
@@ -57,9 +56,9 @@ class ExpASpielEvaluator(ABC):
     # Paper Table 1 counts, rounded up for the allocation guard.
     infosets: ClassVar[int]
 
-    def __init__(self, game, *, make_game=None, traverser=None):
-        parameters = game.get_parameters()
-        key = (game.get_type().short_name, parameters["gameversion"])
+    def __init__(self, game, *, traverser=None):
+        parameters = game._game.get_parameters()
+        key = (game._game.get_type().short_name, parameters["gameversion"])
         if (
             key != self.game_key
             or parameters.get("num_rows", 3) != 3
@@ -69,12 +68,7 @@ class ExpASpielEvaluator(ABC):
             raise ValueError(
                 "exp-a-spiel evaluation requires the matching 3x3 reveal-nothing game"
             )
-        view = (
-            OpenSpielGame.from_state(game.new_initial_state(), information_state=True)
-            if make_game is None
-            else make_game(spiel_game=game, resolve_chance=False)
-        )
-        self.text = BoardInformationState(view)
+        self.text = BoardInformationState(game)
         self._traverser = traverser
 
     def _make_traverser(self):

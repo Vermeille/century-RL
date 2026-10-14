@@ -199,6 +199,13 @@ class OpenSpiel(ABC):
         copied.moves = self.moves.copy()
         return copied
 
+    def _with_state(self, state):
+        """Copy this adapter at a native state, preserving its game settings."""
+        view = self.copy()
+        view._state = state.clone()
+        view._refresh_moves()
+        return view
+
     def simulate_to_end(self):
         while not self.ended():
             self.play_idx(random.randrange(len(self.moves)))

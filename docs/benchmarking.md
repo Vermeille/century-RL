@@ -14,8 +14,8 @@ evaluation explicitly, with `metrics_from=OpenSpiel` sharing the payoff metrics.
 Game-specific solvers and backend settings live in each game's `evaluation.py`.
 The adapter's display methods handle native text, player identity and terminal
 outcomes. Leduc and Dark Hex override the relevant methods in `game.py`.
-Evaluator registrations bind the game factory so evaluation uses those same
-display methods. There is no separate representation layer or game-name dispatch.
+Each concrete evaluator constructs its own game adapter and uses those same
+display methods. Registrations select evaluator classes directly.
 
 Shared adapter, policy, result, and evaluator code stays directly under
 `boardrl/games/openspiel/`. `exp_a_spiel.py` provides the shared cached traversal
