@@ -7,3 +7,6 @@ class AbruptPhantomTicTacToeEvaluator(ExpASpielEvaluator):
     game_key = ("phantom_ttt", "abrupt")
     traverser_name = "AbruptPtttTraverser"
     infosets = 23_320_000
+
+    def _create_traverser(self, eas):
+        return eas.AbruptPtttTraverser()

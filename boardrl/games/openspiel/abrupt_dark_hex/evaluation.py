@@ -9,3 +9,6 @@ class AbruptDarkHexEvaluator(ExpASpielEvaluator):
     game_key = ("dark_hex", "adh")
     traverser_name = "AbruptDhTraverser"
     infosets = 27_340_000
+
+    def _create_traverser(self, eas):
+        return eas.AbruptDhTraverser()

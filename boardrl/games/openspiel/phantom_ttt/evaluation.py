@@ -7,3 +7,6 @@ class PhantomTicTacToeEvaluator(ExpASpielEvaluator):
     game_key = ("phantom_ttt", "classical")
     traverser_name = "PtttTraverser"
     infosets = 6_000_000
+
+    def _create_traverser(self, eas):
+        return eas.PtttTraverser()

@@ -4,6 +4,8 @@ The optional library is pinned to revision
 9412882c24e521fad7cbd96fdd68311d9bf6f203; see docs/benchmarking.md.
 """
 
+from abc import ABC, abstractmethod
+
 import os
 import sys
 from typing import ClassVar
@@ -46,7 +48,7 @@ class BoardInformationState:
         return text, actions
 
 
-class ExpASpielEvaluator:
+class ExpASpielEvaluator(ABC):
     """Shared policy conversion and cached sequence-form traversal."""
 
     text_type = PlayerStateText
@@ -89,7 +91,12 @@ class ExpASpielEvaluator:
                 f"{required / 2**30:.1f} GiB of available RAM; "
                 f"{available / 2**30:.1f} GiB available. No sampled fallback is used."
             )
-        return getattr(eas, self.traverser_name)()
+        return self._create_traverser(eas)
+
+    @abstractmethod
+    def _create_traverser(self, eas):
+        """Construct the native traverser selected by the concrete backend."""
+        raise NotImplementedError
 
     def _strategy(self, traverser, player, rows, policy, batch_size):
         strategy = np.zeros((rows, 9), dtype=np.float64)
