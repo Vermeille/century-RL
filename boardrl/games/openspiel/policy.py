@@ -1,6 +1,7 @@
 """Validate and convert model logits for exact, legal-action evaluation."""
 
 from boardrl.games.openspiel.game import OpenSpielGame, _require_pyspiel
+from boardrl.games.openspiel.representation import PlayerStateText
 
 
 def _require_policy_modules():
@@ -25,11 +26,13 @@ class OpenSpielPolicy:
         predict,
         *,
         information_state: bool,
+        text_type=PlayerStateText,
     ):
         self.game = spiel_game
         self.player_ids = list(range(spiel_game.num_players()))
         self.predict = predict
         self.information_state = information_state
+        self.text_type = text_type
         self._cache: dict[str, tuple[float, ...]] = {}
 
     def precompute(self, states, *, batch_size=64):
@@ -39,7 +42,9 @@ class OpenSpielPolicy:
         pending = {}
         for state in states:
             view = OpenSpielGame.from_state(
-                state, information_state=self.information_state
+                state,
+                information_state=self.information_state,
+                text_type=self.text_type,
             )
             pending.setdefault(view.display_with_moves(), len(view.action_ids))
         items = list(pending.items())
@@ -55,6 +60,7 @@ class OpenSpielPolicy:
         view = OpenSpielGame.from_state(
             state,
             information_state=self.information_state,
+            text_type=self.text_type,
         )
         text = view.display_with_moves()
         probabilities = self._cache.get(text)

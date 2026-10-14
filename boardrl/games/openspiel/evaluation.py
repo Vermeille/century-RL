@@ -12,6 +12,7 @@ from boardrl.games.openspiel.policy import (
     _require_policy_modules,
 )
 from boardrl.games.openspiel.result import NashConvResult
+from boardrl.games.openspiel.representation import PlayerStateText
 from boardrl.rollouts import Inference
 
 
@@ -69,42 +70,38 @@ class ExactOpenSpielEvaluator:
 
 
 class OpenSpielTreeEvaluator:
+    text_type = PlayerStateText
+
     def __init__(self, game, *, use_cpp_br=True):
         self.game = game
         self.use_cpp_br = use_cpp_br
 
     def evaluate(self, predict, *, batch_size):
-        return _tree_nash_conv(
-            predict,
-            self.game,
-            use_cpp_br=self.use_cpp_br,
-            batch_size=batch_size,
+        pyspiel = _require_pyspiel()
+        policy_lib, exploitability_module = _require_policy_modules()
+        information_state = (
+            self.game.get_type().information
+            == pyspiel.GameType.Information.IMPERFECT_INFORMATION
         )
-
-
-def _tree_nash_conv(predict, game, *, use_cpp_br, batch_size):
-    pyspiel = _require_pyspiel()
-    policy_lib, exploitability_module = _require_policy_modules()
-    information_state = (
-        game.get_type().information
-        == pyspiel.GameType.Information.IMPERFECT_INFORMATION
-    )
-    policy = OpenSpielPolicy(
-        game,
-        predict,
-        information_state=information_state,
-    )
-    policy.precompute(policy_lib.TabularPolicy(game).states, batch_size=batch_size)
-    result = exploitability_module.nash_conv(
-        game,
-        policy,
-        return_only_nash_conv=False,
-        use_cpp_br=use_cpp_br,
-    )
-    value = float(result.nash_conv)
-    return NashConvResult(
-        nash_conv=value,
-        exploitability=value / game.num_players(),
-        player_improvements=tuple(float(x) for x in result.player_improvements),
-        evaluated_states=policy.evaluated_states,
-    )
+        policy = OpenSpielPolicy(
+            self.game,
+            predict,
+            information_state=information_state,
+            text_type=self.text_type,
+        )
+        policy.precompute(
+            policy_lib.TabularPolicy(self.game).states, batch_size=batch_size
+        )
+        result = exploitability_module.nash_conv(
+            self.game,
+            policy,
+            return_only_nash_conv=False,
+            use_cpp_br=self.use_cpp_br,
+        )
+        value = float(result.nash_conv)
+        return NashConvResult(
+            nash_conv=value,
+            exploitability=value / self.game.num_players(),
+            player_improvements=tuple(float(x) for x in result.player_improvements),
+            evaluated_states=policy.evaluated_states,
+        )

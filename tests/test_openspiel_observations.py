@@ -4,6 +4,8 @@ pyspiel = pytest.importorskip("pyspiel")
 
 from boardrl.games import games_library
 from boardrl.games.openspiel.game import OpenSpielGame
+from boardrl.games.openspiel.leduc.representation import LeducStateText
+from boardrl.games.openspiel.representation import PlayerStateText
 from boardrl.rollouts import EndState
 
 
@@ -31,16 +33,25 @@ def test_games_without_native_tags_identify_the_requested_player(spec):
         game.play_idx(0)
 
 
-def view_after(game_name, actions, *, information_state=True):
+def view_after(
+    game_name, actions, *, information_state=True, text_type=PlayerStateText
+):
     state = pyspiel.load_game(game_name).new_initial_state()
     for action in actions:
         state.apply_action(action)
-    return OpenSpielGame.from_state(state, information_state=information_state)
+    return OpenSpielGame.from_state(
+        state, information_state=information_state, text_type=text_type
+    )
 
 
 @pytest.mark.parametrize("information_state", [True, False])
 def test_leduc_live_views_preserve_native_identity_fields(information_state):
-    game = view_after("leduc_poker", [0, 4], information_state=information_state)
+    game = view_after(
+        "leduc_poker",
+        [0, 4],
+        information_state=information_state,
+        text_type=LeducStateText,
+    )
     for _ in range(2):
         for player in (0, 1):
             native = (
@@ -66,7 +77,12 @@ def test_leduc_live_views_preserve_native_identity_fields(information_state):
 def test_leduc_final_views_preserve_native_actor_observer_and_private_cards(
     information_state, actions, payoffs, results, money
 ):
-    game = view_after("leduc_poker", actions, information_state=information_state)
+    game = view_after(
+        "leduc_poker",
+        actions,
+        information_state=information_state,
+        text_type=LeducStateText,
+    )
     assert game.ended() and game.moves == []
     for player in (0, 1):
         end = EndState(game, player)
@@ -117,7 +133,7 @@ def test_perfect_information_terminal_view_has_the_same_contract():
 
 
 def test_unresolved_chance_node_preserves_native_observation():
-    game = view_after("leduc_poker", [])
+    game = view_after("leduc_poker", [], text_type=LeducStateText)
     assert game.display() == game._state.information_state_string(0)
     for player in (0, 1):
         assert game.display(force=player) == game._state.information_state_string(

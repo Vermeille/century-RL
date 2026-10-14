@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 
-from boardrl.games.openspiel.representation import state_text
+from boardrl.games.openspiel.representation import PlayerStateText
 
 
 def _require_pyspiel():
@@ -25,6 +25,8 @@ class OpenSpiel(ABC):
     strings; perfect-information games expose observations (which are usually a
     much more compact board representation than full action history).
     """
+
+    text_type = PlayerStateText
 
     __slots__ = (
         "_actions",
@@ -48,6 +50,7 @@ class OpenSpiel(ABC):
         state=None,
         information_state: bool | None = None,
         resolve_chance: bool = True,
+        text_type=None,
     ):
         self.game_name = game_name
         self._game = spiel_game or _require_pyspiel().load_game(game_name)
@@ -65,7 +68,7 @@ class OpenSpiel(ABC):
                 == pyspiel.GameType.Information.IMPERFECT_INFORMATION
             )
         self._information_state = information_state
-        self._text = state_text(self._game, information_state)
+        self._text = (text_type or self.text_type)(self._game, information_state)
         self._state = self._game.new_initial_state() if state is None else state.clone()
         self._turn = 0
         if resolve_chance:
@@ -199,7 +202,7 @@ class OpenSpielGame(OpenSpiel):
         super().__init__(game_name, num_players=num_players, **kwargs)
 
     @classmethod
-    def from_state(cls, state, *, information_state: bool):
+    def from_state(cls, state, *, information_state: bool, text_type=None):
         game = state.get_game()
         return cls(
             game.get_type().short_name,
@@ -208,4 +211,5 @@ class OpenSpielGame(OpenSpiel):
             state=state,
             information_state=information_state,
             resolve_chance=False,
+            text_type=text_type,
         )

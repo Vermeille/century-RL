@@ -6,6 +6,7 @@ pyspiel = pytest.importorskip("pyspiel")
 from boardrl.evaluation import Evaluation
 from boardrl.games import games_library
 from boardrl.games.openspiel.game import OpenSpielGame
+from boardrl.games.openspiel.leduc.representation import LeducStateText
 from boardrl.games.semantics import PointDeltaRewards, PointScores
 from boardrl.models import make_for_game
 from boardrl.rollouts import EndState, GameTrace, PlayerTrace, Record, Rollouts
@@ -76,12 +77,16 @@ def _trace(actions, seat_to_strategy=(0, 1)):
     traces = [PlayerTrace(seat, strategy) for seat, strategy in enumerate(seat_to_strategy)]
     for action in actions:
         if not state.is_chance_node():
-            view = OpenSpielGame.from_state(state, information_state=True)
+            view = OpenSpielGame.from_state(
+                state, information_state=True, text_type=LeducStateText
+            )
             traces[state.current_player()].append(
                 Record(view, torch.zeros(len(view.moves)), view.action_ids.index(action), {})
             )
         state.apply_action(action)
-    view = OpenSpielGame.from_state(state, information_state=True)
+    view = OpenSpielGame.from_state(
+        state, information_state=True, text_type=LeducStateText
+    )
     for seat, trace in enumerate(traces):
         trace.append(EndState(view, seat, outcome=desc.outcome))
     return GameTrace(traces)
@@ -158,7 +163,9 @@ def test_leduc_information_states_preserve_recall_and_hide_opponent_cards():
                 visit(state.child(action), histories)
             return
         player = state.current_player()
-        view = OpenSpielGame.from_state(state, information_state=information_state)
+        view = OpenSpielGame.from_state(
+            state, information_state=information_state, text_type=LeducStateText
+        )
         text = view.display_with_moves()
         key = (
             player, state.private_card(player), state.public_card(),
@@ -190,5 +197,10 @@ def test_leduc_information_state_distinguishes_histories_merged_by_observation()
         states.append(state)
     assert states[0].current_player() == states[1].current_player() == 1
     assert states[0].observation_string(1) == states[1].observation_string(1)
-    views = [OpenSpielGame.from_state(state, information_state=True) for state in states]
+    views = [
+        OpenSpielGame.from_state(
+            state, information_state=True, text_type=LeducStateText
+        )
+        for state in states
+    ]
     assert views[0].display_with_moves() != views[1].display_with_moves()

@@ -18,6 +18,7 @@ from boardrl.games.openspiel.evaluation import (
     nash_conv,
 )
 from boardrl.games.openspiel.game import OpenSpiel
+from boardrl.games.openspiel.leduc.representation import LeducStateText
 from boardrl.games.openspiel.policy import OpenSpielPolicy
 from boardrl.games.semantics import CompetitiveOutcome, PointDeltaRewards, PointScores
 from boardrl.rollouts import Inference
@@ -67,14 +68,30 @@ def test_batched_uniform_evaluation_matches_openspiel():
     assert len(model.batches) == math.ceil(936 / 64)
     assert max(map(len, model.batches)) == 64
     assert all("[Round1:" in text for batch in model.batches for text in batch)
+    inputs = [text for batch in model.batches for text in batch]
+    for state, text in zip(policy.TabularPolicy(game).states, inputs, strict=True):
+        training_view = games_library("leduc").make_game(
+            spiel_game=game, state=state, resolve_chance=False
+        )
+        assert text == training_view.display_with_moves()
 
 
 @pytest.mark.parametrize("temperature", [0.0, 0.5, 2.0])
 def test_batching_preserves_action_order_and_temperature(temperature):
     game = pyspiel.load_game("leduc_poker")
     model = TestPolicyModel((0.1, -0.4, 1.2))
-    lazy = OpenSpielPolicy(game, predict(model, temperature), information_state=True)
-    batched = OpenSpielPolicy(game, predict(model, temperature), information_state=True)
+    lazy = OpenSpielPolicy(
+        game,
+        predict(model, temperature),
+        information_state=True,
+        text_type=LeducStateText,
+    )
+    batched = OpenSpielPolicy(
+        game,
+        predict(model, temperature),
+        information_state=True,
+        text_type=LeducStateText,
+    )
     states = policy.TabularPolicy(game).states
     batched.precompute(states)
     for state in states:
@@ -123,7 +140,9 @@ def test_exact_evaluation_restores_model_mode_after_failure(monkeypatch, trainin
 def test_hidden_opponent_cards_have_identical_policy_inputs():
     game = pyspiel.load_game("leduc_poker")
     model = TestPolicyModel((0.0, 0.2, 0.5))
-    adapter = OpenSpielPolicy(game, predict(model), information_state=True)
+    adapter = OpenSpielPolicy(
+        game, predict(model), information_state=True, text_type=LeducStateText
+    )
     states = []
     for opponent_card in (1, 4):
         state = game.new_initial_state()

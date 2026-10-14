@@ -11,14 +11,15 @@ subdirectory: `leduc/`, `liars_dice/`, `dark_hex/`, `abrupt_dark_hex/`,
 specifications are inline in those constructors. The standard `register_game`
 calls in `boardrl/games/__init__.py` select scores, rewards, augmentations, and
 evaluation explicitly, with `metrics_from=OpenSpiel` sharing the payoff metrics.
-Game-specific solvers and backend settings live in each game's `evaluation.py`,
-and Dark Hex's private-state text lives in its
-`representation.py`.
+Game-specific solvers and backend settings live in each game's `evaluation.py`.
+Leduc and Dark Hex select their text classes from their `representation.py`;
+shared text composition has no game-name dispatch. Evaluators reuse the
+game's text class to preserve identical policy inputs.
 
 Shared adapter, policy, result, and evaluator code stays directly under
 `boardrl/games/openspiel/`. `exp_a_spiel.py` provides the shared cached traversal
-for the four hidden board games. The `register_game(exact_evaluation=...)` calls select evaluator factories
-separately from game classes. `evaluation.py` exposes the external
+for the four hidden board games. The `register_game(exact_evaluation=...)` calls
+select evaluator factories separately from game classes. `evaluation.py` exposes the external
 `nash_conv` and reusable `ExactOpenSpielEvaluator` APIs.
 
 ## Install OpenSpiel

@@ -153,14 +153,18 @@ class Century(GameDesc):
 
 if find_spec("pyspiel") is not None:
     from boardrl.games.openspiel.abrupt_dark_hex.game import AbruptDarkHex
-    from boardrl.games.openspiel.abrupt_dark_hex.evaluation import AbruptDarkHexEvaluator
+    from boardrl.games.openspiel.abrupt_dark_hex.evaluation import (
+        AbruptDarkHexEvaluator,
+    )
     from boardrl.games.openspiel.abrupt_phantom_ttt.game import AbruptPhantomTicTacToe
-    from boardrl.games.openspiel.abrupt_phantom_ttt.evaluation import AbruptPhantomTicTacToeEvaluator
+    from boardrl.games.openspiel.abrupt_phantom_ttt.evaluation import (
+        AbruptPhantomTicTacToeEvaluator,
+    )
     from boardrl.games.openspiel.dark_hex.game import DarkHex
     from boardrl.games.openspiel.dark_hex.evaluation import DarkHexEvaluator
     from boardrl.games.openspiel.game import OpenSpiel
     from boardrl.games.openspiel.leduc.game import Leduc
-    from boardrl.games.openspiel.evaluation import OpenSpielTreeEvaluator
+    from boardrl.games.openspiel.leduc.evaluation import LeducEvaluator
     from boardrl.games.openspiel.liars_dice.game import LiarsDice
     from boardrl.games.openspiel.liars_dice.evaluation import LiarsDiceEvaluator
     from boardrl.games.openspiel.othello.game import Othello
@@ -175,7 +179,7 @@ if find_spec("pyspiel") is not None:
         outcome=CompetitiveOutcome(),
         rewards=PointDeltaRewards(scale=0.1),
         metrics_from=OpenSpiel,
-        exact_evaluation=OpenSpielTreeEvaluator,
+        exact_evaluation=LeducEvaluator,
     )
 
     register_game(

@@ -1,7 +1,10 @@
 from boardrl.games.openspiel.game import OpenSpiel
+from boardrl.games.openspiel.dark_hex.representation import DarkHexStateText
 
 
 class DarkHex(OpenSpiel):
+    text_type = DarkHexStateText
+
     def __init__(self, num_players: int = 2, **kwargs):
         super().__init__(
             "dark_hex(board_size=3,gameversion=cdh,obstype=reveal-nothing)",

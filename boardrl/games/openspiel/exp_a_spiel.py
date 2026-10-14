@@ -10,16 +10,16 @@ from typing import ClassVar
 
 import numpy as np
 
-from boardrl.games.openspiel.representation import state_text
+from boardrl.games.openspiel.representation import PlayerStateText
 from boardrl.games.openspiel.result import NashConvResult
 
 
 class BoardInformationState:
     """Render an exp-a-spiel private history as the adapter's model input."""
 
-    def __init__(self, game):
+    def __init__(self, game, *, text_type=PlayerStateText):
         initial = game.new_initial_state()
-        self.text = state_text(game, information_state=True)
+        self.text = text_type(game, information_state=True)
         self.labels = tuple(
             tuple(initial.action_to_string(player, action) for action in range(9))
             for player in range(2)
@@ -49,6 +49,8 @@ class BoardInformationState:
 class ExpASpielEvaluator:
     """Shared policy conversion and cached sequence-form traversal."""
 
+    text_type = PlayerStateText
+
     game_key: ClassVar[tuple[str, str]]
     traverser_name: ClassVar[str]
     # Paper Table 1 counts, rounded up for the allocation guard.
@@ -66,7 +68,7 @@ class ExpASpielEvaluator:
             raise ValueError(
                 "exp-a-spiel evaluation requires the matching 3x3 reveal-nothing game"
             )
-        self.text = BoardInformationState(game)
+        self.text = BoardInformationState(game, text_type=self.text_type)
         self._traverser = traverser
 
     def _make_traverser(self):

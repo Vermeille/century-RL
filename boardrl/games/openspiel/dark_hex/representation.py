@@ -1,5 +1,11 @@
 """Dark Hex information-state text without the opponent's hidden attempt count."""
 
+from boardrl.games.openspiel.representation import (
+    ObservationText,
+    PlayerViewText,
+    TerminalStateText,
+)
+
 
 class DarkHexInformationStateText:
     """Remove OpenSpiel's extra global clock from its reveal-nothing string.
@@ -19,3 +25,13 @@ class DarkHexInformationStateText:
 
     def private_board(self, rows, history, player):
         return "\n".join(rows) + "\n" + history
+
+
+class DarkHexStateText(TerminalStateText):
+    def __init__(self, game, information_state):
+        source = (
+            DarkHexInformationStateText(game.get_parameters()["num_rows"])
+            if information_state
+            else ObservationText()
+        )
+        super().__init__(PlayerViewText(source))

@@ -1,6 +1,4 @@
-"""Select player-visible text for the shared OpenSpiel adapter."""
-
-from boardrl.games.openspiel.dark_hex.representation import DarkHexInformationStateText
+"""Composable player-visible text for OpenSpiel game adapters."""
 
 
 class InformationStateText:
@@ -56,17 +54,9 @@ class TerminalStateText:
         return self.source.private_board(rows, history, player)
 
 
-def state_text(game, information_state):
-    source = InformationStateText() if information_state else ObservationText()
-    parameters = game.get_parameters()
-    factory = {
-        ("leduc_poker", None): lambda: source,
-        ("dark_hex", "reveal-nothing"): lambda: PlayerViewText(
-            DarkHexInformationStateText(parameters["num_rows"])
-            if information_state else source
-        ),
-    }.get(
-        (game.get_type().short_name, parameters.get("obstype")),
-        lambda: PlayerViewText(source),
-    )
-    return TerminalStateText(factory())
+class PlayerStateText(TerminalStateText):
+    """Native player view with identity and terminal outcome."""
+
+    def __init__(self, game, information_state):
+        source = InformationStateText() if information_state else ObservationText()
+        super().__init__(PlayerViewText(source))
