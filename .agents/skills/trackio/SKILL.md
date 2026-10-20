@@ -7,6 +7,24 @@ description: Track and visualize ML training experiments with Trackio. Use when 
 
 Trackio is an experiment tracking library for logging and visualizing ML training metrics. It syncs to Hugging Face Spaces for real-time monitoring dashboards.
 
+## Century-RL training launches
+
+For training experiments in `/home/vermeille/century-RL`, source the repository's `.env` with exported variables **before constructing trainer arguments or launching the process**. Enable Trackio for every training trial unless the user explicitly requests otherwise. This includes isolated experiment wrappers and subprocess launches, not only the standard shell launchers.
+
+Prefer the repository launcher when it fits the experiment. If calling a trainer directly, preserve its logging setup:
+
+```bash
+cd /home/vermeille/century-RL
+set -a
+source .env
+set +a
+uv run --extra trackio python trainers/adversarial-advshape.py --trackio <experiment-arguments>
+```
+
+Use the existing configured Trackio server and the trainer's native game/project, metric paths, and unique run identity. Verify that the run initializes and metrics are delivered; merely passing `--trackio` is insufficient. Keep the exact configuration, source provenance, checkpoint paths, and local console log alongside remote tracking. Never print `.env` contents or credentials.
+
+A restriction on authenticated remote **retrieval** does not justify silently omitting authorized training **logging**. Respect the actual restriction and report any logging failure explicitly. If a live run was accidentally started without Trackio, preserve the training process and recover the available console metrics into a clearly identified Trackio run with their original step numbers; state which metrics or timestamps cannot be recovered. Do not restart training solely to repair logging.
+
 ## Three Interfaces
 
 | Task | Interface | Reference |
