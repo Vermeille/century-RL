@@ -104,13 +104,12 @@ VALUE_DISTRIBUTIONS = {
 
 
 class ValueHead(nn.Module):
-    """Pool encoded state with one learned head-space query."""
+    """Pool state into raw distribution parameters."""
 
-    def __init__(self, dim, initial_value_scale=1.0, num_heads=4, output_size=2):
+    def __init__(self, dim, num_heads=4, output_size=2):
         super().__init__()
         if dim % num_heads:
             raise ValueError("value-head dimension must divide the head count")
-        self.initial_value_scale = initial_value_scale
         self.dim = dim
         self.num_heads = num_heads
         self.query = nn.Parameter(torch.randn(1, dim))
@@ -121,9 +120,6 @@ class ValueHead(nn.Module):
             nn.GELU(),
             zero(nn.Linear(dim, output_size)),
         )
-        self.raw_value_scale = nn.Parameter(
-            torch.tensor(math.log(math.expm1(initial_value_scale)))
-        )
         self.reinit()
 
     def reinit(self):
@@ -133,13 +129,12 @@ class ValueHead(nn.Module):
             self.norm.reset_parameters()
             init(self.out[0])
             zero(self.out[2])
-            self.raw_value_scale.fill_(math.log(math.expm1(self.initial_value_scale)))
 
     def forward(self, x, attn_mask):
         query = self.query.expand(len(x), 1, -1)
         summary = self.attention(query, self.norm(x), attn_mask)
         out = self.out(summary[:, 0])
-        return F.softplus(self.raw_value_scale) * out
+        return out
 
 
 class PolicyHead(nn.Module):
