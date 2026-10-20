@@ -1,0 +1,247 @@
+"""11x11 Fetlar Hnefatafl, following the panel's 2018 printed rules.
+
+Source: https://aagenielsen.dk/fetlar_rules2018visual.pdf
+Player 0 attacks; player 1 defends. Coordinates a1..k11 start at the top left.
+Repetition and a configurable ply cap adjudicate otherwise indefinite games.
+"""
+
+from collections import Counter
+from dataclasses import dataclass
+import random
+
+
+SIZE = 11
+THRONE = (5, 5)
+CORNERS = frozenset(((0, 0), (0, 10), (10, 0), (10, 10)))
+RESTRICTED = CORNERS | {THRONE}
+CARDINAL = ((-1, 0), (1, 0), (0, -1), (0, 1))
+Position = tuple[int, int]
+
+
+def coordinate(position: Position) -> str:
+    row, col = position
+    return f"{chr(ord('a') + col)}{row + 1}"
+
+
+def on_board(position: Position) -> bool:
+    return all(0 <= value < SIZE for value in position)
+
+
+@dataclass(frozen=True)
+class Warrior:
+    player: int
+    symbol: str
+    royal = False
+
+    def can_stop(self, position: Position) -> bool:
+        return position not in RESTRICTED
+
+    def captured(self, board, position: Position, direction: Position) -> bool:
+        row, col = position
+        dr, dc = direction
+        anchor = row + dr, col + dc
+        supporter = board.get(anchor)
+        if supporter is not None:
+            return supporter.player != self.player
+        return anchor in RESTRICTED
+
+
+@dataclass(frozen=True)
+class King(Warrior):
+    royal = True
+
+    def can_stop(self, position: Position) -> bool:
+        return True
+
+    def captured(self, board, position: Position, direction: Position) -> bool:
+        # The 2018 panel rules require four actual attackers, including beside
+        # the throne. Neither the throne nor the board edge substitutes for one.
+        row, col = position
+        return all(board.get((row + dr, col + dc)) == ATTACKER for dr, dc in CARDINAL)
+
+
+ATTACKER = Warrior(0, "A")
+DEFENDER = Warrior(1, "D")
+KING = King(1, "K")
+
+
+@dataclass(frozen=True)
+class Move:
+    source: Position
+    destination: Position
+
+    def text(self) -> str:
+        return f"{coordinate(self.source)}>{coordinate(self.destination)}"
+
+
+class Hnefatafl:
+    def __init__(self, num_players: int = 2, max_plies: int = 500):
+        if num_players != 2:
+            raise ValueError("Hnefatafl supports exactly two players")
+        if max_plies < 1:
+            raise ValueError("max_plies must be positive")
+        self.num_players = num_players
+        self.max_plies = max_plies
+        self.board: dict[Position, Warrior] = {}
+        for offset in range(3, 8):
+            for position in ((0, offset), (10, offset), (offset, 0), (offset, 10)):
+                self.board[position] = ATTACKER
+        for position in ((1, 5), (9, 5), (5, 1), (5, 9)):
+            self.board[position] = ATTACKER
+        for row in range(3, 8):
+            for col in range(3, 8):
+                if 0 < abs(row - 5) + abs(col - 5) <= 2:
+                    self.board[row, col] = DEFENDER
+        self.board[THRONE] = KING
+        self.turn = 0
+        self.history: list[str] = []
+        self.captured = [0, 0]  # Removed soldiers of each side; excludes the king.
+        self.end_reason = "ongoing"
+        self._winner = None
+        self._positions = Counter({self._position_key(): 1})
+        self._refresh_moves()
+
+    def current_player(self):
+        return self.turn % self.num_players
+
+    def round(self):
+        return self.turn // self.num_players
+
+    def king_position(self):
+        return next((position for position, piece in self.board.items() if piece.royal), None)
+
+    def _position_key(self):
+        return self.current_player(), tuple(
+            (position, piece.symbol) for position, piece in sorted(self.board.items())
+        )
+
+    def _piece_moves(self, source: Position, piece: Warrior):
+        row, col = source
+        for dr, dc in CARDINAL:
+            target = row + dr, col + dc
+            while on_board(target) and target not in self.board:
+                if piece.can_stop(target):
+                    yield Move(source, target)
+                target = target[0] + dr, target[1] + dc
+
+    def _finish(self, reason: str, winner=None):
+        self.end_reason = reason
+        self._winner = winner
+
+    def _refresh_moves(self):
+        self._legal_moves = {}
+        if not self.ended():
+            self._legal_moves = {
+                move.text(): move
+                for position, piece in sorted(self.board.items())
+                if piece.player == self.current_player()
+                for move in self._piece_moves(position, piece)
+            }
+            if not self._legal_moves:
+                self._finish("stalemate")
+        self.moves = list(self._legal_moves)
+
+    def play_str(self, move: str):
+        if self.ended() or move not in self._legal_moves:
+            raise ValueError(f"Illegal Hnefatafl move: {move}")
+        selected = self._legal_moves[move]
+        piece = self.board.pop(selected.source)
+        self.board[selected.destination] = piece
+        row, col = selected.destination
+        victims = []
+        for dr, dc in CARDINAL:
+            position = row + dr, col + dc
+            victim = self.board.get(position)
+            if (
+                victim is not None and victim.player != piece.player
+                and victim.captured(self.board, position, (dr, dc))
+            ):
+                victims.append(position)
+        # Resolve all sandwiches from the same post-move board.
+        for position in victims:
+            victim = self.board.pop(position)
+            self.captured[victim.player] += int(not victim.royal)
+        self.history.append(move)
+        self.turn += 1
+        king = self.king_position()
+        if king is None:
+            self._finish("king_captured", 0)
+        elif king in CORNERS:
+            self._finish("king_escaped", 1)
+        else:
+            key = self._position_key()
+            self._positions[key] += 1
+            if self._positions[key] >= 3:
+                self._finish("repetition")
+            elif self.turn >= self.max_plies:
+                self._finish("move_limit")
+        self._refresh_moves()
+
+    def play_idx(self, index):
+        self.play_str(self.moves[index])
+
+    def ended(self):
+        return self.end_reason != "ongoing"
+
+    def winner(self):
+        return self._winner
+
+    def points_for(self, player):
+        if player not in (0, 1):
+            raise ValueError(f"Invalid player: {player}")
+        if self._winner is None:
+            return 0
+        return 1 if player == self._winner else -1
+
+    def points(self):
+        return self.points_for(self.current_player())
+
+    diff_points_for = points_for
+    diff_points = points
+
+    def display(self, force=-1):
+        viewer = self.current_player() if force == -1 else force
+        if viewer not in (0, 1):
+            raise ValueError(f"Invalid viewer: {viewer}")
+        lines = [
+            f"V:{viewer} P:{self.current_player()} Ply:{self.turn}/{self.max_plies}",
+            f"C:{self.captured[0]} {self.captured[1]}",
+        ]
+        for row in range(SIZE):
+            cells = []
+            for col in range(SIZE):
+                position = row, col
+                piece = self.board.get(position)
+                cells.append(
+                    piece.symbol if piece is not None
+                    else "T" if position == THRONE
+                    else "X" if position in CORNERS else "."
+                )
+            lines.append("".join(cells))
+        # History makes the repetition state observable as well as copyable.
+        lines.append("H:" + (" ".join(self.history) or "-"))
+        if self.ended():
+            lines.append(f"End:{self.end_reason}")
+        return "\n".join(lines)
+
+    def display_with_moves(self):
+        return self.display() + "".join(f"\n@{move}" for move in self.moves)
+
+    def copy(self):
+        game = Hnefatafl.__new__(Hnefatafl)
+        game.num_players = self.num_players
+        game.max_plies = self.max_plies
+        game.board = self.board.copy()
+        game.turn = self.turn
+        game.history = self.history.copy()
+        game.captured = self.captured.copy()
+        game.end_reason = self.end_reason
+        game._winner = self._winner
+        game._positions = self._positions.copy()
+        game._legal_moves = self._legal_moves.copy()
+        game.moves = self.moves.copy()
+        return game
+
+    def simulate_to_end(self):
+        while not self.ended():
+            self.play_str(random.choice(self.moves))

@@ -29,6 +29,7 @@ and legal moves interactively.
 | --- | --- | --- | --- |
 | `tictactoe` | Two players, 3×3, alternate marking empty cells | Three in a row; terminal outcome | — |
 | `connectfour` | Two players, drop a piece into a non-full column | Four connected pieces; terminal outcome | `tactical_random` |
+| `hnefatafl,num_players=2,max_plies=500` | Fully visible 11×11 Fetlar (2018 panel rules); 24 attackers against 12 defenders and their king | Attackers capture the king; defenders escape to a corner; terminal outcome | — |
 | `nim,num_players=2,num_stones=21,max_pick=3` | Remove 1 through `max_pick` stones from a single pile | Taking the last stone wins; terminal outcome | `optimal` |
 | `rps,num_players=2,v_rock=1,v_paper=1,v_scissors=1` | One hidden choice per player, then reveal | Weighted rock/paper/scissors; terminal win/loss/draw sign | — |
 | `sum` | Two players choose numbers in repeated rounds | Larger final points; terminal outcome | `sum_exact` |
@@ -39,7 +40,7 @@ and legal moves interactively.
 | `splendor,num_players=2` | Tokens, development cards, reservations, nobles; private reserved cards | Prestige with fewest purchased cards as tiebreak; terminal outcome | — |
 | `traversal,num_players=2,terrain=random,seed=-1` | Six pieces per side race and fight on a fully visible 10×10 height map; 15 sampled website presets with rotations/reflections, plus `flat` | Score finished pieces, or finish a Sentinel first; terminal outcome | — |
 
-`OutcomeScores` is used for Tic-Tac-Toe, Connect Four, Nim, RPS, and Santorini;
+`OutcomeScores` is used for Tic-Tac-Toe, Connect Four, Hnefatafl, Nim, RPS, and Santorini;
 the others report `PointScores`. Reporting point totals does not imply point
 rewards: all competitive native registrations currently use terminal outcome
 rewards and a categorical outcome critic. Splendor and Traversal have custom

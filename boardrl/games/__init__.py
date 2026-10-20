@@ -14,6 +14,7 @@ from boardrl.games.connectfour.strategies import (
 )
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
 from boardrl.games.hanabi.game import Hanabi as HanabiGame
+from boardrl.games.hnefatafl.game import Hnefatafl as HnefataflGame
 from boardrl.games.nim.game import Nim as NimGame
 from boardrl.games.nim.strategies import (
     strategy_from_string as nim_strategy_from_string,
@@ -319,6 +320,16 @@ register_game(
     outcome=CompetitiveOutcome(),
     rewards=TerminalOutcomeRewards(),
     args_from=NimGame,
+)
+
+register_game(
+    "hnefatafl",
+    HnefataflGame,
+    augmentations=(shuffle_actions,),
+    scores=OutcomeScores(),
+    outcome=CompetitiveOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=HnefataflGame,
 )
 
 register_game(

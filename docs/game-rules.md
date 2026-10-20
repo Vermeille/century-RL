@@ -19,6 +19,58 @@ Four in a row horizontally, vertically, or diagonally wins; a full board draws.
 It uses the same +1/0/-1 outcome scores. Both games have complete information
 and clickable browser boards.
 
+## Hnefatafl
+
+`hnefatafl,num_players=2,max_plies=500` uses the
+[Fetlar Hnefatafl Panel's printed 2018 rules](https://aagenielsen.dk/fetlar_rules2018visual.pdf).
+Player 0 starts with 24 attackers; player 1 has 12 defending soldiers and an
+armed king. Attackers move first. Coordinates `a1` through `k11` run from the
+top left, and actions such as `d1>d3` slide one piece along a clear row or
+column. Soldiers may cross an empty throne (`f6`) but only the king may stop
+there or occupy a corner. The king may return to the throne.
+
+A moving piece captures adjacent enemy soldiers by sandwiching them against
+an ally, an empty throne, or a corner. Multiple sandwiches resolve together.
+The king can capture and support captures. An occupied throne protects its
+own soldiers; moving voluntarily between enemies is safe. Edges do not assist
+captures. Attackers win by surrounding the king with four actual attackers;
+under these printed rules the throne does not substitute for a fourth attacker,
+and the king cannot be captured on an edge. Defenders win when the king reaches
+any corner. Copenhagen shieldwalls, exit-fort wins, and encirclement wins do
+not apply.
+
+An immobile active side or the third occurrence of a board position with the
+same side to move draws. The implementation adds a draw after `max_plies`
+individual actions, keeping simulations finite. Forts and other dead positions
+that need human adjudication resolve through repetition or this cap rather
+than an automatic fort detector. Wins take precedence over the cap. Points are
++1/-1 for winner/loser, zero for ongoing games and draws. A rollout's external
+`max_steps` truncation remains distinct from a game-level move-limit draw.
+
+Observations begin with `V:<viewer> P:<active player> Ply:<turn>/<cap>`, followed
+by `C:<captured attackers> <captured defenders>` and eleven dense board rows.
+`A`, `D`, and `K` denote attackers, defenders, and king; empty special squares
+use `T` (throne) and `X` (corner), with `.` elsewhere. `H:` retains the move
+history for repetition; `End:<reason>` appears only for terminal states.
+Ordered `@<move>` lines follow directly in model input. Titles, legends, role
+descriptions, and coordinate labels are omitted. The shared web workbench uses
+its text view.
+
+Metrics count outcomes once per game and report attacker and defender win
+rates, draws, terminal status, and `end_reason` shares (including truncation).
+Material summaries exclude the king from soldier counts. King diagnostics
+report presence and, conditional on presence, Manhattan distance to the nearest
+corner and adjacent attackers; these are positional measurements, not escape
+probabilities. Per-strategy metrics follow stable strategy identities through
+seat rotation and include king move share, move distance, legal action count,
+capture frequency, multiple-capture frequency, and soldiers captured per action.
+Capture statistics exclude the king and compare consecutive observations in
+the acting seat's trace. Coverage metrics expose missing observations; empty
+inputs return zeros. Role win rates and `draw_rate` use all games as their
+denominator and count proper terminal games only. The shared per-strategy
+`win_rate` follows the framework's match-score convention: neutral endpoints,
+including draws and truncations, receive half credit.
+
 ## Nim
 
 `nim,num_stones=21,max_pick=3` is single-pile normal-play Nim. Action strings
