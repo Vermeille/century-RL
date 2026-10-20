@@ -21,6 +21,43 @@ See `trainers/coop.py` for the complete former TDMSE configuration and
 
 ## Common algorithms
 
+### Value predictions
+
+PPO trainers use `BootstrapValueLogProbLoss` to fit TD(lambda) targets. Its
+`normalize_variance=True` default delegates to the distribution's prediction
+loss: Gaussian point returns use variance-preconditioned likelihood (beta-NLL
+with beta=1), and categorical loss/draw/win returns retain cross entropy,
+including interpolated targets.
+The Gaussian loss uses PyTorch's `Normal.log_prob` with detached variance
+weighting. Likelihood and weighting are evaluated in double precision to protect
+against intermediate overflow for tiny scales, then converted back to the
+prediction dtype. Its mean gradient is exactly `mean - target`; its gradient
+through softplus uncertainty stays finite as standard deviation approaches zero
+for finite errors. Conditional mean and residual-variance
+stationary points are preserved even for non-Gaussian returns. Detaching the
+variance weight is essential. This does not bound the full network's
+parameter gradients, so gradient clipping remains available.
+
+`--value-clip-epsilon` still clips targets around the rollout prediction,
+using its recorded standard deviation. Set `normalize_variance=False` for the
+original likelihood objective, whose Gaussian mean gradients are weighted by
+inverse variance. Categorical predictions use the same cross entropy in both
+modes.
+
+The value head produces raw distribution parameters without a learned scalar
+multiplier. For older categorical checkpoints, absorb
+`softplus(rewards.raw_value_scale)` into `rewards.out.2.weight` and
+`rewards.out.2.bias`, then remove the scalar entry. This preserves their
+predictions. Optimizer parameter lists must also drop the scalar; final-layer
+gradient moments transform inversely with the absorbed scale. Gaussian
+checkpoints whose scalar scaled standard deviation after softplus cannot
+generally be folded exactly into a linear layer.
+
+The preconditioned loss has squared return units, so its scalar losses cannot
+be compared numerically with earlier likelihood losses. Changing the loss
+can require retuning `--value-strength`; assess mean error, uncertainty calibration, and
+independent policy evaluation rather than comparing different loss values.
+
 The important policy decisions remain visible in the experiment.
 
 ### Current versus a champion
