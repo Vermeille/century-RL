@@ -1,0 +1,2 @@
+# Standalone documentation build: no Torch, Cython, or game dependencies.
+mkdocs==1.6.1
