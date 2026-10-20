@@ -302,9 +302,10 @@ class PatchTransformerCNNBackbone(Backbone):
             patch_size=patch_size,
             canon_kernel_size=canon_kernel_size,
         )
+        self.norm = nn.RMSNorm(dim, elementwise_affine=True)
 
     def forward(self, tokens, attn_mask):
-        emb = self.embed(tokens).transpose(1, 2)
+        emb = self.norm(self.embed(tokens)).transpose(1, 2)
         return self.encode(emb, attn_mask).transpose(1, 2)
 
 
