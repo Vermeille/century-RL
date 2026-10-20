@@ -41,7 +41,14 @@ class NormalValueDistribution(torch.distributions.Normal):
 
     @classmethod
     def from_raw(cls, value):
-        return cls(value[:, 0], F.softplus(value[:, 1]))
+        stddev = F.softplus(value[:, 1]).clamp_min(torch.finfo(value.dtype).eps)
+        return cls(value[:, 0], stddev)
+
+    def prediction_loss(self, target):
+        # Evaluate likelihood in double precision to keep tiny scales finite.
+        prediction = torch.distributions.Normal(self.loc.double(), self.scale.double())
+        loss = -prediction.variance.detach() * prediction.log_prob(target.double())
+        return loss.to(self.loc.dtype)
 
     def unbatched(self):
         return [
@@ -58,6 +65,9 @@ class OutcomeValueDistribution(torch.distributions.Categorical):
     @classmethod
     def from_raw(cls, value):
         return cls(logits=value)
+
+    def prediction_loss(self, target):
+        return -self.log_prob(target)
 
     @property
     def atoms(self):

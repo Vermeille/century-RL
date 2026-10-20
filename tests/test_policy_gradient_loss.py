@@ -566,7 +566,7 @@ def test_bootstrap_value_log_prob_clips_to_rollout_distribution():
         reference_value_stddev=torch.tensor([2.0, 1.0]),
     )
 
-    result = BootstrapValueLogProbLoss(strength=0.5)(
+    result = BootstrapValueLogProbLoss(strength=0.5, normalize_variance=False)(
         [], pred_value, sample, training_state={}
     )
     expected = -0.5 * pred_value.log_prob(torch.tensor([14.0, 3.0])).mean()
@@ -583,7 +583,7 @@ def test_bootstrap_value_log_prob_can_disable_clipping():
         reference_value_stddev=torch.tensor([2.0]),
     )
 
-    result = BootstrapValueLogProbLoss(epsilon=None)(
+    result = BootstrapValueLogProbLoss(epsilon=None, normalize_variance=False)(
         [], pred_value, sample, training_state={}
     )
 

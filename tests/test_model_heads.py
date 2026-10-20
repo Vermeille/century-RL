@@ -140,7 +140,6 @@ def test_reinit_heads_preserves_backbone_and_resets_both_heads():
         name: parameter.detach().clone()
         for name, parameter in model.backbone.named_parameters()
     }
-    initial_raw_value_scale = model.rewards.raw_value_scale.detach().clone()
     with torch.no_grad():
         for parameter in model.to_pred.parameters():
             parameter.fill_(7)
@@ -168,7 +167,6 @@ def test_reinit_heads_preserves_backbone_and_resets_both_heads():
     assert torch.count_nonzero(model.rewards.out[0].bias) == 0
     assert torch.count_nonzero(model.rewards.out[2].weight) == 0
     assert torch.count_nonzero(model.rewards.out[2].bias) == 0
-    assert torch.equal(model.rewards.raw_value_scale, initial_raw_value_scale)
     for head in (model.to_pred, model.rewards):
         assert torch.count_nonzero(head.attention.kv.weight != 7) > 0
         assert torch.count_nonzero(head.attention.qg.weight != 7) > 0

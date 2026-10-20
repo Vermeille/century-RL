@@ -1048,17 +1048,23 @@ class BootstrapValueMSELoss(Loss):
 
 @loss_from_string.register("bootstrap_value_log_prob_loss")
 class BootstrapValueLogProbLoss(Loss):
-    """Fit TD(lambda) under the value distribution with a rollout trust region."""
+    """Fit TD(lambda) with optional Gaussian variance normalization and target clipping."""
 
     supports_off_policy = True
     supports_partial_trajectories = True
     needs_reference_policy_value = True
 
-    def __init__(self, strength: float = 1.0, epsilon: float | None = 2.0):
+    def __init__(
+        self,
+        strength: float = 1.0,
+        epsilon: float | None = 2.0,
+        normalize_variance: bool = True,
+    ):
         if epsilon is not None and epsilon <= 0:
             raise ValueError("epsilon must be positive or None")
         self.strength = strength
         self.epsilon = epsilon
+        self.normalize_variance = normalize_variance
 
     def __call__(self, pred_policy, pred_value, sample, training_state):
         target = sample.td_lambda
@@ -1072,10 +1078,12 @@ class BootstrapValueLogProbLoss(Loss):
             clipped_target = torch.clamp(target, min=lower, max=upper)
             clip_ratio = ((target < lower) | (target > upper)).float().mean()
 
-        return LossResult(
-            -self.strength * pred_value.log_prob(clipped_target).mean(),
-            {"clip_ratio": clip_ratio},
-        )
+        if self.normalize_variance:
+            loss = pred_value.prediction_loss(clipped_target)
+        else:
+            loss = -pred_value.log_prob(clipped_target)
+
+        return LossResult(self.strength * loss.mean(), {"clip_ratio": clip_ratio})
 
 
 @loss_from_string.register("q_mse_loss")
