@@ -5,6 +5,11 @@ The shared shell owns game switching, strategy selection, agent play, policy
 analysis, strategy comparison, move history, and raw-state inspection.
 Game-specific code should be limited to visual renderers in `static/app.js`.
 
+Traversal uses `static/traversal.js` and `static/traversal.css` for its terrain
+board, piece selection, capture and finish targets, scores, and game results.
+Start it with `uv run python -m boardrl.serve.serve --game traversal`. The shared
+policy list, raw state, and undo/redo controls remain available.
+
 ## Server Contract
 
 Games are selected with the `game` query parameter on stateful endpoints:
@@ -103,5 +108,6 @@ Run:
 
 ```bash
 node --check boardrl/serve/static/app.js
-uv run pytest tests/test_serve.py tests/test_serve_tictactoe.py
+node --check boardrl/serve/static/traversal.js
+uv run pytest tests/test_serve.py tests/test_serve_tictactoe.py tests/test_traversal_ui.py
 ```

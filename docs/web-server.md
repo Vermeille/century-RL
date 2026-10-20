@@ -38,6 +38,15 @@ canonical move order; agent play samples from the chosen strategy. Compare
 analyzes the same observation with a second strategy and shows probability
 deltas. Undo/redo restores the game state as well as the move history.
 
+Traversal has a graphical terrain board with height labels and distinct piece
+shapes. Select a highlighted piece, then a marked destination or its finish
+edge. Red destination outlines indicate captures; Esc or Cancel clears the
+selection. Scores, finished and captured pieces, the last move, and the final
+result appear on the board. Policy probabilities aggregate by source before
+selection and show individual moves afterward. On small screens, scroll the
+map horizontally. For a reproducible terrain, use a full spec such as
+`traversal,terrain=mountains,seed=42` in Game Spec or the startup command.
+
 The raw-state textarea is a model-analysis scratchpad. Edited text is analyzed
 without mutating the live game; it is not validated as a reachable game state.
 Preserve `@` legal-action lines. Model-backed strategies can analyze arbitrary
@@ -141,7 +150,7 @@ display; older `moves` info can be strategy-specific.
 
 Registered games immediately work through the generic text view. Visual
 renderers live in `boardrl/serve/static/app.js`, with separate helpers for
-larger renderers such as Santorini and Splendor. To add visuals:
+larger renderers such as Santorini, Splendor, and Traversal. To add visuals:
 
 1. Parse the real `snapshot.board_with_moves` format; retain the raw view.
 2. Implement `renderYourGame(game)` returning HTML. Escape game text before
@@ -155,7 +164,8 @@ larger renderers such as Santorini and Splendor. To add visuals:
 
 ```bash
 node --check boardrl/serve/static/app.js
-uv run pytest tests/test_serve.py tests/test_serve_tictactoe.py
+node --check boardrl/serve/static/traversal.js
+uv run pytest tests/test_serve.py tests/test_serve_tictactoe.py tests/test_traversal_ui.py
 ```
 
 The current server uses the shared static shell. Old `boardrl/games/*/ui.html`

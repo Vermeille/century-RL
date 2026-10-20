@@ -137,6 +137,124 @@ that rule in training; `diff_points_for` encodes a unique prestige-tied winner
 as +0.01 and loser as -0.01 at terminal. No legal main action causes a stalemate
 draw. Own reservations are visible; opponents' reserved identities stay hidden.
 
+## Traversal
+
+[Official rules](https://www.traversalgame.com/rules). Each side starts with
+two Explorers (movement 5, strength 1), two Vanguards (4, 2), and two Sentinels
+(3, 3). They occupy columns c through h in S-V-E-E-V-S order. Player 0 starts
+on row 10 and exits above row 1; player 1 starts on row 1 and exits below row
+10. Actions such as `e10>e5` move or capture; `e2>off` finishes a piece.
+Equivalent exit columns are represented by a single `>off` action.
+
+Normal movement follows orthogonal paths, may turn, and costs
+`1 + abs(height difference)` per step. Pieces block paths. An Explorer can
+instead step diagonally or leap two orthogonal squares, ignoring terrain;
+these specials cannot be chained with normal movement. Leaps cannot cross
+pieces. Specials may attack or cross the goal edge, matching the site's local
+engine. A normal finish needs one movement beyond reaching the final row.
+
+An attack includes the cost of entering the enemy square and ends the turn.
+Attack strength is base strength, plus or minus one for starting above or
+below the target, plus the base strengths of other allies orthogonally
+adjacent to the target. Defense is base strength plus one per adjacent ally.
+The attacker captures and occupies the target on a tie or better; weaker
+attacks are illegal. A Vanguard adds one attack strength only when the
+cheapest path to its target costs exactly four movement.
+
+A finished piece scores its strength. The second finish ends the game with
+the higher score winning, or a draw on equal scores. A Sentinel that is the
+first piece to finish wins immediately. At 200 actions, compare scores, then
+each side's most advanced piece, then strength among equally advanced pieces.
+The site's additional local-engine rules are also implemented: elimination
+ends play and credits each side's strongest surviving piece to its score;
+three identical consecutive position cycles cause a draw. The published
+rules leave immobilization unspecified; this implementation treats a player
+with no legal action as a stalemate draw.
+
+Terrain is sampled offline from 20 boards per named preset collected from the
+[official board API](https://api.traversalgame.com/api/boards/generate).
+Choose `terrain=mountains`, `valleys`, `highlands`, `woodlands`, `desert`,
+`dunes`, `jungle`, `meadows`, `canyons`, `rivers`, `ridges`, `petrified`,
+`everest`, `mariana`, or `hell`. `terrain=random` chooses uniformly among
+these 15 presets; the website's preset probabilities are unknown. Each game
+samples a board and one of eight orientations (four rotations, optionally
+reflected). These transformations affect terrain before standard pieces are
+placed; the players still travel north/south. Boards are not forced to be
+symmetric. Adjacent height differences stay at most two.
+
+`seed=-1` uses fresh randomness; a fixed seed reproduces the preset, sample,
+and orientation. `terrain=flat` remains a zero-height board for rule
+experiments. Flat/symmetric presets have fewer distinct boards/orientations,
+so 20 samples does not imply 160 unique maps for every preset. Runtime play
+requires no network. Collect or resume the checked-in pool with:
+
+```bash
+uv run python -m boardrl.games.traversal.collect_terrains --per-type 20
+```
+
+The collector records its source and collection time, validates boards, and
+resumes existing files. Use `--output <new-path>` to collect a fresh pool.
+The observation keeps the move counter, viewer, terrain, both armies, and
+finished pieces. The counter is necessary for the 200-action limit; its parity
+identifies the side to move. The viewer identifies the value perspective in
+forced endpoint observations. During play, scores are the sum of finished-piece
+strengths, and captures follow from the initial material minus the board and
+finished pieces, so neither needs a separate field. Terminal observations add
+actual scores (including elimination bonuses), the end reason, and the winner.
+
+`Repetition:` contains reversible moves since the last capture or finish.
+Earlier positions have different material and cannot recur. The current board
+and this ordered suffix reconstruct all repetition-relevant positions; a
+position-count summary alone would lose the rule's ordered-cycle information.
+Before the first material change, the starting position is not counted by the
+site's repetition rule; afterward, the position immediately after the change
+is counted. The move counter and suffix length distinguish these cases.
+Terminal states need no repetition context. Full move history remains in the
+game object and browser session for auditing and undo/redo.
+
+`points_for` preserves actual scores. `diff_points_for` is the score difference
+during play; terminal draws return zero, and a score-tied unique winner gets
+a difference of +0.01 (the loser -0.01), following Splendor's convention.
+A custom outcome policy supplies the actual win/loss/draw training reward.
+The shared browser workbench renders the height map, piece shapes, scores,
+captured and finished pieces, and the result. Select a piece to reveal legal
+destinations, captures, and its finishing edge; Esc clears the selection.
+The raw text board and canonical move list remain available.
+
+Traversal metrics include global `end_reason` shares, terrain preset shares,
+the fraction of distinct maps in the batch (`terrain.unique_map_share`),
+mean map height range, and mean absolute height difference over orthogonal
+edges. The observation records the selected preset even for `terrain=random`.
+
+Each `strategy.<id>` group keeps win rate, action count, sensitivity, and
+point-difference summaries, and adds mean raw endpoint points (`avg_points`)
+and victory causes among that strategy's wins (`win_cause`). Strategy identity
+stays fixed when seats rotate. Truncated endpoints contribute to `avg_points`
+and terrain summaries. `draw_rate` counts terminal draws, and `win_cause`
+considers terminal wins; the inherited generic win-rate convention is unchanged.
+
+The `behavior` metrics describe recorded decisions:
+
+| Metric | Meaning / denominator |
+| --- | --- |
+| `piece_share` | Explorer, Vanguard, and Sentinel shares of decisions |
+| `capture_share`, `finish_share` | Captures or finishes per decision |
+| `direction_share` | Forward, backward, and lateral shares relative to the moving player's goal |
+| `avg_forward_rows` | Mean signed row displacement toward the goal; finishing includes the extra step off the board |
+| `opportunity.*_available_rate` | Fraction of decisions with a legal capture, finish, or immediate first-Sentinel finish |
+| `opportunity.*_conversion_rate` | Fraction of those opportunities where the corresponding action was chosen |
+| `combat.*_capture_share` | Among captures, how often the attacker started higher/lower or had allies beside the target |
+| `combat.reinforced_target_share` | Among captures, how often the defender had an adjacent ally |
+| `finish_type_share` | Piece type shares among recorded finishes |
+
+Behavior counts decisions uniformly and uses the actual ordered action list.
+Net row displacement is not path length or movement spent. Outcomes use the
+game's win/loss/draw utility, including advancement tiebreaks and repetition
+draws. Zero denominators report zero. Unparseable observations are excluded
+from behavior/terrain summaries, with `observation_coverage` reporting the
+fraction successfully parsed; older observations without a preset label use
+`terrain.preset_share.unknown`.
+
 ## Hanabi
 
 Players see others' cards and only knowledge constraints for their own cards.

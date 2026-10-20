@@ -1,0 +1,121 @@
+.traversal-board {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+  margin: 0 auto;
+  color: var(--game-text);
+}
+
+.traversal-heading,
+.traversal-score-heading,
+.traversal-instruction,
+.traversal-goal,
+.traversal-terrain-key {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.traversal-heading {
+  color: var(--game-muted);
+  font-size: 0.8rem;
+}
+
+.traversal-preset {
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.traversal-scores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.traversal-score { padding: 12px; border: 1px solid var(--game-border); border-radius: 10px; background: #fff; }
+.traversal-score.active { border-color: #8798ab; box-shadow: inset 0 3px 0 #8798ab; }
+.traversal-score-0.active { border-color: #c65f50; box-shadow: inset 0 3px 0 #c65f50; }
+.traversal-score-1.active { border-color: #3b71ad; box-shadow: inset 0 3px 0 #3b71ad; }
+.traversal-score-heading { justify-content: start; }
+.traversal-player-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.traversal-points { margin-left: auto; font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.traversal-points small { color: var(--game-muted); font-size: 0.7rem; }
+.traversal-army { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 8px; color: var(--game-muted); font-size: 0.7rem; }
+.traversal-army > span { display: inline-flex; align-items: center; gap: 4px; }
+.traversal-tokens { display: inline-flex; align-items: center; gap: 2px; }
+
+.traversal-instruction { min-height: 42px; padding: 8px 12px; border-radius: 8px; background: #eaf0f6; font-size: 0.84rem; font-weight: 650; }
+.traversal-result { background: #e3efdf; border: 1px solid #a9c59a; }
+.traversal-clear { min-height: 28px; padding: 3px 8px; white-space: nowrap; font-size: 0.72rem; background: #fff; }
+.traversal-clear kbd { margin-left: 6px; color: var(--game-muted); font: inherit; }
+.traversal-map-scroll { overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 3px; }
+.traversal-map { min-width: 460px; }
+.traversal-grid { display: grid; grid-template-columns: 22px repeat(10, minmax(0, 1fr)); gap: 4px; padding: 4px 0; }
+.traversal-axis { display: grid; place-items: center; color: #657269; font-size: 0.7rem; font-weight: 700; }
+
+.traversal-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #c7d1be;
+  border-radius: 6px;
+  background: var(--terrain-color);
+  color: #354539;
+  box-shadow: inset 0 calc(-1 * var(--terrain-relief)) 0 #394d2920;
+  cursor: default;
+}
+
+.traversal-cell:disabled { opacity: 1; cursor: default; }
+.traversal-cell:disabled:hover { border-color: #c7d1be; }
+.traversal-cell.traversal-source { cursor: pointer; border-color: #718875; }
+.traversal-cell.traversal-source:hover { outline: 2px solid #557862; outline-offset: -2px; }
+.traversal-cell.selected { outline: 3px solid #315f93; outline-offset: -3px; }
+.traversal-cell.traversal-destination { cursor: pointer; outline: 2px solid #4d856a; outline-offset: -2px; }
+.traversal-cell.traversal-capture { cursor: pointer; outline: 3px solid #bc5348; outline-offset: -3px; }
+.traversal-cell.traversal-destination:hover { background: #cee6d1; }
+.traversal-cell.traversal-capture:hover { background: #f1d6cc; }
+.traversal-cell:focus-visible, .traversal-finish:focus-visible, .traversal-clear:focus-visible { outline: 3px solid #184f93; outline-offset: 2px; }
+.traversal-cell.traversal-last-move { border: 2px solid #ad9143; }
+.traversal-cell.traversal-last-move:hover { border-color: #ad9143; }
+.traversal-heat { position: absolute; inset: 0; background: #2d78b5; opacity: var(--policy-mass); pointer-events: none; }
+.traversal-height { position: absolute; right: 4px; bottom: 3px; color: #4f604f; font-size: 0.62rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.traversal-prob { position: absolute; top: 3px; right: 3px; padding: 1px 3px; border-radius: 3px; background: #ffffffd9; color: #3f5267; font-size: 0.55rem; line-height: 1; pointer-events: none; }
+
+.traversal-piece { position: relative; display: inline-grid; place-items: center; width: 58%; max-width: 35px; aspect-ratio: 1; color: #fff; font-size: clamp(0.65rem, 1.4vw, 0.95rem); font-weight: 850; line-height: 1; pointer-events: none; }
+.traversal-player-0 { background: #bb5145; }
+.traversal-player-1 { background: #346da9; }
+.traversal-type-E { clip-path: polygon(50% 0, 100% 36%, 81% 100%, 19% 100%, 0 36%); }
+.traversal-type-V { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.traversal-type-S { clip-path: polygon(50% 0, 100% 100%, 0 100%); padding-top: 23%; }
+.traversal-piece.traversal-piece-small { width: 15px; min-width: 15px; max-width: 15px; font-size: 0.5rem; }
+.traversal-piece-small.traversal-type-S { padding-top: 4px; }
+.traversal-target-dot { width: 18%; aspect-ratio: 1; border-radius: 50%; background: #558469; box-shadow: 0 0 0 3px #ffffff70; }
+.traversal-capture-mark { position: absolute; left: 4px; top: 1px; color: #a73b30; font-size: 1rem; font-weight: 900; }
+
+.traversal-goal { min-height: 36px; margin-left: 26px; padding: 5px 9px; border: 1px dashed #d1b0a6; border-radius: 6px; background: #fbefeb; color: #98463d; font-size: 0.74rem; font-weight: 750; }
+.traversal-goal-1 { border-color: #b0c4db; background: #eaf1f9; color: #3b679a; }
+.traversal-finish { min-height: 30px; padding: 3px 10px; border-color: #668e68; background: #fff; color: #285431; font-size: 0.75rem; }
+.traversal-terrain-key { justify-content: start; flex-wrap: wrap; color: var(--game-muted); font-size: 0.7rem; }
+.traversal-terrain-gradient { width: 84px; height: 9px; border: 1px solid #d2d5c3; border-radius: 3px; background: linear-gradient(90deg, hsl(108 32% 94%), hsl(38 32% 82%)); }
+.traversal-terrain-key > span:last-child { margin-left: auto; }
+.traversal-legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.traversal-legend > div { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--game-border); border-radius: 8px; background: #fff; }
+.traversal-legend .traversal-piece { width: 28px; min-width: 28px; }
+.traversal-legend .traversal-type-S { padding-top: 6px; }
+.traversal-legend strong { display: block; margin-bottom: 3px; font-size: 0.8rem; }
+.traversal-legend small { display: block; color: var(--game-muted); font-size: 0.66rem; line-height: 1.5; }
+.traversal-help { margin: 0; color: var(--game-muted); font-size: 0.74rem; line-height: 1.6; }
+
+@media (max-width: 1100px) {
+  .traversal-legend { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 540px) {
+  .traversal-scores { gap: 6px; }
+  .traversal-score { padding: 9px; }
+  .traversal-score-heading { gap: 5px; font-size: 0.8rem; }
+  .traversal-instruction { align-items: start; font-size: 0.76rem; }
+  .traversal-terrain-key > span:last-child { margin-left: 0; }
+}

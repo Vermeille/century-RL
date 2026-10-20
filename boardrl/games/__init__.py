@@ -40,6 +40,8 @@ from boardrl.games.thegame.strategies import (
     strategy_from_string as thegame_strategy_from_string,
 )
 from boardrl.games.tictactoe.game import TicTacToe as TicTacToeGame
+from boardrl.games.traversal.game import Traversal as TraversalGame
+from boardrl.games.traversal.semantics import TraversalOutcome
 from boardrl.games.semantics import (
     CompetitiveOutcome,
     CooperativeOutcome,
@@ -381,4 +383,14 @@ register_game(
     outcome=SplendorOutcome(),
     rewards=TerminalOutcomeRewards(),
     args_from=SplendorGame,
+)
+
+register_game(
+    "traversal",
+    TraversalGame,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=TraversalOutcome(),
+    rewards=TerminalOutcomeRewards(),
+    args_from=TraversalGame,
 )

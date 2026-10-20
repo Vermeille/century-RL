@@ -37,12 +37,13 @@ and legal moves interactively.
 | `skullking,num_players=4,num_rounds=10` | Hidden hands, bidding, and trick-taking, including special cards | Accumulate bid/trick scores; terminal outcome | — |
 | `santorini` | Two players place workers, then move/build on a 5×5 board; no god powers | Climb to level 3 or block the opponent; terminal outcome | — |
 | `splendor,num_players=2` | Tokens, development cards, reservations, nobles; private reserved cards | Prestige with fewest purchased cards as tiebreak; terminal outcome | — |
+| `traversal,num_players=2,terrain=random,seed=-1` | Six pieces per side race and fight on a fully visible 10×10 height map; 15 sampled website presets with rotations/reflections, plus `flat` | Score finished pieces, or finish a Sentinel first; terminal outcome | — |
 
 `OutcomeScores` is used for Tic-Tac-Toe, Connect Four, Nim, RPS, and Santorini;
 the others report `PointScores`. Reporting point totals does not imply point
 rewards: all competitive native registrations currently use terminal outcome
-rewards and a categorical outcome critic. Splendor has a custom outcome object
-to respect its card-count tiebreak.
+rewards and a categorical outcome critic. Splendor and Traversal have custom
+outcome objects to respect their tiebreaks independently of raw points.
 
 `tictactoe`, `connectfour`, `sum`, and `santorini` expose no textual constructor
 options; their Python constructors still accept the player count supplied by
