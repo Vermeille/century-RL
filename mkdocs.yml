@@ -1,0 +1,47 @@
+site_name: BoardRL
+site_description: Train board-game agents, add games, and build reinforcement learning experiments.
+site_url: https://vermeille.github.io/century-RL/
+repo_url: https://github.com/Vermeille/century-RL
+edit_uri: edit/master/docs/
+theme:
+  name: mkdocs
+  color_mode: auto
+  user_color_mode_toggle: true
+  navigation_depth: 3
+nav:
+  - Home: index.md
+  - Use BoardRL:
+      - Quickstart: quickstart.md
+      - Training: training.md
+      - Evaluation and checkpoints: evaluation.md
+      - Web game workbench: web-server.md
+      - Troubleshooting: troubleshooting.md
+  - Games:
+      - Game catalog: games.md
+      - Native rules and actions: game-rules.md
+      - The Game: thegame.md
+      - Add a game: adding-games.md
+      - OpenSpiel benchmarks: benchmarking.md
+  - Build algorithms:
+      - Write a training loop: training-library.md
+      - Rollouts and samples: internals/rollouts.md
+      - Rewards and return targets: internals/returns.md
+      - Losses and optimization: internals/optimization.md
+      - Models and inference: internals/models.md
+  - Contribute:
+      - Development and source map: development.md
+      - Documentation and deployment: documentation.md
+      - Strict-mode experiment notes: thegame-strict-rl.md
+markdown_extensions:
+  - admonition
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
