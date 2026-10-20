@@ -307,6 +307,79 @@ from behavior/terrain summaries, with `observation_coverage` reporting the
 fraction successfully parsed; older observations without a preset label use
 `terrain.preset_share.unknown`.
 
+## 2048
+
+One player slides a fully visible 4×4 board using `up`, `right`, `down`, or
+`left`. Only slides that change the board are legal. Tiles compact toward
+the chosen edge and equal neighbors merge into their sum; a newly merged
+tile cannot merge again during that move. For example, sliding
+`2 2 4 .` left produces `4 4 . .`, scoring 4 points.
+
+Two tiles start the game. After each legal slide, including a winning move,
+one empty cell is chosen uniformly and receives a 2 with probability 90%
+or a 4 with probability 10%. Play ends on the first 2048 tile (success) or
+when no slide is available (failure). This follows the
+[original game's rules](https://github.com/gabrielecirulli/2048/blob/master/js/game_manager.js),
+with no continuation after winning by default. Points are the cumulative values of
+merged tiles; training rewards divide each point gain by 2048, while reported
+scores retain the original units. The observation includes the score, move
+count, target, status, and grid; dots denote empty cells.
+
+Game metrics report endpoint `score`, `moves`, `max_tile`, and `empty_cells`
+distributions. `tile_reached` reports the share of endpoints with a tile at
+least 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, or 65536.
+`win_rate`, `stuck_rate`, `terminal_rate`,
+and `truncated_rate` use all games as their denominator; truncation is never
+a win. `direction_share` counts recorded decisions, `merge_move_rate` is the
+fraction that earn merge points, and `score_per_move` is the mean point gain
+per recorded decision. Empty batches and zero decision counts report zero.
+
+The browser UI shows colored tiles, score, largest tile, move count, terminal
+status, and direction controls with policy probabilities. Arrow keys slide
+the board; undo/redo restores both the board and its random spawn state.
+
+`2048versus,num_players=2,seed=-1,nolimits=False` adds adversarial placement. Player 0 slides
+as above; after each nonwinning slide, the next tile value is drawn using
+the same 90%/10% probabilities and revealed. Player 1 chooses an empty cell
+with an action such as `spawn c2`. Columns run a–d from left to right and
+rows 1–4 from top to bottom. The initial two tiles are still placed randomly.
+Creating 2048 ends the game immediately for player 0, with no extra placement.
+A placement that leaves no legal slide wins for player 1. The observation
+includes the phase, active player, viewer, pending tile, and terminal winner.
+The move counter counts slides; placing a tile does not increment it.
+
+The shared merge score remains visible. `points_for(0)` is that score;
+`points_for(1)` is its negative, so point-delta training rewards encourage
+opposing objectives, scaled by 1/2048. Outcome utility follows the actual
+winner: a blocked slider loses even with a positive merge score. Truncation
+in either phase is neutral. Each game contributes once to endpoint metrics,
+using the sliding seat's positive score, even when strategies rotate seats.
+Seat 0 always slides and seat 1 always places; use `rotate=False` in rollouts
+to keep a particular strategy assigned to each role.
+`win_rate` remains the slider's objective success rate. Direction and merge
+statistics cover only slides. `spawn_actions` counts player 1's placements,
+and `spawn_position_share` reports placement fractions for cells a1–d4.
+
+The versus UI labels each player's turn, shows the pending tile, and offers
+clickable empty cells with placement policy probabilities. Undo/redo preserves
+the phase, pending tile, and future random draws. Start it with
+`uv run python -m boardrl.serve.serve --game 2048versus`.
+
+Both specs accept the boolean `nolimits`, defaulting to `False`. Set
+`2048,nolimits=True` or `2048versus,nolimits=True` to continue past the first
+2048 tile and merge larger tiles. Play ends only when no slide remains;
+the versus placement phase still follows every slide, including one that
+creates 2048 or a larger tile. Scores and reward scaling remain unchanged,
+including the negative score for player 1.
+
+Reaching 2048 remains the success milestone (`won()`), but an ongoing game
+has no winner and earns no terminal outcome. At the eventual blocked endpoint,
+the solo outcome and versus winner still follow whether 2048 was reached.
+The observation records `Nolimits: True` and reports `Status: playing` while
+moves remain. `stuck_rate` counts blocked endpoints independently of success,
+so a successful nolimits game contributes to both `win_rate` and `stuck_rate`.
+The UI keeps legal controls active after 2048 and shows larger tiles.
+
 ## Hanabi
 
 Players see others' cards and only knowledge constraints for their own cards.

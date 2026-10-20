@@ -13,6 +13,9 @@ from boardrl.games.connectfour.strategies import (
     strategy_from_string as connectfour_strategy_from_string,
 )
 from boardrl.games.guessnumber.game import GuessNumber as GuessNumberGame
+from boardrl.games.game2048.game import Game2048
+from boardrl.games.game2048.semantics import VersusOutcome as Game2048VersusOutcome
+from boardrl.games.game2048.versus import Versus2048
 from boardrl.games.hanabi.game import Hanabi as HanabiGame
 from boardrl.games.hnefatafl.game import Hnefatafl as HnefataflGame
 from boardrl.games.nim.game import Nim as NimGame
@@ -299,6 +302,26 @@ register_game(
     outcome=CooperativeOutcome(),
     rewards=TerminalOutcomeRewards(),
     args_from=GuessNumberGame,
+)
+
+register_game(
+    "2048",
+    Game2048,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=CooperativeOutcome(),
+    rewards=PointDeltaRewards(scale=1 / 2048),
+    args_from=Game2048,
+)
+
+register_game(
+    "2048versus",
+    Versus2048,
+    augmentations=(shuffle_actions,),
+    scores=PointScores(),
+    outcome=Game2048VersusOutcome(),
+    rewards=PointDeltaRewards(scale=1 / 2048),
+    args_from=Versus2048,
 )
 
 register_game(

@@ -77,6 +77,36 @@ uv run python trainers/adversarial-advshape.py --help
 For the exact policy update and regularizer schedules, see
 [Losses and optimization](internals/optimization.md).
 
+## 2048 versus launcher
+
+```bash
+./train_2048.sh
+```
+
+This launches `adversarial-advshape` on `2048versus,nolimits=True`, with arena
+rating and Trackio enabled. The two policies rotate between sliding and
+placement roles, keeping their own models and optimizers. Rewards use the
+game's signed merge-point deltas, with player 1 receiving player 0's negative
+score. Play continues past 2048 until blocked or the rollout budget is reached.
+
+Use `TRAINER=adversarial-ppo` or `TRAINER=adversarial-mmd` for the existing
+shared-policy baselines. `TAG`, `SEED`, the `AGENT_PPL_*`/`ENVIRONMENT_PPL_*`
+variables, and advantage thresholds follow the other launchers. Explicit CLI
+arguments override the recipe, including `--game 2048versus,nolimits=False`.
+The defaults use value lambda 1 for realized-return critic targets and GAE
+lambda 0 for local TD advantages; they are starting settings, not tuned results.
+
+For a short local validation without arena or Trackio:
+
+```bash
+ARENA=0 TRACKIO=0 OMP_NUM_THREADS=1 ./train_2048.sh \
+  --device cpu --architecture toy --steps 1 --rollout-games 2 \
+  --evaluation-games 2 --rollout-max-steps 32 --tag 2048-smoke
+```
+
+The solo `2048` game still requires a one-seat training loop; this launcher
+uses the two-player versus variant.
+
 ## Imitation
 
 `imitate.py` collects states by playing the teacher and trains the model to match

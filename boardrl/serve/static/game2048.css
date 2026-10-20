@@ -1,0 +1,128 @@
+.game2048-board {
+  width: min(100%, 440px);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.game2048-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.game2048-stats > div {
+  flex: 1;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.game2048-stats span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.game2048-stats strong {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.game2048-status,
+.game2048-help {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.game2048-won {
+  color: #b77913;
+  font-weight: 750;
+}
+
+.game2048-grid {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #bbada0;
+}
+
+.game2048-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.game2048-tile {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 7px;
+  background: #cdc1b4;
+  color: #776e65;
+  font-size: clamp(1.2rem, 4vw, 2.2rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.game2048-tile.tile-2 { background: #eee4da; }
+.game2048-tile.tile-4 { background: #ede0c8; }
+.game2048-tile.tile-8 { background: #f2b179; color: #4b2d19; }
+.game2048-tile.tile-16 { background: #f59563; color: #4b2d19; }
+.game2048-tile.tile-32 { background: #f67c5f; color: #43251d; }
+.game2048-tile.tile-64 { background: #f65e3b; color: #381c16; }
+.game2048-tile.tile-128 { background: #edcf72; color: #514321; }
+.game2048-tile.tile-256 { background: #edcc61; color: #514321; }
+.game2048-tile.tile-512 { background: #edc850; color: #514321; }
+.game2048-tile.tile-1024 { background: #edc53f; color: #514321; font-size: clamp(1rem, 3.5vw, 1.8rem); }
+.game2048-tile.tile-2048 { background: #edc22e; color: #514321; font-size: clamp(1rem, 3.5vw, 1.8rem); box-shadow: 0 0 18px #edc22e80; }
+.game2048-tile.tile-high { background: #3c3a32; color: #f9f6f2; font-size: clamp(0.8rem, 2.8vw, 1.3rem); }
+
+.game2048-tile.game2048-spawn {
+  position: relative;
+  padding: 0;
+  border: 2px dashed #776e65;
+  cursor: pointer;
+}
+
+.game2048-tile.game2048-spawn:hover,
+.game2048-tile.game2048-spawn:focus-visible {
+  background: #eee4da;
+  outline: 3px solid #776e65;
+  outline-offset: -3px;
+}
+
+.game2048-preview { opacity: 0.6; font-size: 1.2rem; }
+.game2048-spawn .prob-badge { position: absolute; bottom: 4px; right: 4px; }
+
+.game2048-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  max-width: 300px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.game2048-direction {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-transform: capitalize;
+  min-height: 64px;
+}
+
+.game2048-arrow { font-size: 1.5rem; }
+.game2048-direction.direction-up { grid-column: 2; }
+.game2048-direction.direction-left { grid-row: 2; grid-column: 1; }
+.game2048-direction.direction-down { grid-row: 2; grid-column: 2; }
+.game2048-direction.direction-right { grid-row: 2; grid-column: 3; }
+.game2048-help { font-size: 0.8rem; text-align: center; }
+
+@media (max-width: 480px) {
+  .game2048-grid { gap: 6px; padding: 8px; }
+  .game2048-row { gap: 6px; }
+  .game2048-stats > div { padding: 8px; }
+}

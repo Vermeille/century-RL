@@ -47,6 +47,24 @@ selection and show individual moves afterward. On small screens, scroll the
 map horizontally. For a reproducible terrain, use a full spec such as
 `traversal,terrain=mountains,seed=42` in Game Spec or the startup command.
 
+2048 has a colored 4×4 grid, score, largest tile, move count, and direction
+buttons with policy probabilities. Use the arrow keys to slide; unavailable
+directions are disabled. Games end at 2048 or when no move remains. Start with
+`uv run python -m boardrl.serve.serve --game 2048`, or select it in the game
+menu. Use `2048,seed=42` for reproducible spawns. Undo/redo also restores the
+spawn random state.
+
+For two players, select `2048versus` or start with
+`uv run python -m boardrl.serve.serve --game 2048versus`. Player 0 slides;
+player 1 clicks an empty cell to place the revealed next tile. Tile values
+retain the 90% 2 / 10% 4 draw. Player 0 wins at 2048; player 1 wins by blocking
+all slides. Turn labels and placement probabilities appear on the board.
+
+Add `nolimits=True` to either game spec to keep playing beyond 2048, for example
+`uv run python -m boardrl.serve.serve --game 2048versus,nolimits=True`.
+The board remains playable until no slide is available; the next tile and
+placement controls continue normally in the two-player version.
+
 The raw-state textarea is a model-analysis scratchpad. Edited text is analyzed
 without mutating the live game; it is not validated as a reachable game state.
 Preserve `@` legal-action lines. Model-backed strategies can analyze arbitrary
@@ -58,6 +76,7 @@ reject edited-state analysis.
 | `1` through `9` | Corresponding move in the policy list |
 | `T` | Top policy move |
 | `A` | One agent action |
+| Arrow keys | Slide in 2048 |
 | Ctrl/Cmd+Z | Undo |
 | Ctrl/Cmd+Shift+Z | Redo |
 

@@ -458,6 +458,8 @@ def play_action(
     actor: str,
     strategy: str | None = None,
 ):
+    if action not in session.game.moves:
+        raise HTTPException(status_code=400, detail=f"Illegal move: {action!r}")
     try:
         session.save_undo()
         session.game.play_str(action)

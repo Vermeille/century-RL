@@ -29,6 +29,7 @@ and legal moves interactively.
 | --- | --- | --- | --- |
 | `tictactoe` | Two players, 3×3, alternate marking empty cells | Three in a row; terminal outcome | — |
 | `connectfour` | Two players, drop a piece into a non-full column | Four connected pieces; terminal outcome | `tactical_random` |
+| `2048versus,num_players=2,seed=-1,nolimits=False` | Player 0 slides; player 1 places each randomly valued new tile on an empty cell | Player 0 reaches 2048; player 1 blocks all slides; signed merge-point differences ÷ 2048 | — |
 | `hnefatafl,num_players=2,max_plies=500` | Fully visible 11×11 Fetlar (2018 panel rules); 24 attackers against 12 defenders and their king | Attackers capture the king; defenders escape to a corner; terminal outcome | — |
 | `nim,num_players=2,num_stones=21,max_pick=3` | Remove 1 through `max_pick` stones from a single pile | Taking the last stone wins; terminal outcome | `optimal` |
 | `rps,num_players=2,v_rock=1,v_paper=1,v_scissors=1` | One hidden choice per player, then reveal | Weighted rock/paper/scissors; terminal win/loss/draw sign | — |
@@ -42,15 +43,33 @@ and legal moves interactively.
 
 `OutcomeScores` is used for Tic-Tac-Toe, Connect Four, Hnefatafl, Nim, RPS, and Santorini;
 the others report `PointScores`. Reporting point totals does not imply point
-rewards: all competitive native registrations currently use terminal outcome
-rewards and a categorical outcome critic. Splendor and Traversal have custom
-outcome objects to respect their tiebreaks independently of raw points.
+rewards: 2048versus uses signed point-delta rewards and a continuous point
+critic; the other competitive native registrations use terminal outcome
+rewards and a categorical outcome critic. Splendor, Traversal, and 2048versus
+have custom outcomes to respect victory conditions independently of raw points.
 
 `tictactoe`, `connectfour`, `sum`, and `santorini` expose no textual constructor
 options; their Python constructors still accept the player count supplied by
 rollouts. Some games support more than two seats, but the standard trainers use
 two-seat lineups. Check the constructor's validation before selecting another
 count; custom algorithms must create the corresponding lineup.
+
+## Single-player games
+
+| Spec / public options | Task and visibility | Points / objective success | Training reward |
+| --- | --- | --- | --- |
+| `2048,num_players=1,seed=-1,nolimits=False` | Fully visible 4×4 grid; slide up, right, down, or left and merge equal tiles | Sum of merged tile values / create a 2048 tile | Difference in points ÷ 2048 |
+
+2048 ends on the first 2048 tile or when no slide changes the board. Its
+descriptor uses cooperative objective semantics for solo success. Use a
+one-seat lineup such as `runner.play([bot], games=32, max_steps=10000)`;
+the shipped two-seat trainers need a solo experiment loop for this game.
+Nonnegative seeds reproduce initial tiles and subsequent spawns; `-1` uses
+fresh randomness. The browser workbench supports solo play directly.
+For the two-player placement variant, use `2048versus` with a two-seat lineup.
+Both support `nolimits=True` (for example, `2048versus,nolimits=True`) to
+continue beyond 2048 until no slide remains. Reaching 2048 stays the success
+milestone; scores keep accumulating, with opposite signs for the two players.
 
 ## Cooperative games
 
