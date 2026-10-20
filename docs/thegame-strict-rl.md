@@ -1,5 +1,14 @@
 # The Game strict-mode RL recipe
 
+!!! note "Historical experiment report"
+    These are recorded measurements and recipes from earlier iterations, not
+    current trainer defaults or a regression guarantee. Start with the
+    [current training guide](training.md) and [The Game rules](thegame.md).
+    The current perplexity controller measures raw effective action count;
+    sub-unit targets in this report no longer mean normalized perplexity.
+    Model heads and value losses have also changed. Preserve the original
+    revision and protocol when attempting to reproduce a reported score.
+
 This note records the reproducible search for a from-scratch reinforcement
 learning recipe that matches the `lowest_cost` policy in strict two-player
 mode. It is intentionally an experiment report rather than a claim based on a
