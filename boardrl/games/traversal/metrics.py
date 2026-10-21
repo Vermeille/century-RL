@@ -3,7 +3,10 @@
 from collections import Counter
 
 from boardrl.games.semantics import PointScores
-from boardrl.games.traversal.game import EXPLORER, SENTINEL, VANGUARD, Piece, neighbors
+from boardrl.games.traversal.game import (
+    EXPLORER, SENTINEL, VANGUARD, HEIGHT_DIGITS, Piece, neighbors,
+    player_positions, position as _position,
+)
 from boardrl.games.traversal.terrain import SIZE, TERRAIN_TYPES
 from boardrl.metrics import GameMetrics, GroupedTraceMetrics, TraceMetrics
 
@@ -20,24 +23,17 @@ def _rate(numerator, denominator):
 
 
 def _field(state, name, default="unknown"):
-    prefix = name + ": "
+    prefix = name + ":"
     return next(
-        (line[len(prefix):] for line in state.splitlines() if line.startswith(prefix)),
+        (token[len(prefix):] for token in state.split() if token.startswith(prefix)),
         default,
     )
-
-
-def _position(coordinate):
-    row, col = int(coordinate[1:]) - 1, ord(coordinate[0]) - ord("a")
-    if not 0 <= row < SIZE or not 0 <= col < SIZE:
-        raise ValueError(f"Invalid Traversal coordinate: {coordinate}")
-    return row, col
 
 
 def _end_reason(end):
     if not end.terminal:
         return "truncated"
-    reason = _field(end.state, "Status")
+    reason = _field(end.state, "E")
     return reason if reason in END_REASONS else "unknown"
 
 
@@ -50,27 +46,33 @@ def _piece(token):
 class Observation:
     def __init__(self, state):
         lines = state.splitlines()
-        height_start = lines.index("Terrain (height):") + 2
-        piece_start = lines.index("Pieces:") + 2
-        height_rows = [line.split() for line in lines[height_start:height_start + SIZE]]
-        piece_rows = [line.split() for line in lines[piece_start:piece_start + SIZE]]
-        for rows in (height_rows, piece_rows):
-            if len(rows) != SIZE or any(
-                len(row) != SIZE + 1 or int(row[0]) != index + 1
-                for index, row in enumerate(rows)
-            ):
-                raise ValueError("Incomplete Traversal board")
-        self.heights = tuple(tuple(map(int, row[1:])) for row in height_rows)
-        self.board = {
-            (row, col): _piece(token)
-            for row, cells in enumerate(piece_rows)
-            for col, token in enumerate(cells[1:]) if token != "."
-        }
+        self.turn = int(_field(lines[0], "T"))
+        self.viewer = int(_field(lines[0], "V"))
+        rows = lines[1:SIZE + 1]
+        if len(rows) != SIZE or any(len(row) != SIZE for row in rows):
+            raise ValueError("Incomplete Traversal terrain")
+        self.heights = tuple(tuple(HEIGHT_DIGITS.index(char) for char in row) for row in rows)
+        self.board = {}
+        for owner in range(2):
+            line = lines[SIZE + 1 + owner]
+            if not line.startswith(f"{owner}:"):
+                raise ValueError("Missing Traversal army")
+            for token in line[2:].split():
+                square = _position(token[1:])
+                if square in self.board:
+                    raise ValueError("Duplicate Traversal square")
+                self.board[square] = _piece(f"{owner}{token[0]}")
+        finished = _field(lines[0], "F", "-")
+        if finished != "-" and len(finished) % 2:
+            raise ValueError("Invalid Traversal finishes")
         self.finished = [
-            _piece(token) for token in _field(state, "Finished", "-").split()
-            if token != "-"
+            _piece(finished[index:index + 2])
+            for index in range(0, len(finished), 2) if finished != "-"
         ]
-        self.preset = _field(state, "Terrain")
+        self.preset = _field(lines[0], "M")
+
+    def source(self, move, player):
+        return player_positions(self.board, player)[int(move[0])]
 
     @classmethod
     def parse(cls, state):
@@ -91,10 +93,10 @@ class TraversalTraceMetrics(TraceMetrics):
                 observation = Observation.parse(record.state)
                 if observation is None:
                     continue
-                source_text, target_text = record.moves[record.action_idx].split(">")
-                source = _position(source_text)
+                move = record.moves[record.action_idx]
+                source, target_text = observation.source(move, record.player), move[1:]
                 piece = observation.board[source]
-                finish = target_text == "off"
+                finish = target_text == "-"
                 target = (
                     (SIZE if piece.player else -1, source[1])
                     if finish else _position(target_text)
@@ -115,12 +117,12 @@ class TraversalTraceMetrics(TraceMetrics):
 
                 capture_available = finish_available = sentinel_available = False
                 for move in record.moves:
-                    start, end = move.split(">")
-                    if end == "off":
+                    end = move[1:]
+                    if end == "-":
                         finish_available = True
                         sentinel_available |= (
                             not observation.finished
-                            and observation.board[_position(start)].kind.first_finish_wins
+                            and observation.board[observation.source(move, record.player)].kind.first_finish_wins
                         )
                     else:
                         occupant = observation.board.get(_position(end))

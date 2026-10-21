@@ -211,8 +211,11 @@ draw. Own reservations are visible; opponents' reserved identities stay hidden.
 two Explorers (movement 5, strength 1), two Vanguards (4, 2), and two Sentinels
 (3, 3). They occupy columns c through h in S-V-E-E-V-S order. Player 0 starts
 on row 10 and exits above row 1; player 1 starts on row 1 and exits below row
-10. Actions such as `e10>e5` move or capture; `e2>off` finishes a piece.
-Equivalent exit columns are represented by a single `>off` action.
+10. The browser uses these one-based row labels. Serialized coordinates use
+rows 0 through 9 (`a0` is the top-left square). Each army is listed in board
+order, top to bottom and left to right. An action contains its zero-based
+piece index followed by a destination: `2e4` moves the third piece to e4
+(browser e5); `<index>-` finishes it. Equivalent exit columns share one action.
 
 Normal movement follows orthogonal paths, may turn, and costs
 `1 + abs(height difference)` per step. Pieces block paths. An Explorer can
@@ -262,15 +265,23 @@ uv run python -m boardrl.games.traversal.collect_terrains --per-type 20
 
 The collector records its source and collection time, validates boards, and
 resumes existing files. Use `--output <new-path>` to collect a fresh pool.
-The observation keeps the move counter, viewer, terrain, both armies, and
-finished pieces. The counter is necessary for the 200-action limit; its parity
-identifies the side to move. The viewer identifies the value perspective in
+The compact observation begins with `T:<turn> V:<viewer> M:<preset> F:<finishes>`.
+Ten terrain rows follow, using one base-36 digit per height (`0`–`9`, then
+`a` = 10, `b` = 11, etc.). `0:` and `1:` list only occupied squares, as
+type-coordinate tokens such as `Sc9 Vd9 Ee9`. Their order supplies action
+indices, independently for each player. The move counter is necessary for
+the 200-action limit; its parity identifies the side to move.
+The viewer identifies the value perspective in
 forced endpoint observations. During play, scores are the sum of finished-piece
 strengths, and captures follow from the initial material minus the board and
 finished pieces, so neither needs a separate field. Terminal observations add
 actual scores (including elimination bonuses), the end reason, and the winner.
 
-`Repetition:` contains reversible moves since the last capture or finish.
+`R:` contains three-character undo entries since the last capture or finish,
+concatenated without separators. Each entry gives the moved piece's index
+in its owner's army **after** that move, followed by its previous square.
+Read the entries backward to reconstruct earlier boards, re-sorting the
+owner's pieces before each undo. Alternating turns identify the mover.
 Earlier positions have different material and cannot recur. The current board
 and this ordered suffix reconstruct all repetition-relevant positions; a
 position-count summary alone would lose the rule's ordered-cycle information.
@@ -278,7 +289,10 @@ Before the first material change, the starting position is not counted by the
 site's repetition rule; afterward, the position immediately after the change
 is counted. The move counter and suffix length distinguish these cases.
 Terminal states need no repetition context. Full move history remains in the
-game object and browser session for auditing and undo/redo.
+game object and browser session for auditing and undo/redo. The representation
+fits within 2,048 ASCII characters, including every legal action and the full
+repetition context. A conservative bound combines 199 three-character undo
+entries, two pieces of each type, and their maximum geometric move counts.
 
 `points_for` preserves actual scores. `diff_points_for` is the score difference
 during play; terminal draws return zero, and a score-tied unique winner gets

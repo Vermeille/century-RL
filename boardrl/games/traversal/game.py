@@ -1,7 +1,7 @@
 """Traversal rules: https://www.traversalgame.com/rules.
 
-Coordinates a1..j10 run from the top left. Player 0 starts at the bottom
-and exits above row 1; player 1 travels in the opposite direction.
+Text coordinates a0..j9 run from the top left. Player 0 starts at the bottom
+and exits above row 0; player 1 travels in the opposite direction.
 """
 
 from dataclasses import dataclass
@@ -12,13 +12,24 @@ from boardrl.games.traversal.terrain import SIZE, sample_terrain
 
 
 MOVE_LIMIT = 200
+HEIGHT_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 CARDINAL = ((-1, 0), (1, 0), (0, -1), (0, 1))
 Position = tuple[int, int]
 
 
 def coordinate(position: Position) -> str:
     row, col = position
-    return f"{chr(ord('a') + col)}{row + 1}"
+    return f"{chr(ord('a') + col)}{row}"
+
+
+def position(text: str) -> Position:
+    if len(text) != 2 or text[0] not in "abcdefghij" or text[1] not in "0123456789":
+        raise ValueError(f"Invalid Traversal coordinate: {text}")
+    return int(text[1]), ord(text[0]) - ord("a")
+
+
+def player_positions(board, player):
+    return sorted(square for square, piece in board.items() if piece.player == player)
 
 
 def on_board(position: Position) -> bool:
@@ -103,9 +114,9 @@ class Move:
     destination: Position | None
     cost: int
 
-    def text(self) -> str:
-        target = "off" if self.destination is None else coordinate(self.destination)
-        return f"{coordinate(self.source)}>{target}"
+    def text(self, source_index: int) -> str:
+        target = "-" if self.destination is None else coordinate(self.destination)
+        return f"{source_index}{target}"
 
 
 class Traversal:
@@ -128,7 +139,7 @@ class Traversal:
         self.finished: list[Piece] = []
         self.captured: list[Piece] = []
         self.history: list[str] = []
-        self._repetition_start = 0
+        self._repetition_moves: list[str] = []
         self._positions: list[tuple] = []
         self._ended = False
         self._winner = None
@@ -233,10 +244,9 @@ class Traversal:
     def _refresh_moves(self):
         self._actions = {}
         if not self._ended:
-            for position, piece in sorted(self.board.items()):
-                if piece.player == self.current_player():
-                    for move in self._piece_moves(position, piece):
-                        self._actions[move.text()] = move
+            for index, square in enumerate(player_positions(self.board, self.current_player())):
+                for move in self._piece_moves(square, self.board[square]):
+                    self._actions[move.text(index)] = move
             # The published rules do not adjudicate immobilization. A stuck
             # position is a stalemate draw, so the rollout contract stays total.
             if not self._actions:
@@ -294,7 +304,7 @@ class Traversal:
         action = self._actions[move]
         piece = self.board.pop(action.source)
         if action.destination is None:
-            self._repetition_start = len(self.history) + 1
+            self._repetition_moves.clear()
             self.finished.append(piece)
             self.scores[piece.player] += piece.kind.strength
             if len(self.finished) == 1 and piece.kind.first_finish_wins:
@@ -304,9 +314,15 @@ class Traversal:
         else:
             captured = self.board.pop(action.destination, None)
             if captured is not None:
-                self._repetition_start = len(self.history) + 1
+                self._repetition_moves.clear()
                 self.captured.append(captured)
             self.board[action.destination] = piece
+            if captured is None:
+                # An undo entry identifies the moved piece in the resulting
+                # position and its old square. Three characters suffice and
+                # reconstruct the complete ordered quiet-position history.
+                index = player_positions(self.board, piece.player).index(action.destination)
+                self._repetition_moves.append(f"{index}{coordinate(action.source)}")
 
         if not self._ended:
             remaining = [
@@ -360,35 +376,25 @@ class Traversal:
         player = self.current_player() if force == -1 else force
         if player not in (0, 1):
             raise ValueError("Traversal viewer must be player 0 or 1")
-        lines = [
-            f"Turn: {self.turn}/{MOVE_LIMIT} Viewer: {player}",
-            f"Terrain: {self.terrain_name}",
-            "Finished: " + (" ".join(f"{p.player}{p.kind.symbol}" for p in self.finished) or "-"),
-            "Terrain (height):",
-            "   a b c d e f g h i j",
-        ]
-        for row, heights in enumerate(self.heights):
-            lines.append(f"{row + 1:2} " + " ".join(map(str, heights)))
-        lines.extend(("Pieces:", "   a  b  c  d  e  f  g  h  i  j"))
-        for row in range(SIZE):
-            cells = []
-            for col in range(SIZE):
-                piece = self.board.get((row, col))
-                cells.append(" ." if piece is None else f"{piece.player}{piece.kind.symbol}")
-            lines.append(f"{row + 1:2} " + " ".join(cells))
+        finished = "".join(f"{p.player}{p.kind.symbol}" for p in self.finished) or "-"
+        lines = [f"T:{self.turn} V:{player} M:{self.terrain_name} F:{finished}"]
+        lines.extend("".join(HEIGHT_DIGITS[height] for height in row) for row in self.heights)
+        for owner in range(2):
+            pieces = " ".join(
+                f"{self.board[square].kind.symbol}{coordinate(square)}"
+                for square in player_positions(self.board, owner)
+            )
+            lines.append(f"{owner}:{pieces}")
         if self._ended:
             # Elimination can award points beyond finished-piece strengths.
-            lines.append(f"Scores: {self.scores[0]} {self.scores[1]}")
-            lines.append(f"Status: {self.end_reason}")
-            lines.append(f"Winner: {self._winner if self._winner is not None else 'draw'}")
+            lines.append(f"S:{self.scores[0]},{self.scores[1]} E:{self.end_reason} W:{self._winner if self._winner is not None else 'draw'}")
         else:
             # Captures and finishes permanently change material, preventing
             # repetition across that boundary. The current board and these
             # reversible moves reconstruct every still-relevant position.
             # Turn distinguishes the omitted initial position (no material
             # change yet) from the counted position after a material change.
-            context = self.history[self._repetition_start:]
-            lines.append("Repetition: " + (" ".join(context) or "-"))
+            lines.append("R:" + ("".join(self._repetition_moves) or "-"))
         return "\n".join(lines) + "\n"
 
     def display_with_moves(self):
@@ -407,7 +413,7 @@ class Traversal:
         other.finished = self.finished.copy()
         other.captured = self.captured.copy()
         other.history = self.history.copy()
-        other._repetition_start = self._repetition_start
+        other._repetition_moves = self._repetition_moves.copy()
         other._positions = self._positions.copy()
         other._ended = self._ended
         other._winner = self._winner

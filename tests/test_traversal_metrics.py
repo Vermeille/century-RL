@@ -10,6 +10,7 @@ from boardrl.games.traversal.metrics import Metrics, Observation, TraversalTrace
 from boardrl.games.traversal.semantics import TraversalOutcome
 from boardrl.metrics import Trackio
 from boardrl.rollouts import EndState, GameTrace, PlayerTrace, Record, Rollouts, TraceGroup
+from tests.test_traversal import action
 
 
 def position(pieces, heights=None, player=0):
@@ -23,14 +24,14 @@ def position(pieces, heights=None, player=0):
 
 
 def chosen(game, move):
-    return Record(game, torch.zeros(len(game.moves)), game.moves.index(move), {})
+    return Record(game, torch.zeros(len(game.moves)), game.moves.index(action(game, move)), {})
 
 
 def rollout(game, move=None, strategies=(0, 1)):
     traces = [PlayerTrace(seat, strategies[seat]) for seat in range(2)]
     if move is not None:
         traces[game.current_player()].append(chosen(game, move))
-        game.play_str(move)
+        game.play_str(action(game, move))
     for seat, trace in enumerate(traces):
         trace.append(EndState(game, seat, outcome=TraversalOutcome()))
     return GameTrace(traces)
@@ -161,9 +162,9 @@ def test_resolved_random_preset_is_recorded_and_survives_copy():
 
 def test_legacy_unknown_preset_and_malformed_observations():
     game = Traversal(terrain="flat")
-    legacy = game.display().replace("Terrain: flat\n", "")
+    legacy = game.display().replace("M:flat ", "")
     assert Observation(legacy).preset == "unknown"
-    for state in ("", "garbage", game.display().replace(" 1 0 0", " 2 0 0", 1)):
+    for state in ("", "garbage", game.display().replace("0000000000", "000000000", 1)):
         assert Observation.parse(state) is None
     record = chosen(game, game.moves[0])
     record.state = "garbage"

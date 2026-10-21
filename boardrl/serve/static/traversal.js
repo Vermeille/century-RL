@@ -4,42 +4,49 @@ const TRAVERSAL_PIECES = {
   S: { name: "Sentinel", movement: 3, strength: 3, ability: "Finish first to win immediately" },
 };
 
-function parseTraversalMove(move) {
-  const match = move.match(/^([a-j](?:10|[1-9]))>([a-j](?:10|[1-9])|off)$/);
-  return match ? { move, source: match[1], destination: match[2] } : null;
+function parseTraversalMove(move, sources = []) {
+  const match = move.match(/^([0-5])([a-j][0-9]|-)$/);
+  if (!match) return null;
+  return {
+    move, sourceIndex: Number(match[1]), source: sources[Number(match[1])]?.coord ?? null,
+    destination: match[2] === "-" ? "off" : `${match[2][0]}${Number(match[2][1]) + 1}`,
+  };
 }
 
 function parseTraversal(game) {
   const lines = linesWithoutMoves(game);
   const field = (name, fallback = "") => {
-    const prefix = `${name}: `;
-    return lines.find((line) => line.startsWith(prefix))?.slice(prefix.length) ?? fallback;
+    const prefix = `${name}:`;
+    return lines.flatMap((line) => line.split(/\s+/)).find((token) => token.startsWith(prefix))?.slice(prefix.length) ?? fallback;
   };
-  const heightStart = lines.indexOf("Terrain (height):") + 2;
-  const pieceStart = lines.indexOf("Pieces:") + 2;
-  if (heightStart < 2 || pieceStart < 2) return null;
+  if (!/^T:\d+ V:[01] /.test(lines[0] || "")) return null;
   const cells = [];
   for (let row = 0; row < 10; row++) {
-    const heights = lines[heightStart + row]?.trim().split(/\s+/) || [];
-    const pieces = lines[pieceStart + row]?.trim().split(/\s+/) || [];
-    if (heights.length !== 11 || pieces.length !== 11 ||
-        Number(heights[0]) !== row + 1 || Number(pieces[0]) !== row + 1) return null;
+    const heights = lines[1 + row];
+    if (!/^[0-9a-z]{10}$/.test(heights || "")) return null;
     for (let col = 0; col < 10; col++) {
-      const height = Number(heights[col + 1]);
-      const token = pieces[col + 1];
-      if (!Number.isInteger(height) || height < 0 || !/^(\.|[01][EVS])$/.test(token)) return null;
       cells.push({
-        coord: `${String.fromCharCode(97 + col)}${row + 1}`, row, col, height,
-        player: token === "." ? null : Number(token[0]),
-        type: token === "." ? null : token[1],
+        coord: `${String.fromCharCode(97 + col)}${row + 1}`, row, col,
+        height: parseInt(heights[col], 36), player: null, type: null,
       });
     }
   }
-  const pieceList = (name) => field(name).split(/\s+/)
-    .filter((token) => /^[01][EVS]$/.test(token))
-    .map((token) => ({ player: Number(token[0]), type: token[1] }));
-  const finished = pieceList("Finished");
-  const scores = field("Scores").split(/\s+/).map(Number);
+  for (const player of [0, 1]) {
+    const army = lines[11 + player];
+    if (!army?.startsWith(`${player}:`)) return null;
+    for (const token of army.slice(2).trim().split(/\s+/).filter(Boolean)) {
+      if (!/^[EVS][a-j][0-9]$/.test(token)) return null;
+      const cell = cells[Number(token[2]) * 10 + token.charCodeAt(1) - 97];
+      if (cell.type) return null;
+      cell.player = player;
+      cell.type = token[0];
+    }
+  }
+  const finishText = field("F", "-");
+  if (!/^(?:-|(?:[01][EVS])*)$/.test(finishText)) return null;
+  const finished = [...finishText.matchAll(/([01])([EVS])/g)]
+    .map((match) => ({ player: Number(match[1]), type: match[2] }));
+  const scores = field("S").split(",").map(Number);
   const finishScores = [0, 1].map((player) => finished
     .filter((piece) => piece.player === player)
     .reduce((sum, piece) => sum + TRAVERSAL_PIECES[piece.type].strength, 0));
@@ -52,14 +59,18 @@ function parseTraversal(game) {
   }
   return {
     cells, scores: scores.length === 2 && scores.every(Number.isFinite) ? scores : finishScores,
-    preset: field("Terrain", "Terrain"), status: field("Status", "ongoing"),
-    winner: field("Winner"), finished, captured,
-    turn: field("Turn").split(" ")[0],
+    preset: field("M", "Terrain"), status: field("E", "ongoing"),
+    winner: field("W"), finished, captured,
+    turn: `${field("T")}/200`,
+    lastSource: /[0-5][a-j][0-9]$/.test(field("R")) ?
+      `${field("R").at(-2)}${Number(field("R").at(-1)) + 1}` : null,
   };
 }
 
 function traversalTargets(game, source = null) {
-  const parts = game.ended ? [] : (game.moves || []).map(parseTraversalMove).filter(Boolean);
+  const sourcesOnBoard = parseTraversal(game)?.cells.filter((cell) => cell.player === game.current_player) || [];
+  const parts = game.ended ? [] : (game.moves || [])
+    .map((move) => parseTraversalMove(move, sourcesOnBoard)).filter((part) => part?.source);
   const sources = new Set(parts.map((part) => part.source));
   const selected = sources.has(source) ? source : null;
   const targets = new Map();
@@ -159,6 +170,7 @@ class TraversalView {
     const selectedCell = data.cells.find((cell) => cell.coord === this.source);
     const finishMove = targetData.selected ? targetData.targets.get("off")?.[0] : null;
     const lastMove = parseTraversalMove(game.history?.at(-1)?.action || "");
+    if (lastMove) lastMove.source = data.lastSource;
     const minHeight = Math.min(...data.cells.map((cell) => cell.height));
     const maxHeight = Math.max(...data.cells.map((cell) => cell.height));
     const instruction = game.ended ? traversalResult(data) : selectedCell ?

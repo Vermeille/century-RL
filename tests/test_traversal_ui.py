@@ -7,6 +7,7 @@ import pytest
 
 from boardrl.games.traversal.game import EXPLORER, SENTINEL, VANGUARD, Piece, Traversal
 from boardrl.serve.serve import GameSnapshot
+from tests.test_traversal import action
 
 
 def snapshot(game, history=()):
@@ -113,7 +114,7 @@ def test_terminal_elimination_uses_actual_scores_beyond_finished_pieces():
     game = Traversal(terrain="flat")
     game.board = {(5, 2): Piece(0, SENTINEL), (5, 3): Piece(1, EXPLORER)}
     game._refresh_moves()
-    game.play_str("c6>d6")
+    game.play_str(action(game, "c6>d6"))
     assert game.ended() and game.scores == [3, 0] and game.finished == []
     renderer_check([snapshot(game)], r"""
 const parsed = parseTraversal(snapshots[0]);
@@ -126,7 +127,7 @@ def test_source_selection_uses_canonical_actions_and_resets_after_move_or_undo()
     game = Traversal(terrain="flat")
     before = snapshot(game)
     move = game.moves[0]
-    game.play_str(move)
+    game.play_str(action(game, move))
     after = snapshot(game, [{"action": move}])
     renderer_check([before, after], r"""
 state.game = snapshots[0];
@@ -135,7 +136,7 @@ renderVisual();
 assert.ok(!traversalTargets(state.game).sources.has('a1'));
 assert.equal(traversalTargets(state.game).sources.size, 6);
 const source = 'e10';
-const expected = state.game.moves.filter(move => move.startsWith(source + '>'));
+const expected = state.game.moves.filter(move => move.startsWith('2'));
 traversalView.select(source);
 assert.equal(traversalView.source, source);
 const html = renderTraversal(state.game);
@@ -184,12 +185,12 @@ const player = state.game.current_player;
 const source = player === 0 ? 'a1' : 'a10';
 traversalView.select(source);
 const html = renderTraversal(state.game);
-assert.match(html, new RegExp(`traversal-goal-${player}[\\s\\S]*?data-action="${source}&gt;off"`));
+assert.match(html, new RegExp(`traversal-goal-${player}[\\s\\S]*?data-action="0-"`));
 assert.equal((html.match(/class="traversal-finish"/g) || []).length, 1);
 assert.match(html, /Win now/);
 assert.match(html, /Finish Sentinel · \+3/);
 assert.match(html, /traversal-capture/);
-assert.match(html, new RegExp(`data-action="${source}&gt;b${player === 0 ? 1 : 10}"`));
+assert.match(html, new RegExp(`data-action="0b${player === 0 ? 0 : 9}"`));
 assert.match(html, /capture here/);
 """)
 
@@ -227,7 +228,7 @@ listeners.click.forEach(handler => handler({ target: {
 } }));
 assert.equal(traversalView.source, null);
 const malicious = '<img src=x onerror="alert(1)">';
-state.game.board_with_moves = state.game.board_with_moves.replace('Terrain: flat', 'Terrain: ' + malicious);
+state.game.board_with_moves = state.game.board_with_moves.replace('M:flat', 'M:' + malicious.replaceAll(' ', '_'));
 assert.ok(!renderTraversal(state.game).includes(malicious));
 assert.match(renderTraversal(state.game), /&lt;img/);
 state.game.board_with_moves = '<broken board>';
@@ -236,5 +237,5 @@ assert.match(fallback, /fallback-board/);
 assert.match(fallback, /&lt;broken board&gt;/);
 assert.equal(parseTraversalMove('a0>b1'), null);
 assert.equal(parseTraversalMove('a1>j11'), null);
-assert.equal(parseTraversalMove('a1>off').destination, 'off');
+assert.equal(parseTraversalMove('0-').destination, 'off');
 """)
