@@ -44,8 +44,8 @@ def test_observation_roundtrip_and_initial_diagnostics():
 
 
 def test_role_outcomes_count_once_and_strategy_identity_survives_rotation():
-    attack = rollout(position({"d4": "K", "d3": "A", "c4": "A", "e4": "A", "d6": "A"}), ["d6>d5"])
-    defend = rollout(position({"a4": "K", "f3": "A"}, player=1), ["a4>a1"], strategies=(1, 0))
+    attack = rollout(position({"d4": "K", "d3": "A", "c4": "A", "e4": "A", "d6": "A"}), ["d65"])
+    defend = rollout(position({"a4": "K", "f3": "A"}, player=1), ["a41"], strategies=(1, 0))
     draw = rollout(Hnefatafl(max_plies=1), [Hnefatafl().moves[0]])
     incomplete = rollout(Hnefatafl())
     metrics = Metrics(Rollouts([attack, defend, draw, incomplete])).metrics()
@@ -69,7 +69,7 @@ def test_capture_metrics_include_last_action_and_exclude_king_from_soldier_count
         "e8": "A", "e4": "D", "e3": "A", "d5": "D", "c5": "A",
         "f5": "D", "g5": "A", "j10": "K",
     })
-    metrics = Metrics(Rollouts([rollout(game, ["e8>e5", "j10>j9"])])).metrics()
+    metrics = Metrics(Rollouts([rollout(game, ["e85", "jA9"])])).metrics()
     behavior = metrics["strategy"]["0"]["behavior"]
     assert behavior["capture_share"] == behavior["multi_capture_share"] == 1
     assert behavior["avg_captures"] == 3 and behavior["avg_move_distance"] == 3
@@ -82,7 +82,7 @@ def test_capture_metrics_include_last_action_and_exclude_king_from_soldier_count
 
 def test_opponent_capture_is_not_attributed_to_same_seat_trace():
     game = position({"b2": "A", "e4": "A", "f4": "D", "c4": "D", "j10": "K"})
-    data = Rollouts([rollout(game, ["b2>b3", "c4>d4", "b3>b2"])])
+    data = Rollouts([rollout(game, ["b23", "c4d", "b32"])])
     metrics = Metrics(data).metrics()
     assert metrics["strategy"]["0"]["behavior"]["avg_captures"] == 0
     assert metrics["strategy"]["1"]["behavior"]["avg_captures"] == 1
@@ -116,7 +116,7 @@ def test_metrics_handle_empty_terminal_only_and_missing_observations():
 
 def test_behavior_uses_chosen_move_not_action_order():
     game = position({"a4": "K", "f3": "A"}, player=1)
-    data = Rollouts([rollout(game, ["a4>a1"])])
+    data = Rollouts([rollout(game, ["a41"])])
     original = Metrics(data).metrics()
     record = data[0].by_seat[1][0]
     record.action_idx = len(record.moves) - 1 - record.action_idx
@@ -165,7 +165,7 @@ def test_rollout_pipeline_rewards_and_metrics_flattening(budget):
 
 def test_terminal_outcome_returns_reward_escape_instead_of_material():
     game = position({"a4": "K", "f3": "A"}, player=1)
-    data = Rollouts([rollout(game, ["a4>a1"])])
+    data = Rollouts([rollout(game, ["a41"])])
     desc = games_library("hnefatafl")
     samples = Pipeline(desc.rewards.make_returns(1.0), ToSamples())(data)
     assert len(samples) == 1 and samples[0].returns == 1

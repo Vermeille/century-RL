@@ -2,13 +2,13 @@
 
 from collections import Counter
 
-from boardrl.games.hnefatafl.game import CARDINAL, CORNERS, SIZE, on_board
+from boardrl.games.hnefatafl.game import CARDINAL, CORNERS, SIZE, Move
 from boardrl.games.semantics import OutcomeScores
 from boardrl.metrics import GameMetrics, GroupedTraceMetrics, TraceMetrics
 
 
 END_REASONS = (
-    "king_escaped", "king_captured", "repetition", "stalemate", "move_limit",
+    "king_escaped", "king_captured", "stalemate", "move_limit",
     "truncated", "unknown",
 )
 
@@ -20,13 +20,6 @@ def _rate(total, count):
 def _field(state, name):
     prefix = name + ":"
     return next(line[len(prefix):] for line in state.splitlines() if line.startswith(prefix))
-
-
-def _position(text):
-    position = int(text[1:]) - 1, ord(text[0]) - ord("a")
-    if not on_board(position):
-        raise ValueError(f"Invalid Hnefatafl coordinate: {text}")
-    return position
 
 
 class Observation:
@@ -76,7 +69,8 @@ class HnefataflTraceMetrics(TraceMetrics):
                 before, after = observations[index:index + 2]
                 if before is None:
                     continue
-                source, target = map(_position, record.moves[record.action_idx].split(">"))
+                move = Move.from_text(record.moves[record.action_idx])
+                source, target = move.source, move.destination
                 counts["actions"] += 1
                 counts["king_moves"] += before.board[source] == "K"
                 counts["distance"] += sum(abs(a - b) for a, b in zip(source, target))

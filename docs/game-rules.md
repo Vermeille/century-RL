@@ -24,10 +24,13 @@ and clickable browser boards.
 `hnefatafl,num_players=2,max_plies=500` uses the
 [Fetlar Hnefatafl Panel's printed 2018 rules](https://aagenielsen.dk/fetlar_rules2018visual.pdf).
 Player 0 starts with 24 attackers; player 1 has 12 defending soldiers and an
-armed king. Attackers move first. Coordinates `a1` through `k11` run from the
-top left, and actions such as `d1>d3` slide one piece along a clear row or
-column. Soldiers may cross an empty throne (`f6`) but only the king may stop
-there or occupy a corner. The king may return to the throne.
+armed king. Attackers move first. Coordinates `a1` through `kB` run from the
+top left; ranks `A` and `B` denote rows 10 and 11. Every action has three ASCII
+characters: the source coordinate followed by the destination's changed axis.
+For example, `d13` moves d1 to d3, `d1e` moves d1 to e1, and `f9A` moves f9
+to row 10. Pieces slide along a clear row or column. Soldiers may cross an
+empty throne (`f6`) but only the king may stop there or occupy a corner. The
+king may return to the throne.
 
 A moving piece captures adjacent enemy soldiers by sandwiching them against
 an ally, an empty throne, or a corner. Multiple sandwiches resolve together.
@@ -39,22 +42,35 @@ and the king cannot be captured on an edge. Defenders win when the king reaches
 any corner. Copenhagen shieldwalls, exit-fort wins, and encirclement wins do
 not apply.
 
-An immobile active side or the third occurrence of a board position with the
-same side to move draws. The implementation adds a draw after `max_plies`
-individual actions, keeping simulations finite. Forts and other dead positions
-that need human adjudication resolve through repetition or this cap rather
-than an automatic fort detector. Wins take precedence over the cap. Points are
+A side unable to move draws. Repetition draws from the printed rules are
+disabled: repeated positions remain playable until the draw after `max_plies`
+individual actions. This keeps simulations finite and makes the observation
+Markov without move history. Forts and other dead positions that need human
+adjudication resolve through this cap rather than an automatic fort detector.
+Wins take precedence over the cap. Points are
 +1/-1 for winner/loser, zero for ongoing games and draws. A rollout's external
 `max_steps` truncation remains distinct from a game-level move-limit draw.
 
 Observations begin with `V:<viewer> P:<active player> Ply:<turn>/<cap>`, followed
 by `C:<captured attackers> <captured defenders>` and eleven dense board rows.
 `A`, `D`, and `K` denote attackers, defenders, and king; empty special squares
-use `T` (throne) and `X` (corner), with `.` elsewhere. `H:` retains the move
-history for repetition; `End:<reason>` appears only for terminal states.
+use `T` (throne) and `X` (corner), with `.` elsewhere. No move history is stored
+or serialized; `End:<reason>` appears only for terminal states.
 Ordered `@<move>` lines follow directly in model input. Titles, legends, role
 descriptions, and coordinate labels are omitted. The shared web workbench uses
 its text view.
+
+With the default 500-ply cap the complete model input is bounded by 2,019
+characters, including every legal action. An ongoing attacking side has at
+most 372 legal slides; each `\n@<move>` uses five characters. The board and
+headers use at most 159. Defenders have at most 13 pieces with 20 slides each,
+and terminal states have no actions.
+
+For the attacker bound, let `k` be the number of attackers and `s` the number
+of occupied rows plus occupied columns, ignoring enemy blockers. Rook mobility
+is at most `min(20*k, 20*s - 3*k)`: each piece can touch at most one board edge
+because corners are forbidden. When `s=22`, subtract the eight approaches to
+the forbidden corners, giving at most 372 moves; when `s<=21`, the bound is 363.
 
 Metrics count outcomes once per game and report attacker and defender win
 rates, draws, terminal status, and `end_reason` shares (including truncation).

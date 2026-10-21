@@ -1,11 +1,12 @@
 """11x11 Fetlar Hnefatafl, following the panel's 2018 printed rules.
 
 Source: https://aagenielsen.dk/fetlar_rules2018visual.pdf
-Player 0 attacks; player 1 defends. Coordinates a1..k11 start at the top left.
-Repetition and a configurable ply cap adjudicate otherwise indefinite games.
+Player 0 attacks; player 1 defends. Coordinates a1..kB start at the top left;
+ranks A and B denote rows 10 and 11. Moves name the source and changed axis.
+A configurable ply cap adjudicates otherwise indefinite games. Repetition
+draws are disabled so observations need no history.
 """
 
-from collections import Counter
 from dataclasses import dataclass
 import random
 
@@ -15,12 +16,20 @@ THRONE = (5, 5)
 CORNERS = frozenset(((0, 0), (0, 10), (10, 0), (10, 10)))
 RESTRICTED = CORNERS | {THRONE}
 CARDINAL = ((-1, 0), (1, 0), (0, -1), (0, 1))
+FILES = "abcdefghijk"
+RANKS = "123456789AB"
 Position = tuple[int, int]
 
 
 def coordinate(position: Position) -> str:
     row, col = position
-    return f"{chr(ord('a') + col)}{row + 1}"
+    return FILES[col] + RANKS[row]
+
+
+def position(text: str) -> Position:
+    if len(text) != 2 or text[0] not in FILES or text[1] not in RANKS:
+        raise ValueError(f"Invalid Hnefatafl coordinate: {text}")
+    return RANKS.index(text[1]), FILES.index(text[0])
 
 
 def on_board(position: Position) -> bool:
@@ -71,7 +80,22 @@ class Move:
     destination: Position
 
     def text(self) -> str:
-        return f"{coordinate(self.source)}>{coordinate(self.destination)}"
+        target = coordinate(self.destination)
+        changed_axis = target[0] if self.source[0] == self.destination[0] else target[1]
+        return coordinate(self.source) + changed_axis
+
+    @classmethod
+    def from_text(cls, text: str):
+        if len(text) != 3:
+            raise ValueError(f"Invalid Hnefatafl move: {text}")
+        source = position(text[:2])
+        if text[2] in FILES:
+            destination = source[0], FILES.index(text[2])
+        elif text[2] in RANKS:
+            destination = RANKS.index(text[2]), source[1]
+        else:
+            raise ValueError(f"Invalid Hnefatafl destination: {text[2]}")
+        return cls(source, destination)
 
 
 class Hnefatafl:
@@ -94,11 +118,9 @@ class Hnefatafl:
                     self.board[row, col] = DEFENDER
         self.board[THRONE] = KING
         self.turn = 0
-        self.history: list[str] = []
         self.captured = [0, 0]  # Removed soldiers of each side; excludes the king.
         self.end_reason = "ongoing"
         self._winner = None
-        self._positions = Counter({self._position_key(): 1})
         self._refresh_moves()
 
     def current_player(self):
@@ -109,11 +131,6 @@ class Hnefatafl:
 
     def king_position(self):
         return next((position for position, piece in self.board.items() if piece.royal), None)
-
-    def _position_key(self):
-        return self.current_player(), tuple(
-            (position, piece.symbol) for position, piece in sorted(self.board.items())
-        )
 
     def _piece_moves(self, source: Position, piece: Warrior):
         row, col = source
@@ -161,20 +178,14 @@ class Hnefatafl:
         for position in victims:
             victim = self.board.pop(position)
             self.captured[victim.player] += int(not victim.royal)
-        self.history.append(move)
         self.turn += 1
         king = self.king_position()
         if king is None:
             self._finish("king_captured", 0)
         elif king in CORNERS:
             self._finish("king_escaped", 1)
-        else:
-            key = self._position_key()
-            self._positions[key] += 1
-            if self._positions[key] >= 3:
-                self._finish("repetition")
-            elif self.turn >= self.max_plies:
-                self._finish("move_limit")
+        elif self.turn >= self.max_plies:
+            self._finish("move_limit")
         self._refresh_moves()
 
     def play_idx(self, index):
@@ -218,8 +229,6 @@ class Hnefatafl:
                     else "X" if position in CORNERS else "."
                 )
             lines.append("".join(cells))
-        # History makes the repetition state observable as well as copyable.
-        lines.append("H:" + (" ".join(self.history) or "-"))
         if self.ended():
             lines.append(f"End:{self.end_reason}")
         return "\n".join(lines)
@@ -233,11 +242,9 @@ class Hnefatafl:
         game.max_plies = self.max_plies
         game.board = self.board.copy()
         game.turn = self.turn
-        game.history = self.history.copy()
         game.captured = self.captured.copy()
         game.end_reason = self.end_reason
         game._winner = self._winner
-        game._positions = self._positions.copy()
         game._legal_moves = self._legal_moves.copy()
         game.moves = self.moves.copy()
         return game
