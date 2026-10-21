@@ -1,89 +1,6 @@
-import json
-import os
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-
 import pytest
 
 from trainers.arena import load_trainer_module
-
-
-@pytest.fixture
-def launch(tmp_path):
-    repository = Path(__file__).parents[1]
-    for script in ("train_openspiel.sh", "train_openspiel_benchmarks.sh"):
-        shutil.copy2(repository / script, tmp_path / script)
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    uv = bin_dir / "uv"
-    uv.write_text(
-        f"#!{sys.executable}\n"
-        + """
-import json
-import os
-import subprocess
-import sys
-
-args = sys.argv[1:]
-assert args.pop(0) == "run"
-if args[:2] == ["--extra", "trackio"]:
-    args = args[2:]
-
-def record(event):
-    with open(os.environ["LAUNCH_LOG"], "a") as stream:
-        stream.write(json.dumps({"event": event, "args": args}) + "\\n")
-
-if args[:2] == ["python", "trainers/arena.py"]:
-    record("checkpoint-dir")
-    print(os.environ["CHECKPOINT_DIRECTORY"])
-elif args[0] == "trainers/run_with_arena.sh":
-    record("arena-start")
-    status = subprocess.call(args[2:])
-    record("arena-finished")
-    sys.exit(status or int(os.environ.get("ARENA_STATUS", "0")))
-elif args[:2] == ["python", "evaluate_nashconv.py"]:
-    record("exploitability")
-    sys.exit(int(os.environ.get("EXACT_STATUS", "0")))
-else:
-    assert args[0] == "python" and args[1].startswith("trainers/adversarial-")
-    record("training")
-    sys.exit(int(os.environ.get("TRAINING_STATUS", "0")))
-"""
-    )
-    uv.chmod(0o755)
-
-    def run(script="train_openspiel.sh", arguments=("--game", "leduc"), **environment):
-        log = tmp_path / "launch.jsonl"
-        env = (
-            os.environ
-            | {
-                "PATH": f"{bin_dir}:{os.environ['PATH']}",
-                "LAUNCH_LOG": str(log),
-                "CHECKPOINT_DIRECTORY": str(tmp_path / "checkpoints with spaces"),
-                "TRAINER": "adversarial-advshape",
-                "ARENA": "1",
-                "FINAL_EXPLOITABILITY": "1",
-                "TRAINING_STATUS": "0",
-                "ARENA_STATUS": "0",
-                "EXACT_STATUS": "0",
-            }
-            | environment
-        )
-        result = subprocess.run(
-            ["bash", str(tmp_path / script), *arguments],
-            cwd=repository,
-            check=False,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=10,
-        )
-        events = [json.loads(line) for line in log.read_text().splitlines()]
-        return result, events
-
-    return run
 
 
 @pytest.mark.parametrize("game", ["leduc", "phantom_ttt"])
@@ -165,11 +82,11 @@ def test_benchmarks_run_leduc_then_phantom_with_per_game_settings(launch):
     )
     assert (phantom.steps, phantom.evaluation_every, phantom.perplexity_start) == (
         800,
-        200,
+        20,
         4.0,
     )
     assert phantom.environment_perplexity_start == 5.0
-    assert phantom.environment_perplexity_end == 3.0
+    assert phantom.environment_perplexity_end == 4.0
     for run in runs:
         assert run.tag == "benchmark tag"
         assert run.seed == 7

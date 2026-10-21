@@ -21,6 +21,34 @@ players need a custom Python loop with one lineup entry per seat. The lineup
 length is passed to the game constructor as `num_players`; a `num_players=4`
 game spec alone does not turn these scripts into four-player trainers.
 
+## Game launchers
+
+The root `train_*.sh` scripts contain game-specific overrides. Shared recipes
+and process setup live in `trainers/launch.sh`; Python trainer defaults are
+independent of these shell recipes. Arguments are applied in this order:
+
+```text
+shared training defaults -> game overrides -> explicit CLI arguments
+```
+
+For example, `train_century.sh` supplies Century's lambda values, rollout and
+evaluation counts, and evaluation opponent. Edit that script for Century
+tuning, or the shared recipe to change the common adversarial settings.
+The multi-trainer scripts use `advshape_overrides` and `ppo_overrides` arrays
+for settings specific to those algorithms.
+
+All game launchers load the repository's `.env`, run through `uv`, and support
+`TRACKIO=0`. Adversarial launchers enable the arena unless `ARENA=0` is set;
+`--help` skips arena startup and final evaluation. Existing `TRAINER`, tag,
+seed, and exploration environment overrides retain their per-script behavior.
+OpenSpiel also runs final exploitability evaluation unless
+`FINAL_EXPLOITABILITY=0` is set.
+
+```bash
+./train_century.sh --tag century-experiment
+ARENA=0 TRACKIO=0 ./train_the_game.sh --steps 100
+```
+
 ## Cooperative PPO
 
 This is a starting command for a larger run, not a claim of convergence:
