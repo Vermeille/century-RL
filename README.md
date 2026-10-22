@@ -7,6 +7,21 @@ algorithms are ordinary Python programs: the library supplies rollout,
 post-processing, optimization, metrics, checkpoint, and evaluation mechanics
 without owning the experiment loop.
 
+## Documentation
+
+Start with the [documentation home](docs/index.md), then follow the
+[quickstart](docs/quickstart.md) to train, evaluate, and play a tiny CPU model.
+
+- [Training programs and controls](docs/training.md)
+- [Game catalog](docs/games.md) and [adding a game](docs/adding-games.md)
+- [Writing algorithms](docs/training-library.md) and [internal data flow](docs/internals/rollouts.md)
+- [Evaluation and checkpoints](docs/evaluation.md)
+- [Browser game workbench and HTTP API](docs/web-server.md)
+
+The documentation has a searchable MkDocs site and a
+[GitHub Pages deployment workflow](docs/documentation.md). Preview locally with
+`uvx --from mkdocs==1.6.1 mkdocs serve`.
+
 ## Installation
 
 This project requires **Python 3.12+**. Install dependencies with [uv](https://github.com/astral-sh/uv):

@@ -13,11 +13,12 @@ these responsibilities:
   current round via `round()`.
 - Provide string representations with `display()` and
   `display_with_moves()`.
-- Apply moves through `play_str(move)` and optionally `play_idx(index)`.
-- Report when the game ends using `ended()` and expose the winner with
-  `winner()`.
-- Score outcomes with `points_for(player)` (and `points()` or
-  `diff_points()` for the current player).
+- Apply moves through `play_str(move)` and `play_idx(index)` using the same
+  ordered legal-action list.
+- Report terminal states with `ended()`. Cooperative outcomes also require
+  `won()`; `winner()` is an optional game-specific convenience.
+- Expose `points_for(player)`, `points()`, `diff_points_for(player)`, and
+  `diff_points()` with explicit score semantics.
 - Allow random playouts via `simulate_to_end()`.
 - Support cloning through `copy()`.
 
@@ -27,8 +28,9 @@ See [`tictactoe/game.py`](tictactoe/game.py) or
 ## 2. Metrics
 Include a `metrics.py` that defines a `Metrics(GameMetrics)` class. It accepts
 simulation traces and returns a nested dictionary from `metrics()`. Implement
-`print_short_history()` when a compact trace display is useful. Console,
-Trackio, and future sinks are supplied automatically. Examples can be found in
+`print_short_history()` when a compact trace display is useful. Experiments
+configure console, Trackio, or custom sinks through `MetricLogger`; the same
+metric values work with each sink. Examples can be found in
 [`connectfour/metrics.py`](connectfour/metrics.py) and
 [`sum/metrics.py`](sum/metrics.py).
 
@@ -70,20 +72,19 @@ the game. Century remains the main example because its Cython class cannot be
 introspected normally and requires custom import/setup work.
 
 ## 5. Web UI
-Games may expose a small web interface for manual play. Place a
-`ui.html` file in the game's directory and follow the pattern used by
-existing games:
 
-- Fetch the state from `/board` and render the board along with the
-  list of legal moves (lines prefixed by `@`).
-- Send actions to `/do` with a JSON body containing `action` and an
-  optional `strategy` selected from `/strategies`.
-- Provide an `Analyze` button that calls `/analyze` and visualises the
-  returned move values. A `Play` button can call `/play-one` to let the
-  server make a move.
-- Reuse the dark style seen in `tictactoe/ui.html` or
-  `connectfour/ui.html` for consistency.
-- Present move choices with direct UI controls (e.g. buttons or
-  drag-and-drop) rather than text prompts.
+The shared workbench discovers registered games automatically and offers a raw
+text fallback. Do not add a per-game HTML page. See
+[`docs/web-server.md`](../../docs/web-server.md) for the canonical HTTP API,
+checkpoint discovery, renderer contract, and tests.
 
-Refer to those HTML files for concrete examples when adding a new UI.
+- Read the canonical snapshot from `/state?game=<spec>`; use its ordered `moves`
+  list for controls instead of scraping the observation.
+- Submit one move to `/do-one` as JSON `{ "action": "<move>" }`.
+- Add visual renderers in `boardrl/serve/static/app.js`, emitting
+  `data-action="<move>"` controls and preserving the raw-state view.
+- Run `tests/test_serve.py`, `tests/test_serve_tictactoe.py`, and
+  `node --check boardrl/serve/static/app.js` for renderer changes.
+
+The complete game tutorial and protocol are in
+[`docs/adding-games.md`](../../docs/adding-games.md).

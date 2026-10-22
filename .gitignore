@@ -10,3 +10,4 @@ boardrl/games/century/engine.cpython-*.so
 .env
 checkpoints/
 training-logs/
+site/

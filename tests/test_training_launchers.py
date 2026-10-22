@@ -11,7 +11,7 @@ SELECTABLE = {"2048", "connectfour", "openspiel"}
 COOPERATIVE = {"hanabi", "regicide", "the_game"}
 
 # Existing recipes: game, steps, GAE/value lambdas, inference/learner batches,
-# rollout games, evaluation games.
+# rollout games, evaluation games. These include the current Skull King edit.
 RECIPES = {
     "2048": ("2048versus,nolimits=True", 1800, 0, 1, 256, 128, 128, 128),
     "century": ("century", 600, 0.5, 0.8, 256, 128, 64, 128),
@@ -21,7 +21,7 @@ RECIPES = {
     "regicide": ("regicide", 900, 0.1, 0.9, 128, 96, 128, 512),
     "rps": ("rps", 600, 0.2, 0.5, 256, 128, 128, 256),
     "santorini": ("santorini", 600, 0.2, 0.5, 256, 128, 128, 256),
-    "skullking": ("skullking,num_players=2,num_rounds=5", 600, 0.5, 0.9, 256, 128, 128, 128),
+    "skullking": ("skullking,num_players=2", 600, 0.5, 0.9, 256, 128, 128, 128),
     "splendor": ("splendor", 600, 0.5, 0.8, 256, 128, 64, 128),
     "take5": ("take5,num_players=2", 1800, 0, 1, 1024, 2048, 512, 512),
     "the_game": ("thegame,mode=omni", 1800, 0, 1, 1024, 384, 128, 512),

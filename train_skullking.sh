@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/trainers/launch.sh"
 
 train_adversarial adversarial-advshape \
-  --game skullking,num_players=2,num_rounds=5 \
+  --game skullking,num_players=2 \
   --perplexity-start "${AGENT_PPL_START:-1.2}" \
   --environment-perplexity-start "${ENVIRONMENT_PPL_START:-1.6}" \
   --environment-perplexity-end "${ENVIRONMENT_PPL_END:-1.1}" \
